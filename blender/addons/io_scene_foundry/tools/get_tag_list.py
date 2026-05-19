@@ -3,7 +3,7 @@
 from pathlib import Path
 import bpy
 import os
-from ..utils import get_prefs, get_project_path, get_scene_props, get_tags_path, is_corinth, os_sep_partition, redraw_area
+from ..utils import get_prefs, get_project_path, get_scene_props, get_tags_path, is_corinth, os_sep_partition, redraw_area, relative_path
 
 global_items = {}
 cinematic_event_props = ("sound_tag", "female_sound_tag", "effect", "music")
@@ -237,7 +237,7 @@ class NWO_TagExplore(bpy.types.Operator):
             nwo = event.event_data[event.active_event_data_index]
         else:
             nwo = context.object.nwo
-        setattr(nwo, self.prop, self.filepath)
+        setattr(nwo, self.prop, relative_path(self.filepath))
         return {"FINISHED"}
 
     def invoke(self, context, event):

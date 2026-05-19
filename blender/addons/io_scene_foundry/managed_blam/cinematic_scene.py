@@ -450,7 +450,7 @@ class CinematicCustomScript:
                     self.script = f'damage_object {obj_text} "{event.script_region}" {event.script_damage}'
             case 'PLAY_SOUND':
                 if event.sound_tag.strip():
-                    self.script = f'sound_impulse_start {event.sound_tag} {obj_text} {event.script_factor}'
+                    self.script = f'sound_impulse_start {utils.relative_path(event.sound_tag)} {obj_text} {event.script_factor}'
             case 'SOUND_CLASS_GAIN':
                 self.script = f'sound_class_set_gain_db "{event.script_text}" {event.script_float} {int(event.script_seconds * utils.real_frame_rate())}'
             case 'SOUND_ENABLE_DUCKER':

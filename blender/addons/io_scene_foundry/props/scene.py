@@ -2062,14 +2062,23 @@ class NWO_CinematicEvent(PropertyGroup):
         description="Stop this event rather than starting it at the given frame",
     )
     
+    def sound_tag_clean_tag_path(self, context):
+        self["sound_tag"] = utils.clean_tag_path(self["sound_tag"], "sound").strip('"')
+    
     # Dialogue
     sound_tag: bpy.props.StringProperty(
         name="Sound Tag",
-        description="Tag relative path to the sound tag to play"
+        description="Tag relative path to the sound tag to play",
+        update=sound_tag_clean_tag_path,
     )
+    
+    def female_tag_sound_clean_tag_path(self, context):
+        self["female_sound_tag"] = utils.clean_tag_path(self["female_sound_tag"], "sound").strip('"')
+    
     female_sound_tag: bpy.props.StringProperty(
         name="Female Sound Tag",
-        description="Tag relative path to the sound tag to play instead of the default if the actor making the sound is female (such as a female player). If this is not set, the default sound will always be used"
+        description="Tag relative path to the sound tag to play instead of the default if the actor making the sound is female (such as a female player). If this is not set, the default sound will always be used",
+        update=female_tag_sound_clean_tag_path,
     )
     
     sound_scale: bpy.props.FloatProperty(
@@ -2121,10 +2130,15 @@ class NWO_CinematicEvent(PropertyGroup):
     )
     
     # Effect
+    
+    def effect_clean_tag_path(self, context):
+        self["effect"] = utils.clean_tag_path(self["effect"], "effect").strip('"')
+    
     effect: bpy.props.StringProperty(
         name="Effect Tag",
         description="Tag relative path to the effect tag this event uses",
         options=set(),
+        update=effect_clean_tag_path,
     )
     
     marker: bpy.props.PointerProperty(
