@@ -1503,18 +1503,18 @@ class VirtualMesh:
                 valid_lengths = lengths > 0.0
                 vertex_normals[valid_lengths] /= lengths[valid_lengths, None]
 
-                if ob.data.nwo.from_vert_normals:
-                    # For meshes imported as custom vertex normals, always export vertex-style normals.
-                    self.normals = vertex_normals[loop_vertex_indices]
-                else:
-                    # Otherwise, only collapse vertices whose loop normals are already consistent.
-                    diff = np.linalg.norm(self.normals - vertex_normals[loop_vertex_indices], axis=1)
-                    max_diff_per_vertex = np.zeros(num_vertices, dtype=np.single)
-                    np.maximum.at(max_diff_per_vertex, loop_vertex_indices, diff)
-                    consistent_vertices = max_diff_per_vertex <= 1.0e-4
-                    if consistent_vertices.any():
-                        consistent_loops = consistent_vertices[loop_vertex_indices]
-                        self.normals[consistent_loops] = vertex_normals[loop_vertex_indices[consistent_loops]]
+                # if ob.data.nwo.from_vert_normals:
+                #     # For meshes imported as custom vertex normals, always export vertex-style normals.
+                #     self.normals = vertex_normals[loop_vertex_indices]
+                # else:
+                # Otherwise, only collapse vertices whose loop normals are already consistent.
+                diff = np.linalg.norm(self.normals - vertex_normals[loop_vertex_indices], axis=1)
+                max_diff_per_vertex = np.zeros(num_vertices, dtype=np.single)
+                np.maximum.at(max_diff_per_vertex, loop_vertex_indices, diff)
+                consistent_vertices = max_diff_per_vertex <= 1.0e-4
+                if consistent_vertices.any():
+                    consistent_loops = consistent_vertices[loop_vertex_indices]
+                    self.normals[consistent_loops] = vertex_normals[loop_vertex_indices[consistent_loops]]
 
             for idx, layer in enumerate(mesh.uv_layers):
                 if len(self.texcoords) >= 4:

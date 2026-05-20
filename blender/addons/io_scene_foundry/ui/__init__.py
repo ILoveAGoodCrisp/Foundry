@@ -272,7 +272,7 @@ classes = [
     sets.NWO_PermutationsContextMenu,
     sets.NWO_UL_Regions,
     sets.NWO_UL_Permutations,
-    properties.MESH_PT_FoundryMeshData,
+    # properties.MESH_PT_FoundryMeshData,
     cinematic.NWO_UL_CameraActors,
     cinematic.NWO_OT_CameraActorAdd,
     cinematic.NWO_OT_CameraActorRemove,

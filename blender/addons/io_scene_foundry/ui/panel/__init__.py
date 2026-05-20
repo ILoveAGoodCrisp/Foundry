@@ -4110,6 +4110,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = box.row(align=True)
         row.prop(prefs, "import_shaders_with_time_period")
         row = box.row(align=True)
+        row.prop(prefs, "default_import_template")
+        row = box.row(align=True)
         row.prop(prefs, "allow_tool_patches")
         row = box.row(align=True)
         row.prop(prefs, "allow_foundation_plugin_install")

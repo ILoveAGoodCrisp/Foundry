@@ -22,6 +22,18 @@ IDENTITY_MATRIX = Matrix.Identity(4)
 
 OBJECT_TAG_EXTS = {'.biped', '.crate', '.creature', '.device_control', '.device_dispenser', '.effect_scenery', '.equipment', '.giant', '.device_machine', '.projectile', '.scenery', '.spawner', '.sound_scenery', '.device_terminal', '.vehicle', '.weapon'}
 
+IMPORT_TEMPLATE_EVERYTHING = "everything"
+IMPORT_TEMPLATE_REIMPORT = "reimport"
+IMPORT_TEMPLATE_VIEWING = "viewing"
+IMPORT_TEMPLATE_DEFAULT = "default"
+
+IMPORT_TEMPLATE_ITEMS = (
+    (IMPORT_TEMPLATE_DEFAULT, "Default", "Use Foundry's normal importer defaults"),
+    (IMPORT_TEMPLATE_EVERYTHING, "Everything", "Import every supported model/object component"),
+    (IMPORT_TEMPLATE_REIMPORT, "Reimport", "Import export-focused data and skip viewing extras like attachments and generated Blender materials"),
+    (IMPORT_TEMPLATE_VIEWING, "Viewing", "Import viewport-friendly data and skip reimport data like collision and physics"),
+)
+
 # IDENTITY_MATRIX = Matrix(((1.0, 2.384185791015625e-07, 0.0, 0.0),
 #         (-2.384185791015625e-05, 1.0, 0.0, 0.0),
 #         (0.0, 0.0, 1.0, 0.0),

@@ -66,7 +66,17 @@ from ..tools.rigging import HaloRig, aim_pitch_name, aim_yaw_name, needs_reach_f
 from ..tools.rigging.create_rig import bake_imported_actions_to_control_rig
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
-from ..constants import IDENTITY_MATRIX, OBJECT_TAG_EXTS, VALID_MESHES, WU_SCALAR
+from ..constants import (
+    IDENTITY_MATRIX,
+    IMPORT_TEMPLATE_DEFAULT,
+    IMPORT_TEMPLATE_EVERYTHING,
+    IMPORT_TEMPLATE_ITEMS,
+    IMPORT_TEMPLATE_REIMPORT,
+    IMPORT_TEMPLATE_VIEWING,
+    OBJECT_TAG_EXTS,
+    VALID_MESHES,
+    WU_SCALAR,
+)
 from ..managed_blam.connected_material import GameFunctionType, game_functions
 from .. import utils
 from .model_to_instance import ModelInstance
@@ -77,6 +87,275 @@ legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 DECORATOR_INSTANCER_GROUP = "Instanced Decorators"
+
+IMPORT_TEMPLATE_VALUES = {
+    IMPORT_TEMPLATE_EVERYTHING: {
+        "tag_render": True,
+        "tag_markers": True,
+        "tag_collision": True,
+        "tag_physics": True,
+        "tag_animation": True,
+        "tag_import_lights": True,
+        "tag_import_attachments": True,
+        "build_blender_materials": True,
+        "setup_as_asset": True,
+        "from_vert_normals": False,
+        "import_variant_children": True,
+        "import_biped_weapon": True,
+        "tag_bsp_import_geometry": True,
+        "tag_bsp_skip_structure_merge": False,
+        "tag_bsp_render_only": False,
+        "tag_bsp_import_havok": True,
+        "tag_import_design": True,
+        "tag_scenario_import_objects": True,
+        "tag_scenario_import_decals": True,
+        "tag_scenario_import_decorators": True,
+    },
+    IMPORT_TEMPLATE_REIMPORT: {
+        "tag_render": True,
+        "tag_markers": True,
+        "tag_collision": True,
+        "tag_physics": True,
+        "tag_animation": True,
+        "tag_import_lights": True,
+        "tag_import_attachments": False,
+        "build_blender_materials": False,
+        "setup_as_asset": True,
+        "from_vert_normals": False,
+        "import_variant_children": True,
+        "import_biped_weapon": False,
+        "tag_bsp_import_geometry": True,
+        "tag_bsp_skip_structure_merge": False,
+        "tag_bsp_render_only": False,
+        "tag_bsp_import_havok": True,
+        "tag_import_design": True,
+        "tag_scenario_import_objects": False,
+        "tag_scenario_import_decals": False,
+        "tag_scenario_import_decorators": False,
+    },
+    IMPORT_TEMPLATE_VIEWING: {
+        "tag_render": True,
+        "tag_markers": True,
+        "tag_collision": False,
+        "tag_physics": False,
+        "tag_animation": False,
+        "tag_import_lights": True,
+        "tag_import_attachments": True,
+        "build_blender_materials": True,
+        "setup_as_asset": False,
+        "from_vert_normals": False,
+        "import_variant_children": True,
+        "import_biped_weapon": False,
+        "tag_bsp_import_geometry": True,
+        "tag_bsp_skip_structure_merge": False,
+        "tag_bsp_render_only": True,
+        "tag_bsp_import_havok": False,
+        "tag_import_design": False,
+        "tag_scenario_import_objects": True,
+        "tag_scenario_import_decals": True,
+        "tag_scenario_import_decorators": True,
+    },
+}
+
+MODEL_IMPORT_TYPES = {
+    "model",
+    "biped",
+    "crate",
+    "creature",
+    "device_control",
+    "device_dispenser",
+    "effect_scenery",
+    "equipment",
+    "giant",
+    "device_machine",
+    "projectile",
+    "scenery",
+    "spawner",
+    "sound_scenery",
+    "device_terminal",
+    "vehicle",
+    "weapon",
+}
+
+TEMPLATED_IMPORT_TYPES = MODEL_IMPORT_TYPES | {
+    "render_model",
+    "scenario",
+    "scenario_structure_bsp",
+    "prefab",
+}
+
+TEMPLATED_IMPORT_SCOPES = {
+    "model",
+    "object",
+    "render_model",
+    "scenario",
+    "scenario_structure_bsp",
+    "prefab",
+}
+
+def apply_import_template(operator, template):
+    values = IMPORT_TEMPLATE_VALUES.get(template)
+    if values is None:
+        return
+
+    for prop_name, value in values.items():
+        if prop_name == "tag_bsp_import_havok" and not utils.is_corinth():
+            continue
+        if hasattr(operator, prop_name):
+            setattr(operator, prop_name, value)
+
+def import_template_update(self, context):
+    apply_import_template(self, self.import_template)
+
+def import_template_applies(operator):
+    import_type = getattr(operator, "import_type", "")
+    if import_type:
+        return import_type in TEMPLATED_IMPORT_TYPES
+
+    scope = getattr(operator, "scope", "")
+    if not scope:
+        return True
+
+    return any(item in scope for item in TEMPLATED_IMPORT_SCOPES)
+
+def set_default_import_template(operator):
+    if not import_template_applies(operator):
+        return
+
+    template = getattr(utils.get_prefs(), "default_import_template", IMPORT_TEMPLATE_DEFAULT)
+    if template != IMPORT_TEMPLATE_DEFAULT and template not in IMPORT_TEMPLATE_VALUES:
+        template = IMPORT_TEMPLATE_DEFAULT
+    operator.import_template = template
+    apply_import_template(operator, template)
+
+def draw_import_template(operator, layout):
+    row = layout.row()
+    row.prop(operator, "import_template", text="Template")
+
+def draw_animation_graph_import_options(operator, layout, corinth, include_generate_frames=False):
+    box = layout.box()
+    box.prop(operator, "tag_animation")
+    col = box.column(align=True)
+    col.enabled = operator.tag_animation
+    col.prop(operator, "tag_animation_filter")
+    col.prop(operator, "graph_import_animations")
+    if corinth:
+        row = col.row()
+        row.enabled = operator.tag_animation and operator.graph_import_animations
+        row.prop(operator, "graph_import_pca_data")
+    col.prop(operator, "graph_generate_renames")
+    col.prop(operator, "graph_import_events")
+    col.prop(operator, "graph_import_ik_chains")
+    if include_generate_frames:
+        col.prop(operator, "generate_frames")
+
+def draw_graph_import_options(operator, layout, corinth):
+    layout.prop(operator, "tag_animation_filter")
+    layout.prop(operator, "graph_import_animations")
+    if corinth:
+        row = layout.row()
+        row.enabled = operator.graph_import_animations
+        row.prop(operator, "graph_import_pca_data")
+    layout.prop(operator, "graph_generate_renames")
+    layout.prop(operator, "graph_import_events")
+    layout.prop(operator, "graph_import_ik_chains")
+
+def draw_model_source_options(operator, layout, corinth, show_model_override, show_variant, show_state=True):
+    if not show_model_override and not show_variant:
+        return
+
+    box = layout.box()
+    box.label(text="Selection")
+    if show_model_override and corinth:
+        box.prop(operator, "tag_model_override_type")
+    if show_variant:
+        box.prop(operator, "tag_variant")
+        if show_state and getattr(operator, "tag_variant", "") != "all_variants":
+            box.prop(operator, "tag_state")
+            if getattr(operator, "tag_markers", False):
+                box.prop(operator, "import_variant_children")
+
+def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True):
+    if show_template:
+        draw_import_template(operator, layout)
+
+    if show_source:
+        draw_model_source_options(operator, layout, corinth, has_variants, has_variants)
+
+    rig_box = layout.box()
+    rig_box.label(text="Rigging")
+    rig_box.prop(operator, "reuse_armature")
+    rig_box.prop(operator, "build_control_rig")
+
+    core_box = layout.box()
+    core_box.label(text="Core Model")
+    core_box.prop(operator, "tag_render")
+    core_box.prop(operator, "tag_markers")
+
+    reimport_box = layout.box()
+    reimport_box.label(text="Game Reimport")
+    reimport_box.prop(operator, "setup_as_asset")
+    reimport_box.prop(operator, "tag_collision")
+    reimport_box.prop(operator, "tag_physics")
+    # reimport_box.prop(operator, "from_vert_normals")
+
+    draw_animation_graph_import_options(operator, layout, corinth, include_generate_frames)
+
+    view_box = layout.box()
+    view_box.label(text="Blender Viewing")
+    if corinth:
+        view_box.prop(operator, "tag_import_lights")
+    view_box.prop(operator, "tag_import_attachments")
+    if show_fp_arms:
+        view_box.prop(operator, "import_fp_arms", text="FP Arms (Weapon Only)")
+    if show_biped_weapon:
+        view_box.prop(operator, "import_biped_weapon")
+    if show_biped_weapon and getattr(operator, "import_biped_weapon", False):
+        view_box.prop(operator, "biped_weapon_source")
+    if show_material_options:
+        view_box.prop(operator, "build_blender_materials")
+        view_box.prop(operator, "always_extract_bitmaps")
+
+def draw_scenario_import_sections(operator, layout, corinth, show_template=True, show_zone_set=False, show_sky=False, show_scenario_content=False, show_setup_as_asset=True):
+    if show_template:
+        draw_import_template(operator, layout)
+
+    if show_zone_set or show_sky:
+        source_box = layout.box()
+        source_box.label(text="Selection")
+        if show_zone_set:
+            source_box.prop(operator, "tag_zone_set")
+
+    core_box = layout.box()
+    core_box.label(text="Core")
+    core_box.prop(operator, "tag_bsp_import_geometry")
+    core_box.prop(operator, "tag_import_lights")
+
+    reimport_box = layout.box()
+    reimport_box.label(text="Game Reimport")
+    if show_setup_as_asset:
+        reimport_box.prop(operator, "setup_as_asset")
+    reimport_col = reimport_box.column(align=True)
+    reimport_col.enabled = not operator.tag_bsp_render_only
+    reimport_col.prop(operator, "tag_bsp_skip_structure_merge")
+    if corinth:
+        reimport_col.prop(operator, "tag_bsp_import_havok")
+    reimport_col.prop(operator, "tag_import_design")
+
+    view_box = layout.box()
+    view_box.label(text="Blender Viewing")
+    view_box.prop(operator, "tag_bsp_render_only")
+    if show_sky:
+        view_box.prop(operator, "tag_sky")
+    if show_scenario_content:
+        view_box.prop(operator, "tag_scenario_import_objects")
+        view_box.prop(operator, "tag_scenario_import_decals")
+        view_box.prop(operator, "tag_scenario_import_decorators")
+        row = view_box.row()
+        row.enabled = operator.tag_scenario_import_decorators
+        row.prop(operator, "decorator_lod")
+    view_box.prop(operator, "build_blender_materials")
+    view_box.prop(operator, "always_extract_bitmaps")
 
 def _decorator_cloud_marker_data(cloud: bpy.types.Object):
     tag_path = cloud.get(DECORATOR_TAG_PROP) or cloud.nwo.marker_game_instance_tag_name
@@ -672,6 +951,15 @@ class NWO_Import(bpy.types.Operator):
         subtype='FILE_PATH',
         options={"HIDDEN"},
     )
+
+    import_template: bpy.props.EnumProperty(
+        name="Template",
+        description="Preset for common import goals",
+        items=IMPORT_TEMPLATE_ITEMS,
+        options={'SKIP_SAVE'},
+        default=IMPORT_TEMPLATE_DEFAULT,
+        update=import_template_update,
+    )
     
     # find_shader_paths: bpy.props.BoolProperty(
     #     name="Find Shader Paths",
@@ -1245,7 +1533,7 @@ class NWO_Import(bpy.types.Operator):
                         importer.biped_weapon_source = self.biped_weapon_source
                         importer.setup_as_asset = self.setup_as_asset
                         importer.import_fp_arms = FPARMS[self.import_fp_arms]
-                        importer.from_vert_normals = self.from_vert_normals
+                        # importer.from_vert_normals = self.from_vert_normals
                         importer.tag_import_lights = self.tag_import_lights
                         importer.build_control_rig = self.build_control_rig
                         importer.tag_import_attachments = self.tag_import_attachments
@@ -1271,7 +1559,7 @@ class NWO_Import(bpy.types.Operator):
                 elif 'render_model' in importer.extensions:
                     importer.tag_render = self.tag_render
                     importer.tag_markers = self.tag_markers
-                    importer.from_vert_normals = self.from_vert_normals
+                    # importer.from_vert_normals = self.from_vert_normals
                     importer.build_control_rig = self.build_control_rig
                     render_model_files = importer.sorted_filepaths["render_model"]
                     existing_armature = None
@@ -1908,6 +2196,7 @@ class NWO_Import(bpy.types.Operator):
         if not self.setup_as_asset and not utils.valid_nwo_asset(context) and not checked_asset_once:
             checked_asset_once = True
             self.setup_as_asset = True
+        set_default_import_template(self)
         
         if 'bitmap' in self.scope:
             self.directory = utils.get_tags_path()
@@ -1977,6 +2266,7 @@ class NWO_Import(bpy.types.Operator):
         layout = self.layout
         layout.scale_y = 1.25
         corinth = utils.is_corinth(context)
+        scope_items = set(self.scope.split(',')) if self.scope else set()
         if not self.scope or ('amf' in self.scope or 'jms' in self.scope or 'model' in self.scope or 'object' in self.scope):
             box = layout.box()
             box.label(text="Model Settings")
@@ -1986,63 +2276,30 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'always_extract_bitmaps')
             
         if not self.scope or ('model' in self.scope) or ('object' in self.scope):
-            box = layout.box()
-            box.label(text='Model Tag Settings')
-            box.prop(self, 'reuse_armature')
-            box.prop(self, "build_control_rig")
-            box.prop(self, 'tag_render')
-            box.prop(self, 'tag_markers')
-            box.prop(self, 'tag_collision')
-            box.prop(self, 'tag_physics')
-            box.prop(self, 'tag_animation')
-            if self.tag_animation:
-                sub_box = box.box()
-                sub_box.prop(self, "tag_animation_filter")
-                sub_box.prop(self, "graph_import_animations")
-                if self.graph_import_animations and corinth:
-                    sub_box.prop(self, "graph_import_pca_data")
-                sub_box.prop(self, "graph_generate_renames")
-                sub_box.prop(self, "graph_import_events")
-                sub_box.prop(self, "graph_import_ik_chains")
-                sub_box.prop(self, "generate_frames")
-            if corinth:
-                box.prop(self, "tag_import_lights")
-                box.prop(self, "tag_model_override_type")
-            box.prop(self, 'tag_variant')
-            box.prop(self, 'tag_state')
-            if self.tag_variant and self.tag_markers:
-                box.prop(self, "import_variant_children")
+            layout.label(text='Model Tag Settings')
+            draw_model_tag_import_sections(
+                self,
+                layout,
+                corinth,
+                show_template=True,
+                show_source=True,
+                has_variants=True,
+                include_generate_frames=True,
+                show_material_options=False,
+            )
             
-            box.prop(self, 'import_biped_weapon')
-            if self.import_biped_weapon:
-                box.prop(self, "biped_weapon_source")
-            box.prop(self, "setup_as_asset")
-            box.prop(self, "from_vert_normals")
-            box.prop(self, "tag_import_attachments")
-            box.prop(self, "import_fp_arms", text="FP Arms (Weapon Only)")
-            
-        if not self.scope or ('scenario' in self.scope) or ('scenario_structure_bsp' in self.scope):
-            box = layout.box()
-            tag_type = 'material' if corinth else 'shader'
-            box.label(text='Scenario Tag Settings')
-            box.prop(self, 'tag_zone_set')
-            box.prop(self, "tag_bsp_import_geometry")
-            box.prop(self, "tag_bsp_skip_structure_merge")
-            box.prop(self, "tag_bsp_render_only")
-            if corinth:
-                box.prop(self, "tag_bsp_import_havok")
-            box.prop(self, "tag_import_design")
-            box.prop(self, "tag_import_lights")
-            box.prop(self, "tag_sky")
-            box.prop(self, "tag_scenario_import_objects")
-            box.prop(self, "tag_scenario_import_decals")
-            box.prop(self, "tag_scenario_import_decorators")
-            if self.tag_scenario_import_decorators:
-                box.prop(self, "decorator_lod")
-            box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
-            box.prop(self, 'always_extract_bitmaps')
-            if not self.scope or ('scenario' in self.scope):
-                box.prop(self, "setup_as_asset")
+        if not self.scope or ('scenario' in scope_items) or ('scenario_structure_bsp' in scope_items):
+            layout.label(text='Scenario Tag Settings')
+            draw_scenario_import_sections(
+                self,
+                layout,
+                corinth,
+                show_template=True,
+                show_zone_set=not self.scope or ('scenario' in scope_items),
+                show_sky=not self.scope or ('scenario' in scope_items),
+                show_scenario_content=not self.scope or ('scenario' in scope_items),
+                show_setup_as_asset=not self.scope or ('scenario' in scope_items) or ('scenario_structure_bsp' in scope_items),
+            )
         
         if not self.scope or 'jms' in self.scope:
             box = layout.box()
@@ -4661,6 +4918,14 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     files: bpy.props.CollectionProperty(type=bpy.types.OperatorFileListElement, options={'SKIP_SAVE', 'HIDDEN'})
     
     filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})
+    import_template: bpy.props.EnumProperty(
+        name="Template",
+        description="Preset for common import goals",
+        items=IMPORT_TEMPLATE_ITEMS,
+        options={'SKIP_SAVE'},
+        default=IMPORT_TEMPLATE_DEFAULT,
+        update=import_template_update,
+    )
     # filename: bpy.props.StringProperty(options={'SKIP_SAVE'})
     # filter_glob: bpy.props.StringProperty(
     #     default=".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.scenery;.biped;.model_animation_graph",
@@ -5055,6 +5320,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     
     def execute(self, context):
         keywords = self.as_keywords()
+        keywords.pop("import_template", None)
         keywords['files'] = [{'name': f.name} for f in self.files]
         bpy.ops.nwo.foundry_import(**keywords)
         return {'FINISHED'}
@@ -5072,6 +5338,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         self.has_variants = False
         self.has_zone_sets = False
         self.import_type = Path(self.filepath).suffix[1:].lower()
+        set_default_import_template(self)
         if scene_nwo.asset_type == "cinematic":
             self.tag_bsp_render_only = True
             self.tag_collision = False
@@ -5156,46 +5423,21 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         corinth = utils.is_corinth(context)
         match self.import_type:
             case "model" | "biped" | "crate" | "creature" | "device_control" | "device_dispenser" | "effect_scenery" | "equipment" | "giant" | "device_machine" | "projectile" | "scenery" | "spawner" | "sound_scenery" | "device_terminal" | "vehicle" | "weapon":
-                if self.has_variants:
-                    if corinth:
-                        layout.prop(self, "tag_model_override_type")
-                    layout.prop(self, "tag_variant")
-                    if self.tag_variant != "all_variants":
-                        layout.prop(self, "tag_state")
-                        if self.tag_markers:
-                            layout.prop(self, "import_variant_children")
                 if self.place_at_mouse:
+                    if self.has_variants:
+                        draw_model_source_options(self, layout, corinth, True, True)
                     layout.prop(self, "convert_to_instance")
                 else:
-                    layout.prop(self, "reuse_armature")
-                    layout.prop(self, "build_control_rig")
-                    layout.prop(self, "tag_render")
-                    layout.prop(self, "tag_markers")
-                    layout.prop(self, "tag_collision")
-                    layout.prop(self, "tag_physics")
-                    layout.prop(self, "tag_animation")
-                    if self.tag_animation:
-                        box = layout.box()
-                        box.prop(self, "tag_animation_filter")
-                        box.prop(self, "graph_import_animations")
-                        if self.graph_import_animations and corinth:
-                            box.prop(self, "graph_import_pca_data")
-                        box.prop(self, "graph_generate_renames")
-                        box.prop(self, "graph_import_events")
-                        box.prop(self, "graph_import_ik_chains")
-                    if corinth:
-                        layout.prop(self, "tag_import_lights")
-                    layout.prop(self, "setup_as_asset")
-                    layout.prop(self, "from_vert_normals")
-                    layout.prop(self, "tag_import_attachments")
-                    if self.import_type == "weapon":
-                        layout.prop(self, "import_fp_arms")
-                    elif self.import_type == "biped":
-                        layout.prop(self, "import_biped_weapon")
-                        if self.import_biped_weapon:
-                            layout.prop(self, "biped_weapon_source")
-                layout.prop(self, "build_blender_materials")
-                layout.prop(self, "always_extract_bitmaps")
+                    draw_model_tag_import_sections(
+                        self,
+                        layout,
+                        corinth,
+                        show_template=True,
+                        show_source=self.has_variants,
+                        has_variants=self.has_variants,
+                        show_fp_arms=self.import_type == "weapon",
+                        show_biped_weapon=self.import_type == "biped",
+                    )
             case 'decorator_set':
                 layout.prop(self, "decorator_type")
                 if self.place_at_mouse:
@@ -5208,49 +5450,38 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
             case "render_model":
+                draw_import_template(self, layout)
                 layout.prop(self, "build_control_rig")
                 if self.has_variants:
                     layout.prop(self, "tag_variant")
                 layout.prop(self, "tag_markers")
-                layout.prop(self, "from_vert_normals")
+                # layout.prop(self, "from_vert_normals")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
             case "scenario":
-                layout.prop(self, "tag_zone_set")
-                layout.prop(self, "tag_bsp_import_geometry")
-                layout.prop(self, "tag_bsp_skip_structure_merge")
-                layout.prop(self, "tag_bsp_render_only")
-                if corinth:
-                    layout.prop(self, "tag_bsp_import_havok")
-                layout.prop(self, "tag_import_design")
-                layout.prop(self, "tag_import_lights")
-                layout.prop(self, "tag_sky")
-                layout.prop(self, "tag_scenario_import_objects")
-                layout.prop(self, "tag_scenario_import_decals")
-                layout.prop(self, "tag_scenario_import_decorators")
-                if self.tag_scenario_import_decorators:
-                    layout.prop(self, "decorator_lod")
-                layout.prop(self, "setup_as_asset")
-                layout.prop(self, "build_blender_materials")
-                layout.prop(self, "always_extract_bitmaps")
+                draw_scenario_import_sections(
+                    self,
+                    layout,
+                    corinth,
+                    show_template=True,
+                    show_zone_set=True,
+                    show_sky=True,
+                    show_scenario_content=True,
+                    show_setup_as_asset=True,
+                )
             case "scenario_structure_bsp" | "prefab":
-                layout.prop(self, "tag_bsp_import_geometry")
-                layout.prop(self, "tag_bsp_skip_structure_merge")
-                layout.prop(self, "tag_bsp_render_only")
-                if corinth:
-                    layout.prop(self, "tag_bsp_import_havok")
-                layout.prop(self, "tag_import_lights")
-                layout.prop(self, "setup_as_asset")
-                layout.prop(self, "build_blender_materials")
-                layout.prop(self, "always_extract_bitmaps")
+                draw_scenario_import_sections(
+                    self,
+                    layout,
+                    corinth,
+                    show_template=True,
+                    show_zone_set=False,
+                    show_sky=False,
+                    show_scenario_content=False,
+                    show_setup_as_asset=True,
+                )
             case "model_animation_graph":
-                layout.prop(self, "tag_animation_filter")
-                layout.prop(self, "graph_import_animations")
-                if self.graph_import_animations and corinth:
-                    layout.prop(self, "graph_import_pca_data")
-                layout.prop(self, "graph_generate_renames")
-                layout.prop(self, "graph_import_events")
-                layout.prop(self, "graph_import_ik_chains")
+                draw_graph_import_options(self, layout, corinth)
             case "camera_track":
                 layout.prop(self, "camera_track_animation_scale")
                 layout.prop(self, "setup_as_asset")

@@ -6,6 +6,7 @@ from bpy.types import Operator, AddonPreferences
 from bpy.props import BoolProperty, StringProperty, EnumProperty, CollectionProperty
 
 from . import startup
+from .constants import IMPORT_TEMPLATE_DEFAULT, IMPORT_TEMPLATE_ITEMS
 from .utils import ProjectXML, get_prefs, get_scene_props, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list, addon_root, formalise_string
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry"
 import bpy
@@ -272,6 +273,13 @@ class FoundryPreferences(AddonPreferences):
         default=False,
         description="Allows importing of animated functions when importing a Halo shader or material tag into Blender. Animated shaders can be taxing on Blender when the timeline is playing"
     )
+
+    default_import_template: EnumProperty(
+        name="Default Import Template",
+        description="The preset selected by default in the Foundry drag and drop importer",
+        default=IMPORT_TEMPLATE_DEFAULT,
+        items=IMPORT_TEMPLATE_ITEMS,
+    )
     
     allow_tool_patches: BoolProperty(
         name="Allow Tool Patches",
@@ -390,6 +398,8 @@ class FoundryPreferences(AddonPreferences):
         row.prop(prefs, "debug_menu_on_launch")
         row = box.row(align=True)
         row.prop(prefs, "import_shaders_with_time_period")
+        row = box.row(align=True)
+        row.prop(prefs, "default_import_template")
         row = box.row(align=True)
         row.prop(prefs, "allow_tool_patches")
         row = box.row(align=True)
