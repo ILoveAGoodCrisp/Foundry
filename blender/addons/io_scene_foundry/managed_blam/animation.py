@@ -1246,12 +1246,12 @@ class AnimationTag(Tag):
             max_yaw_residual = max(max_yaw_residual, abs(self._angle_delta(target_yaw, source_yaw)))
             max_pitch_residual = max(max_pitch_residual, abs(self._angle_delta(target_pitch, source_pitch)))
 
-        if abs(yaw_offset) > 1e-4:
-            print(
-                f"Pose overlay [{tag_animation.name.tag_name}] blend-screen aim basis offset: "
-                f"yaw={degrees(yaw_offset):.3f}; "
-                f"max residual yaw={degrees(max_yaw_residual):.3f} pitch={degrees(max_pitch_residual):.3f}"
-            )
+        # if abs(yaw_offset) > 1e-4:
+        #     print(
+        #         f"Pose overlay [{tag_animation.name.tag_name}] blend-screen aim basis offset: "
+        #         f"yaw={degrees(yaw_offset):.3f}; "
+        #         f"max residual yaw={degrees(max_yaw_residual):.3f} pitch={degrees(max_pitch_residual):.3f}"
+        #     )
 
     def _find_animation_node_by_usage(self, nodes: list[Node], usage_name: str):
         if not usage_name:
@@ -2155,6 +2155,7 @@ class AnimationTag(Tag):
         proxy_space_samples,
         start_frame: int,
         synthesize_leading_base_sample: bool = False,
+        use_identity_overlay_reference: bool = False,
     ):
         chain = self._find_ik_chain_definition(event.get("ik_chain", ""))
         if chain is None:
@@ -2201,29 +2202,36 @@ class AnimationTag(Tag):
             first_overlay_frame = blender_animation.frame_start + start_frame
             if first_overlay_frame > base_frame:
                 base_cache = {}
-                overlay_cache = {}
                 effector_base_pose = self._sample_pose_bone_matrix_from_action(
                     effector_bone,
                     base_frame,
                     fcurve_map,
                     base_cache,
                 )
-                effector_first_overlay_pose = self._sample_pose_bone_matrix_from_action(
-                    effector_bone,
-                    first_overlay_frame,
-                    fcurve_map,
-                    overlay_cache,
-                )
+                # Tool stores overlay IK as proxy-space effector deltas from the
+                # frame-0 proxy/effector reference. Make the imported proxy share
+                # the effector's frame-0 pose so re-exporting preserves those
+                # decoded deltas instead of inventing a shifted reference.
+                if use_identity_overlay_reference:
+                    base_proxy_local_matrix = effector_base_pose.copy()
+                else:
+                    overlay_cache = {}
+                    effector_first_overlay_pose = self._sample_pose_bone_matrix_from_action(
+                        effector_bone,
+                        first_overlay_frame,
+                        fcurve_map,
+                        overlay_cache,
+                    )
 
-                effector_base_world = armature.matrix_world @ effector_base_pose
-                effector_first_overlay_world = armature.matrix_world @ effector_first_overlay_pose
-                effector_delta = effector_first_overlay_world.translation - effector_base_world.translation
+                    effector_base_world = armature.matrix_world @ effector_base_pose
+                    effector_first_overlay_world = armature.matrix_world @ effector_first_overlay_pose
+                    effector_delta = effector_first_overlay_world.translation - effector_base_world.translation
 
-                first_proxy_local_matrix = self._matrix_from_transform_sample(*reconstructed_samples[0])
-                first_proxy_world_matrix = armature.matrix_world @ first_proxy_local_matrix
-                base_proxy_world_matrix = first_proxy_world_matrix.copy()
-                base_proxy_world_matrix.translation = base_proxy_world_matrix.translation - effector_delta
-                base_proxy_local_matrix = armature_world_inverse @ base_proxy_world_matrix
+                    first_proxy_local_matrix = self._matrix_from_transform_sample(*reconstructed_samples[0])
+                    first_proxy_world_matrix = armature.matrix_world @ first_proxy_local_matrix
+                    base_proxy_world_matrix = first_proxy_world_matrix.copy()
+                    base_proxy_world_matrix.translation = base_proxy_world_matrix.translation - effector_delta
+                    base_proxy_local_matrix = armature_world_inverse @ base_proxy_world_matrix
                 reconstructed_samples.insert(0, self._matrix_to_transform_sample(base_proxy_local_matrix))
                 prepended_base_sample = True
 
@@ -2401,6 +2409,7 @@ class AnimationTag(Tag):
                 effector_samples,
                 imported_start_frame,
                 synthesize_leading_base_sample=tag_animation.animation_type in {AnimationType.OVERLAY, AnimationType.REPLACEMENT},
+                use_identity_overlay_reference=tag_animation.animation_type == AnimationType.OVERLAY,
             )
             proxy_action_start_frame = imported_start_frame - 1 if prepended_base_sample else imported_start_frame
             proxy_marker_samples = reconstructed_proxy_marker_samples
