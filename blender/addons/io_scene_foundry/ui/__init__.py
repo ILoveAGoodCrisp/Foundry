@@ -148,6 +148,7 @@ classes = [
     animation.NWO_OT_PreviewIKEvent,
     animation.NWO_OT_AnimationFramesSyncToKeyFrames,
     animation.NWO_OT_List_Add_Animation_Event,
+    animation.NWO_OT_List_Copy_Animation_Event,
     animation.NWO_OT_List_Remove_Animation_Event,
     animation.NWO_OT_AnimationEventMove,
     animation.NWO_OT_SingleList_Add_Animation_Event,

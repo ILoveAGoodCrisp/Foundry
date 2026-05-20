@@ -127,13 +127,13 @@ def _clear_ik_preview_targets(armature: bpy.types.Object) -> int:
 def _copy_property_group(source, target):
     for prop in source.bl_rna.properties:
         identifier = prop.identifier
-        if identifier == "rna_type" or prop.is_readonly:
+        if identifier == "rna_type":
             continue
 
         try:
             if prop.type == 'COLLECTION':
                 _copy_property_collection(getattr(source, identifier), getattr(target, identifier))
-            else:
+            elif not prop.is_readonly:
                 setattr(target, identifier, getattr(source, identifier))
         except (AttributeError, TypeError, ValueError, RuntimeError):
             pass
@@ -3050,6 +3050,35 @@ class NWO_OT_List_Add_Animation_Event(bpy.types.Operator):
         event.frame_frame = context.scene.frame_current
         event.event_id = random.randint(0, 2147483647)
         # event.name = f"event_{len(animation.animation_events)}"
+
+        context.area.tag_redraw()
+
+        return {"FINISHED"}
+
+
+class NWO_OT_List_Copy_Animation_Event(bpy.types.Operator):
+    """Copy an Item in the UIList"""
+
+    bl_idname = "nwo.animation_event_list_copy"
+    bl_label = "Copy"
+    bl_description = "Copy the active animation event to a new event"
+    filename_ext = ""
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        scene_nwo = utils.get_scene_props()
+        return scene_nwo.animations and scene_nwo.active_animation_index > -1 and scene_nwo.animations[scene_nwo.active_animation_index].animation_events
+
+    def execute(self, context):
+        scene_nwo = utils.get_scene_props()
+        animation = scene_nwo.animations[scene_nwo.active_animation_index]
+        source_event = animation.animation_events[animation.active_animation_event_index]
+        event = animation.animation_events.add()
+        _copy_property_group(source_event, event)
+        animation.active_animation_event_index = len(animation.animation_events) - 1
+        event.frame_frame = context.scene.frame_current
+        event.event_id = random.randint(0, 2147483647)
 
         context.area.tag_redraw()
 

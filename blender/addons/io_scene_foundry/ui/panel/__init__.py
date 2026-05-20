@@ -446,7 +446,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = box.row()
         row.label(text="Animation Events")
         row = box.row()
-        rows = 3
+        rows = 4
         row.template_list(
             "NWO_UL_AnimProps_Events",
             "",
@@ -3632,7 +3632,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = event_box.row()
         row.label(text="Animation Events")
         row = event_box.row()
-        rows = 3
+        rows = 4
         row.template_list(
             "NWO_UL_AnimProps_Events",
             "",
@@ -3646,6 +3646,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = row.column(align=True)
         col.operator("nwo.animation_event_list_add", icon="ADD", text="")
         col.operator("nwo.animation_event_list_remove", icon="REMOVE", text="")
+        col.operator("nwo.animation_event_list_copy", icon="DUPLICATE", text="")
         col.separator()
         col.operator("nwo.animation_event_move", text="", icon="TRIA_UP").direction = 'up'
         col.operator("nwo.animation_event_move", icon="TRIA_DOWN", text="").direction = 'down'
