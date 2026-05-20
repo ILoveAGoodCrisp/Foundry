@@ -147,6 +147,23 @@ IK_TARGET_USAGE_MAP = [
     "assassination",
 ]
 
+COMPOSITE_BLEND_AXIS_NAMES = {
+    "movement_angles",
+    "movement_speed",
+    "turn_rate",
+    "turn_angle",
+    "vertical",
+    "horizontal",
+    "aim_pitch",
+    "aim_yaw",
+    "aim_yaw_from_start",
+}
+
+COMPOSITE_BLEND_AXIS_ALIASES = {
+    "throw_pitch": "aim_pitch",
+    "throw_yaw": "aim_yaw",
+}
+
 damage_states = "h_ping", "s_ping", "h_kill", "s_kill"
 directions = "front", "left", "right", "back"
 regions = "gut", "chest", "head", "l_arm", "l_hand", "l_leg", "l_foot", "r_arm", "r_hand", "r_leg", "r_foot"
@@ -2841,11 +2858,62 @@ class AnimationTag(Tag):
 
         return candidate if isinstance(candidate, Animation) else None
 
+    def _animation_from_name(self, name: str, all_tag_animations) -> Animation | None:
+        name = (name or "").replace(" ", ":")
+        if not name:
+            return None
+
+        data_name = name.replace(":", " ")
+        for animation in all_tag_animations:
+            if animation.name.tag_name == name or animation.name.data_name == data_name:
+                return animation
+
+        return None
+
+    def _composite_timing_source_animation(self, animation: Animation, all_tag_animations) -> Animation | None:
+        composites_block = self.tag.SelectField("Struct:definitions[0]/Block:composites")
+        if composites_block.Elements.Count == 0:
+            return animation
+
+        seen_indices = set()
+        while animation is not None and animation.composite_index > -1:
+            index = getattr(animation, "index", None)
+            if index in seen_indices:
+                break
+            seen_indices.add(index)
+
+            if animation.composite_index >= composites_block.Elements.Count:
+                break
+
+            composite = composites_block.Elements[animation.composite_index]
+            timing_source_index = composite.SelectField("timingAnimIndex").Data
+            if timing_source_index < 0 or timing_source_index == len(all_tag_animations):
+                return animation
+            
+            return all_tag_animations[timing_source_index]
+
+        return animation
+
+    def _composite_blend_axis_name(self, axis_name: str, animation_name: str) -> str:
+        source_name = (axis_name or "").strip().replace(" ", "_").lower()
+        if not source_name:
+            return ""
+
+        blender_name = COMPOSITE_BLEND_AXIS_ALIASES.get(source_name, source_name)
+        if blender_name in COMPOSITE_BLEND_AXIS_NAMES:
+            return blender_name
+
+        utils.print_warning(
+            f"Animation composite [{animation_name}] has unsupported blend axis [{axis_name}]. Skipping this axis."
+        )
+        return ""
+
     def _resolved_base_candidates(self, candidates, all_tag_animations) -> list[Animation]:
         animations: list[Animation] = []
         used_indices = set()
         for candidate in candidates:
             animation = self._resolve_tag_animation_candidate(candidate, all_tag_animations)
+            animation = self._composite_timing_source_animation(animation, all_tag_animations)
             if animation is None or animation.animation_type not in (AnimationType.NONE, AnimationType.BASE):
                 continue
             index = getattr(animation, "index", None)
@@ -3990,8 +4058,9 @@ class AnimationTag(Tag):
         blender_animation.timing_source = tag_animations[composite.SelectField("timingAnimIndex").Data].name.data_name
         
         imported_axes = []
+        imported_axis_indices = {}
         for axis_index, axis in enumerate(axes_block.Elements):
-            axis_name = axis.SelectField("name").GetStringData()
+            axis_name = self._composite_blend_axis_name(axis.SelectField("name").GetStringData(), blender_animation.name)
             if not axis_name:
                 continue
             
@@ -4024,6 +4093,7 @@ class AnimationTag(Tag):
                 blender_dead_zone.bounds = [n * 360 for n in bounds]
                 blender_dead_zone.rate = dead_zone.SelectField("rate").Data * 360
             
+            imported_axis_indices[axis_index] = len(imported_axes)
             imported_axes.append(blender_axis)
         
         if not imported_axes:
@@ -4047,11 +4117,14 @@ class AnimationTag(Tag):
             for value_index, value_element in enumerate(values_block.Elements):
                 if value_index > 9:
                     break
+                imported_axis_index = imported_axis_indices.get(value_index)
+                if imported_axis_index is None or imported_axis_index > 9:
+                    continue
+                imported_axis = imported_axes[imported_axis_index]
                 raw_value = value_element.SelectField("value").Data
-                if value_index < len(imported_axes):
-                    raw_value = _leaf_value_from_tag(imported_axes[value_index], raw_value)
-                setattr(blender_leaf, f"manual_blend_axis_{value_index}", True)
-                setattr(blender_leaf, f"blend_axis_{value_index}", raw_value)
+                raw_value = _leaf_value_from_tag(imported_axis, raw_value)
+                setattr(blender_leaf, f"manual_blend_axis_{imported_axis_index}", True)
+                setattr(blender_leaf, f"blend_axis_{imported_axis_index}", raw_value)
         
         if leaf_parent.leaves:
             leaf_parent.leaves_active_index = 0
