@@ -5,9 +5,11 @@ from contextlib import nullcontext
 from enum import Enum, IntEnum
 from math import degrees
 from pathlib import Path
+import math
+import struct
 from typing import cast
 import bpy
-from mathutils import Matrix, Quaternion, Vector
+from mathutils import Euler, Matrix, Quaternion, Vector
 
 from .frame_event_list import AnimationEvent, DialogueEvent, EffectEvent, FrameEventListTag, Reference, SoundEvent
 
@@ -52,6 +54,8 @@ EVENT_TYPE_IK_PASSIVE = "_connected_geometry_animation_event_type_ik_passive"
 BLEND_SCREEN_CONNECTION_LINEAR_SEGMENT = 0
 BLEND_SCREEN_CONNECTION_DELAUNAY_TRIANGLE = 1
 BLEND_SCREEN_CONNECTION_SAMPLE_SPHERE_TRIANGLE = 2
+BLEND_SCREEN_HEADER_SIZE = 12
+POSE_OVERLAY_DEBUG_FORCE_AIM_TURN_WRAP = False
 
 RESOURCE_SECTION_ORDER = (
     "static_node_flags",
@@ -1068,6 +1072,187 @@ class AnimationTag(Tag):
 
         return blend_screen_data[0]
 
+    def _pose_overlay_blend_screen_vertices(self, tag_animation: Animation) -> list[tuple[float, float]]:
+        blend_screen_data, _ = self._read_animation_resource_section_data(tag_animation, "blend_screen_data")
+        if not blend_screen_data:
+            return []
+
+        if len(blend_screen_data) < BLEND_SCREEN_HEADER_SIZE:
+            utils.print_warning(
+                f"Animation {tag_animation.name.tag_name} has blend screen data smaller than the header"
+            )
+            return []
+
+        vertex_count = blend_screen_data[1]
+        connection_offset = struct.unpack_from("<I", blend_screen_data, 8)[0]
+        available_vertex_bytes = len(blend_screen_data) - BLEND_SCREEN_HEADER_SIZE
+        if connection_offset > BLEND_SCREEN_HEADER_SIZE:
+            available_vertex_bytes = min(available_vertex_bytes, connection_offset - BLEND_SCREEN_HEADER_SIZE)
+
+        available_vertex_count = max(available_vertex_bytes // 8, 0)
+        sample_count = min(vertex_count, available_vertex_count)
+        if sample_count < vertex_count:
+            utils.print_warning(
+                f"Animation {tag_animation.name.tag_name} blend screen stores {vertex_count} vertices "
+                f"but only {sample_count} fit before the connection data"
+            )
+
+        vertices: list[tuple[float, float]] = []
+        for vertex_index in range(sample_count):
+            yaw, pitch = struct.unpack_from(
+                "<ff",
+                blend_screen_data,
+                BLEND_SCREEN_HEADER_SIZE + (vertex_index * 8),
+            )
+            if not math.isfinite(yaw) or not math.isfinite(pitch) or abs(yaw) > math.tau * 4 or abs(pitch) > math.tau * 4:
+                utils.print_warning(
+                    f"Animation {tag_animation.name.tag_name} has invalid blend screen vertex {vertex_index}: "
+                    f"yaw={yaw}, pitch={pitch}"
+                )
+                return []
+            vertices.append((yaw, pitch))
+
+        return vertices
+
+    def _pose_overlay_debug_forced_wrap_type(self, tag_animation: Animation) -> str | None:
+        if not POSE_OVERLAY_DEBUG_FORCE_AIM_TURN_WRAP:
+            return None
+
+        state = tag_animation.name.state
+        if "aim_turn_right" in state:
+            return "Wrapped Right"
+        if "aim_turn_left" in state:
+            return "Wrapped Left"
+        return None
+
+    def _pose_overlay_wrap_type_from_yaw(self, yaw: float) -> str | None:
+        if yaw > math.pi:
+            return "Wrapped Left"
+        if yaw < -math.pi:
+            return "Wrapped Right"
+        return None
+
+    def _angle_delta(self, target: float, source: float) -> float:
+        delta = target - source
+        return math.atan2(math.sin(delta), math.cos(delta))
+
+    def _circular_mean(self, values: list[float]) -> float:
+        if not values:
+            return 0.0
+        x = sum(math.cos(value) for value in values)
+        y = sum(math.sin(value) for value in values)
+        if abs(x) <= tolerance and abs(y) <= tolerance:
+            return 0.0
+        return math.atan2(y, x)
+
+    def _pose_overlay_control_vertex(
+        self,
+        animation_data,
+        frame_index: int,
+        pitch_node_index: int,
+        yaw_node_index: int,
+    ) -> tuple[float, float]:
+        root_rotation = animation_data.rotations[0][frame_index].copy()
+        root_rotation.normalize()
+        pitch_rotation = root_rotation @ animation_data.rotations[pitch_node_index][frame_index]
+        yaw_rotation = root_rotation @ animation_data.rotations[yaw_node_index][frame_index]
+        pitch_euler = pitch_rotation.to_euler("XYZ")
+        yaw_euler = yaw_rotation.to_euler("XYZ")
+        return yaw_euler.z, pitch_euler.y
+
+    def _apply_pose_overlay_blend_screen_control_basis(self, tag_animation: Animation, animation_data) -> None:
+        if not tag_animation.is_pose_overlay:
+            return
+
+        vertices = self._pose_overlay_blend_screen_vertices(tag_animation)
+        if not vertices:
+            return
+
+        node_usages = self.get_node_usages()
+        pitch_node_index = node_usages.get("pose blend pitch")
+        yaw_node_index = node_usages.get("pose blend yaw")
+        if pitch_node_index is None or yaw_node_index is None:
+            return
+
+        for node_index, usage_name in ((pitch_node_index, "pose blend pitch"), (yaw_node_index, "pose blend yaw")):
+            if node_index < 0 or node_index >= animation_data.node_count:
+                utils.print_warning(
+                    f"Animation {tag_animation.name.tag_name} {usage_name} node index {node_index} is out of range"
+                )
+                return
+
+        sample_count = min(len(vertices), max(animation_data.frame_count - 1, 0))
+        if sample_count < len(vertices):
+            utils.print_warning(
+                f"Animation {tag_animation.name.tag_name} has {len(vertices)} blend screen vertices "
+                f"but only {sample_count} imported pose frames"
+            )
+
+        if sample_count < 1:
+            return
+
+        yaw_deltas = []
+        for sample_index in range(sample_count):
+            frame_index = sample_index + 1
+            target_yaw, _target_pitch = vertices[sample_index]
+            source_yaw, _source_pitch = self._pose_overlay_control_vertex(
+                animation_data,
+                frame_index,
+                pitch_node_index,
+                yaw_node_index,
+            )
+            yaw_deltas.append(self._angle_delta(target_yaw, source_yaw))
+
+        yaw_offset = self._circular_mean(yaw_deltas)
+
+        yaw_offset_rotation = Euler((0.0, 0.0, yaw_offset), "XYZ").to_quaternion()
+
+        if abs(yaw_offset) > 1e-4:
+            frame_index = 0
+            root_rotation = animation_data.rotations[0][frame_index].copy()
+            root_rotation.normalize()
+            root_inverse = root_rotation.inverted()
+            yaw_world_rotation = root_rotation @ animation_data.rotations[yaw_node_index][frame_index]
+            yaw_rotation = root_inverse @ (yaw_offset_rotation @ yaw_world_rotation)
+            yaw_rotation.normalize()
+            animation_data.rotations[yaw_node_index][frame_index] = yaw_rotation
+
+        for sample_index in range(sample_count):
+            frame_index = sample_index + 1
+            target_yaw, target_pitch = vertices[sample_index]
+            root_rotation = animation_data.rotations[0][frame_index].copy()
+            root_rotation.normalize()
+            root_inverse = root_rotation.inverted()
+
+            desired_pitch_rotation = Euler((0.0, target_pitch, 0.0), "XYZ").to_quaternion()
+            desired_yaw_rotation = Euler((0.0, 0.0, target_yaw), "XYZ").to_quaternion()
+            pitch_rotation = root_inverse @ desired_pitch_rotation
+            yaw_rotation = root_inverse @ desired_yaw_rotation
+            pitch_rotation.normalize()
+            yaw_rotation.normalize()
+            animation_data.rotations[pitch_node_index][frame_index] = pitch_rotation
+            animation_data.rotations[yaw_node_index][frame_index] = yaw_rotation
+
+        max_yaw_residual = 0.0
+        max_pitch_residual = 0.0
+        for sample_index in range(sample_count):
+            source_yaw, source_pitch = self._pose_overlay_control_vertex(
+                animation_data,
+                sample_index + 1,
+                pitch_node_index,
+                yaw_node_index,
+            )
+            target_yaw, target_pitch = vertices[sample_index]
+            max_yaw_residual = max(max_yaw_residual, abs(self._angle_delta(target_yaw, source_yaw)))
+            max_pitch_residual = max(max_pitch_residual, abs(self._angle_delta(target_pitch, source_pitch)))
+
+        if abs(yaw_offset) > 1e-4:
+            print(
+                f"Pose overlay [{tag_animation.name.tag_name}] blend-screen aim basis offset: "
+                f"yaw={degrees(yaw_offset):.3f}; "
+                f"max residual yaw={degrees(max_yaw_residual):.3f} pitch={degrees(max_pitch_residual):.3f}"
+            )
+
     def _find_animation_node_by_usage(self, nodes: list[Node], usage_name: str):
         if not usage_name:
             return None
@@ -1104,21 +1289,42 @@ class AnimationTag(Tag):
         if self._blend_screen_connection_type(tag_animation) == BLEND_SCREEN_CONNECTION_SAMPLE_SPHERE_TRIANGLE:
             return 0
 
+        added = 0
+        wrapped_frames = set()
+        forced_wrap_type = self._pose_overlay_debug_forced_wrap_type(tag_animation)
+        for sample_index, (yaw, _pitch) in enumerate(self._pose_overlay_blend_screen_vertices(tag_animation)):
+            wrap_type = forced_wrap_type or self._pose_overlay_wrap_type_from_yaw(yaw)
+            if not wrap_type:
+                continue
+
+            frame_index = blender_animation.frame_start + sample_index + 1
+            blender_event = self._new_tag_event(
+                blender_animation,
+                EVENT_TYPE_IMPORT,
+                "wrap",
+                frame_index - blender_animation.frame_start,
+                1,
+            )
+            blender_event.import_name = wrap_type
+            wrapped_frames.add(frame_index)
+            added += 1
+
         pedestal_node_index = node_usages.get("pedestal")
         yaw_node_index = node_usages.get("pose blend yaw")
 
         if pedestal_node_index is None or yaw_node_index is None:
-            return 0
+            return added
         
         pedestal_node = nodes[pedestal_node_index]
         yaw_node = nodes[yaw_node_index]
 
-        added = 0
         first_frame = blender_animation.frame_start
         reset = True
 
         for frame_index in sorted(transforms):
             if frame_index == first_frame:
+                continue
+            if frame_index in wrapped_frames:
                 continue
 
             frame_transforms = transforms[frame_index]
@@ -3117,12 +3323,15 @@ class AnimationTag(Tag):
                 base_frame = default_frame_channels(defaults)
 
             if tag_animation.animation_type == 2:
-                animation_data = compose_overlay_animation(animation_data, base_frame)
+                animation_data = compose_overlay_animation(animation_data, base_frame, resource_data)
             else:
                 animation_data = compose_replacement_animation(animation_data, base_frame)
 
             if object_space_parent_targets:
                 self._apply_object_space_base_corrections(tag_animation, animation_data, base_frame, defaults)
+
+            if tag_animation.is_pose_overlay:
+                self._apply_pose_overlay_blend_screen_control_basis(tag_animation, animation_data)
 
         animation_cache[index] = animation_data
         return animation_data

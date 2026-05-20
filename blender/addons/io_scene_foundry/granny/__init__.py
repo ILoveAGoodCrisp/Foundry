@@ -188,7 +188,13 @@ class Granny:
         if animation is not None:
             animation_node_flags = {}
             for item in animation.animation_nodes:
-                animation_node_flags.setdefault(item.name, set()).add(item.node_type)
+                name = item.name.strip()
+                if not name:
+                    continue
+
+                stripped_name = utils.remove_node_prefix(name)
+                for node_name in {name, stripped_name, name.lower(), stripped_name.lower()}:
+                    animation_node_flags.setdefault(node_name, set()).add(item.node_type)
         
         self.export_materials = []
         self.export_textures = []

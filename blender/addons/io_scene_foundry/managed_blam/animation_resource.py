@@ -1305,36 +1305,61 @@ def build_animation(
 def compose_overlay_animation(
     animation: AnimationData,
     base_frame: FrameChannels,
+    resource_data: AnimationResourceData | None = None,
 ) -> AnimationData:
     translations: list[list[Vector]] = []
     rotations: list[list[Quaternion]] = []
     scales: list[list[float]] = []
+    static_translation_flags = _fit_node_flags(
+        resource_data.static_translated_node_flags if resource_data is not None else None,
+        animation.node_count,
+    )
+    static_rotation_flags = _fit_node_flags(
+        resource_data.static_rotated_node_flags if resource_data is not None else None,
+        animation.node_count,
+    )
+    static_scale_flags = _fit_node_flags(
+        resource_data.static_scaled_node_flags if resource_data is not None else None,
+        animation.node_count,
+    )
 
     for node_index in range(animation.node_count):
         base_translation = base_frame.translations[node_index]
         base_rotation = base_frame.rotations[node_index]
         base_scale = base_frame.scales[node_index]
+        reference_translation = (
+            animation.translations[node_index][0].copy()
+            if static_translation_flags[node_index]
+            else base_translation.copy()
+        )
+        reference_rotation = (
+            animation.rotations[node_index][0].copy()
+            if static_rotation_flags[node_index]
+            else base_rotation.copy()
+        )
+        reference_scale = animation.scales[node_index][0] if static_scale_flags[node_index] else base_scale
         # Imported overlays start with the untouched base pose, then the keyed
-        # overlay samples follow after that first frame.
-        node_translations: list[Vector] = [base_translation.copy()]
-        node_rotations: list[Quaternion] = [base_rotation.copy()]
-        node_scales: list[float] = [base_scale]
+        # overlay samples follow after that first frame. Static overlay data is
+        # also part of that reference frame; Tool writes it from frame 0.
+        node_translations: list[Vector] = [reference_translation.copy()]
+        node_rotations: list[Quaternion] = [reference_rotation.copy()]
+        node_scales: list[float] = [reference_scale]
         for frame_index in range(animation.frame_count):
             translation = (
-                base_translation + animation.translations[node_index][frame_index]
+                reference_translation + animation.translations[node_index][frame_index]
                 if animation.translation_flags[node_index]
-                else base_translation.copy()
+                else reference_translation.copy()
             )
             
             if animation.rotation_flags[node_index]:
                 rotation = animation.rotations[node_index][frame_index]
-                rotation.rotate(base_rotation)
+                rotation.rotate(reference_rotation)
             else:
-                rotation = base_rotation.copy()
+                rotation = reference_rotation.copy()
             scale = (
-                base_scale + animation.scales[node_index][frame_index]
+                reference_scale * animation.scales[node_index][frame_index]
                 if animation.scale_flags[node_index]
-                else base_scale
+                else reference_scale
             )
             node_translations.append(translation)
             node_rotations.append(rotation)

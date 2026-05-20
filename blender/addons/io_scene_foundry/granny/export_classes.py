@@ -25,6 +25,12 @@ granny_inverse_transform_default = (c_float * 4 * 4)(
 rotation_matrix = Matrix.Rotation(radians(90), 4, 'Z')
 z_up_to_y_up = Matrix.Rotation(-radians(90), 4, 'X')
 
+ANIMATION_NODE_TYPE_PROPS = {
+    "object_space_offset_node": "bungie_is_object_space_offset_node",
+    "replacement_correction_node": "bungie_is_replacement_correction_node",
+    "fik_anchor_node": "bungie_is_fik_anchor_node",
+}
+
 
 def _matrix3_to_c_float9(matrix: Matrix):
     return (c_float * 9)(
@@ -150,17 +156,15 @@ class Skeleton:
                     props["_granny_subshapes"] = bone.physics_subshapes
 
                 if animation_node_flags and granny:
-                    node_types = animation_node_flags.get(bone.name)
+                    stripped_name = utils.remove_node_prefix(bone.name)
+                    node_types = set()
+                    for node_name in {bone.name, stripped_name, bone.name.lower(), stripped_name.lower()}:
+                        node_types.update(animation_node_flags.get(node_name, ()))
 
-                    if node_types:
-                        if 'object_space_offset_node' in node_types:
-                            props["bungie_is_object_space_offset_node"] = 1
-
-                        if 'replacement_correction_node' in node_types:
-                            props["bungie_is_replacement_correction_node"] = 1
-
-                        if 'fik_anchor_node' in node_types:
-                            props["bungie_is_fik_anchor_node"] = 1
+                    for node_type in node_types:
+                        prop_name = ANIMATION_NODE_TYPE_PROPS.get(node_type)
+                        if prop_name is not None:
+                            props[prop_name] = 1
 
                 granny.create_extended_data(props, granny_bone)
                 self.bones.append(granny_bone)
