@@ -2,7 +2,6 @@
 
 '''Handles bpy operators and functions for the Sets Manager panel'''
 
-import json
 import random
 from pathlib import Path
 
@@ -49,6 +48,7 @@ MODEL_VARIANT_CHANGE_COLOR_OBJECT_TAGS = (
     (".device_dispenser", "output_device_dispenser", "template_device_dispenser"),
 )
 last_model_variant_viewer_variant = MODEL_VARIANT_VIEWER_NONE
+model_variant_viewer_data_cache = {}
 
 def _dedupe_names(names):
     deduped = []
@@ -61,14 +61,6 @@ def _dedupe_names(names):
 
     return deduped
 
-def _loads_json_property(value, fallback):
-    if not value:
-        return fallback
-    try:
-        return json.loads(value)
-    except (TypeError, ValueError):
-        return fallback
-
 def _enum_items_from_names(names):
     items = []
     for name in _dedupe_names(names):
@@ -76,23 +68,30 @@ def _enum_items_from_names(names):
 
     return items
 
+def _collection_names(collection):
+    return [item.name for item in collection if item.name]
+
+def _set_collection_names(collection, names):
+    collection.clear()
+    for name in _dedupe_names(names):
+        item = collection.add()
+        item.name = name
+
 def _model_variant_region_permutation_items(self, context):
-    permutations = _loads_json_property(getattr(self, "permutations_json", ""), [])
-    items = _enum_items_from_names(permutations)
-    current = getattr(self, "permutation", "")
-    item_ids = {item[0] for item in items}
-    if current and current not in item_ids:
-        items.insert(0, (current, current, ""))
+    items = _enum_items_from_names(_collection_names(self.permutations))
     if not items:
         items.append((MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS, MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS, ""))
 
     return items
 
+class NWO_ModelVariantViewerNameItem(bpy.types.PropertyGroup):
+    name: bpy.props.StringProperty(name="Name", options=set())
+
 class NWO_ModelVariantViewerRegion(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(name="Region", options=set())
     enabled: bpy.props.BoolProperty(name="Enabled", default=True, options=set())
-    permutations_json: bpy.props.StringProperty(options={'HIDDEN'})
-    render_permutations_json: bpy.props.StringProperty(options={'HIDDEN'})
+    permutations: bpy.props.CollectionProperty(type=NWO_ModelVariantViewerNameItem, options=set())
+    render_permutations: bpy.props.CollectionProperty(type=NWO_ModelVariantViewerNameItem, options=set())
     permutation: bpy.props.EnumProperty(
         name="Permutation",
         items=_model_variant_region_permutation_items,
@@ -100,7 +99,8 @@ class NWO_ModelVariantViewerRegion(bpy.types.PropertyGroup):
     )
 
 def _model_variant_items(self, context):
-    variants = _loads_json_property(getattr(self, "variants_json", ""), [])
+    cache = model_variant_viewer_data_cache.get(getattr(self, "cache_key", ""), {})
+    variants = cache.get("variants", [])
     items = [(MODEL_VARIANT_VIEWER_NONE, "none", "Show all regions and permutations")]
     items.extend(_enum_items_from_names(variants))
 
@@ -114,10 +114,10 @@ def _set_model_variant_viewer_row(row, enabled, permutation):
     if not permutation:
         return
 
-    permutations = _loads_json_property(row.permutations_json, [])
+    permutations = _collection_names(row.permutations)
     if permutation not in permutations:
         permutations.insert(0, permutation)
-        row.permutations_json = json.dumps(_dedupe_names(permutations))
+        _set_collection_names(row.permutations, permutations)
     row.permutation = permutation
 
 def _apply_model_variant_selection(operator):
@@ -130,7 +130,8 @@ def _apply_model_variant_selection(operator):
     if variant == MODEL_VARIANT_VIEWER_CUSTOM:
         return
 
-    variant_regions = _loads_json_property(operator.variant_regions_json, {})
+    cache = model_variant_viewer_data_cache.get(getattr(operator, "cache_key", ""), {})
+    variant_regions = cache.get("variant_regions", {})
     scoped_regions = variant_regions.get(variant, {})
     for row in operator.regions:
         scoped_permutations = scoped_regions.get(row.name, [])
@@ -204,6 +205,7 @@ def _model_variant_viewer_data(model_tag_path):
     variants = []
     region_permutations = {}
     variant_regions = {}
+    render_model_path = ""
     with ModelTag(path=model_tag_path) as model:
         variants = model.get_model_variants()
         render_model_path = model.get_render_model()
@@ -223,7 +225,47 @@ def _model_variant_viewer_data(model_tag_path):
                 region_default_permutations,
             )
 
-    return variants, region_permutations, variant_regions
+    return variants, region_permutations, variant_regions, render_model_path
+
+def _resolved_tag_path(tag_path):
+    path = Path(str(tag_path).strip('"'))
+    if path.is_absolute():
+        return path
+
+    return Path(get_tags_path(), path)
+
+def _safe_mtime(path):
+    if not path:
+        return None
+
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return None
+
+def _model_variant_viewer_cache_key(model_tag_path):
+    return str(_resolved_tag_path(model_tag_path))
+
+def _cached_model_variant_viewer_data(model_tag_path):
+    cache_key = _model_variant_viewer_cache_key(model_tag_path)
+    model_path = Path(cache_key)
+    model_mtime = _safe_mtime(model_path)
+    cached = model_variant_viewer_data_cache.get(cache_key)
+    if cached and cached.get("model_mtime") == model_mtime and cached.get("render_mtime") == _safe_mtime(cached.get("render_path")):
+        return cache_key, cached["variants"], cached["region_permutations"], cached["variant_regions"]
+
+    variants, region_permutations, variant_regions, render_model_path = _model_variant_viewer_data(model_tag_path)
+    resolved_render_path = _resolved_tag_path(render_model_path) if render_model_path else None
+    model_variant_viewer_data_cache[cache_key] = {
+        "model_mtime": model_mtime,
+        "render_path": resolved_render_path,
+        "render_mtime": _safe_mtime(resolved_render_path),
+        "variants": variants,
+        "region_permutations": region_permutations,
+        "variant_regions": variant_regions,
+    }
+
+    return cache_key, variants, region_permutations, variant_regions
 
 def _object_type_visible_for_variant(ob, nwo):
     if ob.type == 'LIGHT':
@@ -269,13 +311,22 @@ def _marker_matches_any_permutation(nwo, permutations):
 
     return True
 
+def _model_variant_clone_map(scene_nwo):
+    clone_map = {}
+    for permutation in scene_nwo.permutations_table:
+        for clone in permutation.clones:
+            if clone.name:
+                clone_map[clone.name] = (permutation.name, clone)
+
+    return clone_map
+
 def _is_default_permutation_sentinel(region, permutation, render_region_permutations):
     if permutation != "default":
         return False
 
     return "default" not in render_region_permutations.get(region, set())
 
-def _variant_viewer_object_matches(ob, region, permutation, render_region_permutations, collection_map):
+def _variant_viewer_object_matches(ob, region, permutation, render_region_permutations, collection_map, clone_map):
     if _is_object_instance(ob):
         if not ob.nwo.marker_uses_regions:
             return True
@@ -316,7 +367,68 @@ def _variant_viewer_object_matches(ob, region, permutation, render_region_permut
     if _is_default_permutation_sentinel(region, permutation, render_region_permutations):
         return False
 
-    return true_table_entry(ob, "permutation_name", permutation, collection_map)
+    if true_table_entry(ob, "permutation_name", permutation, collection_map):
+        return True
+
+    clone = clone_map.get(permutation)
+    return clone is not None and true_table_entry(ob, "permutation_name", clone[0], collection_map)
+
+def _iter_clone_material_overrides(clone, enabled_only=True):
+    if enabled_only and not clone.enabled:
+        return
+
+    for override in clone.material_overrides:
+        if enabled_only and not override.enabled:
+            continue
+        if override.source_material is None or override.destination_material is None:
+            continue
+
+        yield override
+
+def _reset_model_variant_clone_materials(context, collection_map, clone_map):
+    source_permutations = {source for source, _ in clone_map.values()}
+    if not source_permutations:
+        return
+
+    for ob in context.view_layer.objects:
+        if ob.type not in VALID_MESHES or _is_object_instance(ob):
+            continue
+        for source_permutation in source_permutations:
+            if not true_table_entry(ob, "permutation_name", source_permutation, collection_map):
+                continue
+            for other_source, clone in clone_map.values():
+                if other_source != source_permutation:
+                    continue
+                for override in _iter_clone_material_overrides(clone, enabled_only=False):
+                    for slot in ob.material_slots:
+                        if slot.material is override.destination_material:
+                            slot.material = override.source_material
+
+def _apply_model_variant_clone_materials(context, selected_regions, collection_map, clone_map):
+    applied = set()
+    selected_clone_regions = [
+        (region, permutation, clone_map[permutation][0], clone_map[permutation][1])
+        for region, permutation in selected_regions
+        if permutation in clone_map
+    ]
+    if not selected_clone_regions:
+        return applied
+
+    for ob in context.view_layer.objects:
+        if ob.type not in VALID_MESHES or _is_object_instance(ob):
+            continue
+        for region, clone_name, source_permutation, clone in selected_clone_regions:
+            if not true_table_entry(ob, "region_name", region, collection_map):
+                continue
+            if not true_table_entry(ob, "permutation_name", source_permutation, collection_map):
+                continue
+            for override in _iter_clone_material_overrides(clone):
+                for slot in ob.material_slots:
+                    if slot.material is override.source_material:
+                        slot.material = override.destination_material
+                        applied.add(clone_name)
+
+    return applied
 
 def _tag_path_exists(tag_path):
     if not tag_path:
@@ -400,8 +512,7 @@ class NWO_OT_ModelVariantViewer(bpy.types.Operator):
     bl_description = "Preview a model variant by hiding objects outside the selected region/permutation choices"
     bl_options = {"UNDO"}
 
-    variants_json: bpy.props.StringProperty(options={'HIDDEN'})
-    variant_regions_json: bpy.props.StringProperty(options={'HIDDEN'})
+    cache_key: bpy.props.StringProperty(options={'HIDDEN'})
     variant: bpy.props.EnumProperty(
         name="Variant",
         items=_model_variant_items,
@@ -434,7 +545,7 @@ class NWO_OT_ModelVariantViewer(bpy.types.Operator):
                     return False
 
         try:
-            variants, region_permutations, variant_regions = _model_variant_viewer_data(model_tag_path)
+            cache_key, variants, region_permutations, variant_regions = _cached_model_variant_viewer_data(model_tag_path)
         except Exception as error:
             self.report({'WARNING'}, f"Failed to read model variants: {error}")
             return False
@@ -444,15 +555,14 @@ class NWO_OT_ModelVariantViewer(bpy.types.Operator):
         scene_permutations = [item.name for item in scene_nwo.permutations_table] or ["default"]
         region_names = _dedupe_names(scene_regions + list(region_permutations))
 
-        self.variants_json = json.dumps(variants)
-        self.variant_regions_json = json.dumps(variant_regions)
+        self.cache_key = cache_key
         self.regions.clear()
         for region in region_names:
             row = self.regions.add()
             row.name = region
             render_permutations = _dedupe_names(region_permutations.get(region) or scene_permutations)
-            row.permutations_json = json.dumps(_permutations_with_all(render_permutations))
-            row.render_permutations_json = json.dumps(render_permutations)
+            _set_collection_names(row.permutations, _permutations_with_all(render_permutations))
+            _set_collection_names(row.render_permutations, render_permutations)
             row.permutation = MODEL_VARIANT_VIEWER_ALL_PERMUTATIONS
             row.enabled = True
 
@@ -483,18 +593,21 @@ class NWO_OT_ModelVariantViewer(bpy.types.Operator):
     def execute(self, context):
         global last_model_variant_viewer_variant
 
-        selected_regions = {item.name: item.permutation for item in self.regions if item.enabled and item.permutation}
-        if not selected_regions:
+        selected_region_items = [(item.name, item.permutation) for item in self.regions if item.enabled and item.permutation]
+        if not selected_region_items:
             self.report({'WARNING'}, "No regions selected")
             return {'CANCELLED'}
 
         render_region_permutations = {
-            item.name: set(_loads_json_property(item.render_permutations_json, []))
+            item.name: set(_collection_names(item.render_permutations))
             for item in self.regions
         }
         change_color_source = _apply_model_variant_change_colors(context, self.variant)
         collection_map = create_parent_mapping(context)
         scene_nwo = get_scene_props()
+        clone_map = _model_variant_clone_map(scene_nwo)
+        _reset_model_variant_clone_materials(context, collection_map, clone_map)
+        applied_clones = _apply_model_variant_clone_materials(context, selected_region_items, collection_map, clone_map)
         visible_count = 0
         hidden_count = 0
         for ob in context.view_layer.objects:
@@ -502,8 +615,8 @@ class NWO_OT_ModelVariantViewer(bpy.types.Operator):
                 continue
 
             visible = False
-            for region, permutation in selected_regions.items():
-                if _variant_viewer_object_matches(ob, region, permutation, render_region_permutations, collection_map):
+            for region, permutation in selected_region_items:
+                if _variant_viewer_object_matches(ob, region, permutation, render_region_permutations, collection_map, clone_map):
                     visible = _object_type_visible_for_variant(ob, scene_nwo)
                     break
 
@@ -520,6 +633,8 @@ class NWO_OT_ModelVariantViewer(bpy.types.Operator):
         message = f"Showing {visible_count} objects. Hid {hidden_count}"
         if change_color_source:
             message += f". Applied change colors from {Path(change_color_source).name}"
+        if applied_clones:
+            message += f". Applied clone materials for {', '.join(sorted(applied_clones))}"
         self.report({'INFO'}, message)
         last_model_variant_viewer_variant = self.variant
         return {'FINISHED'}
