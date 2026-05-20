@@ -2913,7 +2913,8 @@ class AnimationTag(Tag):
         used_indices = set()
         for candidate in candidates:
             animation = self._resolve_tag_animation_candidate(candidate, all_tag_animations)
-            animation = self._composite_timing_source_animation(animation, all_tag_animations)
+            if self.corinth and animation and animation.composite_index > -1:
+                animation = self._composite_timing_source_animation(animation, all_tag_animations)
             if animation is None or animation.animation_type not in (AnimationType.NONE, AnimationType.BASE):
                 continue
             index = getattr(animation, "index", None)

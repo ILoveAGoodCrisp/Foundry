@@ -5412,7 +5412,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             if self.place_at_mouse:
                 return self.execute(context)
             else:
-                return context.window_manager.invoke_props_dialog(self)
+                return context.window_manager.invoke_props_dialog(self, width=300)
         else:
             return self.execute(context)
     
