@@ -1175,7 +1175,7 @@ class AnimationTag(Tag):
         yaw_rotation = root_rotation @ animation_data.rotations[yaw_node_index][frame_index]
         pitch_euler = pitch_rotation.to_euler("XYZ")
         yaw_euler = yaw_rotation.to_euler("XYZ")
-        return yaw_euler.z, pitch_euler.y
+        return yaw_euler.z, -pitch_euler.y
 
     def _apply_pose_overlay_blend_screen_control_basis(self, tag_animation: Animation, animation_data) -> None:
         if not tag_animation.is_pose_overlay:
@@ -1241,7 +1241,7 @@ class AnimationTag(Tag):
             root_rotation.normalize()
             root_inverse = root_rotation.inverted()
 
-            desired_pitch_rotation = Euler((0.0, target_pitch, 0.0), "XYZ").to_quaternion()
+            desired_pitch_rotation = Euler((0.0, -target_pitch, 0.0), "XYZ").to_quaternion()
             desired_yaw_rotation = Euler((0.0, 0.0, target_yaw), "XYZ").to_quaternion()
             pitch_rotation = root_inverse @ desired_pitch_rotation
             yaw_rotation = root_inverse @ desired_yaw_rotation
