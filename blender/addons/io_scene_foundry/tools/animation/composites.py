@@ -664,9 +664,6 @@ class CompositeXML:
             if value is not None:
                 props[attribute_name] = self.format_number(value)
 
-        if self.should_skip_stationary_directional_leaf(leaf, parent_stack):
-            return
-
         if emitted_leaf_values is not None:
             key = self.leaf_parameter_key(parent_stack, props)
             if key is not None:
@@ -708,42 +705,6 @@ class CompositeXML:
             numeric = (numeric - bounds_min) / (bounds_max - bounds_min)
 
         return round(numeric, 6)
-
-    def should_skip_stationary_directional_leaf(self, leaf, parent_stack):
-        if self.leaf_has_manual_values(leaf, parent_stack):
-            return False
-
-        angle_axis = self.axis_for_animation_source(parent_stack, "linear_movement_angle")
-        speed_axis = self.axis_for_animation_source(parent_stack, "linear_movement_speed")
-        if angle_axis is None or speed_axis is None:
-            return False
-
-        speed = self.raw_automatic_value_for_axis(leaf.animation, speed_axis.name)
-        if speed is None:
-            return False
-
-        try:
-            return abs(float(speed)) < 1e-5
-        except ValueError:
-            return False
-
-    @staticmethod
-    def axis_for_animation_source(parent_stack, source):
-        for item in parent_stack:
-            if animation_source_from_name(item.name) == source:
-                return item
-
-        return None
-
-    @staticmethod
-    def leaf_has_manual_values(leaf, parent_stack):
-        for idx, _ in enumerate(parent_stack):
-            if idx > 9:
-                break
-            if getattr(leaf, f"manual_blend_axis_{idx}"):
-                return True
-
-        return False
     
     @staticmethod
     def two_vector_string(vector):
