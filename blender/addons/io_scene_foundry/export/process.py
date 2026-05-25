@@ -2770,7 +2770,7 @@ class ExportScene:
                 with ObjectTag(path=expected_weapon_path) as weapon:
                     weapon.set_fp_weapon_render_model(render_path)
         
-        if self.scene_settings.frame_events_from_blender or self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.suspension_animations or self.anims_for_tag_info or self.external_animations:
+        if self.has_animations and (self.scene_settings.frame_events_from_blender or self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.suspension_animations or self.anims_for_tag_info or self.external_animations):
             with AnimationTag() as animation:
                 if self.scene_settings.frame_events_from_blender:
                     self.print_post("--- Adding Frame Events")
