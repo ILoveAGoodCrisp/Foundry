@@ -232,7 +232,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             asset_name = self.filename
             asset_directory = Path(self.filepath)
         elif Path(self.filepath).relative_to(Path(project.data_directory)) and self.filepath != project.data_directory:
-            asset_name = Path(self.filename).with_suffix("").name
+            asset_name = Path(self.filepath).name
             asset_directory = Path(self.filepath)
         else:
             asset_name = f"new_{self.asset_type}_asset"
