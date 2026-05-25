@@ -831,7 +831,7 @@ class ExportScene:
         tmp_region = region = default_region
         tmp_perm = permutation = default_perm
         
-        if self.asset_type.supports_regions:
+        if supports_regions or supports_bsp:
             if ob.nwo.collection_region:
                 tmp_region = ob.nwo.collection_region
             else:
