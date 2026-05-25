@@ -40,6 +40,7 @@ from . import Tag
 from . import import_transform
 from ..legacy.jma import Node
 from .. import utils
+from ..constants import IK_INFLUENCE_ROUNDING_TOLERANCE
 
 tolerance = 1e-6
 INT16_NORMALIZED_MAX = 0x7FFF
@@ -77,6 +78,14 @@ RESOURCE_SECTION_ORDER = (
     "compressed_event_curve",
     "shared_static_data_size",
 )
+
+def round_event_influence_value(value: float) -> float:
+    value = max(0.0, min(1.0, float(value)))
+    if value <= IK_INFLUENCE_ROUNDING_TOLERANCE:
+        return 0.0
+    if 1.0 - value <= IK_INFLUENCE_ROUNDING_TOLERANCE:
+        return 1.0
+    return round(value, 6)
 
 FINAL_FRAME_MOVEMENT_STATES = (
     "move",
@@ -1015,31 +1024,6 @@ class AnimationTag(Tag):
                 return action
         return None
 
-    def _ensure_scene_event_slot(self, action, create=False):
-        scene = getattr(self.scene_nwo, "id_data", None)
-        if scene is None or action is None:
-            return None, None, None
-
-        animation_data = getattr(scene, "animation_data", None)
-        if animation_data is None:
-            if not create:
-                return scene, None, None
-            scene.animation_data_create()
-            animation_data = scene.animation_data
-
-        slot = None
-        if animation_data.action == action and animation_data.last_slot_identifier:
-            slot = action.slots.get(animation_data.last_slot_identifier)
-
-        if slot is None and create:
-            slot = action.slots.new("SCENE", scene.name)
-
-        if slot is not None:
-            animation_data.last_slot_identifier = slot.identifier
-            animation_data.action = action
-
-        return scene, animation_data, slot
-
     def _remove_animation_events(self, blender_animation, predicate):
         for index in range(len(blender_animation.animation_events) - 1, -1, -1):
             event = blender_animation.animation_events[index]
@@ -1398,54 +1382,99 @@ class AnimationTag(Tag):
 
         return result
 
-    def _apply_event_value(self, blender_animation, blender_event, default_value, values, start_frame, frame_count):
+    def _event_influence_values_for_range(self, values, default_value, start_frame, frame_count):
         event_values = self._event_values_for_range(values, start_frame, frame_count)
-
         if not event_values:
-            blender_event.event_value = default_value
+            event_values = [default_value for _ in range(max(int(frame_count), 1))]
+
+        return [round_event_influence_value(value) for value in event_values]
+
+    def _event_influence_property_name(self, event_type: str, ik_chain: str = "", wrinkle_map_face_region: str = "", object_function_name: str = "") -> str:
+        if event_type in {EVENT_TYPE_IK_ACTIVE, EVENT_TYPE_IK_PASSIVE}:
+            if not ik_chain:
+                return ""
+            return f"{ik_chain} IK Influence"
+
+        if event_type == EVENT_TYPE_WRINKLE_MAP:
+            return f"{wrinkle_map_face_region} Influence" if wrinkle_map_face_region else "Wrinkle Map Influence"
+
+        if event_type == EVENT_TYPE_OBJECT_FUNCTION:
+            return f"{object_function_name} Influence" if object_function_name else "Function Influence"
+
+        return ""
+
+    def _root_pose_bone(self, armature: bpy.types.Object) -> bpy.types.PoseBone | None:
+        if armature is None or armature.type != "ARMATURE":
+            return None
+
+        root = utils.rig_root_deform_bone(armature)
+        if isinstance(root, bpy.types.Bone):
+            pose_bone = armature.pose.bones.get(root.name)
+            if pose_bone is not None:
+                return pose_bone
+
+        for pose_bone in armature.pose.bones:
+            if pose_bone.parent is None:
+                return pose_bone
+
+        return None
+
+    def _ensure_event_influence_property(self, pose_bone: bpy.types.PoseBone, property_name: str, value: float) -> None:
+        pose_bone[property_name] = round_event_influence_value(value)
+        pose_bone.id_properties_ui(property_name).update(
+            min=0.0,
+            max=1.0,
+            soft_min=0.0,
+            soft_max=1.0,
+            description="Animated influence imported from the animation graph",
+        )
+
+    def _apply_event_influence_to_pose_bone(
+        self,
+        blender_animation,
+        armature: bpy.types.Object,
+        pose_bone: bpy.types.PoseBone,
+        property_name: str,
+        default_value,
+        values,
+        start_frame: int,
+        frame_count: int,
+    ) -> None:
+        if pose_bone is None or armature is None or armature.type != "ARMATURE" or not property_name:
+            return
+
+        event_values = self._event_influence_values_for_range(values, default_value, start_frame, frame_count)
+        if not event_values:
             return
 
         first_value = event_values[0]
         if all(abs(value - first_value) <= tolerance for value in event_values[1:]):
-            blender_event.event_value = first_value
             return
 
-        blender_event.event_value = first_value
-        action = self._animation_event_action(blender_animation)
-        _, _, scene_slot = self._ensure_scene_event_slot(action, create=True)
-        fcurve = None
-        if scene_slot is not None:
-            blender_animation.scene_action_slot_identifier = scene_slot.identifier
-            fcurves = utils.get_fcurves(action, scene_slot)
-            data_path = f"{blender_event.path_from_id()}.event_value"
-            if fcurves:
-                try:
-                    fcurve = fcurves.find(data_path, index=0)
-                except TypeError:
-                    fcurve = fcurves.find(data_path)
-                if fcurve is None:
-                    try:
-                        fcurve = fcurves.new(data_path=data_path, index=0)
-                    except TypeError:
-                        fcurve = fcurves.new(data_path)
+        self._ensure_event_influence_property(pose_bone, property_name, first_value)
 
+        animation_data = armature.animation_data
+        action = animation_data.action if animation_data is not None else None
+        slot_identifier = animation_data.last_slot_identifier if animation_data is not None else None
+        if action is None or not slot_identifier:
+            return
+
+        fcurves = utils.get_fcurves(action, slot_identifier)
+        if not fcurves:
+            return
+
+        data_path = pose_bone.path_from_id(f'["{property_name}"]')
+        fcurve = fcurves.find(data_path)
         if fcurve is not None:
-            while fcurve.keyframe_points:
-                fcurve.keyframe_points.remove(fcurve.keyframe_points[-1])
+            fcurves.remove(fcurve)
 
-            for frame_offset, value in enumerate(event_values):
-                frame = blender_animation.frame_start + start_frame + frame_offset
-                keyframe = fcurve.keyframe_points.insert(frame, value)
-                keyframe.interpolation = "LINEAR"
-            fcurve.update()
-        else:
-            for frame_offset, value in enumerate(event_values):
-                blender_event.event_value = value
-                blender_event.keyframe_insert(
-                    data_path="event_value",
-                    frame=blender_animation.frame_start + start_frame + frame_offset
-                )
-        blender_event.event_value = first_value
+        fcurve = fcurves.new(data_path=data_path)
+        key_options = {'FAST'}
+        for frame_offset, value in enumerate(event_values):
+            frame = blender_animation.frame_start + start_frame + frame_offset
+            keyframe = fcurve.keyframe_points.insert(frame, value, options=key_options)
+            keyframe.interpolation = "LINEAR"
+        fcurve.update()
 
     def _resource_section_slice(self, animation_data, boundaries, section_name):
         if not animation_data or not boundaries or section_name not in RESOURCE_SECTION_ORDER:
@@ -1863,7 +1892,7 @@ class AnimationTag(Tag):
         return [(translation.copy(), identity.copy(), 1.0) for translation in translations]
 
     def _ik_chain_target_bone_name(self, ik_chain_name: str, target_kind: str):
-        return f"CTRL_{ik_chain_name}_{target_kind}_target"
+        return f"{ik_chain_name}_{target_kind}_target"
 
     def _find_ik_chain_target_bone(
         self,
@@ -2517,6 +2546,24 @@ class AnimationTag(Tag):
                     pole_target_samples,
                 )
 
+        influence_values = event.get("values")
+        blender_event.event_value = self._event_influence_values_for_range(
+            influence_values,
+            event["default_value"],
+            imported_start_frame,
+            event["frame_count"],
+        )[0]
+        self._apply_event_influence_to_pose_bone(
+            blender_animation,
+            armature,
+            self._root_pose_bone(armature),
+            self._event_influence_property_name(event["event_type"], ik_chain=event["ik_chain"]),
+            event["default_value"],
+            influence_values,
+            imported_start_frame,
+            event["frame_count"],
+        )
+
     def _collect_regular_animation_events(self, tag_animation: Animation):
         valid_ik_chain_names = {chain.name for chain in self.scene_nwo.ik_chains if getattr(chain, "start_node", "") and getattr(chain, "effector_node", "")}
         scalar_curve_cache = {}
@@ -2647,9 +2694,17 @@ class AnimationTag(Tag):
 
             if event["event_type"] == EVENT_TYPE_OBJECT_FUNCTION and event["object_function_name"]:
                 blender_event.object_function_name = event["object_function_name"]
-                self._apply_event_value(
+                blender_event.event_value = self._event_influence_values_for_range(
+                    event["values"],
+                    event["default_value"],
+                    imported_start_frame,
+                    event["frame_count"],
+                )[0]
+                self._apply_event_influence_to_pose_bone(
                     blender_animation,
-                    blender_event,
+                    armature,
+                    self._root_pose_bone(armature),
+                    self._event_influence_property_name(event["event_type"], object_function_name=event["object_function_name"]),
                     event["default_value"],
                     event["values"],
                     imported_start_frame,
@@ -2661,21 +2716,27 @@ class AnimationTag(Tag):
                 if event["ik_target_usage"]:
                     blender_event.ik_target_usage = event["ik_target_usage"]
                 blender_event.ik_game_marker_name = event["ik_game_marker_name"]
-                self._apply_event_value(
-                    blender_animation,
-                    blender_event,
-                    event["default_value"],
+                blender_event.event_value = self._event_influence_values_for_range(
                     event["values"],
+                    event["default_value"],
                     imported_start_frame,
                     event["frame_count"],
-                )
+                )[0]
                 self._import_ik_event_controls(tag_animation, blender_animation, blender_event, event, armature, imported_actions)
             elif event["event_type"] == EVENT_TYPE_WRINKLE_MAP:
                 if event["wrinkle_map_face_region"]:
                     blender_event.wrinkle_map_face_region = event["wrinkle_map_face_region"]
-                self._apply_event_value(
+                blender_event.event_value = self._event_influence_values_for_range(
+                    event["values"],
+                    event["default_value"],
+                    imported_start_frame,
+                    event["frame_count"],
+                )[0]
+                self._apply_event_influence_to_pose_bone(
                     blender_animation,
-                    blender_event,
+                    armature,
+                    self._root_pose_bone(armature),
+                    self._event_influence_property_name(event["event_type"], wrinkle_map_face_region=event["wrinkle_map_face_region"]),
                     event["default_value"],
                     event["values"],
                     imported_start_frame,
@@ -4440,10 +4501,11 @@ class AnimationTag(Tag):
         print("+++++++++++++++++++++++++++++++")
         
     def events_from_blender(self):
+        print(self.tag_path.RelativePathWithExtension)
         frame_event_list_path = Path(self.tag_path.RelativePath).with_suffix(".frame_event_list")
         with FrameEventListTag(path=frame_event_list_path) as events:
             events.from_blender(self.get_animations())
-            
+            print(self.tag_path.RelativePathWithExtension)
             event_list_tag_ref = self.tag.SelectField("Struct:definitions[0]/Reference:imported events")
             if event_list_tag_ref.Path.RelativePathWithExtension != events.tag_path.RelativePathWithExtension:
                 event_list_tag_ref.Path = events.tag_path

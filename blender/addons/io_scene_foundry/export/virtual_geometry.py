@@ -31,7 +31,7 @@ from ..tools.asset_types import AssetType
 
 from .cinematic import Actor, Frame
 
-from ..constants import IDENTITY_MATRIX, VALID_MESHES, WU_SCALAR
+from ..constants import IDENTITY_MATRIX, IK_INFLUENCE_ROUNDING_TOLERANCE, VALID_MESHES, WU_SCALAR
 NORMAL_FIX_MATRIX = Matrix(((1, 0, 0), (0, -1, 0), (0, 0, -1)))
 logging.basicConfig(level=logging.DEBUG)
 
@@ -338,12 +338,46 @@ vector_event_types = {
 }
 
 class VectorEvent:
-    def __init__(self, name: str, event, effect_name: str, on_event_model=False):
+    def __init__(
+        self,
+        name: str,
+        event,
+        effect_name: str,
+        on_event_model=False,
+        source_object: bpy.types.Object | None = None,
+        source_bone_name: str = "",
+        source_property: str = "",
+    ):
         self.name = name
         self.event = event
         self.effect_name = effect_name
         self.effect_data: list[float] = []
         self.on_event_model = on_event_model
+        self.source_object = source_object
+        self.source_bone_name = source_bone_name
+        self.source_property = source_property
+
+    def _round_influence(self, value: float) -> float:
+        value = max(0.0, min(1.0, float(value)))
+        if value <= IK_INFLUENCE_ROUNDING_TOLERANCE:
+            return 0.0
+        if 1.0 - value <= IK_INFLUENCE_ROUNDING_TOLERANCE:
+            return 1.0
+        return round(value, 6)
+
+    def value(self) -> float:
+        if self.source_property and self.source_object is not None and self.source_object.type == 'ARMATURE':
+            pose_bone = self.source_object.pose.bones.get(self.source_bone_name)
+            if pose_bone is not None and self.source_property in pose_bone:
+                value = pose_bone[self.source_property]
+                if self.effect_name == "bungie_animation_control_ik_effect":
+                    return self._round_influence(value)
+                return float(value)
+
+        if self.effect_name == "bungie_animation_control_ik_effect":
+            return self._round_influence(self.event.event_value)
+
+        return float(self.event.event_value)
                     
 class VectorTrack:
     def __init__(self, granny_vector_track, bone_name, granny_track_group):
@@ -571,7 +605,7 @@ class VirtualAnimation:
             first_frame = False
 
             for event in vector_events:
-                event.effect_data.append(event.event.event_value)
+                event.effect_data.append(event.value())
 
             if shape_key_data:
                 for ob, node in shape_key_data.items():

@@ -229,10 +229,10 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         project = utils.get_project(self.project)
         # Work out asset name / asset directory
         if self.filename:
-            asset_name = self.filename
+            asset_name = Path(self.filename).with_suffix("").name
             asset_directory = Path(self.filepath)
         elif Path(self.filepath).relative_to(Path(project.data_directory)) and self.filepath != project.data_directory:
-            asset_name = Path(self.filepath).name
+            asset_name = Path(self.filename).with_suffix("").name
             asset_directory = Path(self.filepath)
         else:
             asset_name = f"new_{self.asset_type}_asset"

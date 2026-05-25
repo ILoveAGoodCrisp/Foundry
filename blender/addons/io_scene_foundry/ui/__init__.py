@@ -145,6 +145,7 @@ classes = [
     animation.NWO_UL_AnimationRename,
     animation.NWO_UL_AnimationList,
     animation.NWO_OT_AnimationEventSetFrame,
+    animation.NWO_OT_KeyEventInfluenceProperty,
     animation.NWO_OT_PreviewIKEvent,
     animation.NWO_OT_AnimationFramesSyncToKeyFrames,
     animation.NWO_OT_List_Add_Animation_Event,

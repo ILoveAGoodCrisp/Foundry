@@ -64,9 +64,9 @@ look_child_of_constraint_name = 'Foundry Look Child Of'
 gun_copy_transforms_constraint_name = 'Foundry Gun Copy Transforms'
 ik_constraint_name = 'Foundry IK'
 ik_copy_rotation_constraint_name = 'Foundry IK Copy Rotation'
-head_follow_root_prop_name = "Head track follows root"
-look_follow_root_prop_name = "Look track follows root"
-look_follow_head_prop_name = "Look follows head"
+head_follow_root_prop_name = "Head track ignores root"
+look_follow_root_prop_name = "Look track ignores root"
+look_follow_head_prop_name = "Look ignores head"
 head_track_prop_name = "Head Track"
 eye_track_prop_name = "Eye Track"
 gun_control_prop_name = "gun_control"
@@ -766,7 +766,7 @@ class HaloRig:
             con.subtarget = head_control_name
             con.influence = 0.0
             con.set_inverse_pending = True
-            add_settings_control_prop_driver(con, self.rig_ob, look_follow_head_prop_name)
+            add_settings_control_prop_driver(con, self.rig_ob, look_follow_head_prop_name, invert=True)
 
         if len(eye_bone_names) >= 2 and look_control is not None:
             for eye_name in eye_bone_names[:2]:
@@ -1242,7 +1242,7 @@ def fk_ik_chain_count(fkb: bpy.types.PoseBone):
         
     return count
 
-def add_settings_control_prop_driver(con: bpy.types.Constraint, rig_ob: bpy.types.Object, prop_name: str, multiplier=1.0):
+def add_settings_control_prop_driver(con: bpy.types.Constraint, rig_ob: bpy.types.Object, prop_name: str, multiplier=1.0, invert=False):
     driver = con.driver_add("influence").driver
     driver.type = 'SCRIPTED'
 
@@ -1253,7 +1253,10 @@ def add_settings_control_prop_driver(con: bpy.types.Constraint, rig_ob: bpy.type
     control_target.id = rig_ob
     control_target.data_path = f'pose.bones["{settings_control_name}"]["{prop_name}"]'
 
-    driver.expression = f"min(max(control_value, 0.0), 1.0) * {multiplier:.6f}"
+    if invert:
+        driver.expression = f"min(max(1 - control_value, 0.0), 1.0) * {multiplier:.6f}"
+    else:
+        driver.expression = f"min(max(control_value, 0.0), 1.0) * {multiplier:.6f}"
 
 def add_ik_control_prop_driver(con: bpy.types.Constraint, rig_ob: bpy.types.Object, prop_name: str):
     add_settings_control_prop_driver(con, rig_ob, prop_name)
@@ -1264,7 +1267,7 @@ def add_root_child_of_constraint(pbone: bpy.types.PoseBone, rig_ob: bpy.types.Ob
         ensure_settings_float_prop(
             settings_bone,
             prop_name,
-            f"How much {pbone.name} follows the root bone",
+            f"How much {pbone.name} ignores the root bone",
         )
 
     clear_matching_constraints(
@@ -1281,7 +1284,7 @@ def add_root_child_of_constraint(pbone: bpy.types.PoseBone, rig_ob: bpy.types.Ob
     con.influence = 1.0
     con.set_inverse_pending = True
     if settings_bone is not None:
-        add_settings_control_prop_driver(con, rig_ob, prop_name)
+        add_settings_control_prop_driver(con, rig_ob, prop_name, invert=True)
 
 def get_bone_collection(armature_data: bpy.types.Armature, name: str):
     collections_all = getattr(armature_data, "collections_all", None)
@@ -1852,7 +1855,7 @@ def ensure_ik_control_props(settings_bone: bpy.types.PoseBone, fk_ik_mapping: di
         ensure_settings_float_prop(
             settings_bone,
             ik_root_follow_property_name(fkb_name),
-            f"How much {fkb_name.replace('FK_', 'IK_', 1)} follows the root bone",
+            f"How much {fkb_name.replace('FK_', 'IK_', 1)} ignores the root bone",
         )
 
 def ensure_look_control_props(
@@ -1870,7 +1873,7 @@ def ensure_look_control_props(
         ensure_settings_float_prop(
             settings_bone,
             head_follow_root_prop_name,
-            f"How much {head_control_name} follows the root bone",
+            f"How much {head_control_name} ignores the root bone",
         )
     else:
         remove_settings_prop(settings_bone, head_track_prop_name)
@@ -1880,7 +1883,7 @@ def ensure_look_control_props(
         ensure_settings_float_prop(
             settings_bone,
             look_follow_root_prop_name,
-            f"How much {look_control_name} follows the root bone",
+            f"How much {look_control_name} ignores the root bone",
         )
     else:
         remove_settings_prop(settings_bone, look_follow_root_prop_name)
@@ -1889,7 +1892,7 @@ def ensure_look_control_props(
         ensure_settings_float_prop(
             settings_bone,
             look_follow_head_prop_name,
-            f"How much {look_control_name} follows {head_control_name}",
+            f"How much {look_control_name} ignores {head_control_name}",
         )
     else:
         remove_settings_prop(settings_bone, look_follow_head_prop_name)
@@ -1911,7 +1914,7 @@ def ensure_gun_control_props(settings_bone: bpy.types.PoseBone):
     )
 
 def ik_root_follow_property_name(fkb_name: str) -> str:
-    return f"{ik_control_property_name(fkb_name)} follow root"
+    return f"{ik_control_property_name(fkb_name)} ignore root"
 
 def remove_settings_prop(settings_bone: bpy.types.PoseBone, prop_name: str):
     if prop_name in settings_bone:

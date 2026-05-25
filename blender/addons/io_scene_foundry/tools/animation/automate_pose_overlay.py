@@ -456,7 +456,7 @@ def pose_overlay_armature_validate(armature: bpy.types.Object, nwo, report):
         report({'WARNING'}, f"Pedestal bone {pedestal_name} does not exist in {armature.name}")
     yaw = armature.pose.bones.get(yaw_name)
     if yaw is None:
-        report({'WARNING'}, f"Pitch bone {pitch_name} does not exist in {armature.name}")
+        report({'WARNING'}, f"yaw bone {yaw_name} does not exist in {armature.name}")
     pitch = armature.pose.bones.get(pitch_name)
     if pitch is None:
         report({'WARNING'}, f"Pitch bone {pitch_name} does not exist in {armature.name}")

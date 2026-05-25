@@ -10,6 +10,7 @@ from mathutils import Matrix
 from ...managed_blam.animation import AnimationTag
 
 from ...props.scene import NWO_AnimationBlendAxisItems, NWO_AnimationGroupItems, NWO_AnimationLeavesItems, NWO_AnimationPhaseSetsItems, NWO_AnimationPropertiesGroup
+from ... import constants
 from ... import utils
 from ...icons import get_icon_id
 
@@ -112,6 +113,148 @@ def _ik_preview_constraint_name(chain_name: str) -> str:
 
 def _ik_preview_target_name(armature: bpy.types.Object, chain_name: str) -> str:
     return f"{armature.name}_ik_preview_target_{chain_name}"
+
+
+def _round_event_influence_value(value: float) -> float:
+    value = max(0.0, min(1.0, float(value)))
+    if value <= constants.IK_INFLUENCE_ROUNDING_TOLERANCE:
+        return 0.0
+    if 1.0 - value <= constants.IK_INFLUENCE_ROUNDING_TOLERANCE:
+        return 1.0
+    return round(value, 6)
+
+
+def _event_influence_property_name(event) -> str:
+    event_type = getattr(event, "event_type", "")
+    if event_type.startswith('_connected_geometry_animation_event_type_ik'):
+        ik_chain = getattr(event, "ik_chain", "")
+        if not ik_chain or ik_chain == "none":
+            return ""
+        return f"{ik_chain} IK Influence"
+
+    if event_type == '_connected_geometry_animation_event_type_wrinkle_map':
+        region_name = getattr(event, "wrinkle_map_face_region", "").strip()
+        return f"{region_name} Influence" if region_name else "Wrinkle Map Influence"
+
+    if event_type == '_connected_geometry_animation_event_type_object_function':
+        function_name = getattr(event, "object_function_name", "").strip()
+        return f"{function_name} Influence" if function_name else "Function Influence"
+
+    return ""
+
+
+def _event_has_keyable_influence(event) -> bool:
+    event_type = getattr(event, "event_type", "")
+    return (
+        event_type.startswith('_connected_geometry_animation_event_type_ik')
+        or event_type == '_connected_geometry_animation_event_type_wrinkle_map'
+        or event_type == '_connected_geometry_animation_event_type_object_function'
+    )
+
+
+def _root_pose_bone(armature: bpy.types.Object) -> bpy.types.PoseBone | None:
+    if armature is None or armature.type != 'ARMATURE':
+        return None
+
+    root = utils.rig_root_deform_bone(armature)
+    if isinstance(root, bpy.types.Bone):
+        pose_bone = armature.pose.bones.get(root.name)
+        if pose_bone is not None:
+            return pose_bone
+
+    for pose_bone in armature.pose.bones:
+        if pose_bone.parent is None:
+            return pose_bone
+
+    return None
+
+
+def _ensure_event_influence_pose_bone_property(pose_bone: bpy.types.PoseBone, property_name: str, default_value: float) -> None:
+    if property_name not in pose_bone:
+        pose_bone[property_name] = _round_event_influence_value(default_value)
+    pose_bone.id_properties_ui(property_name).update(
+        min=0.0,
+        max=1.0,
+        soft_min=0.0,
+        soft_max=1.0,
+        description="Animated influence used when exporting this animation event",
+    )
+
+
+def _event_influence_pose_bone(event, armature: bpy.types.Object):
+    if armature is None or armature.type != 'ARMATURE':
+        return None, None
+
+    return armature, _root_pose_bone(armature)
+
+
+def _event_influence_action(animation, armature: bpy.types.Object, single_animation: bool):
+    if armature is None:
+        return None, ""
+
+    if not single_animation and animation is not None:
+        for track in getattr(animation, "action_tracks", []):
+            if track.object == armature and track.action is not None and not track.is_shape_key_action:
+                animation_data = armature.animation_data
+                if animation_data is not None and animation_data.action == track.action:
+                    slot_identifier = getattr(animation_data, "last_slot_identifier", "")
+                    if slot_identifier:
+                        return track.action, slot_identifier
+                return track.action, _action_slot_identifier(track.action)
+
+        for track in getattr(animation, "action_tracks", []):
+            if track.object is not None and track.object.type == 'ARMATURE' and track.action is not None and not track.is_shape_key_action:
+                animation_data = track.object.animation_data
+                if animation_data is not None and animation_data.action == track.action:
+                    slot_identifier = getattr(animation_data, "last_slot_identifier", "")
+                    if slot_identifier:
+                        return track.action, slot_identifier
+                return track.action, _action_slot_identifier(track.action)
+
+    animation_data = armature.animation_data
+    if animation_data is not None and animation_data.action is not None:
+        slot_identifier = getattr(animation_data, "last_slot_identifier", "") or _action_slot_identifier(animation_data.action)
+        return animation_data.action, slot_identifier
+
+    return None, ""
+
+
+def _event_influence_data_path(pose_bone: bpy.types.PoseBone, property_name: str) -> str:
+    return pose_bone.path_from_id(f'["{property_name}"]')
+
+
+def _event_influence_fcurve(action: bpy.types.Action, slot_identifier: str, pose_bone: bpy.types.PoseBone, property_name: str, create: bool = False):
+    if action is None or not slot_identifier or pose_bone is None or not property_name:
+        return None
+
+    fcurves = utils.get_fcurves(action, slot_identifier)
+    if fcurves is None:
+        return None
+
+    data_path = _event_influence_data_path(pose_bone, property_name)
+    fcurve = fcurves.find(data_path)
+    if fcurve is None and create:
+        fcurve = fcurves.new(data_path=data_path)
+
+    return fcurve
+
+
+def _event_influence_is_keyed(action: bpy.types.Action, slot_identifier: str, pose_bone: bpy.types.PoseBone, property_name: str) -> bool:
+    if pose_bone is None or not property_name or property_name not in pose_bone:
+        return False
+
+    fcurve = _event_influence_fcurve(action, slot_identifier, pose_bone, property_name)
+    return fcurve is not None and bool(fcurve.keyframe_points)
+
+
+def _event_influence_value(event, animation, armature: bpy.types.Object, single_animation: bool) -> float:
+    property_name = _event_influence_property_name(event)
+    influence_armature, pose_bone = _event_influence_pose_bone(event, armature)
+    action, slot_identifier = _event_influence_action(animation, influence_armature, single_animation)
+    if _event_influence_is_keyed(action, slot_identifier, pose_bone, property_name):
+        return _round_event_influence_value(pose_bone[property_name])
+
+    return _round_event_influence_value(event.event_value)
 
 
 def _clear_ik_preview_targets(armature: bpy.types.Object) -> int:
@@ -405,25 +548,6 @@ def _delete_actions_from_main_blend(actions: set[bpy.types.Action], scene_nwo):
                 bpy.data.actions.remove(action, do_unlink=True)
             except RuntimeError:
                 pass
-
-
-def _ik_event_value_data_path(scene_nwo, single_animation: bool) -> str | None:
-    if single_animation:
-        event_index = scene_nwo.active_animation_event_index
-        if event_index < 0:
-            return None
-        return f"nwo.animation_events[{event_index}].event_value"
-
-    animation_index = scene_nwo.active_animation_index
-    if animation_index < 0 or animation_index >= len(scene_nwo.animations):
-        return None
-
-    animation = scene_nwo.animations[animation_index]
-    event_index = animation.active_animation_event_index
-    if event_index < 0:
-        return None
-
-    return f"nwo.animations[{animation_index}].animation_events[{event_index}].event_value"
 
 
 def _tag_redraw_areas(context: bpy.types.Context):
@@ -2839,6 +2963,78 @@ class NWO_OT_AnimationEventSetFrame(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class NWO_OT_KeyEventInfluenceProperty(bpy.types.Operator):
+    bl_idname = "nwo.key_event_influence_property"
+    bl_label = "Key Event Influence"
+    bl_description = "Creates the event influence custom property on the root bone and keys it on the current frame"
+    bl_options = {"UNDO"}
+
+    single_animation: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
+
+    @classmethod
+    def poll(cls, context) -> bool:
+        scene_nwo = utils.get_scene_props()
+        for single_animation in (False, True):
+            _, event = _get_active_animation_event(scene_nwo, single_animation)
+            if event is not None and _event_has_keyable_influence(event):
+                return True
+
+        return False
+
+    def execute(self, context):
+        scene_nwo = utils.get_scene_props()
+        animation, event = _get_active_animation_event(scene_nwo, self.single_animation)
+        if event is None or not _event_has_keyable_influence(event):
+            self.report({'WARNING'}, "No active event influence to key")
+            return {'CANCELLED'}
+
+        property_name = _event_influence_property_name(event)
+        if not property_name:
+            self.report({'WARNING'}, "This event does not have a named influence property")
+            return {'CANCELLED'}
+
+        armature = _find_animation_armature(context, animation, self.single_animation)
+        if armature is None or armature.type != 'ARMATURE':
+            self.report({'WARNING'}, "Could not resolve an armature for this event")
+            return {'CANCELLED'}
+
+        influence_armature, pose_bone = _event_influence_pose_bone(event, armature)
+        if influence_armature is None or pose_bone is None:
+            self.report({'WARNING'}, "Could not resolve the root bone for this event")
+            return {'CANCELLED'}
+
+        action, slot_identifier = _event_influence_action(animation, influence_armature, self.single_animation)
+        if action is None or not slot_identifier:
+            self.report({'WARNING'}, "Could not resolve an action for this root bone")
+            return {'CANCELLED'}
+
+        _ensure_event_influence_pose_bone_property(pose_bone, property_name, event.event_value)
+        value = _round_event_influence_value(pose_bone[property_name])
+        pose_bone[property_name] = value
+
+        fcurve = _event_influence_fcurve(action, slot_identifier, pose_bone, property_name, create=True)
+        if fcurve is None:
+            self.report({'WARNING'}, "Could not create an event influence fcurve for this action")
+            return {'CANCELLED'}
+
+        frame = float(context.scene.frame_current)
+        keyframe = None
+        for point in fcurve.keyframe_points:
+            if abs(point.co.x - frame) <= 0.0001:
+                keyframe = point
+                keyframe.co.y = value
+                break
+
+        if keyframe is None:
+            keyframe = fcurve.keyframe_points.insert(frame, value, options={'FAST'})
+
+        keyframe.interpolation = "LINEAR"
+        fcurve.update()
+        _tag_redraw_areas(context)
+        self.report({'INFO'}, f"Keyed [{property_name}] on [{pose_bone.name}]")
+        return {'FINISHED'}
+
+
 class NWO_OT_PreviewIKEvent(bpy.types.Operator):
     bl_idname = "nwo.preview_ik_event"
     bl_label = "Toggle IK Preview"
@@ -2884,7 +3080,6 @@ class NWO_OT_PreviewIKEvent(bpy.types.Operator):
             self.report({'WARNING'}, f"IK chain [{chain.name}] could not be resolved from [{chain.start_node}] to [{chain.effector_node}]")
             return {'CANCELLED'}
 
-        event_data_path = _ik_event_value_data_path(scene_nwo, self.single_animation)
         preview_constraint_name = _ik_preview_constraint_name(chain.name)
         existing_preview = any(
             constraint.name == preview_constraint_name
@@ -2937,7 +3132,7 @@ class NWO_OT_PreviewIKEvent(bpy.types.Operator):
         constraint.chain_count = chain_count
         constraint.use_stretch = False
         constraint.use_tail = False
-        constraint.influence = event.event_value
+        constraint.influence = _event_influence_value(event, animation, armature, self.single_animation)
 
         if event.ik_pole_vector is not None:
             constraint.pole_target = event.ik_pole_vector
@@ -2946,17 +3141,20 @@ class NWO_OT_PreviewIKEvent(bpy.types.Operator):
                 if pole_target_bone is not None:
                     constraint.pole_subtarget = pole_target_bone.name
 
-        if event_data_path:
+        influence_property = _event_influence_property_name(event)
+        influence_armature, influence_bone = _event_influence_pose_bone(event, armature)
+        action, slot_identifier = _event_influence_action(animation, influence_armature, self.single_animation)
+        if _event_influence_is_keyed(action, slot_identifier, influence_bone, influence_property):
             fcurve = constraint.driver_add("influence")
             driver = fcurve.driver
             driver.type = 'SCRIPTED'
-            driver.expression = "ik_influence"
+            driver.expression = "event_influence"
             variable = driver.variables.new()
-            variable.name = "ik_influence"
+            variable.name = "event_influence"
             target = variable.targets[0]
-            target.id_type = 'SCENE'
-            target.id = context.scene
-            target.data_path = event_data_path
+            target.id_type = 'OBJECT'
+            target.id = influence_armature
+            target.data_path = influence_bone.path_from_id(f'["{influence_property}"]')
 
         context.view_layer.update()
         _tag_redraw_areas(context)

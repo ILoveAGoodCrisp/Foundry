@@ -54,7 +54,7 @@ from ..props.object import NWO_ObjectPropertiesGroup
 from .virtual_geometry import AnimatedBone, VectorEvent, VirtualAnimation, VirtualNode, VirtualScene
 from ..granny import Granny
 from .. import utils
-from ..constants import GENERAL_OBJECTS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR
+from ..constants import GENERAL_OBJECTS, IK_INFLUENCE_ROUNDING_TOLERANCE, VALID_MESHES, VALID_OBJECTS, WU_SCALAR
 from ..tools.asset_types import AssetType
 
 MAXIMUM_CINEMATIC_SHOTS = 64
@@ -1941,6 +1941,109 @@ class ExportScene:
         finally:
             if armature_mods is not None:
                 utils.unmute_armature_mods(armature_mods)
+
+    def _round_event_influence_value(self, value: float) -> float:
+        value = max(0.0, min(1.0, float(value)))
+        if value <= IK_INFLUENCE_ROUNDING_TOLERANCE:
+            return 0.0
+        if 1.0 - value <= IK_INFLUENCE_ROUNDING_TOLERANCE:
+            return 1.0
+        return round(value, 6)
+
+    def _event_influence_property_name(self, event) -> str:
+        event_type = getattr(event, "event_type", "")
+        if event_type.startswith('_connected_geometry_animation_event_type_ik'):
+            ik_chain = getattr(event, "ik_chain", "")
+            if not ik_chain or ik_chain == "none":
+                return ""
+            return f"{ik_chain} IK Influence"
+
+        if event_type == '_connected_geometry_animation_event_type_wrinkle_map':
+            region_name = getattr(event, "wrinkle_map_face_region", "").strip()
+            return f"{region_name} Influence" if region_name else "Wrinkle Map Influence"
+
+        if event_type == '_connected_geometry_animation_event_type_object_function':
+            function_name = getattr(event, "object_function_name", "").strip()
+            return f"{function_name} Influence" if function_name else "Function Influence"
+
+        return ""
+
+    def _event_influence_pose_bone(self):
+        skeleton_object = getattr(self.virtual_scene, "skeleton_object", None)
+        if skeleton_object is None or skeleton_object.type != 'ARMATURE':
+            return None, None
+
+        root_bone = getattr(self.virtual_scene, "root_bone", None)
+        if root_bone is not None:
+            return skeleton_object, root_bone
+
+        for pose_bone in skeleton_object.pose.bones:
+            if pose_bone.parent is None:
+                return skeleton_object, pose_bone
+
+        return skeleton_object, None
+
+    def _action_slot_identifier(self, action: bpy.types.Action) -> str:
+        slots = getattr(action, "slots", None)
+        if not slots:
+            return ""
+
+        active_slot = getattr(slots, "active", None)
+        if active_slot:
+            return active_slot.identifier
+
+        return slots[0].identifier
+
+    def _animation_action_for_object(self, animation, ob: bpy.types.Object):
+        if ob is None:
+            return None, ""
+
+        for track in getattr(animation, "action_tracks", []):
+            if track.object == ob and track.action is not None and not track.is_shape_key_action:
+                animation_data = ob.animation_data
+                if animation_data is not None and animation_data.action == track.action:
+                    slot_identifier = getattr(animation_data, "last_slot_identifier", "")
+                    if slot_identifier:
+                        return track.action, slot_identifier
+                return track.action, self._action_slot_identifier(track.action)
+
+        animation_data = ob.animation_data
+        if animation_data is not None and animation_data.action is not None:
+            slot_identifier = getattr(animation_data, "last_slot_identifier", "") or self._action_slot_identifier(animation_data.action)
+            return animation_data.action, slot_identifier
+
+        return None, ""
+
+    def _event_influence_is_keyed(self, animation, armature: bpy.types.Object, pose_bone: bpy.types.PoseBone, property_name: str) -> bool:
+        if armature is None or pose_bone is None or not property_name or property_name not in pose_bone:
+            return False
+
+        action, slot_identifier = self._animation_action_for_object(animation, armature)
+        if action is None or not slot_identifier:
+            return False
+
+        fcurves = utils.get_fcurves(action, slot_identifier)
+        if fcurves is None:
+            return False
+
+        data_path = pose_bone.path_from_id(f'["{property_name}"]')
+        fcurve = fcurves.find(data_path)
+        return fcurve is not None and bool(fcurve.keyframe_points)
+
+    def _event_influence_value(self, animation, event) -> float:
+        property_name = self._event_influence_property_name(event)
+        armature, pose_bone = self._event_influence_pose_bone()
+        if self._event_influence_is_keyed(animation, armature, pose_bone, property_name):
+            return self._round_event_influence_value(pose_bone[property_name])
+        return self._round_event_influence_value(event.event_value)
+
+    def _event_influence_source(self, animation, event):
+        property_name = self._event_influence_property_name(event)
+        armature, pose_bone = self._event_influence_pose_bone()
+        if self._event_influence_is_keyed(animation, armature, pose_bone, property_name):
+            return armature, pose_bone, property_name
+
+        return armature, pose_bone, ""
             
     def create_event_objects(self, animation):
         name = animation.name
@@ -1983,18 +2086,42 @@ class ExportScene:
                             event_ob_props[copy_ob] = copy_props
                             
                 case '_connected_geometry_animation_event_type_wrinkle_map':
+                    source_object, source_bone, source_property = self._event_influence_source(animation, event)
+                    wrinkle_effect = self._event_influence_value(animation, event)
                     props["bungie_animation_event_wrinkle_map_face_region"] = event.wrinkle_map_face_region
-                    props["bungie_animation_event_wrinkle_map_effect"] = event.event_value
-                    vector_events.append(VectorEvent(ob.name, event, "bungie_animation_event_wrinkle_map_effect", True))
+                    props["bungie_animation_event_wrinkle_map_effect"] = wrinkle_effect
+                    vector_events.append(
+                        VectorEvent(
+                            ob.name,
+                            event,
+                            "bungie_animation_event_wrinkle_map_effect",
+                            True,
+                            source_object=source_object,
+                            source_bone_name=source_bone.name if source_bone is not None else "",
+                            source_property=source_property,
+                        )
+                    )
                     
                 case '_connected_geometry_animation_event_type_object_function':
                     func_name = event.object_function_name
                     if not self.corinth and func_name[-1] not in ('a','b', 'c', 'd'):
                         self.warnings.append(f"Function {func_name[-1].upper()} on animation {animation.name} not support for Reach. Reach only supports functions A - D. Clamping to D")
                         func_name = 'animation_event_function_d'
+                    source_object, source_bone, source_property = self._event_influence_source(animation, event)
+                    function_effect = self._event_influence_value(animation, event)
                     props["bungie_animation_event_object_function_name"] = func_name
-                    props["bungie_animation_event_object_function_effect"] = event.event_value
-                    vector_events.append(VectorEvent(ob.name, event, "bungie_animation_event_object_function_effect", True))
+                    props["bungie_animation_event_object_function_effect"] = function_effect
+                    vector_events.append(
+                        VectorEvent(
+                            ob.name,
+                            event,
+                            "bungie_animation_event_object_function_effect",
+                            True,
+                            source_object=source_object,
+                            source_bone_name=source_bone.name if source_bone is not None else "",
+                            source_property=source_property,
+                        )
+                    )
                     
                 case '_connected_geometry_animation_event_type_import':
                     props["bungie_animation_event_import_name"] = event.import_name
@@ -2030,6 +2157,8 @@ class ExportScene:
                         if chain.name == event.ik_chain:
                             current_chain = chain
                             break
+                    influence_source_object, influence_source_bone, influence_source_property = self._event_influence_source(animation, event)
+                    ik_influence = self._event_influence_value(animation, event)
                     
                     if current_chain:
                         proxy_target.parent = self.virtual_scene.skeleton_object
@@ -2058,7 +2187,16 @@ class ExportScene:
                         constraint.target = self.virtual_scene.skeleton_object
                         constraint.subtarget = current_chain.effector_node
                                 
-                        vector_events.append(VectorEvent(effector.name, event, "bungie_animation_control_ik_effect"))
+                        vector_events.append(
+                            VectorEvent(
+                                effector.name,
+                                event,
+                                "bungie_animation_control_ik_effect",
+                                source_object=influence_source_object,
+                                source_bone_name=influence_source_bone.name if influence_source_bone is not None else "",
+                                source_property=influence_source_property,
+                            )
+                        )
                         pole_target = None
                         if utils.pointer_ob_valid(event.ik_pole_vector):
                             pole_target = bpy.data.objects.new(f'ik_pole_vector_export_node_{event.ik_chain}_{event.event_type[41:]}', None)
@@ -2087,7 +2225,7 @@ class ExportScene:
                     effector_props["bungie_animation_control_id"] = effector_id
                     effector_props["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_ik_effector'
                     effector_props["bungie_animation_control_ik_chain"] = event.ik_chain
-                    effector_props["bungie_animation_control_ik_effect"] = event.event_value
+                    effector_props["bungie_animation_control_ik_effect"] = ik_influence
                     # effector.parent_type = proxy_target.parent_type
                     # effector.parent_bone = proxy_target.parent_bone
                     # effector.matrix_local = proxy_target.matrix_local

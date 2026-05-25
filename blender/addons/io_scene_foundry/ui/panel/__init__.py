@@ -37,10 +37,152 @@ POSE_CONTROL_UI_GROUPS = (
     ("Look", "VIEWZOOM"),
     ("Gun", "CONSTRAINT_BONE"),
     ("IK Blend", "CON_KINEMATIC"),
-    ("IK Root Follow", "CON_CHILDOF"),
-    ("Root Follow", "CON_CHILDOF"),
+    ("IK Root Ignore", "CON_CHILDOF"),
+    ("Root Ignore", "CON_CHILDOF"),
     ("Other", "PROPERTIES"),
 )
+
+def _animation_armature_for_event_ui(context: bpy.types.Context, animation) -> bpy.types.Object | None:
+    for track in getattr(animation, "action_tracks", []):
+        if track.object is not None and track.object.type == 'ARMATURE':
+            return track.object
+
+    rig = utils.get_rig_prioritize_active(context)
+    if rig is not None:
+        return rig
+
+    if context.object is not None:
+        if context.object.type == 'ARMATURE':
+            return context.object
+        return utils.ultimate_armature_parent(context.object)
+
+    return None
+
+
+def _event_influence_property_name(item) -> str:
+    event_type = getattr(item, "event_type", "")
+    if event_type.startswith('_connected_geometry_animation_event_type_ik'):
+        ik_chain = getattr(item, "ik_chain", "")
+        if not ik_chain or ik_chain == "none":
+            return ""
+        return f"{ik_chain} IK Influence"
+
+    if event_type == "_connected_geometry_animation_event_type_wrinkle_map":
+        region_name = getattr(item, "wrinkle_map_face_region", "").strip()
+        return f"{region_name} Influence" if region_name else "Wrinkle Map Influence"
+
+    if event_type == "_connected_geometry_animation_event_type_object_function":
+        function_name = getattr(item, "object_function_name", "").strip()
+        return f"{function_name} Influence" if function_name else "Function Influence"
+
+    return ""
+
+
+def _event_influence_pose_bone_for_event_ui(item, animation, context: bpy.types.Context):
+    armature = _animation_armature_for_event_ui(context, animation)
+    if armature is None or armature.type != 'ARMATURE':
+        return None, None
+
+    root = utils.rig_root_deform_bone(armature)
+    if isinstance(root, bpy.types.Bone):
+        pose_bone = armature.pose.bones.get(root.name)
+        if pose_bone is not None:
+            return armature, pose_bone
+
+    for pose_bone in armature.pose.bones:
+        if pose_bone.parent is None:
+            return armature, pose_bone
+
+    return armature, None
+
+
+def _round_event_influence_value(value: float) -> float:
+    value = max(0.0, min(1.0, float(value)))
+    if value <= constants.IK_INFLUENCE_ROUNDING_TOLERANCE:
+        return 0.0
+    if 1.0 - value <= constants.IK_INFLUENCE_ROUNDING_TOLERANCE:
+        return 1.0
+    return round(value, 6)
+
+
+def _action_slot_identifier_for_ui(action: bpy.types.Action) -> str:
+    slots = getattr(action, "slots", None)
+    if not slots:
+        return ""
+
+    active_slot = getattr(slots, "active", None)
+    if active_slot:
+        return active_slot.identifier
+
+    return slots[0].identifier
+
+
+def _event_influence_action_for_event_ui(animation, armature: bpy.types.Object, single_animation: bool):
+    if armature is None:
+        return None, ""
+
+    if not single_animation:
+        for track in getattr(animation, "action_tracks", []):
+            if track.object == armature and track.action is not None and not track.is_shape_key_action:
+                animation_data = armature.animation_data
+                if animation_data is not None and animation_data.action == track.action:
+                    slot_identifier = getattr(animation_data, "last_slot_identifier", "")
+                    if slot_identifier:
+                        return track.action, slot_identifier
+                return track.action, _action_slot_identifier_for_ui(track.action)
+
+    animation_data = armature.animation_data
+    if animation_data is not None and animation_data.action is not None:
+        slot_identifier = getattr(animation_data, "last_slot_identifier", "") or _action_slot_identifier_for_ui(animation_data.action)
+        return animation_data.action, slot_identifier
+
+    return None, ""
+
+
+def _event_influence_is_keyed_for_event_ui(action: bpy.types.Action, slot_identifier: str, pose_bone: bpy.types.PoseBone, property_name: str) -> bool:
+    if action is None or not slot_identifier or pose_bone is None or not property_name or property_name not in pose_bone:
+        return False
+
+    fcurves = utils.get_fcurves(action, slot_identifier)
+    if fcurves is None:
+        return False
+
+    fcurve = fcurves.find(pose_bone.path_from_id(f'["{property_name}"]'))
+    return fcurve is not None and bool(fcurve.keyframe_points)
+
+
+def _ensure_event_influence_pose_bone_property(pose_bone: bpy.types.PoseBone, property_name: str, default_value: float) -> None:
+    if property_name not in pose_bone:
+        pose_bone[property_name] = _round_event_influence_value(default_value)
+    pose_bone.id_properties_ui(property_name).update(
+        min=0.0,
+        max=1.0,
+        soft_min=0.0,
+        soft_max=1.0,
+        description="Animated influence used when exporting this animation event",
+    )
+
+
+def _draw_event_influence_property(layout, item, animation, context: bpy.types.Context, single_animation: bool = False, text: str = "Influence") -> None:
+    layout.prop(item, 'event_value', text=text)
+
+    property_name = _event_influence_property_name(item)
+    if not property_name:
+        return
+
+    armature, pose_bone = _event_influence_pose_bone_for_event_ui(item, animation, context)
+    if pose_bone is None:
+        layout.label(text="Animated influence keys are stored on the root bone", icon='INFO')
+        return
+
+    action, slot_identifier = _event_influence_action_for_event_ui(animation, armature, single_animation)
+    if _event_influence_is_keyed_for_event_ui(action, slot_identifier, pose_bone, property_name):
+        _ensure_event_influence_pose_bone_property(pose_bone, property_name, item.event_value)
+        layout.prop(pose_bone, f'["{property_name}"]', text="Keyed Influence")
+        return
+
+    op = layout.operator("nwo.key_event_influence_property", icon='KEY_HLT', text="Key Root Influence")
+    op.single_animation = single_animation
 
 HOTKEYS = [
     ("show_foundry_panel", "SHIFT+F"),
@@ -93,27 +235,27 @@ def grouped_bone_collections(collections: list):
 
 def pose_control_group_name(prop_name: str) -> str:
     lower_name = prop_name.lower()
-    follows_root = "follow root" in lower_name or "follows root" in lower_name or "root_follow" in lower_name
+    follows_root = "ignore root" in lower_name or "ignores root" in lower_name or "root_ignore" in lower_name
     is_ik = lower_name.startswith(("ik ", "ik_")) or lower_name.startswith("root_follow_ik")
     if "gun" in lower_name:
         return "Gun"
     if is_ik:
         if follows_root:
-            return "IK Root Follow"
+            return "IK Root Ignore"
         return "IK Blend"
     if any(token in lower_name for token in ("head", "eye", "look")):
         if follows_root:
-            return "Root Follow"
+            return "Root Ignore"
         return "Look"
     if follows_root:
-        return "Root Follow"
+        return "Root Ignore"
 
     return "Other"
 
 def is_ik_blend_pose_control(prop_name: str) -> bool:
     lower_name = prop_name.lower()
     is_ik = lower_name.startswith("ik ") or lower_name.startswith("ik_")
-    follows_root = "follow root" in lower_name or "follows root" in lower_name or "root_follow" in lower_name
+    follows_root = "ignore root" in lower_name or "ignores root" in lower_name or "root_ignore" in lower_name
     return is_ik and not follows_root
 
 def pose_control_label(prop_name: str) -> str:
@@ -557,7 +699,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             ):
                 row = col.row(align=True)
                 col.prop(item, "wrinkle_map_face_region", text="Face Region")
-                col.prop(item, "event_value", text="Wrinkle Map Factor")
+                _draw_event_influence_property(col, item, nwo, self.context, single_animation=True, text="Wrinkle Map Factor")
                 # col.prop(item, "name", text="Event Name")
             elif (
                 item.event_type
@@ -578,7 +720,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(item, "ik_target_marker", icon_value=get_icon_id('marker'))
                 col.prop(item, "ik_game_marker_name")
                 col.prop(item, "ik_target_usage")
-                col.prop(item, 'event_value', text="IK Influence")
+                _draw_event_influence_property(col, item, nwo, self.context, single_animation=True, text="IK Influence")
                 # col.prop(item, "name", text="Event Name")
                 col.prop(item, 'ik_pole_vector')
                 # col.operator("nwo.preview_ik_event", text="Toggle IK Preview", icon='CON_KINEMATIC').single_animation = True
@@ -590,7 +732,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 == "_connected_geometry_animation_event_type_object_function"
             ):
                 col.prop(item, "object_function_name")
-                col.prop(item, "event_value", text="Function Value")
+                _draw_event_influence_property(col, item, nwo, self.context, single_animation=True, text="Function Value")
                 # col.prop(item, "name", text="Event Name")
             elif (
                 item.event_type
@@ -3754,7 +3896,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             ):
                 row = col.row(align=True)
                 col.prop(item, "wrinkle_map_face_region", text="Face Region")
-                col.prop(item, "event_value", text="Wrinkle Map Factor")
+                _draw_event_influence_property(col, item, animation, self.context, text="Wrinkle Map Factor")
                 # col.prop(item, "name", text="Event Name")
             elif (
                 item.event_type
@@ -3775,7 +3917,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 # col.prop(item, "ik_target_tag")
                 col.prop(item, "ik_game_marker_name")
                 col.prop(item, "ik_target_usage")
-                col.prop(item, 'event_value', text="IK Influence")
+                _draw_event_influence_property(col, item, animation, self.context, text="IK Influence")
                 col.separator()
                 col.prop(item, "ik_target_marker", icon='EMPTY_AXIS')
                 if utils.pointer_ob_valid(item.ik_target_marker) and item.ik_target_marker.type == 'ARMATURE':
@@ -3793,7 +3935,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 == "_connected_geometry_animation_event_type_object_function"
             ):
                 col.prop(item, "object_function_name")
-                col.prop(item, "event_value", text="Function Value")
+                _draw_event_influence_property(col, item, animation, self.context, text="Function Value")
                 # col.prop(item, "name", text="Event Name")
             elif (
                 item.event_type

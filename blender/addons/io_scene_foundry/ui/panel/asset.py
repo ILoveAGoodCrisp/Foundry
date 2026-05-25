@@ -155,7 +155,7 @@ class NWO_OT_CinematicSceneRemove(bpy.types.Operator):
         
         cin_scene = nwo.cinematic_scenes[index]
         
-        if self.delete_scene and cin_scene.scene and cin_scene.scene in bpy.data.scenes:
+        if self.delete_scene and cin_scene.scene and cin_scene.scene.name in bpy.data.scenes:
             bpy.data.scenes.remove(cin_scene.scene)
         
         nwo.cinematic_scenes.remove(index)
