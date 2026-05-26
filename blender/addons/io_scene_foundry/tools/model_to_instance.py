@@ -9,6 +9,7 @@ from ..constants import WU_SCALAR
 
 from ..managed_blam.physics_model import PhysicsTag
 
+from ..managed_blam import import_transform
 from ..managed_blam.material import MaterialTag
 from ..managed_blam.model import ModelTag
 from ..managed_blam.object import ObjectTag
@@ -25,6 +26,7 @@ class ModelInstance:
         self.variant = variant
         self.render_objects = []
         self.collision_objects = []
+        self.cookie_cutter_objects = []
         self.physics_objects = []
         self.other_objects = []
         self.instance = None
@@ -43,6 +45,8 @@ class ModelInstance:
                     self.render_objects.append(ob)
                 case '_connected_geometry_mesh_type_collision':
                     self.collision_objects.append(ob)
+                case '_connected_geometry_mesh_type_cookie_cutter':
+                    self.cookie_cutter_objects.append(ob)
                 case '_connected_geometry_mesh_type_physics':
                     self.physics_objects.append(ob)
                 case _:
@@ -50,6 +54,20 @@ class ModelInstance:
         
     def from_objects(self, objects: list[bpy.types.Object]):
         self._collect_objects(objects)
+
+    def _instance_space_matrix(self, ob: bpy.types.Object) -> Matrix:
+        return import_transform.rotation_matrix().inverted_safe() @ ob.matrix_world
+
+    def _append_mesh(self, bm, ob: bpy.types.Object, transform: Matrix | None = None):
+        vert_start = len(bm.verts)
+        bm.from_mesh(ob.data)
+        if transform is None:
+            return
+
+        bm.verts.ensure_lookup_table()
+        new_verts = [bm.verts[i] for i in range(vert_start, len(bm.verts))]
+        if new_verts:
+            bmesh.ops.transform(bm, matrix=transform, verts=new_verts)
                     
     def _map_materials_to_shaders(self):
         model_materials_map = {}
@@ -218,7 +236,7 @@ class ModelInstance:
         bm = bmesh.new()
         for ob in self.render_objects:
             self._copy_props(render_ob, ob, True)
-            bm.from_mesh(ob.data)
+            self._append_mesh(bm, ob, self._instance_space_matrix(ob))
 
         bm.to_mesh(render_mesh)
         bm.free()
@@ -243,7 +261,7 @@ class ModelInstance:
             bm = bmesh.new()
             for ob in self.collision_objects:
                 self._copy_props(collision_ob, ob)
-                bm.from_mesh(ob.data)
+                self._append_mesh(bm, ob, self._instance_space_matrix(ob))
 
             bm.to_mesh(collision_mesh)
             bm.free()
@@ -260,7 +278,25 @@ class ModelInstance:
             
         else:
             render_ob.nwo.poop_render_only = True
-            
+
+        if self.cookie_cutter_objects:
+            cookie_name = f"{self.name}_cookie_cutter"
+            cookie_mesh = bpy.data.meshes.new(cookie_name)
+            cookie_ob = bpy.data.objects.new(cookie_name, cookie_mesh)
+
+            bm = bmesh.new()
+            for ob in self.cookie_cutter_objects:
+                self._copy_props(cookie_ob, ob, True)
+                self._append_mesh(bm, ob, self._instance_space_matrix(ob))
+
+            bm.to_mesh(cookie_mesh)
+            bm.free()
+
+            cookie_ob.nwo.proxy_type = 'cookie_cutter'
+            render_mesh.nwo.proxy_cookie_cutter = cookie_ob
+            objects.append(cookie_ob)
+            utils.consolidate_face_attributes(cookie_mesh)
+
         for idx, ob in enumerate(self.physics_objects):
             if ob.nwo.global_material in phantom_materials:
                 continue
@@ -269,11 +305,9 @@ class ModelInstance:
             physics_mesh = bpy.data.meshes.new(physics_name)
             physics_ob = bpy.data.objects.new(physics_name, physics_mesh)
             bm = bmesh.new()
-            bm.from_mesh(ob.data)
+            self._append_mesh(bm, ob, self._instance_space_matrix(ob))
             bm.to_mesh(physics_mesh)
             bm.free()
-            
-            physics_mesh.transform(ob.matrix_world)
                     
             # physics_ob.nwo.proxy_parent = render_ob.data
             physics_ob.nwo.proxy_type = 'physics'
@@ -287,7 +321,7 @@ class ModelInstance:
         return objects
     
     def clean_up(self):
-        to_remove = self.render_objects + self.collision_objects + self.physics_objects + self.other_objects
+        to_remove = self.render_objects + self.collision_objects + self.cookie_cutter_objects + self.physics_objects + self.other_objects
         redundant_collections = {coll for ob in to_remove for coll in ob.users_collection if coll}
         bpy.data.batch_remove(to_remove)
         redundant_collections = {coll for coll in redundant_collections if not coll.all_objects}
