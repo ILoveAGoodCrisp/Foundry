@@ -3,7 +3,7 @@
 from pathlib import Path
 import bpy
 import os
-from ..utils import get_prefs, get_project_path, get_scene_props, get_tags_path, is_corinth, os_sep_partition, redraw_area, relative_path
+from ..utils import get_prefs, get_project_path, get_scene_props, get_tags_path, is_corinth, open_in_explorer, os_sep_partition, redraw_area, relative_path
 
 global_items = {}
 cinematic_event_props = ("sound_tag", "female_sound_tag", "effect", "music")
@@ -206,7 +206,7 @@ class NWO_TagExplore(bpy.types.Operator):
     bl_idname = 'nwo.tag_explore'
     bl_options = {'UNDO'}
     bl_property = "prop"
-    bl_description = 'Opens a file explorer dialog filtered for valid tags'
+    bl_description = 'Opens a file explorer dialog filtered for valid tags. Holding alt while clicking will open the currently set path in file explorer'
 
     filter_glob: bpy.props.StringProperty(
         default="*",
@@ -218,15 +218,35 @@ class NWO_TagExplore(bpy.types.Operator):
     )
 
     prop: bpy.props.StringProperty()
+    
+    open_in_explorer: bpy.props.BoolProperty(
+        name="Open in File Explorer",
+        options={'SKIP_SAVE'}
+    )
 
     def execute(self, context):
+
+        if not hasattr(self, "nwo"):
+            return {'CANCELLED'}
+            
+        if self.open_in_explorer:
+            if self.filepath:
+                if not open_in_explorer(self.filepath):
+                    self.report({'WARNING'}, "Failed to open file")
+        else:
+            setattr(self.nwo, self.prop, relative_path(self.filepath))
+            if getattr(self, "do_rename"):
+                context.object.active_material.name = Path(self.filepath).with_suffix("").name
+        return {"FINISHED"}
+    
+    def set_nwo(self, context):
         scene_nwo = get_scene_props()
         if self.prop in scene_props:
             nwo = scene_nwo
         elif self.prop == 'shader_path':
             nwo = context.object.active_material.nwo
-            if get_prefs().rename_material:
-                context.object.active_material.name = Path(self.filepath).with_suffix("").name
+            if not self.open_in_explorer and get_prefs().rename_material:
+                self.do_rename = True
         elif self.prop.startswith('light'):
             nwo = context.object.data.nwo
         elif self.prop in cinematic_event_props:
@@ -237,12 +257,16 @@ class NWO_TagExplore(bpy.types.Operator):
             nwo = event.event_data[event.active_event_data_index]
         else:
             nwo = context.object.nwo
-        setattr(nwo, self.prop, relative_path(self.filepath))
-        return {"FINISHED"}
+            
+        self.nwo = nwo
+        self.filepath = str(Path(get_tags_path(), relative_path(getattr(nwo, self.prop, ""))))
 
     def invoke(self, context, event):
-        self.filepath = get_tags_path() + os.sep
+        self.open_in_explorer = event.alt
+        self.set_nwo(context)
         self.filter_glob = get_glob_from_prop(self.prop)
+        if self.open_in_explorer:
+            return self.execute(context)
         context.window_manager.fileselect_add(self)
 
         return {"RUNNING_MODAL"}

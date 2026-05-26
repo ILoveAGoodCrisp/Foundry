@@ -6291,3 +6291,33 @@ def uses_array_mod(ob: bpy.types.Object):
     except:
         print_warning(f"Failed to check for array modifier on {ob.name}")
         return False
+
+def open_in_explorer(fp: str | Path) -> bool:
+    """Returns True if the file folder was opened"""
+    def open_dir(full_fp):
+        if full_fp.is_dir():
+            os.startfile(full_fp)
+            return True
+        elif full_fp.is_file():
+            os.startfile(full_fp.parent)
+            return True
+        
+        return False
+            
+    if len(str(fp)) < 3:
+        return False
+    
+    fp = Path(fp)
+    
+    if fp.exists():
+        return open_dir(fp)
+    
+    tags_fp = Path(get_tags_path(), fp)
+    if tags_fp.exists():
+        return open_dir(tags_fp)
+    
+    data_fp = Path(get_data_path(), fp)
+    if data_fp.exists():
+        return open_dir(data_fp)
+    
+    return False
