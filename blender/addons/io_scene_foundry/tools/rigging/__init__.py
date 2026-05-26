@@ -1080,8 +1080,7 @@ class HaloRig:
 
                 ikb = self.rig_data.edit_bones.new(fkb.name.replace("FK_", "IK_"))
                 ikb: bpy.types.EditBone
-                ikb.head = fkb.head
-                ikb.tail = fkb.tail
+                copy_edit_bone_transform(ikb, fkb)
                 ikb.parent = None
                 
                 pole_target = self.rig_data.edit_bones.new(ikb.name.replace("IK_", "PT_"))
