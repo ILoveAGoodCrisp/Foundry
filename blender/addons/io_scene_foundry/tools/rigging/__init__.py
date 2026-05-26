@@ -1018,7 +1018,8 @@ class HaloRig:
                     if bone_name_matches_suffix(edit_bone.name, "head"):
                         point_bone_tail_global_up(fk_bone, edit_bone.length)
 
-                                        
+                    align_edit_bone_roll_to_source(fk_bone, edit_bone)
+
                     if previous_fk_bone is None:
                         fk_bone.parent = edit_bone.parent
                     else:
@@ -1043,6 +1044,7 @@ class HaloRig:
                 fk_bone = self.rig_data.edit_bones.new(torso_fk_name)
                 fk_bone.matrix = edit_bone.matrix.copy()
                 fk_bone.length = max(edit_bone.length, 0.01)
+                align_edit_bone_roll_to_source(fk_bone, edit_bone)
                 fk_bone.use_connect = False
 
                 deform_fk_mapping[edit_bone.name] = fk_bone.name
@@ -1178,7 +1180,7 @@ class HaloRig:
             ikb.custom_shape = ik_shape
             ikb.custom_shape_scale_xyz *= self.scale / 0.03048 * 1.2
             ikb.use_custom_shape_bone_size = True
-            # ikb.custom_shape_translation = Vector((0.0, ikb.length, 0.0))
+            ikb.custom_shape_translation = Vector((0.0, ikb.length, 0.0))
             source_deform_name = fk_to_deform_mapping.get(fkb_name)
             source_deform = self.rig_pose.bones.get(source_deform_name) if source_deform_name is not None else None
             ikb.custom_shape_rotation_euler = ik_shape_rotation_for_source(ikb, source_deform or fkb)
@@ -1186,7 +1188,7 @@ class HaloRig:
             ptb.custom_shape = pole_shape
             ptb.custom_shape_scale_xyz *= self.scale / 0.03048
             # ptb.use_custom_shape_bone_size = True
-            # ptb.custom_shape_translation = Vector((0.0, 0.0, 0.0))
+            ptb.custom_shape_translation = Vector((0.0, 0.0, 0.0))
             ptb.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
 
             if settings_pb is not None and root_control is not None:
@@ -1517,6 +1519,27 @@ def point_bone_tail_global_up(edit_bone: bpy.types.EditBone, length: float | Non
     edit_bone.tail = edit_bone.head + Vector((0.0, 0.0, max(length, 0.01)))
     edit_bone.roll = 0.0
 
+def align_edit_bone_roll_to_source(target_bone: bpy.types.EditBone, source_bone: bpy.types.EditBone):
+    target_y = target_bone.y_axis.copy()
+    if target_y.length < 1e-6:
+        target_bone.roll = source_bone.roll
+        return
+
+    target_y.normalize()
+    source_axis = source_bone.z_axis.copy()
+    roll_axis = source_axis - target_y * source_axis.dot(target_y)
+
+    if roll_axis.length < 1e-6:
+        source_axis = source_bone.x_axis.copy()
+        roll_axis = source_axis - target_y * source_axis.dot(target_y)
+
+    if roll_axis.length < 1e-6:
+        target_bone.roll = source_bone.roll
+        return
+
+    roll_axis.normalize()
+    target_bone.align_roll(roll_axis)
+
 def calculate_pole_position(root_bone: bpy.types.EditBone, mid_bone: bpy.types.EditBone, end_bone: bpy.types.EditBone, distance_scale=1.25):
     a = root_bone.head.copy()
     b = mid_bone.head.copy()
@@ -1658,7 +1681,7 @@ def apply_fk_control_shapes(rig_pose: bpy.types.Pose, fk_bone_names: list[str], 
         source_name = name[3:] if name.startswith("FK_") else name
         shape_scale = 2.2 if bone_name_matches_suffix(source_name, "hand") else 1.0
         pbone.custom_shape_scale_xyz = Vector.Fill(3, shape_scale)
-        # pbone.custom_shape_translation = Vector((0.0, pbone.length * 0.5, 0.0))
+        pbone.custom_shape_translation = Vector((0.0, pbone.length * 0.5, 0.0))
         pbone.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
         pbone.use_custom_shape_bone_size = True
 
@@ -1698,7 +1721,7 @@ def apply_control_shape(pbone: bpy.types.PoseBone, shape: bpy.types.Object, scal
     pbone.color.palette = palette
     pbone.custom_shape = shape
     pbone.custom_shape_scale_xyz = Vector.Fill(3, scale)
-    # pbone.custom_shape_translation = translation
+    pbone.custom_shape_translation = translation
     pbone.custom_shape_rotation_euler = rotation
     pbone.use_custom_shape_bone_size = use_bone_size
 
