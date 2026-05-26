@@ -152,8 +152,8 @@ class Cluster:
         # if sky_index_field is not None:
         #     self.sky_index = sky_index_field.Data
         
-    def create(self, render_model, temp_meshes, cluster_surface_triangle_mapping=[], section_index=0) -> bpy.types.Object:
-        return self.mesh.create(render_model, temp_meshes, name=f"cluster:{self.index}", surface_triangle_mapping=cluster_surface_triangle_mapping, section_index=section_index)
+    def create(self, render_model, temp_meshes, cluster_surface_triangle_mapping=[], section_index=0, collision_info: 'BSP | None' = None) -> bpy.types.Object:
+        return self.mesh.create(render_model, temp_meshes, name=f"cluster:{self.index}", surface_triangle_mapping=cluster_surface_triangle_mapping, section_index=section_index, collision_info=collision_info)
         
 class TriangleMapping:
     def __init__(self, value: int):
@@ -239,12 +239,16 @@ class InstanceDefinition:
     def create(self, render_model, temp_meshes) -> list[bpy.types.Object]:
         objects = []
         
-        result = self.mesh.create(render_model, temp_meshes, name=f"instance_definition:{self.index}", surface_triangle_mapping=self.surface_triangle_mapping)
+        collision_info = self.collision_info if self.has_collision and not self.collision_is_proxy else None
+        result = self.mesh.create(render_model, temp_meshes, name=f"instance_definition:{self.index}", surface_triangle_mapping=self.surface_triangle_mapping, collision_info=collision_info)
         self.blender_render = None
         if result:
             self.blender_render = result[0]
+            if self.surface_triangle_mapping:
+                self.collision_only_surface_indices = [idx for idx, mapping in enumerate(self.surface_triangle_mapping) if mapping.collision_only]
             
         render_valid = self.blender_render and self.blender_render.type == 'MESH'
+        merged_collision = False
             
         if not utils.is_corinth():
             if self.has_collision:
@@ -258,6 +262,7 @@ class InstanceDefinition:
                             self.blender_render.data.nwo.proxy_collision = self.blender_collision
                     elif self.collision_only_surface_indices:
                         collision_mesh = self.collision_info.to_object(mesh_only=True, surface_indices=self.collision_only_surface_indices)
+                        merged_collision = len(collision_mesh.polygons) > 0
                         
                         mat_to_idx = {m: i for i, m in enumerate(collision_mesh.materials)}
                         for mat in self.blender_render.data.materials:
@@ -345,7 +350,7 @@ class InstanceDefinition:
                 self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_cookie
 
         if self.blender_render:
-            if self.has_collision and not self.collision_is_proxy:
+            if merged_collision:
                 utils.connect_verts_on_edge(self.blender_render.data)
             objects.append(self.blender_render)
         if self.blender_collision:
@@ -1245,27 +1250,29 @@ class BSP:
         
         self.sky_index = -1
         
+    def get_surface_vertex_indices(self, surface: CollisionSurface):
+        first_edge = self.edges[surface.first_edge]
+        edge = first_edge
+        polygon = []
+
+        while True:
+            if edge.left_surface == surface.index:
+                polygon.append(edge.start_vertex)
+                next_edge_index = edge.forward_edge
+            else:
+                polygon.append(edge.end_vertex)
+                next_edge_index = edge.reverse_edge
+
+            if next_edge_index == surface.first_edge:
+                break
+
+            edge = self.edges[next_edge_index]
+
+        return polygon
+
     def yield_indices(self):
-        surfaces = self.surfaces
-        for surface in surfaces:
-            first_edge = self.edges[surface.first_edge]
-            edge = first_edge
-            polygon = []
-            
-            while True:
-                if edge.left_surface == surface.index:
-                    polygon.append(edge.start_vertex)
-                    next_edge_index = edge.forward_edge
-                else:
-                    polygon.append(edge.end_vertex)
-                    next_edge_index = edge.reverse_edge
-                
-                if next_edge_index == surface.first_edge:
-                    break
-                
-                edge = self.edges[next_edge_index]
-            
-            yield polygon
+        for surface in self.surfaces:
+            yield self.get_surface_vertex_indices(surface)
         
     def to_bvh(self):
         verts = [Vector(v.position) for v in self.vertices]
@@ -2473,6 +2480,168 @@ class Mesh:
             attribute = mesh.attributes.new("foundry_water", 'BOOLEAN', 'FACE')
         attribute.data.foreach_set("value", values)
 
+    @staticmethod
+    def _polygon_normal(coords: list[Vector]) -> Vector | None:
+        normal = Vector((0.0, 0.0, 0.0))
+        count = len(coords)
+        for i, current in enumerate(coords):
+            next_coord = coords[(i + 1) % count]
+            normal.x += (current.y - next_coord.y) * (current.z + next_coord.z)
+            normal.y += (current.z - next_coord.z) * (current.x + next_coord.x)
+            normal.z += (current.x - next_coord.x) * (current.y + next_coord.y)
+
+        if normal.length_squared <= 1e-12:
+            return None
+
+        normal.normalize()
+        return normal
+
+    @staticmethod
+    def _polygon_area(coords: list[Vector]) -> float:
+        if len(coords) < 3:
+            return 0.0
+
+        origin = coords[0]
+        area = 0.0
+        for i in range(1, len(coords) - 1):
+            area += (coords[i] - origin).cross(coords[i + 1] - origin).length * 0.5
+
+        return area
+
+    @staticmethod
+    def _bounds_for_coords(coords: list[Vector]) -> tuple[Vector, Vector]:
+        return (
+            Vector((min(co.x for co in coords), min(co.y for co in coords), min(co.z for co in coords))),
+            Vector((max(co.x for co in coords), max(co.y for co in coords), max(co.z for co in coords))),
+        )
+
+    @staticmethod
+    def _bounds_overlap(a_min: Vector, a_max: Vector, b_min: Vector, b_max: Vector, tolerance: float) -> bool:
+        return not (
+            a_max.x < b_min.x - tolerance or a_min.x > b_max.x + tolerance or
+            a_max.y < b_min.y - tolerance or a_min.y > b_max.y + tolerance or
+            a_max.z < b_min.z - tolerance or a_min.z > b_max.z + tolerance
+        )
+
+    @staticmethod
+    def _project_point_2d(point: Vector, drop_axis: int) -> tuple[float, float]:
+        if drop_axis == 0:
+            return point.y, point.z
+        if drop_axis == 1:
+            return point.x, point.z
+        return point.x, point.y
+
+    @staticmethod
+    def _point_on_segment_2d(point: tuple[float, float], start: tuple[float, float], end: tuple[float, float], tolerance: float) -> bool:
+        px, py = point
+        ax, ay = start
+        bx, by = end
+        cross = (px - ax) * (by - ay) - (py - ay) * (bx - ax)
+        segment_length = math.hypot(bx - ax, by - ay)
+        if abs(cross) > tolerance * max(segment_length, 1.0):
+            return False
+
+        return (
+            min(ax, bx) - tolerance <= px <= max(ax, bx) + tolerance and
+            min(ay, by) - tolerance <= py <= max(ay, by) + tolerance
+        )
+
+    @classmethod
+    def _point_in_polygon_2d(cls, point: tuple[float, float], polygon: list[tuple[float, float]], tolerance: float) -> bool:
+        inside = False
+        px, py = point
+        previous = polygon[-1]
+        for current in polygon:
+            if cls._point_on_segment_2d(point, previous, current, tolerance):
+                return True
+
+            cx, cy = current
+            px_prev, py_prev = previous
+            if (cy > py) != (py_prev > py):
+                intersection_x = (px_prev - cx) * (py - cy) / (py_prev - cy) + cx
+                if px <= intersection_x + tolerance:
+                    inside = not inside
+
+            previous = current
+
+        return inside
+
+    def _render_face_match_data(self, mesh: bpy.types.Mesh):
+        render_faces = []
+        vertices = mesh.vertices
+        for poly in mesh.polygons:
+            coords = [vertices[i].co.copy() for i in poly.vertices]
+            normal = self._polygon_normal(coords)
+            if normal is None:
+                continue
+
+            bounds_min, bounds_max = self._bounds_for_coords(coords)
+            center = sum(coords, Vector((0.0, 0.0, 0.0))) / len(coords)
+            render_faces.append((poly.index, coords, center, normal, self._polygon_area(coords), bounds_min, bounds_max))
+
+        return render_faces
+
+    def _find_matching_render_faces(self, collision_coords: list[Vector], render_faces, tolerance=0.005) -> list[int]:
+        collision_normal = self._polygon_normal(collision_coords)
+        collision_area = self._polygon_area(collision_coords)
+        if collision_normal is None or collision_area <= 0.0:
+            return []
+
+        collision_bounds_min, collision_bounds_max = self._bounds_for_coords(collision_coords)
+        drop_axis = max(range(3), key=lambda axis: abs(collision_normal[axis]))
+        collision_poly_2d = [self._project_point_2d(co, drop_axis) for co in collision_coords]
+        plane_origin = collision_coords[0]
+        matches = []
+        matched_area = 0.0
+
+        for face_index, coords, center, normal, area, bounds_min, bounds_max in render_faces:
+            if not self._bounds_overlap(collision_bounds_min, collision_bounds_max, bounds_min, bounds_max, tolerance):
+                continue
+            if abs(normal.dot(collision_normal)) < 0.98:
+                continue
+            if abs((center - plane_origin).dot(collision_normal)) > tolerance:
+                continue
+            if not all(self._point_in_polygon_2d(self._project_point_2d(co, drop_axis), collision_poly_2d, tolerance) for co in coords):
+                continue
+
+            matches.append(face_index)
+            matched_area += area
+
+        perimeter = sum((collision_coords[(i + 1) % len(collision_coords)] - co).length for i, co in enumerate(collision_coords))
+        area_tolerance = max(tolerance * max(perimeter, 1.0), collision_area * 0.02)
+        if not matches or abs(matched_area - collision_area) > area_tolerance:
+            return []
+
+        return matches
+
+    def _resolve_collision_only_surface_mappings(self, mesh: bpy.types.Mesh, surface_triangle_mapping: list[SurfaceMapping], collision_info: BSP | None, section_index: int):
+        if collision_info is None or not surface_triangle_mapping:
+            return
+
+        collision_only_mappings = [mapping for mapping in surface_triangle_mapping if mapping.collision_only]
+        if not collision_only_mappings:
+            return
+
+        render_faces = self._render_face_match_data(mesh)
+        if not render_faces:
+            return
+
+        mesh_matrix = import_transform.mesh_matrix()
+        for mapping in collision_only_mappings:
+            surface = mapping.surface
+            if surface.invisible or surface.breakable or surface.ladder or surface.slip_surface:
+                continue
+
+            vertex_indices = collision_info.get_surface_vertex_indices(surface)
+            if len(vertex_indices) < 3:
+                continue
+
+            collision_coords = [mesh_matrix @ collision_info.vertices[index].position for index in vertex_indices]
+            matching_faces = self._find_matching_render_faces(collision_coords, render_faces)
+            if matching_faces:
+                mapping.triangle_indices = [DirectTriangleMapping(face_index, section_index) for face_index in matching_faces]
+                mapping.collision_only = False
+
     def _apply_subpart_props(self, mesh: bpy.types.Mesh, subpart: MeshSubpart, face_indices: list[int] | None):
         face_count = len(mesh.polygons)
         all_indices = self._face_mask(face_count, face_indices)
@@ -2553,7 +2722,7 @@ class Mesh:
         
         return Vector((u, 1-v)) # 1-v to correct UV for Blender
     
-    def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam", is_io=False, surface_triangle_mapping=[], section_index=0, real_mesh_index=None):
+    def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam", is_io=False, surface_triangle_mapping=[], section_index=0, real_mesh_index=None, collision_info: BSP | None = None):
         if not self.valid:
             return []
 
@@ -2570,7 +2739,7 @@ class Mesh:
                 subpart = self.subparts_by_index.get(instance.index)
                 if subpart is None:
                     continue
-                ob = self._create_mesh(instance.name, parent, nodes, subpart, instance.bone, instance.matrix, is_io)
+                ob = self._create_mesh(instance.name, parent, nodes, subpart, instance.bone, instance.matrix, is_io, collision_info=collision_info)
                 ob.scale = Vector.Fill(3, instance.scale)
                 instance.ob = ob
                 objects.append(ob)
@@ -2579,7 +2748,7 @@ class Mesh:
                 name = f"{self.permutation.region.name}:{self.permutation.name}"
                 utils.print_step(name)
                 
-            ob = self._create_mesh(name, parent, nodes, None, surface_triangle_mapping=surface_triangle_mapping, section_index=section_index)
+            ob = self._create_mesh(name, parent, nodes, None, surface_triangle_mapping=surface_triangle_mapping, section_index=section_index, collision_info=collision_info)
             objects.append(ob)
             
             if ob.data.attributes.get('foundry_water'):
@@ -2732,7 +2901,7 @@ class Mesh:
 
             self.raw_water_texcoords = full
 
-    def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False, surface_triangle_mapping=[], section_index=0):
+    def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False, surface_triangle_mapping=[], section_index=0, collision_info: BSP | None = None):
         has_tag_path = self.tag_path is not None
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
         final_matrix = import_transform.object_matrix(matrix)
@@ -2887,6 +3056,8 @@ class Mesh:
                 if water_face_indices:
                     self._set_water_attribute(mesh, water_face_indices)
             
+        self._resolve_collision_only_surface_mappings(mesh, surface_triangle_mapping, collision_info, section_index)
+
         # for IG figure out what tris are render only
         if surface_triangle_mapping:
             indices = [t.index for t in self.tris]
@@ -2945,9 +3116,6 @@ class Mesh:
             utils.set_two_sided(mesh, is_io)
             utils.apply_loop_normals(mesh)
             # utils.loop_normal_magic(mesh)
-            
-            if surface_triangle_mapping:
-                utils.loop_normal_magic(mesh)
             
         utils.calc_face_prop_counts(mesh)
             

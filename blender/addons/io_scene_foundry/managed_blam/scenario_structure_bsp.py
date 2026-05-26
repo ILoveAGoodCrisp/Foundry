@@ -306,7 +306,7 @@ class ScenarioStructureBspTag(Tag):
             with utils.Spinner():
                 utils.update_job_count(process, "", 0, num_clusters)
                 for structure in clusters:
-                    structure_obs = structure.create(render_model, temp_meshes, structure_surface_triangle_mapping, structure.index)
+                    structure_obs = structure.create(render_model, temp_meshes, structure_surface_triangle_mapping, structure.index, collision)
                     for ob in structure_obs:
                         if ob is not None and ob.data and ob.data.polygons:
                             # structure_collection.objects.link(ob)

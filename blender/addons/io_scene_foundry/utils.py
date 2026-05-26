@@ -3669,7 +3669,7 @@ def loop_normal_magic(mesh: bpy.types.Mesh, distance=0.01):
             bm.to_mesh(mesh)
             if len(mesh.loops) > len(loop_normals):
                 diff = len(mesh.loops) - len(loop_normals)
-                loop_normals.extend([0,0,0]*diff)
+                loop_normals.extend([[0.0,0.0,0.0]]*diff)
             mesh.normals_split_custom_set(loop_normals)
         else:
             bm.to_mesh(mesh)
