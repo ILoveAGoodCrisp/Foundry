@@ -253,11 +253,10 @@ class ScenarioStructureBspTag(Tag):
             # This avoids putting objects in collections that already existed prior to export
             # and therefore prevents incorrect bsp assignment
             permitted_collections = set()
-            collection_lookup = Instance.build_collection_lookup()
             for element in self.block_instances.Elements:
                 io = Instance(element, instance_definitions)
                 if io.definition.blender_render or io.definition.blender_collision:
-                    io_collection = io.get_collection(ig_collection, permitted_collections, self.tag_path.ShortName, collection_lookup)
+                    io_collection = io.get_collection(ig_collection, permitted_collections, self.tag_path.ShortName)
                     permitted_collections.add(io_collection)
                     ob = io.create()
                     objects.append(ob)
@@ -284,6 +283,7 @@ class ScenarioStructureBspTag(Tag):
         structure_objects = []
         collision = None
         havok_collisions = []
+        merged_collision_geometry = False
         
         structure_collection = new_structure_collection()
         structure_surface_triangle_mapping = []
@@ -331,6 +331,12 @@ class ScenarioStructureBspTag(Tag):
             if collision_only_indices:
                 ob = collision.to_object(surface_indices=collision_only_indices)
                 collision_mesh = ob.data
+                if clusters:
+                    matcher = clusters[0].mesh
+                    for structure_ob in structure_objects:
+                        matcher.remove_render_duplicate_faces(collision_mesh, structure_ob.data)
+                        if len(collision_mesh.polygons) == 0:
+                            break
                 if collision.some_sphere_collision:
                     sphere_coll_face_props = [prop for prop in collision_mesh.nwo.face_props if prop.name == "Sphere Collision Only"]
                     if sphere_coll_face_props:
@@ -345,7 +351,12 @@ class ScenarioStructureBspTag(Tag):
                     
                 elif not collision.sphere_collision_only:
                     utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'collision_only'
-                structure_objects.append(ob)
+                if len(collision_mesh.polygons) > 0:
+                    merged_collision_geometry = True
+                    structure_objects.append(ob)
+                else:
+                    bpy.data.objects.remove(ob)
+                    bpy.data.meshes.remove(collision_mesh)
                 
         if havok_collisions:
             add_havok_collision_objects(havok_collisions, structure_collection)
@@ -361,9 +372,9 @@ class ScenarioStructureBspTag(Tag):
                         
         seam_collection = None
 
-        def add_structure_object(ob: bpy.types.Object, seam_name: str | None = None):
+        def add_structure_object(ob: bpy.types.Object, seam_name: str | None = None, connect_edges=False):
             nonlocal seam_collection
-            if not for_cinematic:
+            if connect_edges and not for_cinematic:
                 utils.connect_verts_on_edge(ob.data)
             objects.append(ob)
             # utils.unlink(ob)
@@ -384,15 +395,25 @@ class ScenarioStructureBspTag(Tag):
                 
                 bm = bmesh.new()
                 bm.from_mesh(ob.data)
+                preserve_normals = ob.data.has_custom_normals
+                if preserve_normals and bm.faces:
+                    utils.save_loop_normals(bm, ob.data)
                 bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in seam_material_indices], context='FACES')
                 bm.to_mesh(ob.data)
                 bm.free()
+                if preserve_normals:
+                    utils.apply_loop_normals(ob.data)
                 
                 bm = bmesh.new()
                 bm.from_mesh(seam_ob.data)
+                preserve_normals = seam_ob.data.has_custom_normals
+                if preserve_normals and bm.faces:
+                    utils.save_loop_normals(bm, seam_ob.data)
                 bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index not in seam_material_indices], context='FACES')
                 bm.to_mesh(seam_ob.data)
                 bm.free()
+                if preserve_normals:
+                    utils.apply_loop_normals(seam_ob.data)
                 
                 seam_ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_seam'
                 seam_ob.nwo.seam_back_manual = True
@@ -418,7 +439,7 @@ class ScenarioStructureBspTag(Tag):
                 main_structure_ob = structure_objects[0]
 
             if main_structure_ob is not None:
-                add_structure_object(main_structure_ob, f"{self.tag_path.ShortName}_seams")
+                add_structure_object(main_structure_ob, f"{self.tag_path.ShortName}_seams", merged_collision_geometry)
         
         utils.print_step("Removing Duplicate Material Slots")
         ob_meshes = {o.data for o in objects if o.type == 'MESH'}

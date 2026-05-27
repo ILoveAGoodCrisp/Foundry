@@ -59,13 +59,12 @@ class NWO_OT_FileAggregate(bpy.types.Operator):
             to_remove_collections.add(coll)
             to_remove_collections.update(coll.children_recursive)
             coll_name = coll.name
-            parent = collections[coll]
-            
             coll_names.append(coll_name)
 
             path = utils.resolve_relative_blend(coll.library.filepath)
             if path and Path(path).exists():
-                bsp_collection_parents[path].add((coll_name, parent))
+                for parent in collections[coll]:
+                    bsp_collection_parents[path].add((coll_name, parent))
 
         # Unlink old collection
         print(f"Unlinking collections")
@@ -150,8 +149,7 @@ class NWO_OT_FileSplit(bpy.types.Operator):
             to_remove_collections.add(coll)
             to_remove_collections.update(coll.children_recursive)
             coll_name = coll.name
-            parent = collections[coll]
-            bsp_collection_parent_names[coll_name] = None if parent is None else parent.name
+            bsp_collection_parent_names[coll_name] = {None if parent is None else parent.name for parent in collections[coll]}
             coll_names.append(coll_name)
             print(f"Exporting collection: {coll_name}")
             
@@ -195,11 +193,12 @@ class NWO_OT_FileSplit(bpy.types.Operator):
             with bpy.data.libraries.load(str(path), link=True, relative=True) as (data_from, data_to):
                 data_to.collections = [name]
 
-        for coll_name, parent_name in bsp_collection_parent_names.items():
-            if parent_name is not None:
-                bpy.data.collections[parent_name].children.link(bpy.data.collections[coll_name])
-            else:
-                bpy.context.scene.collection.children.link(bpy.data.collections[coll_name])
+        for coll_name, parent_names in bsp_collection_parent_names.items():
+            for parent_name in parent_names:
+                if parent_name is not None:
+                    bpy.data.collections[parent_name].children.link(bpy.data.collections[coll_name])
+                else:
+                    bpy.context.scene.collection.children.link(bpy.data.collections[coll_name])
 
         # bpy.ops.wm.save_mainfile()
         print("Purging old data")
@@ -215,14 +214,14 @@ class NWO_OT_FileSplit(bpy.types.Operator):
         self.layout.prop(self, "use_layers")
     
 def create_parent_mapping(context):
-    collection_map: dict[bpy.types.Collection: bpy.types.Collection] = {}
+    collection_map: dict[bpy.types.Collection, set[bpy.types.Collection | None]] = defaultdict(set)
     for collection in context.scene.collection.children:
         recursive_parent_mapper(collection, collection_map, None)
             
     return collection_map
 
-def recursive_parent_mapper(collection: bpy.types.Collection, collection_map: list[bpy.types.Collection], parent_collection: bpy.types.Collection | None):
-    collection_map[collection] = parent_collection
+def recursive_parent_mapper(collection: bpy.types.Collection, collection_map: dict[bpy.types.Collection, set[bpy.types.Collection | None]], parent_collection: bpy.types.Collection | None):
+    collection_map[collection].add(parent_collection)
     for child in collection.children:
         recursive_parent_mapper(child, collection_map, collection)
         
@@ -233,5 +232,10 @@ def get_parent_region(collections, parent):
     if parent.nwo.region:
         print(parent, parent.nwo.region)
         return f"{parent.nwo.region}_"
-    else:
-        return get_parent_region(collections, collections[parent])
+
+    regions = {get_parent_region(collections, collection_parent) for collection_parent in collections[parent]}
+    regions.discard("")
+    if len(regions) == 1:
+        return regions.pop()
+
+    return ""
