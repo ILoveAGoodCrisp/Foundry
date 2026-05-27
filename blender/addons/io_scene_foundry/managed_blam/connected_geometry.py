@@ -262,55 +262,58 @@ class InstanceDefinition:
                             self.blender_render.data.nwo.proxy_collision = self.blender_collision
                     elif self.collision_only_surface_indices:
                         collision_mesh = self.collision_info.to_object(mesh_only=True, surface_indices=self.collision_only_surface_indices)
+                        self.mesh.remove_render_duplicate_faces(collision_mesh, self.blender_render.data)
                         merged_collision = len(collision_mesh.polygons) > 0
-                        
-                        mat_to_idx = {m: i for i, m in enumerate(collision_mesh.materials)}
-                        for mat in self.blender_render.data.materials:
-                            if mat not in mat_to_idx:
-                                mat_to_idx[mat] = len(collision_mesh.materials)
-                                collision_mesh.materials.append(mat)
-                                
-                        idx_map = np.asarray([mat_to_idx[m] for m in self.blender_render.data.materials])
-                        material_indices = np.empty(len(self.blender_render.data.polygons), dtype=np.int32)
-                        self.blender_render.data.polygons.foreach_get("material_index", material_indices)
-                        remap = idx_map[material_indices]
 
-                        self.blender_render.data.materials.clear()
-                        for mat in collision_mesh.materials:
-                            self.blender_render.data.materials.append(mat)
-                            
-                        self.blender_render.data.polygons.foreach_set("material_index", remap)
-                                
-                        if self.collision_info.some_sphere_collision:
-                            sphere_coll_face_props = [prop for prop in collision_mesh.nwo.face_props if prop.name == "Sphere Collision Only"]
-                            if sphere_coll_face_props:
-                                sphere_coll_face_prop = sphere_coll_face_props[0]
-                                sphere_coll_attribute = collision_mesh.attributes.get(sphere_coll_face_prop.attribute_name)
-                                array = np.zeros(len(collision_mesh.polygons), dtype=np.int8)
-                                sphere_coll_attribute.data.foreach_get("value", array)
-                                coll_only_array = array ^ 1
-                                utils.add_face_prop(collision_mesh, "face_mode", coll_only_array).face_mode = 'collision_only'
-                            else:
-                                utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'sphere_collision_only'
-                            
-                        elif not self.collision_info.sphere_collision_only:
-                            utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'collision_only'
-                            
-                        utils.save_loop_normals_mesh(self.blender_render.data)
-                        bm = bmesh.new()
-                        bm.from_mesh(self.blender_render.data)
-                        bm.from_mesh(collision_mesh)
-                        bm.to_mesh(self.blender_render.data)
-                        bm.free()
-                                
-                        utils.apply_loop_normals(self.blender_render.data)
-                        utils.set_two_sided(self.blender_render.data, False) 
-                        utils.loop_normal_magic(self.blender_render.data)
-                        
-                        for prop in collision_mesh.nwo.face_props:
-                            new_prop = self.blender_render.data.nwo.face_props.add()
-                            for k, v in prop.items():
-                                new_prop[k] = v
+                        if merged_collision:
+                            mat_to_idx = {m: i for i, m in enumerate(collision_mesh.materials)}
+                            for mat in self.blender_render.data.materials:
+                                if mat not in mat_to_idx:
+                                    mat_to_idx[mat] = len(collision_mesh.materials)
+                                    collision_mesh.materials.append(mat)
+
+                            idx_map = np.asarray([mat_to_idx[m] for m in self.blender_render.data.materials])
+                            material_indices = np.empty(len(self.blender_render.data.polygons), dtype=np.int32)
+                            self.blender_render.data.polygons.foreach_get("material_index", material_indices)
+                            remap = idx_map[material_indices]
+
+                            self.blender_render.data.materials.clear()
+                            for mat in collision_mesh.materials:
+                                self.blender_render.data.materials.append(mat)
+
+                            self.blender_render.data.polygons.foreach_set("material_index", remap)
+
+                            if self.collision_info.some_sphere_collision:
+                                sphere_coll_face_props = [prop for prop in collision_mesh.nwo.face_props if prop.name == "Sphere Collision Only"]
+                                if sphere_coll_face_props:
+                                    sphere_coll_face_prop = sphere_coll_face_props[0]
+                                    sphere_coll_attribute = collision_mesh.attributes.get(sphere_coll_face_prop.attribute_name)
+                                    array = np.zeros(len(collision_mesh.polygons), dtype=np.int8)
+                                    sphere_coll_attribute.data.foreach_get("value", array)
+                                    coll_only_array = array ^ 1
+                                    utils.add_face_prop(collision_mesh, "face_mode", coll_only_array).face_mode = 'collision_only'
+                                else:
+                                    utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'sphere_collision_only'
+
+                            elif not self.collision_info.sphere_collision_only:
+                                utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'collision_only'
+
+                            utils.save_loop_normals_mesh(self.blender_render.data)
+                            bm = bmesh.new()
+                            bm.from_mesh(self.blender_render.data)
+                            bm.from_mesh(collision_mesh)
+                            bm.to_mesh(self.blender_render.data)
+                            bm.free()
+
+                            utils.apply_loop_normals(self.blender_render.data)
+                            utils.set_two_sided(self.blender_render.data, False)
+
+                            for prop in collision_mesh.nwo.face_props:
+                                new_prop = self.blender_render.data.nwo.face_props.add()
+                                for k, v in prop.items():
+                                    new_prop[k] = v
+                        else:
+                            bpy.data.meshes.remove(collision_mesh)
                 else:
                     self.blender_render = self.collision_info.to_object()
                     self.blender_render.name = f"instance_definition:{self.index}"
@@ -350,8 +353,6 @@ class InstanceDefinition:
                 self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_cookie
 
         if self.blender_render:
-            if merged_collision:
-                utils.connect_verts_on_edge(self.blender_render.data)
             objects.append(self.blender_render)
         if self.blender_collision:
             utils.connect_verts_on_edge(self.blender_collision.data)
@@ -481,23 +482,23 @@ class Instance:
         collection_lookup.setdefault("base", {}).setdefault(collection.name.rsplit(".", 1)[0], collection)
 
     def get_collection(self, ig_collection, permitted_collections, bsp_name: str, collection_lookup=None) -> bpy.types.Collection:
-        def find_collection(name: str) -> bpy.types.Collection | None:
-            """Finds a collection by name, ignoring .001/.002 suffixes."""
-            base = name.rsplit(".", 1)[0]
-            if collection_lookup is not None:
-                exact_lookup = collection_lookup.setdefault("exact", {})
-                base_lookup = collection_lookup.setdefault("base", {})
-                col = exact_lookup.get(name) or base_lookup.get(base)
-                if col:
-                    return col
-            else:
-                col = bpy.data.collections.get(name)
-                if col:
-                    return col
-                for c in bpy.data.collections:
-                    if c.name.rsplit(".", 1)[0] == base:
-                        return c
+        def base_name(name: str) -> str:
+            base, _, suffix = name.rpartition(".")
+            return base if suffix.isdigit() else name
+
+        def find_child_collection(parent_collection: bpy.types.Collection, name: str) -> bpy.types.Collection | None:
+            base = base_name(name)
+            for collection in parent_collection.children:
+                if collection.name == name or base_name(collection.name) == base:
+                    return collection
             return None
+
+        def new_child_collection(parent_collection: bpy.types.Collection, name: str) -> bpy.types.Collection:
+            collection = bpy.data.collections.new(name=name)
+            parent_collection.children.link(collection)
+            permitted_collections.add(collection)
+            self._remember_collection(collection_lookup, collection)
+            return collection
 
         if "(" in self.name and ")" in self.name.rpartition("(")[2]:
             collection_part = re.findall(r'\((.*?)\)', self.name)[0]
@@ -514,33 +515,21 @@ class Instance:
                 main_collection_name = f"layer_{main_collection_name}"
 
             # ---- MAIN COLLECTION ----
-            main_collection = find_collection(main_collection_name)
+            main_collection = find_child_collection(ig_collection, main_collection_name)
             if main_collection is None:
-                # truly doesn't exist → create it
-                main_collection = bpy.data.collections.new(name=main_collection_name)
-                ig_collection.children.link(main_collection)
-                self._remember_collection(collection_lookup, main_collection)
+                main_collection = new_child_collection(ig_collection, main_collection_name)
                 utils.add_permutation(main_collection_name_main)
                 main_collection.nwo.type = 'permutation'
                 main_collection.nwo.permutation = main_collection_name_main
-            elif main_collection not in permitted_collections:
-                # exists but not permitted → just link it instead of creating duplicates
-                if main_collection.name not in ig_collection.children.keys():
-                    ig_collection.children.link(main_collection)
 
             # ---- SUB COLLECTION ----
             if sub_collection_name is not None:
                 if sub_collection_name == bsp_name:
                     sub_collection_name = f"sublayer_{main_collection_name}"
 
-                sub_collection = find_collection(sub_collection_name)
+                sub_collection = find_child_collection(main_collection, sub_collection_name)
                 if sub_collection is None:
-                    sub_collection = bpy.data.collections.new(name=sub_collection_name)
-                    main_collection.children.link(sub_collection)
-                    self._remember_collection(collection_lookup, sub_collection)
-                elif sub_collection not in permitted_collections:
-                    if sub_collection.name not in main_collection.children.keys():
-                        main_collection.children.link(sub_collection)
+                    sub_collection = new_child_collection(main_collection, sub_collection_name)
 
                 return sub_collection
             else:
@@ -2641,6 +2630,35 @@ class Mesh:
             if matching_faces:
                 mapping.triangle_indices = [DirectTriangleMapping(face_index, section_index) for face_index in matching_faces]
                 mapping.collision_only = False
+
+    def remove_render_duplicate_faces(self, collision_mesh: bpy.types.Mesh, render_mesh: bpy.types.Mesh):
+        if len(collision_mesh.polygons) == 0:
+            return
+
+        render_faces = self._render_face_match_data(render_mesh)
+        if not render_faces:
+            return
+
+        collision_vertices = collision_mesh.vertices
+        duplicate_faces = []
+        for poly in collision_mesh.polygons:
+            coords = [collision_vertices[i].co.copy() for i in poly.vertices]
+            if self._find_matching_render_faces(coords, render_faces):
+                duplicate_faces.append(poly.index)
+
+        if not duplicate_faces:
+            return
+
+        bm = bmesh.new()
+        try:
+            bm.from_mesh(collision_mesh)
+            bm.faces.ensure_lookup_table()
+            bmesh.ops.delete(bm, geom=[bm.faces[i] for i in duplicate_faces], context='FACES')
+            bm.to_mesh(collision_mesh)
+        finally:
+            bm.free()
+
+        utils.calc_face_prop_counts(collision_mesh)
 
     def _apply_subpart_props(self, mesh: bpy.types.Mesh, subpart: MeshSubpart, face_indices: list[int] | None):
         face_count = len(mesh.polygons)

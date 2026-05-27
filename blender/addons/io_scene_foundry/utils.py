@@ -785,21 +785,17 @@ def nwo_asset_type():
 ######################################
 
 
-def get_collection_parents(current_coll, all_collections):
-    coll_list = [current_coll]
-    keep_looping = True
+def get_collection_parent_chains(current_coll, all_collections):
+    parents = [coll for coll in all_collections if current_coll in tuple(coll.children)]
+    if not parents:
+        return [[current_coll]]
 
-    while keep_looping:
-        for coll in all_collections:
-            keep_looping = True
-            if current_coll in tuple(coll.children):
-                coll_list.append(coll)
-                current_coll = coll
-                break
-            else:
-                keep_looping = False
+    chains = []
+    for parent in parents:
+        for chain in get_collection_parent_chains(parent, all_collections):
+            chains.append([current_coll, *chain])
 
-    return coll_list
+    return chains
 
 
 def get_coll_prefix(coll, prefixes):
@@ -810,30 +806,41 @@ def get_coll_prefix(coll, prefixes):
     return False
 
 
+def get_prop_from_collection_chain(collection_list, valid_type):
+    for c in collection_list:
+        c_type = c.nwo.type
+        if c_type != valid_type: continue
+        match c_type:
+            case 'region':
+                return c.nwo.region or ''
+            case 'permutation':
+                return c.nwo.permutation or ''
+            case 'exclude':
+                return True
+
+    return ''
+
+
 def get_prop_from_collection(ob, valid_type):
     if bpy.context.scene.collection.children:
-        collection = None
-        all_collections = bpy.context.scene.collection.children_recursive
-        # get direct parent collection
+        all_collections = tuple(bpy.context.scene.collection.children_recursive)
+        context_collection = getattr(bpy.context, "collection", None)
+        context_matches = []
+        matches = []
         for c in all_collections:
             if ob in tuple(c.objects):
-                collection = c
-                break
-        # get collection parent tree
-        if collection != None:
-            collection_list = get_collection_parents(collection, all_collections)
-
-            # test object collection parent tree
-            for c in collection_list:
-                c_type = c.nwo.type
-                if c_type != valid_type: continue
-                match c_type:
-                    case 'region':
-                        return c.nwo.region
-                    case 'permutation':
-                        return c.nwo.permutation
-                    case 'exclude':
+                for collection_list in get_collection_parent_chains(c, all_collections):
+                    value = get_prop_from_collection_chain(collection_list, valid_type)
+                    if valid_type == 'exclude' and value:
                         return True
+                    matches.append(value)
+                    if context_collection in collection_list:
+                        context_matches.append(value)
+
+        if context_matches:
+            return context_matches[-1]
+        if matches:
+            return matches[-1]
             
     return ''
 
@@ -4830,9 +4837,12 @@ def delete_face_attribute_edit_mode(mesh: bpy.types.Mesh, face_prop_index: int, 
     
 def delete_face_prop(mesh: bpy.types.Mesh, idx: int, bm: bmesh.types.BMesh = None):
     has_no_bm = bm is None
+    preserve_normals = has_no_bm and mesh.has_custom_normals
     if has_no_bm:
         bm = bmesh.new()
         bm.from_mesh(mesh)
+        if preserve_normals and bm.faces:
+            save_loop_normals(bm, mesh)
     layer = bm.faces.layers.int.get(mesh.nwo.face_props[idx].attribute_name)
     if layer is not None:
         bm.faces.layers.int.remove(layer)
@@ -4844,6 +4854,8 @@ def delete_face_prop(mesh: bpy.types.Mesh, idx: int, bm: bmesh.types.BMesh = Non
     if has_no_bm:
         bm.to_mesh(mesh)
         bm.free()
+        if preserve_normals:
+            apply_loop_normals(mesh)
 
 def consolidate_materials(mesh: bpy.types.Mesh):
     
@@ -5047,13 +5059,18 @@ def consolidate_face_attributes(mesh: bpy.types.Mesh):
             to_remove.add(j)
     
     if to_remove:
+        preserve_normals = mesh.has_custom_normals
         bm = bmesh.new()
         bm.from_mesh(mesh)
+        if preserve_normals and bm.faces:
+            save_loop_normals(bm, mesh)
         for j in sorted(to_remove, reverse=True):
             delete_face_prop(mesh, j, bm)
             
         bm.to_mesh(mesh)
         bm.free()
+        if preserve_normals:
+            apply_loop_normals(mesh)
         
 def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
     """Split edges so that stray verts become connected"""
@@ -5501,14 +5518,27 @@ class ExportCollection:
         
         match collection.nwo.type:
             case 'region':
-                self.region = collection.nwo.region
+                self.region = collection.nwo.region or None
             case 'permutation':
-                self.permutation = collection.nwo.permutation
+                self.permutation = collection.nwo.permutation or None
             case 'exclude':
                 self.non_export = True
 
         for ob in collection.objects:
             ob.nwo.export_collection = collection.name
+
+    def inherit(self, parent_export_collection):
+        if parent_export_collection.region is not None and self.region is None:
+            self.region = parent_export_collection.region
+        if parent_export_collection.permutation is not None and self.permutation is None:
+            self.permutation = parent_export_collection.permutation
+        if parent_export_collection.non_export:
+            self.non_export = True
+
+    def merge(self, other):
+        self.region = self.region if self.region == other.region else None
+        self.permutation = self.permutation if self.permutation == other.permutation else None
+        self.non_export = self.non_export or other.non_export
 
 def create_parent_mapping(context):
     for ob in bpy.data.objects:
@@ -5520,16 +5550,15 @@ def create_parent_mapping(context):
             
     return collection_map
 
-def recursive_parent_mapper(collection: bpy.types.Collection, collection_map: dict[bpy.types.Collection: ExportCollection], parent_export_collection: ExportCollection | None):
+def recursive_parent_mapper(collection: bpy.types.Collection, collection_map: dict[str: ExportCollection], parent_export_collection: ExportCollection | None):
     export_collection = ExportCollection(collection)
-    collection_map[collection.name] = export_collection
     if parent_export_collection is not None:
-        if parent_export_collection.region is not None and export_collection.region is None:
-            export_collection.region = parent_export_collection.region
-        if parent_export_collection.permutation is not None and export_collection.permutation is None:
-            export_collection.permutation = parent_export_collection.permutation
-        if parent_export_collection.non_export:
-            export_collection.non_export = True
+        export_collection.inherit(parent_export_collection)
+
+    if collection.name in collection_map:
+        collection_map[collection.name].merge(export_collection)
+    else:
+        collection_map[collection.name] = export_collection
             
     for child in collection.children:
         recursive_parent_mapper(child, collection_map, export_collection)
