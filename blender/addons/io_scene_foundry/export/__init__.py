@@ -683,11 +683,12 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
         return export_current_action_as_camera_track(context, asset_path) # Return early if this is a camera track export
     start_scene = context.scene
     export_scene = ExportScene(context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings, start_scene)
-    scenes = {}
+    scenes = []
     current_scene_only = False
     if asset_type == 'cinematic':
         current_scene_only = export_settings.current_scene_only
-        for idx, cin_scene in enumerate(utils.get_scene_props().cinematic_scenes):
+        seen_scenes = set()
+        for idx, cin_scene in enumerate(scene_settings.cinematic_scenes):
             if not cin_scene.name.strip():
                 utils.print_warning(f"Cinematic Scene Index {idx} has not scene ID, skipping")
                 continue
@@ -700,20 +701,25 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
             #     utils.print_warning(f"Cinematic Scene Index {idx} has no active camera, skipping")
             #     continue
             
-            if cin_scene.scene not in scenes:
-                scenes[cin_scene.scene] = cin_scene.name
+            # scene specific
+            if cin_scene.scene not in seen_scenes:
+                seen_scenes.add(cin_scene.scene)
+                scenes.append((cin_scene.scene, cin_scene.name, cin_scene))
+        if current_scene_only:
+            scenes = [scene_tuple for scene_tuple in scenes if scene_tuple[0] == start_scene]
     else:
-        scenes = {context.scene: "default"}
+        scenes = [(context.scene, "default", None)]
         
     if not scenes:
         raise RuntimeError("No valid scenes to export")
         
     if export_settings.export_mode in {'FULL', 'GRANNY'}:
-        for bscene, scene_id in scenes.items():
+        for bscene, scene_id, cinematic_scene_settings in scenes:
             print(f"\n\nProcessing {bscene.name}")
             print("-----------------------------------------------------------------------\n")
-            context.window.scene = bscene
-            export_scene.new_scene(scene_id)
+            if context.scene != bscene:
+                context.window.scene = bscene
+            export_scene.new_scene(scene_id, cinematic_scene_settings)
             try:
                 export_scene.ready_scene(collection_view_layer)
                 export_scene.get_initial_export_objects()
@@ -729,6 +735,9 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
                     export_scene.export_files(single_animation)
             finally:
                 export_scene.restore_scene()
+        if context.scene != start_scene and export_scene.asset_type != AssetType.CINEMATIC:
+            context.window.scene = start_scene
+            context.view_layer.update()
         if not single_animation and not child_animation:
             export_scene.write_sidecar()
             
@@ -762,5 +771,5 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
             export_scene.lightmap()
             
             
-    if context.scene != start_scene:
+    if context.scene != start_scene and export_scene.asset_type != AssetType.CINEMATIC:
         context.window.scene = start_scene

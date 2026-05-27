@@ -205,7 +205,7 @@ class VirtualShot:
                     subframe = 0.0
 
                 scene.context.scene.frame_set(frame, subframe=subframe)
-                self.frames.append(Frame(self.camera, scene.corinth, film_aperture))
+                self.frames.append(Frame(self.camera, scene.corinth, film_aperture, scene.halo_transform_scale, scene.halo_rotation))
                 for shot_actor in self.shot_actors:
                     if not shot_actor.in_scope:
                         continue
@@ -2143,7 +2143,7 @@ class VirtualSkeleton:
     def _get_bones(self, ob, scene: 'VirtualScene', is_main_armature: bool):
         if ob.type == 'ARMATURE':
             main_arm = ob
-            scene_nwo = utils.get_scene_props()
+            scene_nwo = scene.scene_nwo
             support_parent_map = {}
             aim_bone_names = {scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
             special_bone_names = {scene_nwo.node_usage_pedestal, scene_nwo.node_usage_pose_blend_pitch, scene_nwo.node_usage_pose_blend_yaw}
@@ -2440,7 +2440,7 @@ class VirtualModel:
             self.matrix: Matrix = ob.matrix_world.copy()
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, time_step: float, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool, project, light_scale: float, unit_factor: float, atten_scalar: int, context: bpy.types.Context):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, time_step: float, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool, project, light_scale: float, unit_factor: float, atten_scalar: int, context: bpy.types.Context, halo_transform_scale: float = None, scene_nwo=None):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.meshes_linked: dict[VirtualMesh] = {}
@@ -2491,6 +2491,8 @@ class VirtualScene:
         self.aim_yaw_matrix_inverse = IDENTITY_MATRIX
 
         self.rotation_matrix = Matrix.Rotation(rotation, 4, Vector((0, 0, 1)))
+        self.halo_rotation = rotation
+        self.halo_transform_scale = halo_transform_scale
         self.marker_rotation_matrix = Matrix.Rotation(-rotation, 4, 'Z')
         self.maintain_marker_axis = maintain_marker_axis
         self.armature_matrix = IDENTITY_MATRIX
@@ -2508,7 +2510,7 @@ class VirtualScene:
         self.limit_permutations = False
         
         self.context = context
-        self.scene_nwo = utils.get_scene_props()
+        self.scene_nwo = scene_nwo or utils.get_scene_props()
         self.actors = []
         self.selected_actors = set()
         self.selected_cinematic_objects_only = False
@@ -2939,7 +2941,7 @@ class VirtualScene:
                 self.composite_blend_axis_values[key] = values
     
     def add_shot(self, frame_start: int, frame_end: int, actors: list[bpy.types.Object], camera: bpy.types.Object, index: int, in_scope: bool, film_aperture: float):
-        shot = VirtualShot(frame_start, frame_end, actors, camera, index, self, in_scope)
+        shot = VirtualShot(frame_start, frame_end, actors, camera, index, self, in_scope=in_scope)
         shot.perform(self, film_aperture)
         self.shots.append(shot)
         

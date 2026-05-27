@@ -65,7 +65,7 @@ class Sidecar:
         self.composite_blend_axis_values = {}
         self.corinth = corinth
         self.context = context
-        self.nwo = utils.get_scene_props()
+        self.nwo = scene_settings or utils.get_scene_props()
         self.lods = set()
         self.no_top_level_tag = False
         
@@ -94,7 +94,7 @@ class Sidecar:
         actor_asset_path = Path(actor.sidecar)
         actor_sidecar_path_relative = Path(f"{actor.sidecar}.sidecar.xml")
         actor_sidecar_path_full = Path(self.data_dir, actor_sidecar_path_relative)
-        actor_sidecar = Sidecar(actor_sidecar_path_full, actor_sidecar_path_relative, actor_asset_path, actor_asset_path.name, AssetType.MODEL, None, self.corinth, self.context, self.tags_dir)
+        actor_sidecar = Sidecar(actor_sidecar_path_full, actor_sidecar_path_relative, actor_asset_path, actor_asset_path.name, AssetType.MODEL, self.scene_settings, self.corinth, self.context, self.tags_dir)
         actor_sidecar.build(actor_render_model_path=actor.render_model)
         
     def add_file_data(self, tag_type: str, permutation: str, region: str, gr2_path: Path, blend_path: Path):

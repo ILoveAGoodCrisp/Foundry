@@ -37,14 +37,16 @@ BANNED_FUNCTIONS = {
 AMMO_FUNCTIONS = "primary_ammunition_ones", "primary_ammunition_tens"
 
 class CinematicScene:
-    def __init__(self, asset_path, scene_name, scene):
-        nwo = utils.get_scene_props()
+    def __init__(self, asset_path, scene_name, scene, scene_settings=None, asset_settings=None):
+        nwo = scene.nwo if scene is not None else utils.get_scene_props() # scene specific
+        transform_nwo = asset_settings or nwo
         self.name = scene_name
         self.scene = scene
+        self.scene_settings = scene_settings
         self.path_no_ext = Path(asset_path, self.name)
         self.path = self.path_no_ext.with_suffix(".cinematic_scene")
         self.path_qua = Path(self.path_no_ext).with_suffix(".qua")
-        self.anchor = nwo.cinematic_anchor
+        self.anchor = nwo.cinematic_anchor # scene specific
         self.anchor_name = f"{self.name}_anchor"
         self.anchor_location = 0.0, 0.0, 0.0
         self.anchor_ypr = 0.0, 0.0, 0.0
@@ -52,8 +54,9 @@ class CinematicScene:
         self.actor_animations = defaultdict(list)
         self.actors = []
         if self.anchor is not None:
-            anchor_matrix = utils.halo_transform_matrix(self.anchor.matrix_world.inverted_safe())
-            rotation_offset = utils.blender_halo_rotation_diff(nwo.forward_direction)
+            transform_scale = 0.03048 * utils.WU_SCALAR if transform_nwo.scale == 'max' else utils.WU_SCALAR
+            rotation_offset = utils.blender_halo_rotation_diff(transform_nwo.forward_direction)
+            anchor_matrix = utils.halo_transforms_matrix(self.anchor.matrix_world.inverted_safe(), transform_scale, rotation_offset)
             self.anchor_location = anchor_matrix.translation.to_tuple()
             rot = anchor_matrix.to_euler()
             rotation = Euler((rot.z, -rot.y, rot.x), 'ZYX')
@@ -72,10 +75,13 @@ class CinematicDof:
         self.blur_amount = 0
 
 
-def _cinematic_distance(distance: float) -> float:
+def _cinematic_distance(distance: float, transform_scale: float = None) -> float:
     if not isfinite(distance):
         return 0
-    return max(utils.halo_scale(max(distance, 0)) * 100, 0)
+    distance = max(distance, 0)
+    if transform_scale is None:
+        return max(utils.halo_scale(distance) * 100, 0)
+    return max(distance * transform_scale * 100, 0)
 
 def _mm_to_scene_units(value: float) -> float:
     return value / 1000
@@ -153,7 +159,7 @@ def calculate_focal_distances(camera):
     return near_focus, far_focus, focus_distance
 
 
-def calculate_cinematic_dof(camera: bpy.types.Object) -> CinematicDof:
+def calculate_cinematic_dof(camera: bpy.types.Object, transform_scale: float = None) -> CinematicDof:
     dof = CinematicDof()
     data = camera.data
     data: bpy.types.Camera
@@ -182,15 +188,15 @@ def calculate_cinematic_dof(camera: bpy.types.Object) -> CinematicDof:
     far_focus = min(max(far_focus, near_focus), clip_end)
 
     dof.enabled = True
-    dof.near_focal_plane_distance = _cinematic_distance(near_focus)
-    dof.far_focal_plane_distance = _cinematic_distance(far_focus)
+    dof.near_focal_plane_distance = _cinematic_distance(near_focus, transform_scale)
+    dof.far_focal_plane_distance = _cinematic_distance(far_focus, transform_scale)
 
     near_max_coc = _circle_of_confusion(lens, focus_distance, aperture, clip_start)
     if near_focus > clip_start and near_max_coc > sharp_coc:
         near_target_coc = min(near_max_coc, blur_cap_coc)
         near_full_blur = _distance_at_coc(lens, focus_distance, aperture, near_target_coc, True)
         near_full_blur = min(max(near_full_blur, clip_start), near_focus)
-        dof.near_focal_depth = max(_cinematic_distance(near_focus - near_full_blur), MIN_CINEMATIC_FOCAL_DEPTH)
+        dof.near_focal_depth = max(_cinematic_distance(near_focus - near_full_blur, transform_scale), MIN_CINEMATIC_FOCAL_DEPTH)
         dof.near_blur_amount = _game_blur_amount(near_target_coc)
     else:
         dof.near_focal_depth = MIN_CINEMATIC_FOCAL_DEPTH
@@ -205,7 +211,7 @@ def calculate_cinematic_dof(camera: bpy.types.Object) -> CinematicDof:
         if not isfinite(far_full_blur):
             far_full_blur = clip_end
         far_full_blur = min(max(far_full_blur, far_focus), clip_end)
-        dof.far_focal_depth = max(_cinematic_distance(far_full_blur - far_focus), MIN_CINEMATIC_FOCAL_DEPTH)
+        dof.far_focal_depth = max(_cinematic_distance(far_full_blur - far_focus, transform_scale), MIN_CINEMATIC_FOCAL_DEPTH)
         dof.far_blur_amount = _game_blur_amount(far_target_coc)
     else:
         dof.far_focal_depth = MIN_CINEMATIC_FOCAL_DEPTH
@@ -370,13 +376,13 @@ class ShotActor:
         self.animation_name = f"{self.name}_{shot_index}"
     
 class Frame:
-    def __init__(self, ob: bpy.types.Object, corinth: bool, film_aperture: float):
+    def __init__(self, ob: bpy.types.Object, corinth: bool, film_aperture: float, transform_scale: float = None, rotation: float = None):
         assert(ob.type == 'CAMERA')
         data = ob.data
         data: bpy.types.Camera
         blender_matrix = ob.matrix_world
-        matrix = utils.halo_transforms_matrix(blender_matrix)
-        dof = calculate_cinematic_dof(ob)
+        matrix = utils.halo_transforms_matrix(blender_matrix, transform_scale, rotation)
+        dof = calculate_cinematic_dof(ob, transform_scale)
             
         self.position = matrix.translation.to_tuple()
         matrix_3x3 = matrix.to_3x3() @ camera_correction_matrix.inverted_safe()
@@ -409,7 +415,7 @@ class QUA:
     audio_data_version = 3
     custom_script_version = 1
     effect_data_version = 4
-    def __init__(self, asset_path, scene_name: str, shots: list, actors: list[Actor], corinth: bool, is_segment = False):
+    def __init__(self, asset_path, scene_name: str, shots: list, actors: list[Actor], corinth: bool, blender_scene: bpy.types.Scene, is_segment = False):
         self.has_camera_data = not is_segment
         self.version = 4 if corinth else 2
         self.scene_type = "segment" if is_segment else "main"
@@ -420,6 +426,7 @@ class QUA:
         self.corinth = corinth
         self.tag_path = Path(asset_path, scene_name)
         self.shot_counts = [shot.frame_count for shot in shots]
+        self.blender_scene = blender_scene
 
     def get_shot_index_and_frame(self, frame_index: int) -> tuple[int | None, int]:
         current_frame_index = 0
@@ -657,7 +664,9 @@ class QUA:
     #             f"{camera.type}\n\n"
     #         )
             
-    def write_to_tag(self, cin_scene_settings):
+    def write_to_tag(self, cin_scene_settings, blender_scene: bpy.types.Scene = None):
+        # scene specific
+
         with Tag(path=self.tag_path.with_suffix(".cinematic_scene")) as scene:
             scene.tag.SelectField("StringId:name").SetStringData(self.scene_name)
             scene.tag.SelectField("StringId:anchor").SetStringData(f"{self.scene_name}_anchor")
@@ -672,13 +681,12 @@ class QUA:
                 with Tag(path=self.tag_path.with_suffix(".cinematic_scene_data")) as data:
                     scene.tag.SelectField("Reference:data").Path = data.tag_path
                     data.tag_has_changes = True
-                    self._write_scene_data(data, scene.tag.SelectField("Block:objects"), scene.tag.SelectField("Block:shots"), data.tag.SelectField("Block:extra camera frame data"), data.tag.SelectField("Block:objects"), data.tag.SelectField("Block:shots"))
+                    self._write_scene_data(blender_scene, data, scene.tag.SelectField("Block:objects"), scene.tag.SelectField("Block:shots"), data.tag.SelectField("Block:extra camera frame data"), data.tag.SelectField("Block:objects"), data.tag.SelectField("Block:shots"))
             else:
-                self._write_scene_data(scene, scene.tag.SelectField("Block:objects"), scene.tag.SelectField("Block:shots"), scene.tag.SelectField("Block:extra camera frame data"))
+                self._write_scene_data(blender_scene, scene, scene.tag.SelectField("Block:objects"), scene.tag.SelectField("Block:shots"), scene.tag.SelectField("Block:extra camera frame data"))
             
-    def _write_scene_data(self, tag, block_objects: TagFieldBlock, block_shots: TagFieldBlock, block_extra_camera: TagFieldBlock, block_data_objects: TagFieldBlock = None, block_data_shots: TagFieldBlock = None):
+    def _write_scene_data(self, blender_scene, tag, block_objects: TagFieldBlock, block_shots: TagFieldBlock, block_extra_camera: TagFieldBlock, block_data_objects: TagFieldBlock = None, block_data_shots: TagFieldBlock = None):
         # EXTRA CAMERAS TODO or perhaps never do? They may not work
-        
         # Read existing data
         lighting = {}
         clips = {}
@@ -1021,12 +1029,17 @@ class QUA:
  
         # Add cinematic events
         
-        frame_start = utils.game_frame(int(bpy.context.scene.frame_start))
+        fps = blender_scene.render.fps / blender_scene.render.fps_base
+
+        def game_frame(frame: int):
+            return utils.round_int(frame * (30 / fps))
+
+        frame_start = game_frame(int(blender_scene.frame_start))
         sound_sequences = {}
-        if bpy.context.scene.sequence_editor:
-            sound_sequences = bpy.context.scene.sequence_editor.strips_all
-        for event in bpy.context.scene.nwo.cinematic_events:
-            frame = utils.game_frame(event.frame)
+        if blender_scene.sequence_editor:
+            sound_sequences = blender_scene.sequence_editor.strips_all
+        for event in blender_scene.nwo.cinematic_events:
+            frame = game_frame(event.frame)
             match event.type:
                 case 'DIALOGUE':
                     c = CinematicDialogue()
@@ -1035,7 +1048,7 @@ class QUA:
                         if event.sound_strip:
                             strip = sound_sequences.get(event.sound_strip)
                             if strip is not None:
-                                frame = utils.game_frame(int(strip.frame_start))
+                                frame = game_frame(int(strip.frame_start))
                         dialogue[c] = frame - frame_start + int(self.corinth)
                 case 'EFFECT':
                     c = CinematicEffect()

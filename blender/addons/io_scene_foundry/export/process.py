@@ -117,8 +117,9 @@ class ExportScene:
         
         self.forward = scene_settings.forward_direction
         self.from_halo_scale = 1 if scene_settings.scale == 'max' else 0.03048
-        self.to_halo_scale = utils.get_export_scale(context)
+        self.to_halo_scale = (1 / 0.03048) if scene_settings.scale == 'blender' else 1
         self.to_maya_scale = self.to_halo_scale / 10 if self.corinth else self.to_halo_scale
+        self.halo_transform_scale = 0.03048 * WU_SCALAR if scene_settings.scale == 'max' else WU_SCALAR
         self.mirror = export_settings.granny_mirror
         self.has_animations = False
         self.setup_scenario = False
@@ -136,7 +137,7 @@ class ExportScene:
         self.node_usage_set = False
         
         self.atten_scalar = 1 if corinth else 100
-        self.unit_factor = utils.get_unit_conversion_factor(context)
+        self.unit_factor = 0.03048 if scene_settings.scale == 'max' else 1
         
         self.rotation_correction = utils.blender_halo_rotation_diff(self.forward)
         
@@ -215,7 +216,7 @@ class ExportScene:
                 
         return tag_types
     
-    def new_scene(self, scene_id: str):
+    def new_scene(self, scene_id: str, cinematic_scene_settings=None):
         self.depsgraph: bpy.types.Depsgraph = None
         self.virtual_scene: VirtualScene = None
         self.no_parent_objects = []
@@ -251,7 +252,8 @@ class ExportScene:
         self.cinematic_actors = []
         self.cinematic_scene = None
         if self.asset_type == AssetType.CINEMATIC:
-            self.cinematic_scene = CinematicScene(self.asset_path_relative, f"{self.asset_name}_{scene_id}", self.context.scene)
+            # scene specific
+            self.cinematic_scene = CinematicScene(self.asset_path_relative, f"{self.asset_name}_{scene_id}", self.context.scene, cinematic_scene_settings, self.scene_settings)
             self.cinematic_scenes.append(self.cinematic_scene)
                 
         self.active_animation = ""
@@ -419,7 +421,7 @@ class ExportScene:
         else:    
             self.export_objects = [ob for ob in proxy_export_objects if ob.nwo.export_this and ob.type in valid_objects]
         
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, self.rotation_correction, self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.scene_settings.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, self.rotation_correction, self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.scene_settings.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context, self.halo_transform_scale, self.scene_settings)
         self.has_no_virtual_scene = False
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
@@ -1684,7 +1686,7 @@ class ExportScene:
                     else:
                         shot_frame_end = frame_end
                         
-                    scene.frame_set(shot_frame_end - 1)
+                    scene.frame_set(max(shot_frame_start, shot_frame_end - 1))
                     
                     camera = scene.camera
                     
@@ -2330,7 +2332,9 @@ class ExportScene:
         #     writer = QUA(self.parent_asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
         # else:
         writer = QUA(self.asset_path_relative, cin_scene.name, cin_scene.shots, cin_scene.actors, self.corinth, False)
-        writer.write_to_tag(self.scene_settings.cinematic_scenes[0]) # TODO
+        # scene specific
+        cin_scene_settings = cin_scene.scene_settings or self.scene_settings.cinematic_scenes[0]
+        writer.write_to_tag(cin_scene_settings, cin_scene.scene)
                 
     def _export_animations(self):
         if self.virtual_scene.skeleton_node and self.virtual_scene.animations:
@@ -2524,6 +2528,8 @@ class ExportScene:
         print(f"--- Saved to: {self.sidecar.sidecar_path}")
         
     def restore_scene(self):
+        refresh_view_layer = self.asset_type != AssetType.CINEMATIC
+
         for ob, data in self.data_remap.items():
             ob.data = data
         
@@ -2540,7 +2546,8 @@ class ExportScene:
         if self.collection_view_layers_to_restore:
             for coll_view_layer in self.collection_view_layers_to_restore:
                 coll_view_layer.exclude = False
-            self.context.view_layer.update()
+            if refresh_view_layer:
+                self.context.view_layer.update()
             
         for ob in self.hidden_objects:
             ob.hide_set(True)
@@ -2548,7 +2555,10 @@ class ExportScene:
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION} and self.scene_settings.animations and self.scene_settings.active_animation_index > -1:
             self.scene_settings.active_animation_index = self.scene_settings.active_animation_index
             
-        self.context.scene.frame_set(self.current_frame)
+        if self.asset_type == AssetType.CINEMATIC:
+            self.context.scene.frame_current = self.current_frame
+        else:
+            self.context.scene.frame_set(self.current_frame)
                 
         utils.restore_mode(self.current_mode)
         
@@ -2557,7 +2567,8 @@ class ExportScene:
         for ob in self.marker_instancers:
             ob.instance_type = 'COLLECTION'
             
-        self.context.view_layer.update()
+        if refresh_view_layer:
+            self.context.view_layer.update()
         
     def preprocess_tags(self):
         """ManagedBlam tasks to run before tool import is called"""
@@ -3202,14 +3213,14 @@ class ExportScene:
                     # if self.is_child_asset:
                     #     cinematic.create(self.parent_asset_name, self.cinematic_scene, cinematic_scenes)
                     # else:
-                    cinematic.create(self.asset_name, self.cinematic_scenes, Path(self.scene_settings.cinematic_scenario), self.scene_settings.cinematic_zone_set if self.scene_settings.cinematic_zone_set.strip() else "cinematic")
+                    cinematic.create(self.asset_name, self.cinematic_scenes, Path(self.scene_settings.cinematic_scenario), self.scene_settings.cinematic_zone_set if self.scene_settings.cinematic_zone_set.strip() else "cinematic", self.scene_settings)
                     self.print_post(f"--- Linked cinematic to scenario: {self.scene_settings.cinematic_scenario}")
                     if self.scene_settings.cinematic_zone_set:
                         self.print_post(f"--- Linked to zone set: {self.scene_settings.cinematic_zone_set}")
                             
                     self.print_post(f"--- {term} cutscene flags for cinematic anchors")
                 else:
-                    cinematic.create(self.asset_name, self.cinematic_scenes)
+                    cinematic.create(self.asset_name, self.cinematic_scenes, scene_nwo=self.scene_settings)
                     self.print_post(f"--- {term} cinematic tag")
                     if self.scene_settings.cinematic_scenario.strip():
                         utils.print_warning(f"Cinematic Scenario does not exist: {self.scene_settings.cinematic_scenario}")
