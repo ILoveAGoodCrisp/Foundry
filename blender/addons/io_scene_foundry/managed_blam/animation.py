@@ -553,6 +553,8 @@ class AnimationTag(Tag):
             
         graph_nodes = {}
         stripped_graph_nodes = {}
+        render_nodes = {}
+        stripped_render_nodes = {}
         indexed_graph_nodes = []
         graph_name_mismatches = []
         
@@ -608,9 +610,6 @@ class AnimationTag(Tag):
                 if name:
                     graph_nodes[name] = local_node
                     stripped_graph_nodes.setdefault(utils.remove_node_prefix(name), local_node)
-                    
-                render_nodes = {}
-                stripped_render_nodes = {}
                 
         if model is not None:
             for element in model.block_nodes.Elements:
