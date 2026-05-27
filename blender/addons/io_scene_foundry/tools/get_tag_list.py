@@ -62,7 +62,7 @@ class NWO_GetTagsList(bpy.types.Operator):
         elif self.list_type.startswith('light'):
             nwo = context.object.data.nwo
         elif self.list_type in cinematic_event_props:
-            nwo = scene_nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
+            nwo = context.scene.nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
         elif self.list_type in event_data_props:
             animation = scene_nwo.animations[scene_nwo.active_animation_index]
             event = animation.animation_events[animation.active_animation_event_index]
@@ -250,7 +250,7 @@ class NWO_TagExplore(bpy.types.Operator):
         elif self.prop.startswith('light'):
             nwo = context.object.data.nwo
         elif self.prop in cinematic_event_props:
-            nwo = scene_nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
+            nwo = context.scene.nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
         elif self.prop in event_data_props:
             animation = scene_nwo.animations[scene_nwo.active_animation_index]
             event = animation.animation_events[animation.active_animation_event_index]
