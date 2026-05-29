@@ -321,6 +321,7 @@ def register():
     bpy.types.OUTLINER_HT_header.append(viewport.create_halo_collection)
     bpy.types.VIEW3D_MT_object.append(viewport.add_halo_join)
     bpy.types.TOPBAR_MT_file_import.append(bar.menu_func_import)
+    bpy.types.TOPBAR_MT_file_external_data.append(bar.menu_func_external_data)
     bpy.types.DOPESHEET_HT_header.append(timeline.draw_cinematic_info)
     bpy.types.VIEW3D_MT_object_parent.append(object.draw_halo_attach)
 
@@ -332,6 +333,7 @@ def unregister():
     del bpy.types.Scene.nwo_export
     bpy.types.VIEW3D_MT_object_parent.remove(object.draw_halo_attach)
     bpy.types.DOPESHEET_HT_header.remove(timeline.draw_cinematic_info)
+    bpy.types.TOPBAR_MT_file_external_data.remove(bar.menu_func_external_data)
     bpy.types.TOPBAR_MT_file_import.remove(bar.menu_func_import)
     _stop_foundry_toolbar_watchdog()
     # bpy.types.NODE_HT_header.remove(bar.draw_foundry_nodes_toolbar)

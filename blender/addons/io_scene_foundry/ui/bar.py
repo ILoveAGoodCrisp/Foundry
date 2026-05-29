@@ -1475,3 +1475,9 @@ def foundry_toolbar(layout, context):
         
 def menu_func_import(self, context):
     self.layout.operator("nwo.foundry_import", text="Halo Foundry Import")
+
+def menu_func_external_data(self, context):
+    layout = self.layout
+    layout.separator()
+    layout.operator_context = 'INVOKE_DEFAULT'
+    layout.operator("nwo.find_foundry_shader_nodes")

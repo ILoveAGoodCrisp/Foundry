@@ -35,6 +35,7 @@ from .rigging.create_rig import NWO_OT_AddRig, NWO_OT_BakeIKControl, NWO_OT_Bake
 from .rigging.validation import NWO_AddPoseBones, NWO_FixArmatureTransforms, NWO_FixPoseBones, NWO_FixRootBone, NWO_ValidateRig,NWO_OT_AddAimDisplay
 from .scene_scaler import NWO_ScaleScene
 from .append_foundry_materials import NWO_AppendFoundryMaterials
+from .find_foundry_shader_nodes import NWO_OT_FindFoundryShaderNodes
 from .auto_seam import NWO_AutoSeam
 from .clear_duplicate_materials import NWO_ClearShaderPaths, NWO_StompMaterials
 from .export_bitmaps import NWO_ExportBitmapsSingle, NWO_OT_ReloadImages
@@ -175,6 +176,7 @@ classes = (
     NWO_OT_ShaderToMaterial,
     NWO_OT_ShaderToNodesBulk,
     NWO_AppendFoundryMaterials,
+    NWO_OT_FindFoundryShaderNodes,
     NWO_ClearShaderPaths,
     NWO_UpdateSets,
     NWO_ScaleScene,
