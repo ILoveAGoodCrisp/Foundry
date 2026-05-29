@@ -379,8 +379,8 @@ class RenderModelTag(Tag):
 
         for ob, region_perm in ob_region_perms.items():
             region, permutation = region_perm
-            utils.set_region(ob, region)
-            utils.set_permutation(ob, permutation)
+            utils.set_region(ob, region, utils.SetType.MODEL)
+            utils.set_permutation(ob, permutation, utils.SetType.MODEL)
             
         if self.instances:
             instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials_by_index, mesh_node_map, from_vert_normals=from_vert_normals, tag_path=self.tag_path.RelativePathWithExtension)
@@ -411,7 +411,7 @@ class RenderModelTag(Tag):
                     continue
 
                 ob.nwo.marker_uses_regions = True
-                utils.set_region(ob, region_name)
+                utils.set_region(ob, region_name, utils.SetType.MODEL)
                 if len(permutations) != len(region.permutations):
                     # Pick if this is include or exclude type depending on whichever means less permutation entries need to be added
                     # If a tie prefer exclude

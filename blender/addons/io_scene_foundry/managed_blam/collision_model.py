@@ -38,8 +38,8 @@ class CollisionTag(Tag):
                     ob.parent_type = 'BONE'
                     ob.parent_bone = bsp.bone
                     ob.matrix_world = armature.pose.bones[bsp.bone].matrix
-                    utils.set_region(ob, region)
-                    utils.set_permutation(ob, permutation)
+                    utils.set_region(ob, region, utils.SetType.MODEL)
+                    utils.set_permutation(ob, permutation, utils.SetType.MODEL)
                     collection.objects.link(ob)
                     objects.append(ob)
                         

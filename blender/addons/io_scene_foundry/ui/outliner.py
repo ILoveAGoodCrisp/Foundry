@@ -96,10 +96,11 @@ class NWO_OT_PermutationListCollection(NWO_ApplyCollectionType):
 
     def permutation_items(self, context):
         items = []
-
+        scene_nwo = utils.get_scene_props()
         perms = utils.get_scene_props().permutations_table
         for p in perms:
-            items.append((p.name, p.name, ''))
+            if p.set_type == 'DEFAULT' or p.set_type == utils.set_type_from_asset(scene_nwo):
+                items.append((p.name, p.name, ''))
 
         return items
 
@@ -114,10 +115,11 @@ class NWO_OT_RegionListCollection(NWO_ApplyCollectionType):
 
     def region_items(self, context):
         items = []
-
+        scene_nwo = utils.get_scene_props()
         regions = utils.get_scene_props().regions_table
         for r in regions:
-            items.append((r.name, r.name, ''))
+            if r.set_type == 'DEFAULT' or r.set_type == utils.set_type_from_asset(scene_nwo):
+                items.append((r.name, r.name, ''))
 
         return items
 

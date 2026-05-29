@@ -1,7 +1,7 @@
 from collections import Counter, defaultdict
 import copy
 import ctypes
-from enum import Enum, auto
+from enum import Enum, IntEnum, auto
 import itertools
 import json
 from math import radians
@@ -3770,7 +3770,12 @@ def get_major_vertex_group(ob: bpy.types.Object):
     if len(ob.vertex_groups) > most_common_index: 
         return ob.vertex_groups[most_common_index].name
     
-def set_region(ob, region):
+class SetType(IntEnum):
+    DEFAULT = 0
+    MODEL = 1
+    SCENARIO = 2
+    
+def set_region(ob, region, set_type=SetType.DEFAULT):
     regions_table = get_scene_props().regions_table
     entry = regions_table.get(region, 0)
     if not entry:
@@ -3778,10 +3783,11 @@ def set_region(ob, region):
         entry = regions_table[-1]
         entry.old = region
         entry.name = region
+        entry.set_type = set_type.name
         
     ob.nwo.region_name = region
     
-def add_region(region) -> str:
+def add_region(region, set_type=SetType.DEFAULT) -> str:
     regions_table = get_scene_props().regions_table
     entry = regions_table.get(region, 0)
     if not entry:
@@ -3789,10 +3795,11 @@ def add_region(region) -> str:
         entry = regions_table[-1]
         entry.old = region
         entry.name = region
+        entry.set_type = set_type.name
         
     return entry.name
 
-def set_permutation(ob, permutation):
+def set_permutation(ob, permutation, set_type=SetType.DEFAULT):
     permutations_table = get_scene_props().permutations_table
     entry = permutations_table.get(permutation, 0)
     if not entry:
@@ -3800,10 +3807,11 @@ def set_permutation(ob, permutation):
         entry = permutations_table[-1]
         entry.old = permutation
         entry.name = permutation
+        entry.set_type = set_type.name
         
     ob.nwo.permutation_name = permutation
     
-def add_permutation(permutation) -> str:
+def add_permutation(permutation, set_type=SetType.DEFAULT) -> str:
     permutations_table = get_scene_props().permutations_table
     entry = permutations_table.get(permutation, 0)
     if not entry:
@@ -3811,6 +3819,7 @@ def add_permutation(permutation) -> str:
         entry = permutations_table[-1]
         entry.old = permutation
         entry.name = permutation
+        entry.set_type = set_type.name
         
     return entry.name
         
@@ -3819,6 +3828,14 @@ def set_marker_permutations(ob, permutations: list[str]):
         name = add_permutation(p)
         ob.nwo.marker_permutations.add().name = name
         
+def set_type_from_asset(scene_nwo):
+    match scene_nwo.asset_type:
+        case 'model' | 'sky':
+            return 'MODEL'
+        case 'scenario' | 'prefab', 'multi_prefab':
+            return 'SCENARIO'
+        
+    return 'DEFAULT'
     
 def new_face_prop(data, attribute_name, display_name, override_prop, other_props={}) -> str:
     face_props = data.nwo.face_props

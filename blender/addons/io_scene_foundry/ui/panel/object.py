@@ -984,7 +984,7 @@ class NWO_MT_RegionsMenu(bpy.types.Menu):
         layout = self.layout
         scene_nwo = utils.get_scene_props()
         is_scenario = scene_nwo.asset_type == 'scenario'
-        region_names = [region.name for region in scene_nwo.regions_table]
+        region_names = [region.name for region in scene_nwo.regions_table if region.set_type == 'DEFAULT' or region.set_type == utils.set_type_from_asset(scene_nwo)]
         for r_name in region_names:
             layout.operator("nwo.region_assign_single", text=r_name).name = r_name
 
@@ -997,7 +997,7 @@ class NWO_MT_RegionsMenuSelection(NWO_MT_RegionsMenu):
         layout = self.layout
         scene_nwo = utils.get_scene_props()
         is_scenario = scene_nwo.asset_type == 'scenario'
-        region_names = [region.name for region in scene_nwo.regions_table]
+        region_names = [region.name for region in scene_nwo.regions_table if region.set_type == 'DEFAULT' or region.set_type == utils.set_type_from_asset(scene_nwo)]
         for r_name in region_names:
             layout.operator("nwo.region_assign", text=r_name).name = r_name
             
@@ -1014,7 +1014,7 @@ class NWO_MT_FaceRegionsMenu(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
         scene_nwo = utils.get_scene_props()
-        region_names = [region.name for region in scene_nwo.regions_table]
+        region_names = [region.name for region in scene_nwo.regions_table if region.set_type == 'DEFAULT' or region.set_type == utils.set_type_from_asset(scene_nwo)]
         for r_name in region_names:
             layout.operator("nwo.face_region_assign_single", text=r_name).name = r_name
 
@@ -1031,7 +1031,7 @@ class NWO_MT_MaterialRegionsMenu(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
         scene_nwo = utils.get_scene_props()
-        region_names = [region.name for region in scene_nwo.regions_table]
+        region_names = [region.name for region in scene_nwo.regions_table if region.set_type == 'DEFAULT' or region.set_type == utils.set_type_from_asset(scene_nwo)]
         for r_name in region_names:
             layout.operator("nwo.material_region_assign_single", text=r_name).name = r_name
 
@@ -1043,7 +1043,7 @@ class NWO_MT_SeamBackfaceMenu(NWO_MT_RegionsMenu):
     def draw(self, context):
         layout = self.layout
         scene_nwo = utils.get_scene_props()
-        region_names = [region.name for region in scene_nwo.regions_table if region.name != utils.true_region(context.object.nwo)]
+        region_names = [region.name for region in scene_nwo.regions_table if (region.name != utils.true_region(context.object.nwo) and region.set_type == 'DEFAULT' or region.set_type == utils.set_type_from_asset(scene_nwo))]
         if not region_names:
             layout.label(text="Only one BSP in scene. At least two required to use seams", icon="ERROR")
         for r_name in region_names:
@@ -1061,7 +1061,7 @@ class NWO_MT_PermutationsMenu(bpy.types.Menu):
         layout = self.layout
         scene_nwo = utils.get_scene_props()
         is_scenario = scene_nwo.asset_type in ('scenario', 'prefab')
-        permutation_names = [permutation.name for permutation in scene_nwo.permutations_table]
+        permutation_names = [permutation.name for permutation in scene_nwo.permutations_table if permutation.set_type == 'DEFAULT' or permutation.set_type == utils.set_type_from_asset(scene_nwo)]
         for p_name in permutation_names:
             layout.operator("nwo.permutation_assign_single", text=p_name).name = p_name
 
@@ -1074,7 +1074,7 @@ class NWO_MT_PermutationsMenuSelection(NWO_MT_PermutationsMenu):
         layout = self.layout
         scene_nwo = utils.get_scene_props()
         is_scenario = scene_nwo.asset_type in ('scenario', 'prefab')
-        permutation_names = [permutation.name for permutation in scene_nwo.permutations_table]
+        permutation_names = [permutation.name for permutation in scene_nwo.permutations_table if permutation.set_type == 'DEFAULT' or permutation.set_type == utils.set_type_from_asset(scene_nwo)]
         for p_name in permutation_names:
             layout.operator("nwo.permutation_assign", text=p_name).name = p_name
             
@@ -1091,7 +1091,7 @@ class NWO_MT_MarkerPermutationsMenu(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
         scene_nwo = utils.get_scene_props()
-        permutation_names = [permutation.name for permutation in scene_nwo.permutations_table]
+        permutation_names = [permutation.name for permutation in scene_nwo.permutations_table if permutation.set_type == 'DEFAULT' or permutation.set_type == utils.set_type_from_asset(scene_nwo)]
         for p_name in permutation_names:
             layout.operator("nwo.marker_perm_add", text=p_name).name = p_name
 

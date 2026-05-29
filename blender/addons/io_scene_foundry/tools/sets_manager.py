@@ -15,7 +15,7 @@ from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.scenario import ScenarioTag
 from ..tools.collection_manager import get_full_name
 
-from ..utils import create_parent_mapping, get_asset_tag, get_asset_tags, get_rig_prioritize_active, get_tags_path, get_scene_props, is_corinth, is_frame, is_marker, is_mesh, poll_ui, update_tables_from_objects, valid_nwo_asset
+from ..utils import create_parent_mapping, get_asset_tag, get_asset_tags, get_rig_prioritize_active, get_tags_path, get_scene_props, is_corinth, is_frame, is_marker, is_mesh, poll_ui, set_type_from_asset, update_tables_from_objects, valid_nwo_asset
 
 def has_region_or_perm(ob):
     if is_mesh(ob) and (ob.nwo.mesh_type != '_connected_geometry_mesh_type_object_instance' or ob.nwo.marker_uses_regions):
@@ -688,6 +688,7 @@ class NWO_UpdateSets(bpy.types.Operator):
             
         self.report({'INFO'}, "Sync Complete")
         return {"FINISHED"}
+            
 
 # Parent Classes
 class TableEntryAdd(bpy.types.Operator):
@@ -715,6 +716,7 @@ class TableEntryAdd(bpy.types.Operator):
         entry = table.add()
         entry.old = name
         entry.name = name
+        entry.set_type = set_type_from_asset(nwo)
         setattr(nwo, f"{self.table_str}_active_index", len(table) - 1)
         if self.set_object_prop == 1:
             ob = context.object
@@ -1034,6 +1036,7 @@ class NWO_FaceRegionAdd(bpy.types.Operator):
         entry = table.add()
         entry.old = name
         entry.name = name
+        entry.set_type = set_type_from_asset(nwo)
         setattr(nwo, f"regions_table_active_index", len(table) - 1)
         if self.set_object_prop:
             ob = context.object

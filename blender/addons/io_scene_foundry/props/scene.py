@@ -1797,6 +1797,12 @@ class NWO_PermutationClones(PropertyGroup):
         default=True,
         options=set(),
     )
+    
+set_type_items = [
+    ('DEFAULT', "Default", ""),
+    ('MODEL', "Model", ""),
+    ('SCENARIO', "Scenario", ""),
+]
 
 class NWO_Permutations_ListItems(PropertyGroup):
 
@@ -1838,6 +1844,13 @@ class NWO_Permutations_ListItems(PropertyGroup):
     active_clone_index: bpy.props.IntProperty(
         options=set(),
     )
+    
+    set_type: bpy.props.EnumProperty(
+        name="Set Type",
+        description="By default a permutation is treated as a model permutation and scenario layer. Setting this to model means the permutation is only visible in the UI in Model and Sky exports. Scenario means the permutation only shows in scenario assets",
+        items=set_type_items,
+        options=set(),
+    )
 
 class NWO_Regions_ListItems(PropertyGroup):
 
@@ -1868,6 +1881,13 @@ class NWO_Regions_ListItems(PropertyGroup):
         name="Active",
         description="If false, this region will not be active in the model tag except if added to a variant",
         default=True,
+    )
+    
+    set_type: bpy.props.EnumProperty(
+        name="Set Type",
+        description="By default a region is treated as a model region and scenario bsp. Setting this to model means the region is only visible in the UI in Model and Sky exports. Scenario means the region only shows in scenario assets",
+        items=set_type_items,
+        options=set(),
     )
 
 class NWO_BSP_ListItems(PropertyGroup):

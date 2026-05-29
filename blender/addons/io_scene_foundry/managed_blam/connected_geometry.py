@@ -514,15 +514,13 @@ class Instance:
             if main_collection_name == bsp_name:
                 main_collection_name = f"layer_{main_collection_name}"
 
-            # ---- MAIN COLLECTION ----
             main_collection = find_child_collection(ig_collection, main_collection_name)
             if main_collection is None:
                 main_collection = new_child_collection(ig_collection, main_collection_name)
-                utils.add_permutation(main_collection_name_main)
+                utils.add_permutation(main_collection_name_main, utils.SetType.SCENARIO)
                 main_collection.nwo.type = 'permutation'
                 main_collection.nwo.permutation = main_collection_name_main
 
-            # ---- SUB COLLECTION ----
             if sub_collection_name is not None:
                 if sub_collection_name == bsp_name:
                     sub_collection_name = f"sublayer_{main_collection_name}"
@@ -3324,7 +3322,7 @@ class MarkerGroup:
             
             nwo.marker_uses_regions = marker.uses_regions
             if marker.uses_regions:
-                utils.set_region(ob, marker.region.name)
+                utils.set_region(ob, marker.region.name, utils.SetType.MODEL)
                 nwo.marker_permutation_type = marker.permutation_type
                 utils.set_marker_permutations(ob, marker.permutations)
 

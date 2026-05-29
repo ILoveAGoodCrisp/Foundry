@@ -224,7 +224,65 @@ class NWO_PermutationsContextMenu(bpy.types.Menu):
     def draw(self, context):
         pass
 
+def _set_type_valid_for_asset(item, asset_set_type):
+    item_set_type = getattr(item, "set_type", "DEFAULT")
+    return item_set_type in {"", "DEFAULT", asset_set_type}
+
+def _draw_set_type_filter(ui_list, layout):
+    if ui_list.use_filter_show:
+        row = layout.row(align=True)
+        row.prop(ui_list, "filter_name", text="")
+        row.prop(ui_list, "use_filter_sort_alpha", text="")
+        row.prop(ui_list, "use_filter_invert", text="", icon='ARROW_LEFTRIGHT')
+        row.separator()
+        row.prop(ui_list, "use_filter_set_type", text="Asset Type")
+        row.prop(ui_list, "use_filter_sort_reverse", text="", icon="SORT_ASC")
+
+def _filter_set_type_items(ui_list, data, propname):
+    items = getattr(data, propname)
+    bitflag = ui_list.bitflag_filter_item
+
+    if ui_list.filter_name:
+        flt_flags = bpy.types.UI_UL_list.filter_items_by_name(
+            ui_list.filter_name,
+            bitflag,
+            items,
+            "name",
+        )
+    else:
+        flt_flags = [bitflag] * len(items)
+
+    scene_nwo = data if hasattr(data, "asset_type") else utils.get_scene_props()
+    asset_set_type = utils.set_type_from_asset(scene_nwo)
+    for i, item in enumerate(items):
+        visible = (flt_flags[i] & bitflag) != 0
+        if ui_list.use_filter_set_type:
+            visible = visible and _set_type_valid_for_asset(item, asset_set_type)
+        if ui_list.use_filter_invert:
+            visible = not visible
+
+        flt_flags[i] &= ~bitflag
+        if visible:
+            flt_flags[i] |= bitflag
+
+    order = []
+    if ui_list.use_filter_sort_alpha:
+        sort = [(idx, item.name.lower()) for idx, item in enumerate(items)]
+        order = bpy.types.UI_UL_list.sort_items_helper(
+            sort,
+            key=lambda item: item[1],
+            reverse=ui_list.use_filter_sort_reverse,
+        )
+
+    return flt_flags, order
+
 class NWO_UL_Regions(bpy.types.UIList):
+    use_filter_set_type: bpy.props.BoolProperty(
+        name="Filter by Asset Type",
+        description="Only show regions valid for the current asset type",
+        default=True,
+    )
+
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if item:
             layout.prop(item, 'name', text='', emboss=False, icon_value=get_icon_id("region"))
@@ -235,7 +293,19 @@ class NWO_UL_Regions(bpy.types.UIList):
         else:
             layout.label(text="", translate=False, icon_value=icon)
 
+    def draw_filter(self, context, layout):
+        _draw_set_type_filter(self, layout)
+
+    def filter_items(self, context, data, propname):
+        return _filter_set_type_items(self, data, propname)
+
 class NWO_UL_Permutations(bpy.types.UIList):
+    use_filter_set_type: bpy.props.BoolProperty(
+        name="Filter by Asset Type",
+        description="Only show permutations valid for the current asset type",
+        default=True,
+    )
+
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if item:
             layout.prop(item, 'name', text='', emboss=False, icon_value=get_icon_id("permutation"))
@@ -243,3 +313,9 @@ class NWO_UL_Permutations(bpy.types.UIList):
             layout.prop(item, "hide_select", text="", icon='RESTRICT_SELECT_ON' if item.hide_select else 'RESTRICT_SELECT_OFF', emboss=False)
         else:
             layout.label(text="", translate=False, icon_value=icon)
+
+    def draw_filter(self, context, layout):
+        _draw_set_type_filter(self, layout)
+
+    def filter_items(self, context, data, propname):
+        return _filter_set_type_items(self, data, propname)

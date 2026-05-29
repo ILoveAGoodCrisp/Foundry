@@ -3935,7 +3935,7 @@ class NWOImporter:
                         ob.nwo.marker_instance = True
                 # seams = bsp.get_seams(bsp_name, seams)
         
-        bsp_name = utils.add_region(bsp_name)
+        bsp_name = utils.add_region(bsp_name, utils.SetType.SCENARIO)
         collection.name = bsp_name
         collection.nwo.type = "region"
         collection.nwo.region = bsp_name
@@ -3978,7 +3978,7 @@ class NWOImporter:
             with StructureDesignTag(path=mover.tag_path) as design:
                 design_objects = design.to_blender(collection)
         
-        design_name = utils.add_region(design_name)
+        design_name = utils.add_region(design_name, utils.SetType.SCENARIO)
         collection.name = design_name
         collection.nwo.type = "region"
         collection.nwo.region = design_name
