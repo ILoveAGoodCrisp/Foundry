@@ -29,7 +29,6 @@ REQUIRED_WHEELS: tuple[tuple[str, str], ...] = (
     ("pycparser", "3.0"),
     ("pythonnet", "3.0.5"),
     ("networkx", "3.4.2"),
-    ("scipy", "1.16.0"),
     ("pillow", "12.2.0"),
     ("py360convert", "1.0.4"),
 )
