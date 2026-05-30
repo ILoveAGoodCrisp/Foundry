@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "io_scene_foundry"
-version = "1.8.39"
+version = "1.8.40"
 name = "Foundry"
 tagline = "An import & export pipeline for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer"
 maintainer = "Crisp"
@@ -25,7 +25,6 @@ wheels = [
   "./wheels/pycparser-3.0-py3-none-any.whl",
   "./wheels/pythonnet-3.0.5-py3-none-any.whl",
   "./wheels/networkx-3.4.2-py3-none-any.whl",
-  "./wheels/scipy-1.16.0-cp313-cp313-win_amd64.whl",
   "./wheels/pillow-12.2.0-cp313-cp313-win_amd64.whl",
   "./wheels/py360convert-1.0.4-py3-none-any.whl"
 ]
