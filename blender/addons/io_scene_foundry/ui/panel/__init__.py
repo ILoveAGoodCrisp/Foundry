@@ -1909,12 +1909,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row = col.row(align=True)
                 row.prop(settings_bone, f'["{key}"]', text=key)
                 if is_ik_blend_pose_control(key):
-                    op = row.operator("nwo.bake_ik_control", text="", icon='CON_KINEMATIC')
+                    op = row.operator("nwo.bake_ik_control", text="", icon='FILE_REFRESH')
                     op.prop_name = key
-                    op.direction = 'FK_TO_IK'
-                    op = row.operator("nwo.bake_ik_control", text="", icon='CONSTRAINT_BONE')
-                    op.prop_name = key
-                    op.direction = 'IK_TO_FK'
 
     def draw_camera_shot_properties(self, box: bpy.types.UILayout, camera: bpy.types.Object):
         nwo = camera.nwo

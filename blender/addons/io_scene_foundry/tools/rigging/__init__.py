@@ -61,6 +61,7 @@ neck_assist_constraint_name = 'Foundry Neck Assist Track'
 eye_track_constraint_name = 'Foundry Eye Track'
 root_child_of_constraint_name = 'Foundry Root Child Of'
 look_child_of_constraint_name = 'Foundry Look Child Of'
+foundry_armature_constraint_name = 'Foundry Armature'
 gun_copy_transforms_constraint_name = 'Foundry Gun Copy Transforms'
 ik_constraint_name = 'Foundry IK'
 ik_copy_rotation_constraint_name = 'Foundry IK Copy Rotation'
@@ -70,6 +71,7 @@ look_follow_head_prop_name = "Look ignores head"
 head_track_prop_name = "Head Track"
 eye_track_prop_name = "Eye Track"
 gun_control_prop_name = "gun_control"
+pole_target_follow_ik_prop_name = "Pole Target Follow IK"
 
 reach_fp_ik_fix_render_models = frozenset({
     r"objects\characters\spartans\fp\fp.render_model",
@@ -717,11 +719,35 @@ class HaloRig:
                 has_eye_controls=look_control is not None and len(eye_bone_names) >= 2,
             )
 
-        if root_control is not None and settings_control is not None:
+        if settings_control is not None:
             if head_control is not None:
-                add_root_child_of_constraint(head_control, self.rig_ob, root_control.name, head_follow_root_prop_name)
+                targets = []
+                if root_control is not None:
+                    targets.append(armature_target_spec(
+                        root_control.name,
+                        head_follow_root_prop_name,
+                        f"Whether {head_control.name} ignores the root bone",
+                        invert=True,
+                    ))
+                set_foundry_armature_constraint_targets(head_control, self.rig_ob, targets)
+
             if look_control is not None:
-                add_root_child_of_constraint(look_control, self.rig_ob, root_control.name, look_follow_root_prop_name)
+                targets = []
+                if root_control is not None:
+                    targets.append(armature_target_spec(
+                        root_control.name,
+                        look_follow_root_prop_name,
+                        f"Whether {look_control.name} ignores the root bone",
+                        invert=True,
+                    ))
+                if head_control is not None:
+                    targets.append(armature_target_spec(
+                        head_control_name,
+                        look_follow_head_prop_name,
+                        f"Whether {look_control.name} ignores {head_control_name}",
+                        invert=True,
+                    ))
+                set_foundry_armature_constraint_targets(look_control, self.rig_ob, targets)
 
         gun_control = self.rig_pose.bones.get(gun_control_name)
         if gun_control is not None:
@@ -751,22 +777,6 @@ class HaloRig:
                 clear_neck_assist_constraints(head_driver)
                 if head_driver.name == head_deform_name:
                     self.bones_with_fk_controllers.add(head_driver.name)
-
-        if look_control is not None and head_control is not None and settings_control is not None:
-            clear_matching_constraints(
-                look_control,
-                look_child_of_constraint_name,
-                'CHILD_OF',
-                self.rig_ob,
-                head_control_name,
-            )
-            con = cast(bpy.types.Constraint, look_control.constraints.new('CHILD_OF'))
-            con.name = look_child_of_constraint_name
-            con.target = self.rig_ob
-            con.subtarget = head_control_name
-            con.influence = 0.0
-            con.set_inverse_pending = True
-            add_settings_control_prop_driver(con, self.rig_ob, look_follow_head_prop_name, invert=True)
 
         if len(eye_bone_names) >= 2 and look_control is not None:
             for eye_name in eye_bone_names[:2]:
@@ -1190,10 +1200,37 @@ class HaloRig:
             ptb.custom_shape_translation = Vector((0.0, 0.0, 0.0))
             ptb.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
 
-            if settings_pb is not None and root_control is not None:
+            if settings_pb is not None:
                 prop_name = ik_root_follow_property_name(fkb_name)
-                add_root_child_of_constraint(ikb, self.rig_ob, root_control.name, prop_name)
-                add_root_child_of_constraint(ptb, self.rig_ob, root_control.name, prop_name)
+                if root_control is not None:
+                    set_foundry_armature_constraint_targets(
+                        ikb,
+                        self.rig_ob,
+                        [
+                            armature_target_spec(
+                                root_control.name,
+                                prop_name,
+                                f"Whether {ikb_name} ignores the root bone",
+                                invert=True,
+                            ),
+                        ],
+                    )
+
+                pole_target_specs = [
+                    armature_target_spec(
+                        ikb_name,
+                        pole_target_follow_ik_prop_name,
+                        f"Whether pole targets follow their IK controls",
+                    ),
+                ]
+                if root_control is not None:
+                    pole_target_specs.append(armature_target_spec(
+                        root_control.name,
+                        prop_name,
+                        f"Whether {pt_name} ignores the root bone",
+                        invert=True,
+                    ))
+                set_foundry_armature_constraint_targets(ptb, self.rig_ob, pole_target_specs)
             
             clear_matching_constraints(
                 fkb,
@@ -1243,8 +1280,13 @@ def fk_ik_chain_count(fkb: bpy.types.PoseBone):
         
     return count
 
-def add_settings_control_prop_driver(con: bpy.types.Constraint, rig_ob: bpy.types.Object, prop_name: str, multiplier=1.0, invert=False):
-    driver = con.driver_add("influence").driver
+def add_settings_control_prop_driver(driver_owner, rig_ob: bpy.types.Object, prop_name: str, multiplier=1.0, invert=False, data_path="influence"):
+    try:
+        driver_owner.driver_remove(data_path)
+    except (TypeError, ValueError, RuntimeError):
+        pass
+
+    driver = driver_owner.driver_add(data_path).driver
     driver.type = 'SCRIPTED'
 
     control_var = driver.variables.new()
@@ -1262,30 +1304,77 @@ def add_settings_control_prop_driver(con: bpy.types.Constraint, rig_ob: bpy.type
 def add_ik_control_prop_driver(con: bpy.types.Constraint, rig_ob: bpy.types.Object, prop_name: str):
     add_settings_control_prop_driver(con, rig_ob, prop_name)
 
+def armature_target_spec(subtarget: str, prop_name: str | None = None, description: str = "", invert=False):
+    return subtarget, prop_name, description, invert
+
+def set_foundry_armature_constraint_targets(
+    pbone: bpy.types.PoseBone,
+    rig_ob: bpy.types.Object,
+    target_specs: list[tuple[str, str | None, str, bool]],
+):
+    clear_foundry_armature_constraints(pbone, rig_ob, {spec[0] for spec in target_specs})
+    if not target_specs:
+        return
+
+    settings_bone = rig_ob.pose.bones.get(settings_control_name)
+    con = cast(bpy.types.Constraint, pbone.constraints.new('ARMATURE'))
+    con.name = foundry_armature_constraint_name
+    con.influence = 1.0
+    con.use_deform_preserve_volume = True
+    con.use_current_location = False
+
+    for subtarget, prop_name, description, invert in target_specs:
+        target = con.targets.new()
+        target.target = rig_ob
+        target.subtarget = subtarget
+        target.weight = 1.0 if invert else 0.0
+        if prop_name is not None and settings_bone is not None:
+            ensure_settings_float_prop(settings_bone, prop_name, description)
+            add_settings_control_prop_driver(target, rig_ob, prop_name, invert=invert, data_path="weight")
+
+def clear_foundry_armature_constraints(
+    pbone: bpy.types.PoseBone,
+    rig_ob: bpy.types.Object,
+    generated_subtargets: set[str],
+):
+    for con in reversed(pbone.constraints):
+        name_matches = (
+            con.name == foundry_armature_constraint_name
+            or con.name.startswith(f"{foundry_armature_constraint_name}.")
+            or con.name == root_child_of_constraint_name
+            or con.name.startswith(f"{root_child_of_constraint_name}.")
+            or con.name == look_child_of_constraint_name
+            or con.name.startswith(f"{look_child_of_constraint_name}.")
+        )
+        target_matches = (
+            con.type == 'CHILD_OF'
+            and getattr(con, "target", None) == rig_ob
+            and getattr(con, "subtarget", "") in generated_subtargets
+        )
+        if name_matches or target_matches:
+            pbone.constraints.remove(con)
+
 def add_root_child_of_constraint(pbone: bpy.types.PoseBone, rig_ob: bpy.types.Object, root_name: str, prop_name: str):
     settings_bone = rig_ob.pose.bones.get(settings_control_name)
     if settings_bone is not None:
-        ensure_settings_float_prop(
+        ensure_settings_bool_prop(
             settings_bone,
             prop_name,
-            f"How much {pbone.name} ignores the root bone",
+            f"Whether {pbone.name} ignores the root bone",
         )
 
-    clear_matching_constraints(
+    set_foundry_armature_constraint_targets(
         pbone,
-        root_child_of_constraint_name,
-        'CHILD_OF',
         rig_ob,
-        root_name,
+        [
+            armature_target_spec(
+                root_name,
+                prop_name,
+                f"Whether {pbone.name} ignores the root bone",
+                invert=True,
+            ),
+        ],
     )
-    con = cast(bpy.types.Constraint, pbone.constraints.new('CHILD_OF'))
-    con.name = root_child_of_constraint_name
-    con.target = rig_ob
-    con.subtarget = root_name
-    con.influence = 1.0
-    con.set_inverse_pending = True
-    if settings_bone is not None:
-        add_settings_control_prop_driver(con, rig_ob, prop_name, invert=True)
 
 def get_bone_collection(armature_data: bpy.types.Armature, name: str):
     collections_all = getattr(armature_data, "collections_all", None)
@@ -1871,13 +1960,20 @@ def remove_legacy_fk_ik_slider_bones(edit_bones):
                 edit_bones.remove(bone)
 
 def ensure_ik_control_props(settings_bone: bpy.types.PoseBone, fk_ik_mapping: dict[str, tuple[str, str, float]]):
+    if fk_ik_mapping:
+        ensure_settings_float_prop(
+            settings_bone,
+            pole_target_follow_ik_prop_name,
+            "How much pole targets follow their IK controls",
+        )
+
     for fkb_name in fk_ik_mapping:
         prop_name = ik_control_property_name(fkb_name)
         ensure_settings_float_prop(settings_bone, prop_name, f"IK influence for {fkb_name}")
-        ensure_settings_float_prop(
+        ensure_settings_bool_prop(
             settings_bone,
             ik_root_follow_property_name(fkb_name),
-            f"How much {fkb_name.replace('FK_', 'IK_', 1)} ignores the root bone",
+            f"Whether {fkb_name.replace('FK_', 'IK_', 1)} ignores the root bone",
         )
 
 def ensure_look_control_props(
@@ -1892,29 +1988,29 @@ def ensure_look_control_props(
             head_track_prop_name,
             f"How much the head tracks {head_control_name}",
         )
-        ensure_settings_float_prop(
+        ensure_settings_bool_prop(
             settings_bone,
             head_follow_root_prop_name,
-            f"How much {head_control_name} ignores the root bone",
+            f"Whether {head_control_name} ignores the root bone",
         )
     else:
         remove_settings_prop(settings_bone, head_track_prop_name)
         remove_settings_prop(settings_bone, head_follow_root_prop_name)
 
     if has_look_control:
-        ensure_settings_float_prop(
+        ensure_settings_bool_prop(
             settings_bone,
             look_follow_root_prop_name,
-            f"How much {look_control_name} ignores the root bone",
+            f"Whether {look_control_name} ignores the root bone",
         )
     else:
         remove_settings_prop(settings_bone, look_follow_root_prop_name)
 
     if has_look_control and has_head_control:
-        ensure_settings_float_prop(
+        ensure_settings_bool_prop(
             settings_bone,
             look_follow_head_prop_name,
-            f"How much {look_control_name} ignores {head_control_name}",
+            f"Whether {look_control_name} ignores {head_control_name}",
         )
     else:
         remove_settings_prop(settings_bone, look_follow_head_prop_name)
@@ -1952,6 +2048,15 @@ def ensure_settings_float_prop(settings_bone: bpy.types.PoseBone, prop_name: str
         soft_min=0.0,
         soft_max=1.0,
         description=description,
+    )
+    
+def ensure_settings_bool_prop(settings_bone: bpy.types.PoseBone, prop_name: str, description: str, default=False):
+    if prop_name not in settings_bone:
+        settings_bone[prop_name] = default
+
+    settings_bone.id_properties_ui(prop_name).update(
+        description=description,
+        property_type=bool,
     )
 
 def ik_control_property_name(fkb_name: str) -> str:
