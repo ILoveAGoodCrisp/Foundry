@@ -2223,7 +2223,12 @@ class MeshPart:
         if flags.TestBit("is water surface"):
             self.water_surface = True
             
-        self.part_type = PartType(element.SelectField("part type").Data)
+        part_type_index = element.SelectField("part type").Data
+        
+        if part_type_index > 5:
+            part_type_index = 2
+            
+        self.part_type = PartType(part_type_index)
         self.tessellation = Tessellation(element.SelectField("tessellation").Value)
         if isinstance(materials, dict):
             self.material = materials.get(self.material_index)

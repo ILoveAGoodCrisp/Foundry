@@ -37,6 +37,7 @@ POSE_CONTROL_UI_GROUPS = (
     ("Look", "VIEWZOOM"),
     ("Gun", "CONSTRAINT_BONE"),
     ("IK Blend", "CON_KINEMATIC"),
+    ("IK Pole Follow", "CONSTRAINT_BONE"),
     ("IK Root Ignore", "CON_CHILDOF"),
     ("Root Ignore", "CON_CHILDOF"),
     ("Other", "PROPERTIES"),
@@ -236,10 +237,13 @@ def grouped_bone_collections(collections: list):
 def pose_control_group_name(prop_name: str) -> str:
     lower_name = prop_name.lower()
     follows_root = "ignore root" in lower_name or "ignores root" in lower_name or "root_ignore" in lower_name
+    follows_ik = is_ik_pole_follow_pose_control(prop_name)
     is_ik = lower_name.startswith(("ik ", "ik_")) or lower_name.startswith("root_follow_ik")
     if "gun" in lower_name:
         return "Gun"
     if is_ik:
+        if follows_ik:
+            return "IK Pole Follow"
         if follows_root:
             return "IK Root Ignore"
         return "IK Blend"
@@ -252,11 +256,19 @@ def pose_control_group_name(prop_name: str) -> str:
 
     return "Other"
 
+def is_ik_pole_follow_pose_control(prop_name: str) -> bool:
+    lower_name = prop_name.lower()
+    return (
+        "pole target follows ik" in lower_name
+        or "pole target follow ik" in lower_name
+        or "pt follows ik" in lower_name
+    )
+
 def is_ik_blend_pose_control(prop_name: str) -> bool:
     lower_name = prop_name.lower()
     is_ik = lower_name.startswith("ik ") or lower_name.startswith("ik_")
     follows_root = "ignore root" in lower_name or "ignores root" in lower_name or "root_ignore" in lower_name
-    return is_ik and not follows_root
+    return is_ik and not follows_root and not is_ik_pole_follow_pose_control(prop_name)
 
 def pose_control_label(prop_name: str) -> str:
     return utils.formalise_string(prop_name)

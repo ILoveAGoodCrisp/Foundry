@@ -71,7 +71,7 @@ look_follow_head_prop_name = "Look ignores head"
 head_track_prop_name = "Head Track"
 eye_track_prop_name = "Eye Track"
 gun_control_prop_name = "gun_control"
-pole_target_follow_ik_prop_name = "Pole Target Follow IK"
+legacy_pole_target_follow_ik_prop_name = "Pole Target Follow IK"
 
 reach_fp_ik_fix_render_models = frozenset({
     r"objects\characters\spartans\fp\fp.render_model",
@@ -1219,8 +1219,8 @@ class HaloRig:
                 pole_target_specs = [
                     armature_target_spec(
                         ikb_name,
-                        pole_target_follow_ik_prop_name,
-                        f"Whether pole targets follow their IK controls",
+                        pole_target_follow_ik_property_name(fkb_name),
+                        f"Whether {pt_name} follows {ikb_name}",
                     ),
                 ]
                 if root_control is not None:
@@ -1329,7 +1329,7 @@ def set_foundry_armature_constraint_targets(
         target.subtarget = subtarget
         target.weight = 1.0 if invert else 0.0
         if prop_name is not None and settings_bone is not None:
-            ensure_settings_float_prop(settings_bone, prop_name, description)
+            ensure_settings_bool_prop(settings_bone, prop_name, description)
             add_settings_control_prop_driver(target, rig_ob, prop_name, invert=invert, data_path="weight")
 
 def clear_foundry_armature_constraints(
@@ -1960,16 +1960,16 @@ def remove_legacy_fk_ik_slider_bones(edit_bones):
                 edit_bones.remove(bone)
 
 def ensure_ik_control_props(settings_bone: bpy.types.PoseBone, fk_ik_mapping: dict[str, tuple[str, str, float]]):
-    if fk_ik_mapping:
-        ensure_settings_float_prop(
-            settings_bone,
-            pole_target_follow_ik_prop_name,
-            "How much pole targets follow their IK controls",
-        )
+    remove_settings_prop(settings_bone, legacy_pole_target_follow_ik_prop_name)
 
     for fkb_name in fk_ik_mapping:
         prop_name = ik_control_property_name(fkb_name)
         ensure_settings_float_prop(settings_bone, prop_name, f"IK influence for {fkb_name}")
+        ensure_settings_bool_prop(
+            settings_bone,
+            pole_target_follow_ik_property_name(fkb_name),
+            f"Whether {fkb_name.replace('FK_', 'PT_', 1)} follows {fkb_name.replace('FK_', 'IK_', 1)}",
+        )
         ensure_settings_bool_prop(
             settings_bone,
             ik_root_follow_property_name(fkb_name),
@@ -2034,6 +2034,9 @@ def ensure_gun_control_props(settings_bone: bpy.types.PoseBone):
 def ik_root_follow_property_name(fkb_name: str) -> str:
     return f"{ik_control_property_name(fkb_name)} ignore root"
 
+def pole_target_follow_ik_property_name(fkb_name: str) -> str:
+    return f"{ik_control_property_name(fkb_name)} PT follows IK"
+
 def remove_settings_prop(settings_bone: bpy.types.PoseBone, prop_name: str):
     if prop_name in settings_bone:
         del settings_bone[prop_name]
@@ -2049,14 +2052,18 @@ def ensure_settings_float_prop(settings_bone: bpy.types.PoseBone, prop_name: str
         soft_max=1.0,
         description=description,
     )
-    
+
 def ensure_settings_bool_prop(settings_bone: bpy.types.PoseBone, prop_name: str, description: str, default=False):
     if prop_name not in settings_bone:
         settings_bone[prop_name] = default
+    elif not isinstance(settings_bone[prop_name], bool):
+        try:
+            settings_bone[prop_name] = float(settings_bone[prop_name]) >= 0.5
+        except (TypeError, ValueError):
+            settings_bone[prop_name] = bool(settings_bone[prop_name])
 
     settings_bone.id_properties_ui(prop_name).update(
         description=description,
-        property_type=bool,
     )
 
 def ik_control_property_name(fkb_name: str) -> str:
