@@ -177,6 +177,8 @@ class ExportScene:
         self.selected_actors = []
         self.cinematic_scene = None
         self.cinematic_actors = []
+        self.cinematic_actor_export_names = {}
+        self.used_cinematic_actor_export_names = set()
         self.active_animation = ""
         self.suspension_animations = {}
         
@@ -215,6 +217,57 @@ class ExportScene:
                 tag_types.add('render')
                 
         return tag_types
+
+    def _cinematic_actor_library_suffix(self, ob: bpy.types.Object) -> str:
+        library = ob.library
+        if library is None and ob.data is not None:
+            library = ob.data.library
+
+        if library is None or not library.filepath:
+            return ""
+
+        return utils.clean_text(Path(bpy.path.abspath(library.filepath)).stem, replace_spaces=True, empty_string_allowed=True)
+
+    def _cinematic_actor_sort_key(self, ob: bpy.types.Object):
+        library = ob.library
+        library_path = ""
+        if library is not None and library.filepath:
+            library_path = bpy.path.abspath(library.filepath).lower()
+
+        return (library is not None, library_path, ob.name.lower())
+
+    def _unique_cinematic_actor_name(self, base_name: str) -> str:
+        base_name = utils.clean_text(base_name, replace_spaces=True)
+        if base_name not in self.used_cinematic_actor_export_names:
+            self.used_cinematic_actor_export_names.add(base_name)
+            return base_name
+
+        counter = 1
+        while True:
+            candidate = f"{base_name}_{counter}"
+            if candidate not in self.used_cinematic_actor_export_names:
+                self.used_cinematic_actor_export_names.add(candidate)
+                return candidate
+
+            counter += 1
+
+    def _assign_cinematic_actor_export_names(self, actors: list[bpy.types.Object]):
+        new_actors = [ob for ob in actors if ob not in self.cinematic_actor_export_names]
+        for ob in sorted(new_actors, key=self._cinematic_actor_sort_key):
+            base_name = utils.clean_text(ob.name, replace_spaces=True)
+            candidate_name = base_name
+            if candidate_name in self.used_cinematic_actor_export_names:
+                library_suffix = self._cinematic_actor_library_suffix(ob)
+                if library_suffix:
+                    candidate_name = f"{base_name}_{library_suffix}"
+
+            self.cinematic_actor_export_names[ob] = self._unique_cinematic_actor_name(candidate_name)
+
+    def _cinematic_actor_export_name(self, ob: bpy.types.Object) -> str:
+        if ob not in self.cinematic_actor_export_names:
+            self._assign_cinematic_actor_export_names([ob])
+
+        return self.cinematic_actor_export_names[ob]
     
     def new_scene(self, scene_id: str, cinematic_scene_settings=None):
         self.depsgraph: bpy.types.Depsgraph = None
@@ -418,6 +471,7 @@ class ExportScene:
             self.export_objects.append(null_ob)
         elif self.asset_type == AssetType.CINEMATIC:
             self.export_objects = [ob for ob in proxy_export_objects if ob.type == "ARMATURE"]
+            self._assign_cinematic_actor_export_names(self.export_objects)
         else:    
             self.export_objects = [ob for ob in proxy_export_objects if ob.nwo.export_this and ob.type in valid_objects]
         
@@ -563,7 +617,8 @@ class ExportScene:
                     if self.asset_type == AssetType.CINEMATIC:
                         warning = utils.actor_validation(ob)
                         if warning is None:
-                            self.cinematic_actors.append(Actor(ob, self.cinematic_scene.name, self.asset_path_relative, ""))
+                            actor_name = self._cinematic_actor_export_name(ob)
+                            self.cinematic_actors.append(Actor(ob, self.cinematic_scene.name, self.asset_path_relative, export_name=actor_name))
                         else:
                             self.warnings.append(warning)
                             continue
@@ -599,7 +654,7 @@ class ExportScene:
                 is_armature = ob.type == 'ARMATURE'
                 
                 if is_armature:
-                    if self.asset_type == AssetType.CINEMATIC and self.selected_cinematic_objects_only and ob.ob.select_get():
+                    if self.asset_type == AssetType.CINEMATIC and self.selected_cinematic_objects_only and ob.select_get():
                         self.selected_actors.add(ob)
                 else:
                     if self.limit_perms_to_selection:
@@ -1724,15 +1779,14 @@ class ExportScene:
                     fallback_camera = camera
                     
                     exclude = camera.nwo.actors_type == 'exclude'
+                    camera_actors = {item.actor: item for item in camera.nwo.actors if item.actor is not None}
                     if exclude:
-                        if camera.nwo.actors:
-                            camera_actors = {item.actor.name: item.actor for item in camera.nwo.actors if item.actor is not None}
+                        if camera_actors:
                             shot_actors = [a for a in self.cinematic_actors if a.ob not in camera_actors]
                         else:
                             shot_actors = self.cinematic_actors
                     else:
-                        if camera.nwo.actors:
-                            camera_actors = {item.actor.name: item.actor for item in camera.nwo.actors if item.actor is not None}
+                        if camera_actors:
                             shot_actors = [a for a in self.cinematic_actors if a.ob in camera_actors]
                         else:
                             shot_actors = []
@@ -1746,7 +1800,9 @@ class ExportScene:
                             if camera.nwo.use_high_res:
                                 act.shots_high_res.append(i)
                         else:
-                            cam_act = camera_actors[act.ob.name]
+                            cam_act = camera_actors.get(act.ob)
+                            if cam_act is None:
+                                continue
                             match cam_act.lightmap_shadow:
                                 case 'DEFAULT':
                                     if camera.nwo.use_lightmap:

@@ -233,12 +233,9 @@ class ActorLighting(Enum):
     PER_SHOT = 2
 
 class Actor:
-    def __init__(self, ob: bpy.types.Object, scene_name: str, asset_path: str, child_asset_name=""):
+    def __init__(self, ob: bpy.types.Object, scene_name: str, asset_path: str, child_asset_name="", export_name=""):
         self.ob = ob
-        valid_name = utils.clean_text(ob.name, replace_spaces=True)
-        if ob.name != valid_name:
-            ob.name = valid_name
-        self.name = ob.name
+        self.name = utils.clean_text(export_name or ob.name, replace_spaces=True)
         self.original_tag = utils.relative_path(ob.nwo.cinematic_object)
         self.weapon_tag = None
         path_tag = Path(self.original_tag)
@@ -251,7 +248,7 @@ class Actor:
             if tag_type == ".weapon":
                 self.weapon_tag = self.original_tag
         
-        self.graph = str(Path(asset_path, "objects", scene_name, f"{ob.name}.model_animation_graph"))
+        self.graph = str(Path(asset_path, "objects", scene_name, f"{self.name}.model_animation_graph"))
         if child_asset_name:
             self.sidecar = str(Path(asset_path, child_asset_name, "export", "models", self.name))
         else:

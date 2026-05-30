@@ -676,12 +676,47 @@ def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.utils.unregister_class(NWO_ExportScene)
 
+def _schedule_scene_restore(window: bpy.types.Window, scene: bpy.types.Scene):
+    scene_name = scene.name if scene is not None else ""
+    if not scene_name:
+        return
+
+    def restore_scene():
+        target_scene = bpy.data.scenes.get(scene_name)
+        if target_scene is None:
+            return None
+
+        restore_window = window
+        try:
+            if restore_window is not None and restore_window.scene != target_scene:
+                restore_window.scene = target_scene
+        except ReferenceError:
+            restore_window = bpy.context.window
+            if restore_window is None and bpy.context.window_manager.windows:
+                restore_window = bpy.context.window_manager.windows[0]
+            if restore_window is not None and restore_window.scene != target_scene:
+                restore_window.scene = target_scene
+
+        return None
+
+    bpy.app.timers.register(restore_scene, first_interval=0.0)
+
 def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth, single_animation, for_cache_build, collection_view_layer=None):
     asset_type = scene_settings.asset_type
     child_animation = _is_child_animation_export(scene_settings)
     if asset_type == 'camera_track_set':
         return export_current_action_as_camera_track(context, asset_path) # Return early if this is a camera track export
     start_scene = context.scene
+    start_window = context.window
+    restore_start_scene_scheduled = False
+
+    def schedule_start_scene_restore():
+        nonlocal restore_start_scene_scheduled
+        if restore_start_scene_scheduled:
+            return
+        restore_start_scene_scheduled = True
+        _schedule_scene_restore(start_window, start_scene)
+
     export_scene = ExportScene(context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings, start_scene)
     scenes = []
     current_scene_only = False
@@ -735,9 +770,10 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
                     export_scene.export_files(single_animation)
             finally:
                 export_scene.restore_scene()
-        if context.scene != start_scene and export_scene.asset_type != AssetType.CINEMATIC:
-            context.window.scene = start_scene
-            context.view_layer.update()
+                if context.scene != start_scene:
+                    schedule_start_scene_restore()
+        if context.scene != start_scene:
+            schedule_start_scene_restore()
         if not single_animation and not child_animation:
             export_scene.write_sidecar()
             
@@ -771,5 +807,5 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
             export_scene.lightmap()
             
             
-    if context.scene != start_scene and export_scene.asset_type != AssetType.CINEMATIC:
-        context.window.scene = start_scene
+    if context.scene != start_scene:
+        schedule_start_scene_restore()

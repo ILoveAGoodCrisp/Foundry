@@ -5498,7 +5498,7 @@ def pointer_ob_valid(ob: bpy.types.Object) -> bool:
     if ob is None or not ob.name:
         return False
     
-    return bpy.context.scene.objects.get(ob.name) is not None
+    return any(scene_ob is ob for scene_ob in bpy.context.scene.objects)
 
 def to_aabb(ob: bpy.types.Object):
     matrix = halo_transforms(ob)
