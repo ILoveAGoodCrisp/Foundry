@@ -907,6 +907,8 @@ class HaloRig:
                         ik_bone_names.append(ik_name)
                         ik_bone_names.append(pt_name)
 
+                align_x_mirror_control_bone_rolls(edit_bones, (*fk_bone_names, *ik_bone_names))
+
                 bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
                 self.rig_pose = self.rig_ob.pose
         else:
@@ -1108,7 +1110,8 @@ class HaloRig:
                 ik_bone_names.append(ikb.name)
                 ik_bone_names.append(pole_target.name)
                 
-                    
+            align_x_mirror_control_bone_rolls(self.rig_data.edit_bones, (*fk_bone_names, *ik_bone_names))
+
             bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
             
             for b in self.rig_data.bones:
@@ -1627,6 +1630,44 @@ def align_edit_bone_roll_to_source(target_bone: bpy.types.EditBone, source_bone:
 
     roll_axis.normalize()
     target_bone.align_roll(roll_axis)
+
+def align_x_mirror_control_bone_rolls(edit_bones, bone_names):
+    seen = set()
+    for name in bone_names:
+        if name in seen or not name.startswith(("FK_", "IK_")) or not name.endswith(".L"):
+            continue
+
+        mirror_name = f"{name[:-2]}.R"
+        seen.add(name)
+        seen.add(mirror_name)
+
+        source_bone = edit_bones.get(name)
+        mirror_bone = edit_bones.get(mirror_name)
+        if source_bone is None or mirror_bone is None:
+            continue
+
+        align_edit_bone_roll_to_x_mirror(mirror_bone, source_bone)
+
+def align_edit_bone_roll_to_x_mirror(target_bone: bpy.types.EditBone, source_bone: bpy.types.EditBone):
+    target_y = target_bone.y_axis.copy()
+    if target_y.length < 1e-6:
+        target_bone.roll = -source_bone.roll
+        return
+
+    target_y.normalize()
+    for roll_axis in (x_mirrored_vector(source_bone.z_axis), -x_mirrored_vector(source_bone.x_axis)):
+        roll_axis -= target_y * roll_axis.dot(target_y)
+        if roll_axis.length < 1e-6:
+            continue
+
+        roll_axis.normalize()
+        target_bone.align_roll(roll_axis)
+        return
+
+    target_bone.roll = -source_bone.roll
+
+def x_mirrored_vector(vector: Vector) -> Vector:
+    return Vector((-vector.x, vector.y, vector.z))
 
 def calculate_pole_position(root_bone: bpy.types.EditBone, mid_bone: bpy.types.EditBone, end_bone: bpy.types.EditBone, distance_scale=1.25):
     a = root_bone.head.copy()
