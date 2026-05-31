@@ -1750,20 +1750,24 @@ class NWO_OT_GetCinematicFunctions(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         nwo = utils.get_scene_props()
-        if nwo.asset_type == 'cinematic':
-            tag_path = Path(utils.get_tags_path(), utils.relative_path(nwo.cinematic_scenario))
-            if tag_path.is_absolute() and tag_path.exists() and tag_path.is_file():
-                scene_nwo = context.scene.nwo # scene specific
-                return scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events)
+        scene_nwo = context.scene.nwo # scene specific
+        if nwo.asset_type == 'cinematic' and scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events):
+            event = scene_nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
+            ob = event.actor
+            if ob:
+                tag_path = Path(utils.get_tags_path(), utils.relative_path(ob.nwo.cinematic_object))
+                return tag_path.is_absolute() and tag_path.exists() and tag_path.is_file()
         
         return False
     
     def function_items(self, context):
         export_names = []
         is_weapon = False
-        with ObjectTag(path=context.object.nwo.cinematic_object) as object:
-            is_weapon = object.tag_path.GroupType == 'weap'
-            for element in object.block_functions.Elements:
+        event = context.scene.nwo.cinematic_events[context.scene.nwo.active_cinematic_event_index]
+        ob = event.actor
+        with ObjectTag(path=ob.nwo.cinematic_object) as ob_tag:
+            is_weapon = ob_tag.tag_path.GroupType == 'weap'
+            for element in ob_tag.block_functions.Elements:
                 export_names.append(element.SelectField("export name").GetStringData())
                 
         if not export_names:

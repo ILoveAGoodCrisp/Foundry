@@ -59,6 +59,9 @@ def poll_armature(self, object: bpy.types.Object):
 def poll_empty(self, object: bpy.types.Object):
     return object.type == 'EMPTY'
 
+def poll_cin_marker(self, object: bpy.types.Object):
+    return (object.type == 'EMPTY' or object.type == 'ARMATURE') and bpy.context.scene.objects.get(object.name)
+
 def animation_from_group(self, context):
     group = self.groups[self.groups_active_index]
     animation_from_leaf(group, context)
@@ -559,7 +562,7 @@ class NWO_AnimationEventData_ListItems(bpy.types.PropertyGroup):
     
     marker: bpy.props.PointerProperty(
         type=bpy.types.Object,
-        poll=poll_empty,
+        poll=poll_cin_marker,
         name="Marker",
         options=set(),
         description="Marker that this sound / effect event should play on"
@@ -1951,7 +1954,7 @@ def prefab_warning(self, context):
 #     enabled: bpy.props.BoolProperty(name="Enabled", default=True, options=set())
     
 def poll_actor(self, object):
-    return object.type == 'ARMATURE' and object.nwo.cinematic_object
+    return object.type == 'ARMATURE' and object.nwo.cinematic_object and bpy.context.scene.objects.get(object.name)
     
 class NWO_CinematicEvent(PropertyGroup):
     def cinematic_event_types(self, context):
