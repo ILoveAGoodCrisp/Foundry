@@ -1401,13 +1401,21 @@ class GetCinematicBase(bpy.types.Operator):
         return items
 
     def get_event_object_tag_path(self, event):
-        if not utils.pointer_ob_valid(event.actor):
+        if event.actor is None:
             return ""
 
-        attachment_key = getattr(event, "script_attachment", "")
+        attachment_key = event["script_attachment"]
         if attachment_key and attachment_key != "NONE":
             for index, attachment in enumerate(event.actor.nwo.attachments):
-                if attachment_key in {f"ATTACHMENT_{index}", attachment.name, str(index)} and attachment.attachment_type.strip():
+                if (
+                    attachment.attachment_type.strip()
+                    and (
+                        attachment_key == str(index + 1)
+                        or attachment_key == f"ATTACHMENT_{index}"
+                        or attachment_key == attachment.name
+                        or (attachment_key == "0" and index == 0)
+                    )
+                ):
                     return utils.relative_path(attachment.attachment_type)
 
         return utils.relative_path(event.actor.nwo.cinematic_object)

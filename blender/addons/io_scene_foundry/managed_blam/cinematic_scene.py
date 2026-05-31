@@ -390,12 +390,13 @@ class CinematicCustomScript:
         
         return event
         
-    def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set, corinth: bool, actor_attachment_names: dict | None = None):
+    def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set, corinth: bool, actor_attachment_names: dict | None = None, actor_attachment_weapon_names: dict | None = None):
         self.use_maya_value = True
         actor_name = actor_objects.get(event.actor, "")
         actor_attachment_names = actor_attachment_names or {}
+        actor_attachment_weapon_names = actor_attachment_weapon_names or {}
         attachment_name = ""
-        attachment_key = getattr(event, "script_attachment", "")
+        attachment_key = event["script_attachment"]
         if attachment_key and attachment_key != "NONE":
             attachment_name = actor_attachment_names.get(event.actor, {}).get(attachment_key, "")
 
@@ -410,7 +411,10 @@ class CinematicCustomScript:
                     self.script = event.script
             case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
                 if actor_name:
-                    weapon_name = attachment_name or object_tag_weapon_names.get(event.actor, "")
+                    if attachment_key and attachment_key != "NONE":
+                        weapon_name = actor_attachment_weapon_names.get(event.actor, {}).get(attachment_key, "")
+                    else:
+                        weapon_name = object_tag_weapon_names.get(event.actor, "")
                     if weapon_name:
                         self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(event.script_type == "WEAPON_TRIGGER_START")}'
             case 'SET_VARIANT':

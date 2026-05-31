@@ -81,6 +81,12 @@ class NWO_ActorAttachmentItems(bpy.types.PropertyGroup):
         options=set(),
     )
 
+    attachment_marker_name: bpy.props.StringProperty(
+        name="Attachment Marker Name",
+        description="Marker on the attachment object used to align it to the actor marker",
+        options=set(),
+    )
+
     attachment_type: bpy.props.StringProperty(
         name="Attachment Type",
         description="Object tag to attach to this actor",

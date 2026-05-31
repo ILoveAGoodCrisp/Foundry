@@ -918,8 +918,16 @@ class QUA:
             attachment_element.SelectField("attachment marker name").SetStringData(attachment_marker_name)
             attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(attachment_type)
 
+        def attachment_can_fire_weapon(attachment_type: str) -> bool:
+            if Path(attachment_type).suffix.lower() == ".weapon":
+                return True
+
+            weapon_path = Path(utils.get_tags_path(), attachment_type).with_suffix(".weapon")
+            return weapon_path.exists() and weapon_path.is_file()
+
         object_tag_weapon_names = {} # used for custom scripts
         actor_attachment_names = {} # used for custom scripts
+        actor_attachment_weapon_names = {} # used for weapon trigger scripts
         actor_objects = {a.ob: a.name for a in self.objects} # for checking an event is valid
         block_objects.RemoveAllElements()
         # Add elements for actors without them
@@ -941,13 +949,23 @@ class QUA:
 
                 attachment_type = utils.relative_path(attachment_type)
                 marker_name = utils.clean_text(attachment.marker_name, empty_string_allowed=True)
+                attachment_marker_name = utils.clean_text(attachment.attachment_marker_name or attachment.marker_name, empty_string_allowed=True)
                 attachment_base_name = Path(attachment_type).with_suffix("").name or "attachment"
                 attachment_object_name = utils.clean_text(f"{actor.name}_{attachment_base_name}_{index + 1}", replace_spaces=True)
-                add_actor_attachment(block_attachments, attachment.invisible, marker_name, attachment_object_name, marker_name, attachment_type)
+                add_actor_attachment(block_attachments, attachment.invisible, marker_name, attachment_object_name, attachment_marker_name, attachment_type)
                 actor_attachments = actor_attachment_names.setdefault(actor.ob, {})
-                actor_attachments[attachment.name or str(index)] = attachment_object_name
+                actor_attachments[attachment.name or str(index + 1)] = attachment_object_name
                 actor_attachments[f"ATTACHMENT_{index}"] = attachment_object_name
-                actor_attachments[str(index)] = attachment_object_name
+                actor_attachments[str(index + 1)] = attachment_object_name
+                if index == 0:
+                    actor_attachments["0"] = attachment_object_name
+                if attachment_can_fire_weapon(attachment_type):
+                    actor_weapon_attachments = actor_attachment_weapon_names.setdefault(actor.ob, {})
+                    actor_weapon_attachments[attachment.name or str(index + 1)] = attachment_object_name
+                    actor_weapon_attachments[f"ATTACHMENT_{index}"] = attachment_object_name
+                    actor_weapon_attachments[str(index + 1)] = attachment_object_name
+                    if index == 0:
+                        actor_weapon_attachments["0"] = attachment_object_name
 
             # Set flags
             actor_flags = element.SelectField("flags")
@@ -1071,7 +1089,7 @@ class QUA:
                         effects[c] = frame - frame_start + int(self.corinth)
                 case 'SCRIPT':
                     c = CinematicCustomScript()
-                    c.from_event(event, object_tag_weapon_names, actor_objects, self.corinth, actor_attachment_names)
+                    c.from_event(event, object_tag_weapon_names, actor_objects, self.corinth, actor_attachment_names, actor_attachment_weapon_names)
                     if c.script.strip():
                         custom_scripts[c] = frame - frame_start + int(self.corinth)         
                 case 'MUSIC':

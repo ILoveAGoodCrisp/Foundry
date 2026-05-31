@@ -1962,26 +1962,67 @@ def script_attachment_label(attachment, index: int) -> str:
     if attachment.attachment_type:
         return Path(attachment.attachment_type).with_suffix("").name
     return f"Attachment {index + 1}"
+
+def script_attachment_matches(value: str, attachment, index: int) -> bool:
+    return (
+        value == str(index + 1)
+        or value == f"ATTACHMENT_{index}"
+        or value == attachment.name
+        or (value == "0" and index == 0)
+    )
+
+def script_attachment_value(event) -> str:
+    return event["script_attachment"]
+
+def script_attachment_number(value: str) -> int:
+    if not value or value == "NONE":
+        return 0
+
+    if value.isdigit():
+        return int(value)
+
+    if value.startswith("ATTACHMENT_"):
+        try:
+            return int(value.rsplit("_", 1)[1]) + 1
+        except (IndexError, ValueError):
+            return 1
+
+    return 1
+
+def cinematic_event_pointer_valid(ob: bpy.types.Object) -> bool:
+    try:
+        return ob is not None and bool(ob.name)
+    except (ReferenceError, AttributeError):
+        return False
     
 class NWO_CinematicEvent(PropertyGroup):
     def script_attachment_items(self, context):
-        items = [("NONE", "Actor", "Apply this script to the actor")]
-        if not utils.pointer_ob_valid(self.actor):
+        items = [("NONE", "Actor", "Apply this script to the actor", 0, 0)]
+        if not cinematic_event_pointer_valid(self.actor):
+            current_value = script_attachment_value(self)
+            current_number = script_attachment_number(current_value)
+            if current_value not in {"", "NONE"}:
+                items.append((current_value, f"Attachment {current_value}", "Apply this script to this actor attachment", 0, current_number))
+            for index in range(1, 33):
+                identifier = str(index)
+                if identifier != current_value and index != current_number:
+                    items.append((identifier, f"Attachment {index}", "Apply this script to this actor attachment", 0, index))
             return items
 
         for index, attachment in enumerate(self.actor.nwo.attachments):
-            identifier = f"ATTACHMENT_{index}"
-            items.append((identifier, script_attachment_label(attachment, index), "Apply this script to this actor attachment"))
+            identifier = str(index + 1)
+            items.append((identifier, script_attachment_label(attachment, index), "Apply this script to this actor attachment", 0, index + 1))
 
         return items
 
     def script_target_name(self):
-        if not utils.pointer_ob_valid(self.actor):
+        if not cinematic_event_pointer_valid(self.actor):
             return "NONE"
 
-        if self.script_attachment not in {"", "NONE"}:
+        attachment_value = script_attachment_value(self)
+        if attachment_value not in {"", "NONE"}:
             for index, attachment in enumerate(self.actor.nwo.attachments):
-                if self.script_attachment in {f"ATTACHMENT_{index}", attachment.name, str(index)}:
+                if script_attachment_matches(attachment_value, attachment, index):
                     return script_attachment_label(attachment, index)
 
         return self.actor.name
@@ -2001,7 +2042,7 @@ class NWO_CinematicEvent(PropertyGroup):
             case 'DIALOGUE':
                 # layout.prop(item, "name", icon='PLAY_SOUND', text="", emboss=False)
                 if self.sound_tag.strip():
-                    if utils.pointer_ob_valid(self.actor):
+                    if cinematic_event_pointer_valid(self.actor):
                         return f"{Path(self.sound_tag).with_suffix('').name} -> {self.actor.name}"
                     else:
                         return f"{Path(self.sound_tag).with_suffix('').name} -> NONE"
@@ -2036,7 +2077,7 @@ class NWO_CinematicEvent(PropertyGroup):
                         else:
                             return "NONE"
                 elif self.script_type in script_object_types:
-                    if not utils.pointer_ob_valid(self.actor):
+                    if not cinematic_event_pointer_valid(self.actor):
                         if self.script_type == 'PLAY_SOUND':
                             return f"{ui_name} on NONE with sound tag '{Path(self.sound_tag).with_suffix('').name}'"
                         else:
@@ -2085,7 +2126,7 @@ class NWO_CinematicEvent(PropertyGroup):
             case 'MUSIC':
                 return f"{start_stop} {Path(self.music).with_suffix('').name if self.music.strip() else 'NONE'}"
             case 'FUNCTION':
-                if utils.pointer_ob_valid(self.actor):
+                if cinematic_event_pointer_valid(self.actor):
                     return f"{self.actor.name} -> {Path(self.function_name)} -> {'CLEAR' if self.clear_function else self.value}"
                 else:
                     return f"NONE -> {Path(self.function_name)} -> {'CLEAR' if self.clear_function else self.value}"

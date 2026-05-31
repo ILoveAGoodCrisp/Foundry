@@ -252,6 +252,7 @@ classes = [
     object.NWO_OT_ActorAttachmentCopy,
     object.NWO_OT_ActorAttachmentMove,
     object.NWO_OT_GetActorAttachmentMarker,
+    object.NWO_OT_GetActorAttachmentTypeMarker,
     # object.NWO_OT_MeshPropAdd,
     object.NWO_OT_SetHintName,
     object.NWO_OT_SelectChildObjects,

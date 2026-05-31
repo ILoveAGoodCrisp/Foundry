@@ -1485,6 +1485,26 @@ def _active_actor_attachment(nwo):
     index = min(max(nwo.active_attachment_index, 0), len(nwo.attachments) - 1)
     return nwo.attachments[index]
 
+def _actor_attachment_marker_items_from_tag_path(tag_path):
+    try:
+        with ObjectTag(path=tag_path) as object_tag:
+            model_tag = object_tag.get_model_tag_path()
+        if not model_tag or not Path(utils.get_tags_path(), model_tag).exists():
+            return [("", "None", "")]
+        with ModelTag(path=model_tag) as model:
+            render_tag = model.get_render_model()
+        if not render_tag or not Path(utils.get_tags_path(), render_tag).exists():
+            return [("", "None", "")]
+        with RenderModelTag(path=render_tag) as render:
+            markers = render.get_markers()
+    except (AttributeError, TypeError, ValueError, RuntimeError, FileNotFoundError):
+        return [("", "None", "")]
+
+    if not markers:
+        return [("", "None", "")]
+
+    return [(marker, marker, "") for marker in markers]
+
 class NWO_UL_ActorAttachments(bpy.types.UIList):
     def draw_item(
         self,
@@ -1616,24 +1636,7 @@ class NWO_OT_GetActorAttachmentMarker(bpy.types.Operator):
 
     def marker_items(self, context):
         ob = context.object
-        try:
-            with ObjectTag(path=ob.nwo.cinematic_object) as object_tag:
-                model_tag = object_tag.get_model_tag_path()
-            if not model_tag or not Path(utils.get_tags_path(), model_tag).exists():
-                return [("", "None", "")]
-            with ModelTag(path=model_tag) as model:
-                render_tag = model.get_render_model()
-            if not render_tag or not Path(utils.get_tags_path(), render_tag).exists():
-                return [("", "None", "")]
-            with RenderModelTag(path=render_tag) as render:
-                markers = render.get_markers()
-        except (AttributeError, TypeError, ValueError, RuntimeError, FileNotFoundError):
-            return [("", "None", "")]
-
-        if not markers:
-            return [("", "None", "")]
-
-        return [(marker, marker, "") for marker in markers]
+        return _actor_attachment_marker_items_from_tag_path(ob.nwo.cinematic_object)
 
     marker: bpy.props.EnumProperty(
         name="Marker",
@@ -1646,6 +1649,45 @@ class NWO_OT_GetActorAttachmentMarker(bpy.types.Operator):
             return {"CANCELLED"}
 
         item.marker_name = self.marker
+        return {"FINISHED"}
+
+class NWO_OT_GetActorAttachmentTypeMarker(bpy.types.Operator):
+    bl_idname = "nwo.get_actor_attachment_type_marker"
+    bl_label = "Attachment Marker Names"
+    bl_description = "Returns a list of model markers for the active actor attachment type"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        if ob is None or ob.type != 'ARMATURE' or not ob.nwo.attachments or not utils.current_project_valid():
+            return False
+
+        item = _active_actor_attachment(ob.nwo)
+        if item is None or not item.attachment_type.strip():
+            return False
+
+        tag_path = Path(utils.get_tags_path(), utils.relative_path(item.attachment_type))
+        return tag_path.is_absolute() and tag_path.exists() and tag_path.is_file()
+
+    def marker_items(self, context):
+        item = _active_actor_attachment(context.object.nwo)
+        if item is None:
+            return [("", "None", "")]
+
+        return _actor_attachment_marker_items_from_tag_path(item.attachment_type)
+
+    marker: bpy.props.EnumProperty(
+        name="Marker",
+        items=marker_items,
+    )
+
+    def execute(self, context):
+        item = _active_actor_attachment(context.object.nwo)
+        if item is None:
+            return {"CANCELLED"}
+
+        item.attachment_marker_name = self.marker
         return {"FINISHED"}
     
 class NWO_OT_ShowWaterDirection(bpy.types.Operator):

@@ -274,11 +274,17 @@ def pose_control_label(prop_name: str) -> str:
     return utils.formalise_string(prop_name)
 
 def _cinematic_event_script_attachment(event):
-    if not utils.pointer_ob_valid(event.actor) or event.script_attachment in {"", "NONE"}:
+    attachment_key = event["script_attachment"]
+    if event.actor is None or attachment_key in {"", "NONE"}:
         return None
 
     for index, attachment in enumerate(event.actor.nwo.attachments):
-        if event.script_attachment in {f"ATTACHMENT_{index}", attachment.name, str(index)}:
+        if (
+            attachment_key == str(index + 1)
+            or attachment_key == f"ATTACHMENT_{index}"
+            or attachment_key == attachment.name
+            or (attachment_key == "0" and index == 0)
+        ):
             return attachment
 
     return None
@@ -288,7 +294,7 @@ def _cinematic_event_script_target_tag_path(event):
     if attachment is not None and attachment.attachment_type.strip():
         return utils.relative_path(attachment.attachment_type)
 
-    if utils.pointer_ob_valid(event.actor) and event.actor.nwo.cinematic_object.strip():
+    if event.actor is not None and event.actor.nwo.cinematic_object.strip():
         return utils.relative_path(event.actor.nwo.cinematic_object)
 
     return ""
@@ -1863,6 +1869,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if bpy.ops.nwo.get_actor_attachment_marker.poll():
             row.operator_menu_enum("nwo.get_actor_attachment_marker", "marker", icon="DOWNARROW_HLT", text="")
         draw_tag_path(col, item, "attachment_type")
+        row = col.row(align=True)
+        row.enabled = bool(item.attachment_type.strip())
+        row.prop(item, "attachment_marker_name")
+        if bpy.ops.nwo.get_actor_attachment_type_marker.poll():
+            row.operator_menu_enum("nwo.get_actor_attachment_type_marker", "marker", icon="DOWNARROW_HLT", text="")
 
     def draw_cinematic_lighting(self, box: bpy.types.UILayout, arm: bpy.types.Object):
         nwo = arm.nwo
@@ -3545,7 +3556,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
                 def draw_script_target(text="Object"):
                     col.prop(event, "actor", text=text)
-                    if utils.pointer_ob_valid(event.actor) and event.actor.nwo.attachments:
+                    if event.actor is not None and event.actor.nwo.attachments:
                         col.prop(event, "script_attachment")
                         
                 match event.script_type:
