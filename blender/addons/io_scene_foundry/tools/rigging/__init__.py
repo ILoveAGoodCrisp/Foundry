@@ -1190,7 +1190,7 @@ class HaloRig:
             ptb.color.palette = 'THEME01'
 
             ikb.custom_shape = ik_shape
-            ikb.custom_shape_scale_xyz *= self.scale / 0.03048 * 1.2
+            ikb.custom_shape_scale_xyz = Vector.Fill(3, self.scale / 0.03048 * 1.2)
             ikb.use_custom_shape_bone_size = True
             ikb.custom_shape_translation = Vector((0.0, ikb.length, 0.0))
             source_deform_name = fk_to_deform_mapping.get(fkb_name)
@@ -1198,7 +1198,7 @@ class HaloRig:
             ikb.custom_shape_rotation_euler = ik_shape_rotation_for_source(ikb, source_deform or fkb)
 
             ptb.custom_shape = pole_shape
-            ptb.custom_shape_scale_xyz *= self.scale / 0.03048
+            ptb.custom_shape_scale_xyz = Vector.Fill(3, self.scale / 0.03048)
             # ptb.use_custom_shape_bone_size = True
             ptb.custom_shape_translation = Vector((0.0, 0.0, 0.0))
             ptb.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
