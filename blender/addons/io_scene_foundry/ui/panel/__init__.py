@@ -273,6 +273,26 @@ def is_ik_blend_pose_control(prop_name: str) -> bool:
 def pose_control_label(prop_name: str) -> str:
     return utils.formalise_string(prop_name)
 
+def _cinematic_event_script_attachment(event):
+    if not utils.pointer_ob_valid(event.actor) or event.script_attachment in {"", "NONE"}:
+        return None
+
+    for index, attachment in enumerate(event.actor.nwo.attachments):
+        if event.script_attachment in {f"ATTACHMENT_{index}", attachment.name, str(index)}:
+            return attachment
+
+    return None
+
+def _cinematic_event_script_target_tag_path(event):
+    attachment = _cinematic_event_script_attachment(event)
+    if attachment is not None and attachment.attachment_type.strip():
+        return utils.relative_path(attachment.attachment_type)
+
+    if utils.pointer_ob_valid(event.actor) and event.actor.nwo.cinematic_object.strip():
+        return utils.relative_path(event.actor.nwo.cinematic_object)
+
+    return ""
+
 class NWO_FoundryPanelProps(bpy.types.Panel):
     bl_label = "Foundry"
     bl_idname = "NWO_PT_FoundryPanelProps"
@@ -1804,6 +1824,46 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             for key in sorted(tag_props):
                 tag_box.prop(ob, f'["{key}"]', text=utils.formalise_string(key))
 
+    def draw_attachments(self, box: bpy.types.UILayout, arm: bpy.types.Object):
+        nwo = arm.nwo
+        if nwo.active_attachment_index > len(nwo.attachments) - 1:
+            nwo.active_attachment_index = len(nwo.attachments) - 1
+
+        attachment_box = box.box()
+        row = attachment_box.row()
+        row.label(text="Attachments")
+        row = attachment_box.row()
+        row.template_list(
+            "NWO_UL_ActorAttachments",
+            "",
+            nwo,
+            "attachments",
+            nwo,
+            "active_attachment_index",
+            rows=3,
+        )
+
+        col = row.column(align=True)
+        col.operator("nwo.actor_attachment_add", icon="ADD", text="")
+        col.operator("nwo.actor_attachment_remove", icon="REMOVE", text="")
+        col.operator("nwo.actor_attachment_copy", icon="DUPLICATE", text="")
+        col.separator()
+        col.operator("nwo.actor_attachment_move", text="", icon="TRIA_UP").direction = 'up'
+        col.operator("nwo.actor_attachment_move", icon="TRIA_DOWN", text="").direction = 'down'
+
+        if not nwo.attachments:
+            return
+
+        item = nwo.attachments[nwo.active_attachment_index]
+        col = attachment_box.column()
+        col.use_property_split = True
+        col.prop(item, "invisible")
+        row = col.row(align=True)
+        row.prop(item, "marker_name")
+        if bpy.ops.nwo.get_actor_attachment_marker.poll():
+            row.operator_menu_enum("nwo.get_actor_attachment_marker", "marker", icon="DOWNARROW_HLT", text="")
+        draw_tag_path(col, item, "attachment_type")
+
     def draw_cinematic_lighting(self, box: bpy.types.UILayout, arm: bpy.types.Object):
         nwo = arm.nwo
         col = box.column()
@@ -2141,6 +2201,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.operator_menu_enum("nwo.get_cinematic_model_variants", "variant", icon="DOWNARROW_HLT", text="")
 
                 col.operator("nwo.update_actor", icon='FILE_REFRESH')
+                if not nwo.attachments:
+                    armature_col.operator("nwo.actor_attachment_add", text="New Attachment", icon='ADD')
+                else:
+                    self.draw_expandable_box(armature_col.box(), self.scene_nwo, "attachments", ob=ob)
                 self.draw_expandable_box(armature_col.box(), self.scene_nwo, "cinematic_lighting", ob=ob, panel_display_name="Actor Settings")
                     
             elif utils.poll_ui(("model", "sky", "animation")):
@@ -3462,7 +3526,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             case 'EFFECT':
                 draw_tag_path(col, event, "effect")
                 col.prop(event, "marker")
-                col.prop(event, "marker_name")
+                row = col.row(align=True)
+                row.prop(event, "marker_name")
+                if bpy.ops.nwo.get_model_markers_event.poll():
+                    row.operator_menu_enum("nwo.get_model_markers_event", "marker", icon="DOWNARROW_HLT", text="")
                 if self.h4:
                     col.prop(event, "effect_state")
                     col.prop(event, "function_a")
@@ -3471,26 +3538,29 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             case 'SCRIPT':
                 col.prop(event, "script_type")
                 get_item_available = False
-                ob = event.actor
-                if ob is not None:
-                    tag_path = ob.nwo.cinematic_object
-                    if tag_path.strip():
-                        path = Path(utils.get_tags_path(), utils.relative_path(tag_path))
-                        get_item_available = path.exists() and path.is_file()
+                tag_path = _cinematic_event_script_target_tag_path(event)
+                if tag_path:
+                    path = Path(utils.get_tags_path(), tag_path)
+                    get_item_available = path.exists() and path.is_file()
+
+                def draw_script_target(text="Object"):
+                    col.prop(event, "actor", text=text)
+                    if utils.pointer_ob_valid(event.actor) and event.actor.nwo.attachments:
+                        col.prop(event, "script_attachment")
                         
                 match event.script_type:
                     case 'CUSTOM':
                         self.draw_script_field(col, event, "script", "text", "script_use_text", "Script")
                     case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
-                        col.prop(event, "actor", text="Weapon")
+                        draw_script_target("Actor")
                     case 'SET_VARIANT':
-                        col.prop(event, "actor", text="Object")
+                        draw_script_target()
                         row = col.row()
                         row.prop(event, "script_variant", text="Variant")
                         if get_item_available:
                             row.operator_menu_enum("nwo.get_cinematic_variant", "item", icon="DOWNARROW_HLT", text="")
                     case 'SET_PERMUTATION':
-                        col.prop(event, "actor", text="Object")
+                        draw_script_target()
                         row = col.row()
                         row.prop(event, "script_region", text="Region")
                         if get_item_available:
@@ -3500,20 +3570,20 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         if get_item_available:
                             row.operator_menu_enum("nwo.get_cinematic_permutation", "item", icon="DOWNARROW_HLT", text="")
                     case 'SET_REGION_STATE':
-                        col.prop(event, "actor", text="Object")
+                        draw_script_target()
                         row = col.row()
                         row.prop(event, "script_region", text="Region")
                         if get_item_available:
                             row.operator_menu_enum("nwo.get_cinematic_region", "item", icon="DOWNARROW_HLT", text="")
                         col.prop(event, "script_state", text="State")
                     case 'SET_MODEL_STATE_PROPERTY':
-                        col.prop(event, "actor", text="Object")
+                        draw_script_target()
                         col.prop(event, "script_state_property", text="State Property")
                         col.prop(event, "script_bool", text="On")
                     case 'HIDE' | 'UNHIDE' | 'DESTROY' | 'OBJECT_CANNOT_DIE' | 'OBJECT_CAN_DIE' | 'OBJECT_PROJECTILE_COLLISION_ON' | 'OBJECT_PROJECTILE_COLLISION_OFF':
-                        col.prop(event, "actor", text="Object")
+                        draw_script_target()
                     case 'DAMAGE_OBJECT':
-                        col.prop(event, "actor", text="Object")
+                        draw_script_target()
                         row = col.row()
                         row.prop(event, "script_region", text="Region")
                         if get_item_available:
@@ -3529,7 +3599,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                             row.operator_menu_enum("nwo.get_scenario_cutscene_titles", "cutscene_title", icon="DOWNARROW_HLT", text="")
                     case 'PLAY_SOUND':
                         draw_tag_path(col, event, "sound_tag")
-                        col.prop(event, "actor", text="Object")
+                        draw_script_target()
                         col.prop(event, "script_factor", text="Sound Scale")
                     case 'SOUND_CLASS_GAIN':
                         row = col.row()

@@ -17,6 +17,9 @@ from ...icons import get_icon_id
 from ... import utils
 
 from ...managed_blam.globals import GlobalsTag
+from ...managed_blam.model import ModelTag
+from ...managed_blam.object import ObjectTag
+from ...managed_blam.render_model import RenderModelTag
 
 int_highlight = 0
 
@@ -1472,6 +1475,177 @@ class NWO_OT_List_Remove_MarkerPermutation(bpy.types.Operator):
         nwo.marker_permutations.remove(nwo.marker_permutations_index)
         if nwo.marker_permutations_index > len(nwo.marker_permutations) - 1:
             nwo.marker_permutations_index += -1
+        return {"FINISHED"}
+
+## ACTOR ATTACHMENT UI LIST
+def _active_actor_attachment(nwo):
+    if not nwo.attachments:
+        return None
+
+    index = min(max(nwo.active_attachment_index, 0), len(nwo.attachments) - 1)
+    return nwo.attachments[index]
+
+class NWO_UL_ActorAttachments(bpy.types.UIList):
+    def draw_item(
+        self,
+        context,
+        layout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_propname,
+        index,
+    ):
+        if item.marker_name:
+            text = item.marker_name
+        elif item.attachment_type:
+            text = Path(item.attachment_type).with_suffix("").name
+        else:
+            text = f"Attachment {index + 1}"
+
+        layout.label(text=text, icon='HIDE_ON' if item.invisible else 'HIDE_OFF')
+
+class NWO_OT_ActorAttachmentAdd(bpy.types.Operator):
+    bl_idname = "nwo.actor_attachment_add"
+    bl_label = "Add"
+    bl_description = "Add a new actor attachment"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'ARMATURE'
+
+    def execute(self, context):
+        nwo = context.object.nwo
+        item = nwo.attachments.add()
+        item.name = f"attachment_{len(nwo.attachments)}"
+        nwo.active_attachment_index = len(nwo.attachments) - 1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+class NWO_OT_ActorAttachmentRemove(bpy.types.Operator):
+    bl_idname = "nwo.actor_attachment_remove"
+    bl_label = "Remove"
+    bl_description = "Remove the active actor attachment"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'ARMATURE' and context.object.nwo.attachments
+
+    def execute(self, context):
+        nwo = context.object.nwo
+        nwo.attachments.remove(nwo.active_attachment_index)
+        if nwo.active_attachment_index > len(nwo.attachments) - 1:
+            nwo.active_attachment_index -= 1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+class NWO_OT_ActorAttachmentCopy(bpy.types.Operator):
+    bl_idname = "nwo.actor_attachment_copy"
+    bl_label = "Copy"
+    bl_description = "Copy the active actor attachment"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'ARMATURE' and context.object.nwo.attachments
+
+    def execute(self, context):
+        nwo = context.object.nwo
+        source = _active_actor_attachment(nwo)
+        if source is None:
+            return {"CANCELLED"}
+
+        item = nwo.attachments.add()
+        for prop in source.bl_rna.properties:
+            identifier = prop.identifier
+            if identifier == "rna_type" or prop.is_readonly:
+                continue
+
+            try:
+                setattr(item, identifier, getattr(source, identifier))
+            except (AttributeError, TypeError, ValueError, RuntimeError):
+                pass
+
+        item.name = f"{source.name}_copy" if source.name else f"attachment_{len(nwo.attachments)}"
+        nwo.active_attachment_index = len(nwo.attachments) - 1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+class NWO_OT_ActorAttachmentMove(bpy.types.Operator):
+    bl_idname = "nwo.actor_attachment_move"
+    bl_label = ""
+    bl_description = "Move the active actor attachment"
+    bl_options = {"UNDO"}
+
+    direction: bpy.props.StringProperty()
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'ARMATURE' and len(context.object.nwo.attachments) > 1
+
+    def execute(self, context):
+        nwo = context.object.nwo
+        table = nwo.attachments
+        delta = {"down": 1, "up": -1}[self.direction]
+        current_index = nwo.active_attachment_index
+        to_index = (current_index + delta) % len(table)
+        table.move(current_index, to_index)
+        nwo.active_attachment_index = to_index
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+class NWO_OT_GetActorAttachmentMarker(bpy.types.Operator):
+    bl_idname = "nwo.get_actor_attachment_marker"
+    bl_label = "Marker Names"
+    bl_description = "Returns a list of model markers for the active actor attachment"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        if ob is None or ob.type != 'ARMATURE' or not ob.nwo.attachments:
+            return False
+        if not ob.nwo.cinematic_object.strip() or not utils.current_project_valid():
+            return False
+
+        tag_path = Path(utils.get_tags_path(), utils.relative_path(ob.nwo.cinematic_object))
+        return tag_path.is_absolute() and tag_path.exists() and tag_path.is_file()
+
+    def marker_items(self, context):
+        ob = context.object
+        try:
+            with ObjectTag(path=ob.nwo.cinematic_object) as object_tag:
+                model_tag = object_tag.get_model_tag_path()
+            if not model_tag or not Path(utils.get_tags_path(), model_tag).exists():
+                return [("", "None", "")]
+            with ModelTag(path=model_tag) as model:
+                render_tag = model.get_render_model()
+            if not render_tag or not Path(utils.get_tags_path(), render_tag).exists():
+                return [("", "None", "")]
+            with RenderModelTag(path=render_tag) as render:
+                markers = render.get_markers()
+        except (AttributeError, TypeError, ValueError, RuntimeError, FileNotFoundError):
+            return [("", "None", "")]
+
+        if not markers:
+            return [("", "None", "")]
+
+        return [(marker, marker, "") for marker in markers]
+
+    marker: bpy.props.EnumProperty(
+        name="Marker",
+        items=marker_items,
+    )
+
+    def execute(self, context):
+        item = _active_actor_attachment(context.object.nwo)
+        if item is None:
+            return {"CANCELLED"}
+
+        item.marker_name = self.marker
         return {"FINISHED"}
     
 class NWO_OT_ShowWaterDirection(bpy.types.Operator):

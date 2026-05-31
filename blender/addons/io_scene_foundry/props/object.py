@@ -59,6 +59,34 @@ class NWO_ActorItems(bpy.types.PropertyGroup):
         description="Object never switches to its imposter model",
         items=actor_cam_items,
     )
+
+class NWO_ActorAttachmentItems(bpy.types.PropertyGroup):
+    def attachment_type_clean_tag_path(self, context):
+        self["attachment_type"] = utils.clean_tag_path(self["attachment_type"]).strip('"')
+
+    name: bpy.props.StringProperty(
+        name="Name",
+        options={'HIDDEN'},
+    )
+
+    invisible: bpy.props.BoolProperty(
+        name="Invisible",
+        description="Make this attachment invisible in game",
+        options=set(),
+    )
+
+    marker_name: bpy.props.StringProperty(
+        name="Marker Name",
+        description="Marker on this actor where the attachment should be placed",
+        options=set(),
+    )
+
+    attachment_type: bpy.props.StringProperty(
+        name="Attachment Type",
+        description="Object tag to attach to this actor",
+        options=set(),
+        update=attachment_type_clean_tag_path,
+    )
     
 def poll_cinematic_light(self, object):
     if object.type == 'LIGHT':
@@ -499,7 +527,20 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         override={'LIBRARY_OVERRIDABLE'},
     )
     
-    # ACTOR SHOTS
+    # ACTOR ATTACHMENTS
+    attachments: bpy.props.CollectionProperty(
+        type=NWO_ActorAttachmentItems,
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+
+    active_attachment_index: bpy.props.IntProperty(
+        name="Index for Attachment",
+        default=0,
+        min=0,
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+
     actors: bpy.props.CollectionProperty(
         type=NWO_ActorItems,
         override={'LIBRARY_OVERRIDABLE'},

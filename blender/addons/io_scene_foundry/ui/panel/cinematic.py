@@ -560,6 +560,7 @@ class NWO_OT_CinematicEventAdd(bpy.types.Operator):
                 event.script_variant = ""
                 event.script_region = ""
                 event.script_permutation = ""
+                event.script_attachment = "NONE"
         
         scene_nwo.active_cinematic_event_index = len(events) - 1
         context.area.tag_redraw()
@@ -1356,7 +1357,9 @@ class GetCinematicBase(bpy.types.Operator):
         global permutations
         scene_nwo = context.scene.nwo # scene specific
         event = scene_nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
-        relative_tag_path = utils.relative_path(event.actor.nwo.cinematic_object)
+        relative_tag_path = self.get_event_object_tag_path(event)
+        if not relative_tag_path:
+            return []
         match self.get_type:
             case 'script_variant':
                 items = variants.get(relative_tag_path)
@@ -1396,6 +1399,18 @@ class GetCinematicBase(bpy.types.Operator):
                 permutations[f"{relative_tag_path}::{event.script_region}"] = items
 
         return items
+
+    def get_event_object_tag_path(self, event):
+        if not utils.pointer_ob_valid(event.actor):
+            return ""
+
+        attachment_key = getattr(event, "script_attachment", "")
+        if attachment_key and attachment_key != "NONE":
+            for index, attachment in enumerate(event.actor.nwo.attachments):
+                if attachment_key in {f"ATTACHMENT_{index}", attachment.name, str(index)} and attachment.attachment_type.strip():
+                    return utils.relative_path(attachment.attachment_type)
+
+        return utils.relative_path(event.actor.nwo.cinematic_object)
     
     item: bpy.props.EnumProperty(
         name="Item",

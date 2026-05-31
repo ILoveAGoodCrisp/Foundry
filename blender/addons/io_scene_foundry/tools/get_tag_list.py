@@ -12,6 +12,19 @@ scene_props = ('template_render_model', 'template_collision_model', 'template_ph
                'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon', 'template_scenario', 'cinematic_scenario', 'animation_cmd_path', 'cinematic_transition_settings')
 
 event_data_props = 'event_sound_tag', 'event_effect_tag', 'event_model'
+attachment_props = ('attachment_type',)
+
+def active_actor_attachment(context):
+    ob = context.object
+    if ob is None:
+        return None
+
+    nwo = ob.nwo
+    if not nwo.attachments:
+        return None
+
+    index = min(max(nwo.active_attachment_index, 0), len(nwo.attachments) - 1)
+    return nwo.attachments[index]
 
 class NWO_GetTagsList(bpy.types.Operator):
     bl_label = ""
@@ -67,6 +80,10 @@ class NWO_GetTagsList(bpy.types.Operator):
             animation = scene_nwo.animations[scene_nwo.active_animation_index]
             event = animation.animation_events[animation.active_animation_event_index]
             nwo = event.event_data[event.active_event_data_index]
+        elif self.list_type in attachment_props:
+            nwo = active_actor_attachment(context)
+            if nwo is None:
+                return {'CANCELLED'}
         else:
             nwo = context.object.nwo
         setattr(nwo, self.list_type, self.tag_list)
@@ -153,6 +170,10 @@ def extensions_from_type(list_type):
         case 'cinematic_object':
             return (".crate", ".scenery", ".effect_scenery", ".device_control", ".device_machine", ".device_terminal",
                         ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment")
+        case 'attachment_type':
+            return (".crate", ".scenery", ".effect_scenery", ".device_control", ".device_machine", ".device_terminal",
+                        ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment",
+                        ".prefab", ".light", ".cheap_light", ".leaf", ".decorator_set")
         case 'cinematic_scenario':
             return (".scenario")
         case 'animation_cmd_path':
@@ -255,6 +276,10 @@ class NWO_TagExplore(bpy.types.Operator):
             animation = scene_nwo.animations[scene_nwo.active_animation_index]
             event = animation.animation_events[animation.active_animation_event_index]
             nwo = event.event_data[event.active_event_data_index]
+        elif self.prop in attachment_props:
+            nwo = active_actor_attachment(context)
+            if nwo is None:
+                return
         else:
             nwo = context.object.nwo
             
@@ -277,6 +302,8 @@ class NWO_TagExplore(bpy.types.Operator):
 def get_glob_from_prop(prop):
     match prop:
         case 'marker_game_instance_tag_name':
+            return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light;dec*_set"
+        case 'attachment_type':
             return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light;dec*_set"
         case 'fog_appearance_tag':
             return "*.pl*parameters"
@@ -340,6 +367,8 @@ def get_glob_from_prop(prop):
             return '*.scenario'
         case 'cinematic_object':
             return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon"
+        case 'attachment_type':
+            return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light;dec*_set"
         case 'cinematic_scenario':
             return '*.scenario'
         case 'animation_cmd_path':

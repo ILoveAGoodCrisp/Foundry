@@ -390,10 +390,17 @@ class CinematicCustomScript:
         
         return event
         
-    def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set, corinth: bool):
+    def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set, corinth: bool, actor_attachment_names: dict | None = None):
         self.use_maya_value = True
         actor_name = actor_objects.get(event.actor, "")
-        obj_text = f'(cinematic_object_get "{actor_name}")' if actor_name else 'None'
+        actor_attachment_names = actor_attachment_names or {}
+        attachment_name = ""
+        attachment_key = getattr(event, "script_attachment", "")
+        if attachment_key and attachment_key != "NONE":
+            attachment_name = actor_attachment_names.get(event.actor, {}).get(attachment_key, "")
+
+        target_name = attachment_name or actor_name
+        obj_text = f'(cinematic_object_get "{target_name}")' if target_name else 'None'
         match event.script_type:
             case 'CUSTOM':
                 if event.script_use_text:
@@ -403,26 +410,26 @@ class CinematicCustomScript:
                     self.script = event.script
             case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
                 if actor_name:
-                    weapon_name = object_tag_weapon_names.get(event.actor, "")
+                    weapon_name = attachment_name or object_tag_weapon_names.get(event.actor, "")
                     if weapon_name:
                         self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(event.script_type == "WEAPON_TRIGGER_START")}'
             case 'SET_VARIANT':
-                if actor_name and event.script_variant:
+                if target_name and event.script_variant:
                     self.script = f'object_set_variant {obj_text} "{event.script_variant}"'
             case 'SET_PERMUTATION':
-                if actor_name and event.script_permutation:
+                if target_name and event.script_permutation:
                     self.script = f'object_set_permutation {obj_text} "{event.script_region}" "{event.script_permutation}"'
             case 'SET_REGION_STATE':
-                if actor_name:
-                    self.script = f'object_set_region_state {obj_text} "{event.script_region}" {event.script_state}'
+                if target_name:
+                    self.script = f'object_set_region_state {obj_text} "{event.script_region}" {int(event.script_state)}'
             case 'SET_MODEL_STATE_PROPERTY':
-                if actor_name:
+                if target_name:
                     self.script = f'object_set_model_state_property {obj_text} {int(event.script_state_property)} {event.script_bool}'
             case 'HIDE' | 'UNHIDE':
-                if actor_name:
+                if target_name:
                     self.script = f'object_hide {obj_text} {int(event.script_type == "HIDE")}'
             case 'DESTROY':
-                if actor_name:
+                if target_name:
                     self.script = f'object_destroy {obj_text}'
             case 'FADE_IN':
                 red, green, blue = event.script_color
@@ -439,14 +446,14 @@ class CinematicCustomScript:
                 if not corinth:
                     self.script = f'chud_cinematic_fade 1 0\nchud_show_cinematics 0'
             case 'OBJECT_CANNOT_DIE' | 'OBJECT_CAN_DIE':
-                if actor_name:
+                if target_name:
                     self.script = f'object_cannot_die {obj_text} {int(event.script_type == "OBJECT_CANNOT_DIE")}'
             case 'OBJECT_PROJECTILE_COLLISION_ON' | 'OBJECT_PROJECTILE_COLLISION_OFF':
-                if actor_name:
+                if target_name:
                     # weird script function, setting this to false makes the object had projectile collision
                     self.script = f'object_cinematic_visibility {obj_text} {int(event.script_type == "OBJECT_PROJECTILE_COLLISION_OFF")}'
             case 'DAMAGE_OBJECT':
-                if actor_name:
+                if target_name:
                     self.script = f'damage_object {obj_text} "{event.script_region}" {event.script_damage}'
             case 'PLAY_SOUND':
                 if event.sound_tag.strip():

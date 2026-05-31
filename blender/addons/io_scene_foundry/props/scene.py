@@ -562,7 +562,7 @@ class NWO_AnimationEventData_ListItems(bpy.types.PropertyGroup):
     
     marker: bpy.props.PointerProperty(
         type=bpy.types.Object,
-        poll=poll_cin_marker,
+        poll=poll_empty,
         name="Marker",
         options=set(),
         description="Marker that this sound / effect event should play on"
@@ -1955,8 +1955,37 @@ def prefab_warning(self, context):
     
 def poll_actor(self, object):
     return object.type == 'ARMATURE' and object.nwo.cinematic_object and bpy.context.scene.objects.get(object.name)
+
+def script_attachment_label(attachment, index: int) -> str:
+    if attachment.marker_name:
+        return attachment.marker_name
+    if attachment.attachment_type:
+        return Path(attachment.attachment_type).with_suffix("").name
+    return f"Attachment {index + 1}"
     
 class NWO_CinematicEvent(PropertyGroup):
+    def script_attachment_items(self, context):
+        items = [("NONE", "Actor", "Apply this script to the actor")]
+        if not utils.pointer_ob_valid(self.actor):
+            return items
+
+        for index, attachment in enumerate(self.actor.nwo.attachments):
+            identifier = f"ATTACHMENT_{index}"
+            items.append((identifier, script_attachment_label(attachment, index), "Apply this script to this actor attachment"))
+
+        return items
+
+    def script_target_name(self):
+        if not utils.pointer_ob_valid(self.actor):
+            return "NONE"
+
+        if self.script_attachment not in {"", "NONE"}:
+            for index, attachment in enumerate(self.actor.nwo.attachments):
+                if self.script_attachment in {f"ATTACHMENT_{index}", attachment.name, str(index)}:
+                    return script_attachment_label(attachment, index)
+
+        return self.actor.name
+
     def cinematic_event_types(self, context):
         return [
             ("DIALOGUE", "Dialogue", "Play dialogue on a cinematic actor"),
@@ -2013,21 +2042,22 @@ class NWO_CinematicEvent(PropertyGroup):
                         else:
                             return f"{ui_name} -> NONE"
                     else:
+                        target_name = self.script_target_name()
                         match self.script_type:
                             case 'SET_VARIANT':
-                                return f"{ui_name} of {self.actor.name} to '{self.script_variant}'"
+                                return f"{ui_name} of {target_name} to '{self.script_variant}'"
                             case 'SET_PERMUTATION':
-                                return f"{ui_name} of {self.actor.name} with region '{self.script_region}' to permutation '{self.script_permutation}'"
+                                return f"{ui_name} of {target_name} with region '{self.script_region}' to permutation '{self.script_permutation}'"
                             case 'SET_REGION_STATE':
-                                return f"{ui_name} of {self.actor.name} with region '{self.script_region}' to state {self.script_state}"
+                                return f"{ui_name} of {target_name} with region '{self.script_region}' to state {self.script_state}"
                             case 'SET_MODEL_STATE_PROPERTY':
-                                return f"{ui_name} of {self.actor.name} with state property {self.script_state_property} to {'on' if self.script_bool else 'off'}"
+                                return f"{ui_name} of {target_name} with state property {self.script_state_property} to {'on' if self.script_bool else 'off'}"
                             case 'DAMAGE_OBJECT':
-                                return f"{ui_name} -> {self.actor.name} with region '{self.script_region}' by {round(self.script_damage, 2)}"
+                                return f"{ui_name} -> {target_name} with region '{self.script_region}' by {round(self.script_damage, 2)}"
                             case 'PLAY_SOUND':
-                                return f"{ui_name} on {self.actor.name} with sound tag '{Path(self.sound_tag).with_suffix('').name}'"
+                                return f"{ui_name} on {target_name} with sound tag '{Path(self.sound_tag).with_suffix('').name}'"
                             case _:
-                                return f"{ui_name} -> {self.actor.name}"
+                                return f"{ui_name} -> {target_name}"
                 else:
                     match self.script_type:
                         case 'SET_TITLE':
@@ -2167,6 +2197,7 @@ class NWO_CinematicEvent(PropertyGroup):
     
     marker: bpy.props.PointerProperty(
         name="Marker Object",
+        poll=poll_cin_marker,
         description="The object to play this effect on. Can be a marker directly or the cinematic actor",
         type=bpy.types.Object,
         options=set(),
@@ -2265,6 +2296,13 @@ class NWO_CinematicEvent(PropertyGroup):
             ('SET_GRAVITY', "Set Gravity", "Sets gravity relative to Halo gravity"),
         ]
     )
+
+    script_attachment: bpy.props.EnumProperty(
+        name="Attachment",
+        description="Actor attachment this script should apply to. Choose Actor to apply the script to the actor itself",
+        options=set(),
+        items=script_attachment_items,
+    )
     
     script_text: bpy.props.StringProperty(
         name="Script Text",
@@ -2288,11 +2326,11 @@ class NWO_CinematicEvent(PropertyGroup):
         name="Script State",
         options=set(),
         items=[
-            ("default", "Default", ""),
-            ("minor_damage", "Minor Damage", ""),
-            ("medium_damage", "Medium Damage", ""),
-            ("major_damage", "Major Damage", ""),
-            ("destroyed", "Destroyed", ""),
+            ("0", "Default", ""),
+            ("1", "Minor Damage", ""),
+            ("2", "Medium Damage", ""),
+            ("3", "Major Damage", ""),
+            ("4", "Destroyed", ""),
         ]
     )
     script_state_property: bpy.props.EnumProperty(
@@ -3343,6 +3381,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     permutations_table_expanded: bpy.props.BoolProperty(default=True, options=set())
     object_visibility_expanded: bpy.props.BoolProperty(default=True, options=set())
     cinematic_lighting_expanded: bpy.props.BoolProperty(default=True, options=set())
+    attachments_expanded: bpy.props.BoolProperty(default=True, options=set())
     custom_properties_expanded: bpy.props.BoolProperty(default=False, options=set())
     armature_controls_expanded: bpy.props.BoolProperty(default=True, options=set())
     bone_collections_expanded: bpy.props.BoolProperty(default=False, options=set())

@@ -910,7 +910,16 @@ class QUA:
         # for idx in reversed(to_remove_object_element_indexes):
         #     block_objects.RemoveElement(idx)
         
+        def add_actor_attachment(block_attachments, invisible: bool, marker_name: str, object_name: str, attachment_marker_name: str, attachment_type: str):
+            attachment_element = block_attachments.AddElement()
+            attachment_element.SelectField("flags").SetBit("invisible", invisible)
+            attachment_element.SelectField("object marker name").SetStringData(marker_name)
+            attachment_element.SelectField("attachment object name").SetStringData(object_name)
+            attachment_element.SelectField("attachment marker name").SetStringData(attachment_marker_name)
+            attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(attachment_type)
+
         object_tag_weapon_names = {} # used for custom scripts
+        actor_attachment_names = {} # used for custom scripts
         actor_objects = {a.ob: a.name for a in self.objects} # for checking an event is valid
         block_objects.RemoveAllElements()
         # Add elements for actors without them
@@ -918,20 +927,28 @@ class QUA:
             element = block_objects.AddElement()
             element.SelectField("name").SetStringData(actor.name)
             element.SelectField("variant name").SetStringData(actor.variant)
-            if actor.weapon_tag is not None:
-                # print(actor.name, element)
-                block_attachments = element.SelectField("Block:attachments")
-                attachment_element = block_attachments.AddElement()
-                attachment_element.SelectField("flags").SetBit("invisible", True)
-                attachment_element.SelectField("object marker name").SetStringData("primary_trigger")
-                wep_name = f"{actor.name}_weapon"
-                attachment_element.SelectField("attachment object name").SetStringData(wep_name)
-                attachment_element.SelectField("attachment marker name").SetStringData("primary_trigger")
-                attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(actor.weapon_tag)
-                object_tag_weapon_names[actor.ob] = wep_name
-                
-
             actor_nwo = actor.ob.nwo
+            block_attachments = element.SelectField("Block:attachments")
+            if actor.weapon_tag is not None:
+                wep_name = f"{actor.name}_weapon"
+                add_actor_attachment(block_attachments, True, "primary_trigger", wep_name, "primary_trigger", actor.weapon_tag)
+                object_tag_weapon_names[actor.ob] = wep_name
+
+            for index, attachment in enumerate(actor_nwo.attachments):
+                attachment_type = attachment.attachment_type.strip()
+                if not attachment_type:
+                    continue
+
+                attachment_type = utils.relative_path(attachment_type)
+                marker_name = utils.clean_text(attachment.marker_name, empty_string_allowed=True)
+                attachment_base_name = Path(attachment_type).with_suffix("").name or "attachment"
+                attachment_object_name = utils.clean_text(f"{actor.name}_{attachment_base_name}_{index + 1}", replace_spaces=True)
+                add_actor_attachment(block_attachments, attachment.invisible, marker_name, attachment_object_name, marker_name, attachment_type)
+                actor_attachments = actor_attachment_names.setdefault(actor.ob, {})
+                actor_attachments[attachment.name or str(index)] = attachment_object_name
+                actor_attachments[f"ATTACHMENT_{index}"] = attachment_object_name
+                actor_attachments[str(index)] = attachment_object_name
+
             # Set flags
             actor_flags = element.SelectField("flags")
             
@@ -1054,7 +1071,7 @@ class QUA:
                         effects[c] = frame - frame_start + int(self.corinth)
                 case 'SCRIPT':
                     c = CinematicCustomScript()
-                    c.from_event(event, object_tag_weapon_names, actor_objects, self.corinth)
+                    c.from_event(event, object_tag_weapon_names, actor_objects, self.corinth, actor_attachment_names)
                     if c.script.strip():
                         custom_scripts[c] = frame - frame_start + int(self.corinth)         
                 case 'MUSIC':
