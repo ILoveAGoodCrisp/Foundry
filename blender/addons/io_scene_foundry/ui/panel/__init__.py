@@ -3562,7 +3562,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 match event.script_type:
                     case 'CUSTOM':
                         self.draw_script_field(col, event, "script", "text", "script_use_text", "Script")
-                    case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
+                    case 'WEAPON_TRIGGER_START':
+                        draw_script_target("Actor")
+                        col.prop(event, "script_bool", text="Hold Trigger")
+                    case 'WEAPON_TRIGGER_STOP':
                         draw_script_target("Actor")
                     case 'SET_VARIANT':
                         draw_script_target()

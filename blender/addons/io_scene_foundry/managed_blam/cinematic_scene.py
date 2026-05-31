@@ -365,8 +365,14 @@ class CinematicCustomScript:
         self.use_maya_value = False
         self.frame = 0
         self.script = ""
+        self.weapon_name = ""
         self.node_id = 0
         self.sequence_id = 0
+
+    def set_weapon_trigger_script(self, weapon_name: str, firing: bool):
+        self.use_maya_value = True
+        self.weapon_name = weapon_name
+        self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(firing)}'
         
     def from_element(self, element: TagFieldBlockElement):
         self.use_maya_value = element.SelectField("flags").TestBit("use maya value")
@@ -416,10 +422,7 @@ class CinematicCustomScript:
                     else:
                         weapon_name = object_tag_weapon_names.get(event.actor, "")
                     if weapon_name:
-                        if event.script_type == "WEAPON_TRIGGER_START":
-                            self.script = f'(weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") 1) (weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") 0)'
-                        else:
-                            f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") 0'
+                        self.set_weapon_trigger_script(weapon_name, event.script_type == "WEAPON_TRIGGER_START")
                             
             case 'SET_VARIANT':
                 if target_name and event.script_variant:

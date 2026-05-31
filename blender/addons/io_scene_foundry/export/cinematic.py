@@ -1084,7 +1084,12 @@ class QUA:
                     c = CinematicCustomScript()
                     c.from_event(event, object_tag_weapon_names, actor_objects, self.corinth, actor_attachment_names, actor_attachment_weapon_names)
                     if c.script.strip():
-                        custom_scripts[c] = frame - frame_start + int(self.corinth)         
+                        frame_index = frame - frame_start + int(self.corinth)
+                        custom_scripts[c] = frame_index
+                        if event.script_type == 'WEAPON_TRIGGER_START' and not event.script_bool and c.weapon_name:
+                            release_script = CinematicCustomScript()
+                            release_script.set_weapon_trigger_script(c.weapon_name, False)
+                            custom_scripts[release_script] = frame_index + 1
                 case 'MUSIC':
                     c = CinematicMusic()
                     c.from_event(event)

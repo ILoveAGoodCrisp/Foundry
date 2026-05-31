@@ -25,7 +25,7 @@ scene_specific_props = (
 
 script_type_map = {
     "CUSTOM": "Custom",
-    "WEAPON_TRIGGER_START": "Start Firing Weapon",
+    "WEAPON_TRIGGER_START": "Fire Weapon",
     "WEAPON_TRIGGER_STOP": "Stop Firing Weapon",
     "OBJECT_PROJECTILE_COLLISION_ON": "Projectiles Collide With Object",
     "OBJECT_PROJECTILE_COLLISION_OFF": "Projectiles Pass Through Object",
@@ -2278,7 +2278,7 @@ class NWO_CinematicEvent(PropertyGroup):
             ("", "Custom", ""),
             ("CUSTOM", "Custom", "Custom script to execute"),
             ('', "Weapon", ""),
-            ("WEAPON_TRIGGER_START", "Start Firing Weapon", "Causes a weapon to start shooting"),
+            ("WEAPON_TRIGGER_START", "Fire Weapon", "Causes a weapon to start shooting"),
             ("WEAPON_TRIGGER_STOP", "Stop Firing Weapon", "Causes a weapon to stop shooting"),
             ('', "Damage", ""),
             ('OBJECT_PROJECTILE_COLLISION_ON', "Projectiles Collide With Object", "The object becomes physical and can be damaged by projectiles, this has the knock on effect that the object will dissapear if the character's bounding box is not visible by the cinematic camera."),
