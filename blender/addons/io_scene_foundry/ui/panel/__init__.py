@@ -38,8 +38,8 @@ POSE_CONTROL_UI_GROUPS = (
     ("Gun", "CONSTRAINT_BONE"),
     ("IK Blend", "CON_KINEMATIC"),
     ("IK Pole Follow", "CONSTRAINT_BONE"),
-    ("IK Root Ignore", "CON_CHILDOF"),
-    ("Root Ignore", "CON_CHILDOF"),
+    ("IK Root Follow", "CON_CHILDOF"),
+    ("Root Follow", "CON_CHILDOF"),
     ("Other", "PROPERTIES"),
 )
 
@@ -236,7 +236,7 @@ def grouped_bone_collections(collections: list):
 
 def pose_control_group_name(prop_name: str) -> str:
     lower_name = prop_name.lower()
-    follows_root = "ignore root" in lower_name or "ignores root" in lower_name or "root_ignore" in lower_name
+    follows_root = is_root_follow_pose_control(prop_name)
     follows_ik = is_ik_pole_follow_pose_control(prop_name)
     is_ik = lower_name.startswith(("ik ", "ik_")) or lower_name.startswith("root_follow_ik")
     if "gun" in lower_name:
@@ -245,14 +245,14 @@ def pose_control_group_name(prop_name: str) -> str:
         if follows_ik:
             return "IK Pole Follow"
         if follows_root:
-            return "IK Root Ignore"
+            return "IK Root Follow"
         return "IK Blend"
     if any(token in lower_name for token in ("head", "eye", "look")):
         if follows_root:
-            return "Root Ignore"
+            return "Root Follow"
         return "Look"
     if follows_root:
-        return "Root Ignore"
+        return "Root Follow"
 
     return "Other"
 
@@ -264,10 +264,20 @@ def is_ik_pole_follow_pose_control(prop_name: str) -> bool:
         or "pt follows ik" in lower_name
     )
 
+def is_root_follow_pose_control(prop_name: str) -> bool:
+    lower_name = prop_name.lower()
+    return (
+        "follows root" in lower_name
+        or "follow root" in lower_name
+        or "ignore root" in lower_name
+        or "ignores root" in lower_name
+        or "root_ignore" in lower_name
+    )
+
 def is_ik_blend_pose_control(prop_name: str) -> bool:
     lower_name = prop_name.lower()
     is_ik = lower_name.startswith("ik ") or lower_name.startswith("ik_")
-    follows_root = "ignore root" in lower_name or "ignores root" in lower_name or "root_ignore" in lower_name
+    follows_root = is_root_follow_pose_control(prop_name)
     return is_ik and not follows_root and not is_ik_pole_follow_pose_control(prop_name)
 
 def pose_control_label(prop_name: str) -> str:

@@ -8,12 +8,20 @@ from ...tools.rigging import (
     fk_collection_name,
     foundry_armature_constraint_name,
     gun_copy_transforms_constraint_name,
+    choose_eye_bone_names,
+    find_deform_pose_bone_name_by_suffix,
+    find_deform_pose_bone_names_by_suffix,
+    get_head_driver_bone_name,
+    head_control_name,
     head_track_constraint_name,
     ik_collection_name,
+    ik_child_of_constraint_name,
     ik_constraint_name,
     ik_control_property_name,
+    ik_copy_location_constraint_name,
     ik_copy_rotation_constraint_name,
     is_control_bone_name,
+    look_control_name,
     look_child_of_constraint_name,
     misc_control_collection_name,
     neck_assist_constraint_name,
@@ -53,6 +61,8 @@ control_rig_constraint_names = (
     foundry_armature_constraint_name,
     gun_copy_transforms_constraint_name,
     ik_constraint_name,
+    ik_child_of_constraint_name,
+    ik_copy_location_constraint_name,
     ik_copy_rotation_constraint_name,
 )
 
@@ -146,11 +156,25 @@ def bake_control_rig_actions(context, arm: bpy.types.Object, actions):
     arm.select_set(True)
     utils.set_active_object(arm)
 
+    control_bone_names = {pb.name for pb in arm.pose.bones if is_control_bone_name(pb.name)}
     for pb in arm.pose.bones:
-        pb.select = pb.name.startswith(("FK_", "CTRL_", "IK_", "PT_"))
+        pb.select = pb.name in control_bone_names
 
     arm.select_set(False)
-    options = anim_utils.BakeOptions(True, True, False, True, False, False, False, True, True, True, False, False)
+    options = anim_utils.BakeOptions(
+        only_selected=True,
+        do_pose=True,
+        do_object=False,
+        do_visual_keying=True,
+        do_constraint_clear=False,
+        do_parents_clear=False,
+        do_clean=False,
+        do_location=True,
+        do_rotation=True,
+        do_scale=True,
+        do_bbone=False,
+        do_custom_props=False,
+    )
     baked_count = 0
 
     try:
@@ -186,13 +210,384 @@ def bake_imported_actions_to_control_rig(context, arm: bpy.types.Object, actions
     if not actions or not armature_has_control_rig(arm):
         return 0
 
+    baked_count = 0
     set_control_rig_inverted(context, arm, True)
     context.view_layer.update()
     try:
-        return bake_control_rig_actions(context, arm, actions)
+        baked_count = bake_control_rig_actions(context, arm, actions)
     finally:
         set_control_rig_inverted(context, arm, False)
         context.view_layer.update()
+
+    if baked_count:
+        correct_baked_control_target_actions(context, arm, actions)
+
+    return baked_count
+
+
+def remove_pose_bone_transform_fcurves(action: bpy.types.Action, arm: bpy.types.Object, bone_name: str):
+    fcurves = utils.get_fcurves(action, arm)
+    if not fcurves:
+        return
+
+    data_paths = set(pose_bone_transform_paths(bone_name))
+    for fcurve in list(fcurves):
+        if fcurve.data_path in data_paths:
+            fcurves.remove(fcurve)
+
+
+def set_pose_bone_transform_interpolation(action: bpy.types.Action, arm: bpy.types.Object, bone_name: str, interpolation: str):
+    fcurves = utils.get_fcurves(action, arm)
+    if not fcurves:
+        return
+
+    data_paths = set(pose_bone_transform_paths(bone_name))
+    for fcurve in fcurves:
+        if fcurve.data_path not in data_paths:
+            continue
+
+        for keyframe_point in fcurve.keyframe_points:
+            keyframe_point.interpolation = interpolation
+        fcurve.update()
+
+
+def average_pose_bone_heads(pose_bones: list[bpy.types.PoseBone]) -> Vector:
+    total = Vector((0.0, 0.0, 0.0))
+    for pbone in pose_bones:
+        total += pbone.head.copy()
+
+    return total / max(len(pose_bones), 1)
+
+
+def average_pose_bone_axis(pose_bones: list[bpy.types.PoseBone], axis_index: int) -> Vector:
+    total = Vector((0.0, 0.0, 0.0))
+    for pbone in pose_bones:
+        axis = pbone.matrix.to_3x3().col[axis_index].copy()
+        if axis.length > 1e-6:
+            total += axis.normalized()
+
+    if total.length < 1e-6:
+        return Vector((0.0, -1.0, 0.0))
+
+    return total.normalized()
+
+
+def control_target_rest_distance(control_bone: bpy.types.PoseBone, source_bones: list[bpy.types.PoseBone]) -> float:
+    if not source_bones:
+        return max(control_bone.bone.length, 0.01)
+
+    control_head = control_bone.bone.head_local.copy()
+    source_head = Vector((0.0, 0.0, 0.0))
+    for source in source_bones:
+        source_head += source.bone.head_local.copy()
+    source_head /= len(source_bones)
+
+    return max((control_head - source_head).length, control_bone.bone.length, 0.01)
+
+
+def control_target_pose_position(source_bones: list[bpy.types.PoseBone], axis_index: int, distance: float) -> Vector:
+    return average_pose_bone_heads(source_bones) + average_pose_bone_axis(source_bones, axis_index) * distance
+
+
+def head_look_target_bake_contexts(arm: bpy.types.Object) -> list[tuple[bpy.types.PoseBone, list[bpy.types.PoseBone], int, float]]:
+    contexts = []
+
+    head_control = arm.pose.bones.get(head_control_name)
+    if head_control is not None:
+        head_deform_name = find_deform_pose_bone_name_by_suffix(arm, "head")
+        head_driver_name = get_head_driver_bone_name(arm, head_deform_name, {})
+        head_driver = arm.pose.bones.get(head_driver_name) if head_driver_name else None
+        if head_driver is not None:
+            contexts.append((
+                head_control,
+                [head_driver],
+                2,
+                control_target_rest_distance(head_control, [head_driver]),
+            ))
+
+    look_control = arm.pose.bones.get(look_control_name)
+    if look_control is not None:
+        eye_names = choose_eye_bone_names(find_deform_pose_bone_names_by_suffix(arm, "eye"))
+        eye_bones = [arm.pose.bones[name] for name in eye_names[:2] if arm.pose.bones.get(name) is not None]
+        if eye_bones:
+            contexts.append((
+                look_control,
+                eye_bones,
+                0,
+                control_target_rest_distance(look_control, eye_bones),
+            ))
+
+    return contexts
+
+
+def mute_constraints_by_name(arm: bpy.types.Object, constraint_names: tuple[str, ...]) -> list[tuple[bpy.types.Constraint, bool]]:
+    muted_constraints = []
+    for pbone in arm.pose.bones:
+        for con in pbone.constraints:
+            if any(con.name == name or con.name.startswith(f"{name}.") for name in constraint_names):
+                muted_constraints.append((con, con.mute))
+                con.mute = True
+
+    return muted_constraints
+
+
+def correct_baked_control_target_actions(context, arm: bpy.types.Object, actions):
+    return (
+        correct_baked_ik_target_actions(context, arm, actions)
+        + correct_baked_head_look_target_actions(context, arm, actions)
+    )
+
+
+def ik_target_bake_contexts(arm: bpy.types.Object) -> list[tuple[str, bpy.types.PoseBone, bpy.types.PoseBone, bpy.types.PoseBone, list[bpy.types.PoseBone]]]:
+    contexts = []
+    for fkb in arm.pose.bones:
+        if not fkb.name.startswith("FK_"):
+            continue
+
+        ikb = arm.pose.bones.get(fkb.name.replace("FK_", "IK_", 1))
+        ptb = arm.pose.bones.get(fkb.name.replace("FK_", "PT_", 1))
+        if ikb is None or ptb is None:
+            continue
+
+        chain = fk_chain_for_end_bone(fkb)
+        if len(chain) < 2:
+            continue
+
+        contexts.append((ik_control_property_name(fkb.name), fkb, ikb, ptb, chain))
+
+    return contexts
+
+
+def remove_settings_prop_fcurve(action: bpy.types.Action, arm: bpy.types.Object, prop_name: str):
+    fcurves = utils.get_fcurves(action, arm)
+    if not fcurves:
+        return
+
+    data_path = settings_prop_data_path(prop_name)
+    for fcurve in list(fcurves):
+        if fcurve.data_path == data_path:
+            fcurves.remove(fcurve)
+
+
+def correct_baked_ik_target_actions(context, arm: bpy.types.Object, actions):
+    settings_bone = arm.pose.bones.get(settings_control_name)
+    contexts = ik_target_bake_contexts(arm)
+    if settings_bone is None or not contexts:
+        return 0
+
+    if arm.animation_data is None:
+        return 0
+
+    original_action = arm.animation_data.action
+    original_slot_identifier = arm.animation_data.last_slot_identifier
+    original_frame = context.scene.frame_current
+    original_mode = context.mode
+    original_active = context.view_layer.objects.active
+    selected_objects = [ob for ob in context.selected_objects]
+    prop_names = [prop_name for prop_name, _fkb, _ikb, _ptb, _chain in contexts]
+    corrected_count = 0
+
+    utils.set_object_mode(context)
+    utils.set_active_object(arm)
+
+    try:
+        for action in list(dict.fromkeys(action for action in actions if action is not None)):
+            start, end = utils.get_frame_start_end_from_keyframes(action, arm)
+            if end < start:
+                continue
+
+            if len(action.slots):
+                slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
+                arm.animation_data.last_slot_identifier = slot.identifier
+            arm.animation_data.action = action
+
+            for prop_name, _fkb, ikb, ptb, _chain in contexts:
+                remove_settings_prop_fcurve(action, arm, prop_name)
+                remove_pose_bone_transform_fcurves(action, arm, ikb.name)
+                remove_pose_bone_transform_fcurves(action, arm, ptb.name)
+
+            frames = list(range(floor(start), ceil(end) + 1))
+            for frame in frames:
+                context.scene.frame_set(frame)
+                for prop_name in prop_names:
+                    settings_bone[prop_name] = 0.0
+                context.view_layer.update()
+
+                for _prop_name, fkb, ikb, ptb, chain in contexts:
+                    ikb.matrix = fkb.matrix.copy()
+                    pole_position = calculate_pose_pole_position(chain[0], chain[-2], fkb, ptb)
+                    set_pose_bone_matrix_translation(ptb, pole_position)
+                    keyframe_pose_bone_transform(ikb, frame)
+                    keyframe_pose_bone_transform(ptb, frame)
+
+            for prop_name, _fkb, ikb, ptb, _chain in contexts:
+                set_pose_bone_transform_interpolation(action, arm, ikb.name, 'LINEAR')
+                set_pose_bone_transform_interpolation(action, arm, ptb.name, 'LINEAR')
+                settings_bone[prop_name] = 0.0
+
+            corrected_count += 1
+    finally:
+        for prop_name in prop_names:
+            settings_bone[prop_name] = 0.0
+        arm.animation_data.action = original_action
+        arm.animation_data.last_slot_identifier = original_slot_identifier
+        context.scene.frame_set(original_frame)
+        utils.deselect_all_objects()
+        for ob in selected_objects:
+            if ob.name in bpy.data.objects:
+                ob.select_set(True)
+        if original_active is not None and original_active.name in bpy.data.objects:
+            context.view_layer.objects.active = original_active
+        utils.restore_mode(original_mode)
+
+    return corrected_count
+
+
+def correct_baked_head_look_target_actions(context, arm: bpy.types.Object, actions):
+    contexts = head_look_target_bake_contexts(arm)
+    if not contexts:
+        return 0
+
+    if arm.animation_data is None:
+        return 0
+
+    original_action = arm.animation_data.action
+    original_slot_identifier = arm.animation_data.last_slot_identifier
+    original_frame = context.scene.frame_current
+    original_mode = context.mode
+    original_active = context.view_layer.objects.active
+    selected_objects = [ob for ob in context.selected_objects]
+    muted_constraints = []
+    corrected_count = 0
+
+    utils.set_object_mode(context)
+    utils.set_active_object(arm)
+
+    try:
+        muted_constraints = mute_constraints_by_name(arm, (head_track_constraint_name, eye_track_constraint_name))
+        for action in list(dict.fromkeys(action for action in actions if action is not None)):
+            start, end = utils.get_frame_start_end_from_keyframes(action, arm)
+            if end < start:
+                continue
+
+            if len(action.slots):
+                slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
+                arm.animation_data.last_slot_identifier = slot.identifier
+            arm.animation_data.action = action
+
+            for control_bone, _source_bones, _axis_index, _distance in contexts:
+                remove_pose_bone_transform_fcurves(action, arm, control_bone.name)
+
+            for frame in range(floor(start), ceil(end) + 1):
+                context.scene.frame_set(frame)
+                context.view_layer.update()
+                for control_bone, source_bones, axis_index, distance in contexts:
+                    target_position = control_target_pose_position(source_bones, axis_index, distance)
+                    matrix = control_bone.bone.matrix_local.copy()
+                    matrix.translation = target_position
+                    control_bone.matrix = matrix
+                    keyframe_pose_bone_transform(control_bone, frame)
+
+            for control_bone, _source_bones, _axis_index, _distance in contexts:
+                set_pose_bone_transform_interpolation(action, arm, control_bone.name, 'LINEAR')
+
+            corrected_count += 1
+    finally:
+        for con, muted in muted_constraints:
+            con.mute = muted
+        arm.animation_data.action = original_action
+        arm.animation_data.last_slot_identifier = original_slot_identifier
+        context.scene.frame_set(original_frame)
+        utils.deselect_all_objects()
+        for ob in selected_objects:
+            if ob.name in bpy.data.objects:
+                ob.select_set(True)
+        if original_active is not None and original_active.name in bpy.data.objects:
+            context.view_layer.objects.active = original_active
+        utils.restore_mode(original_mode)
+
+    return corrected_count
+
+
+def pole_target_bake_contexts(arm: bpy.types.Object) -> list[tuple[bpy.types.PoseBone, bpy.types.PoseBone, list[bpy.types.PoseBone]]]:
+    contexts = []
+    for fkb in arm.pose.bones:
+        if not fkb.name.startswith("FK_"):
+            continue
+
+        ptb = arm.pose.bones.get(fkb.name.replace("FK_", "PT_", 1))
+        if ptb is None:
+            continue
+
+        chain = fk_chain_for_end_bone(fkb)
+        if len(chain) < 2:
+            continue
+
+        contexts.append((fkb, ptb, chain))
+
+    return contexts
+
+
+def correct_baked_pole_target_actions(context, arm: bpy.types.Object, actions):
+    contexts = pole_target_bake_contexts(arm)
+    if not contexts:
+        return 0
+
+    if arm.animation_data is None:
+        return 0
+
+    original_action = arm.animation_data.action
+    original_slot_identifier = arm.animation_data.last_slot_identifier
+    original_frame = context.scene.frame_current
+    original_mode = context.mode
+    original_active = context.view_layer.objects.active
+    selected_objects = [ob for ob in context.selected_objects]
+    corrected_count = 0
+
+    utils.set_object_mode(context)
+    utils.set_active_object(arm)
+
+    try:
+        for action in list(dict.fromkeys(action for action in actions if action is not None)):
+            start, end = utils.get_frame_start_end_from_keyframes(action, arm)
+            if end < start:
+                continue
+
+            if len(action.slots):
+                slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
+                arm.animation_data.last_slot_identifier = slot.identifier
+            arm.animation_data.action = action
+
+            for _fkb, ptb, _chain in contexts:
+                remove_pose_bone_transform_fcurves(action, arm, ptb.name)
+
+            for frame in range(floor(start), ceil(end) + 1):
+                context.scene.frame_set(frame)
+                context.view_layer.update()
+                for fkb, ptb, chain in contexts:
+                    pole_position = calculate_pose_pole_position(chain[0], chain[-2], fkb, ptb)
+                    matrix = ptb.bone.matrix_local.copy()
+                    matrix.translation = pole_position
+                    ptb.matrix = matrix
+                    keyframe_pose_bone_transform(ptb, frame)
+
+            for _fkb, ptb, _chain in contexts:
+                set_pose_bone_transform_interpolation(action, arm, ptb.name, 'LINEAR')
+
+            corrected_count += 1
+    finally:
+        arm.animation_data.action = original_action
+        arm.animation_data.last_slot_identifier = original_slot_identifier
+        context.scene.frame_set(original_frame)
+        utils.deselect_all_objects()
+        for ob in selected_objects:
+            if ob.name in bpy.data.objects:
+                ob.select_set(True)
+        if original_active is not None and original_active.name in bpy.data.objects:
+            context.view_layer.objects.active = original_active
+        utils.restore_mode(original_mode)
+
+    return corrected_count
 
 
 class NWO_OT_BakeToControl(bpy.types.Operator):
@@ -219,8 +614,11 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
             
         if not actions or actions[0] is None:
             return {'CANCELLED'}
-        bake_control_rig_actions(context, arm, actions)
+        was_inverted = arm.nwo.invert_control_rig
+        baked_count = bake_control_rig_actions(context, arm, actions)
         set_control_rig_inverted(context, arm, False)
+        if was_inverted and baked_count:
+            correct_baked_control_target_actions(context, arm, actions)
         
         return {'FINISHED'}
     

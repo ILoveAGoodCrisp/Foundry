@@ -64,10 +64,15 @@ look_child_of_constraint_name = 'Foundry Look Child Of'
 foundry_armature_constraint_name = 'Foundry Armature'
 gun_copy_transforms_constraint_name = 'Foundry Gun Copy Transforms'
 ik_constraint_name = 'Foundry IK'
+ik_child_of_constraint_name = 'Foundry IK Child Of'
+ik_copy_location_constraint_name = 'Foundry IK Copy Location'
 ik_copy_rotation_constraint_name = 'Foundry IK Copy Rotation'
-head_follow_root_prop_name = "Head track ignores root"
-look_follow_root_prop_name = "Look track ignores root"
-look_follow_head_prop_name = "Look ignores head"
+legacy_head_follow_root_prop_name = "Head track ignores root"
+legacy_look_follow_root_prop_name = "Look track ignores root"
+legacy_look_follow_head_prop_name = "Look ignores head"
+head_follow_root_prop_name = "Head track follows root"
+look_follow_root_prop_name = "Look follows root"
+look_follow_head_prop_name = "Look follows head"
 head_track_prop_name = "Head Track"
 eye_track_prop_name = "Eye Track"
 gun_control_prop_name = "gun_control"
@@ -180,7 +185,7 @@ class HaloRig:
         self.bones_with_fk_controllers = set()
     
     def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, aim_control_only=False, reverse_control=False, reach_fp_fix=False, constraints_only=False):
-        min_size, max_size = utils.to_aabb(self.rig_ob)
+        min_size, max_size = stable_armature_rest_aabb(self.rig_ob)
         shape_scale = abs((max_size - min_size).length)
         if not aim_control_only:
             if not pedestal:
@@ -572,7 +577,7 @@ class HaloRig:
             shape = bpy.data.objects.new(deform_shape_name, shape_mesh)
             shape.nwo.export_this = False
 
-        min_size, max_size = utils.to_aabb(self.rig_ob)
+        min_size, max_size = stable_armature_rest_aabb(self.rig_ob)
         shape_scale = abs((max_size - min_size).length)
         deform_bone_names = {
             bone.name
@@ -604,7 +609,7 @@ class HaloRig:
                     )
                 bone.show_wire = True
 
-    def build_extra_control_bones(self, deform_fk_mapping: dict[str, str], constraints_only=False):
+    def build_extra_control_bones(self, deform_fk_mapping: dict[str, str], constraints_only=False, reverse_control=False):
         head_deform_name = find_deform_pose_bone_name_by_suffix(self.rig_ob, "head")
         eye_bone_names = choose_eye_bone_names(find_deform_pose_bone_names_by_suffix(self.rig_ob, "eye"))
         gun_pose_bone_name = find_pose_bone_name_by_node_names(self.rig_ob, (gun_bone_name, "gun"))
@@ -668,15 +673,45 @@ class HaloRig:
             edit_bones = self.rig_data.edit_bones
             root = edit_bones[0] if len(edit_bones) else None
             any_extra_control = self.rig_pose.bones.get(gun_control_name) is not None
-            for control_name in (head_control_name, look_control_name):
-                control_bone = edit_bones.get(control_name)
-                if control_bone is None:
-                    continue
-
-                control_bone.parent = None
-                control_bone.use_connect = False
-                control_bone.use_deform = False
+            head_control = edit_bones.get(head_control_name)
+            look_control = edit_bones.get(look_control_name)
+            head_source = edit_bones.get(head_driver_name) if head_driver_name else None
+            head_height_source = head_source
+            if root is not None and head_control is not None and head_source is not None:
+                place_front_control_bone(
+                    head_control,
+                    root,
+                    head_source,
+                    self.scale,
+                    None,
+                )
                 any_extra_control = True
+
+            if root is not None and look_control is not None:
+                eye_sources = [edit_bones.get(name) for name in eye_bone_names[:2]]
+                eye_sources = [bone for bone in eye_sources if bone is not None]
+                height_source = head_height_source or head_control
+                if len(eye_sources) >= 2 and height_source is not None:
+                    place_front_control_bone(
+                        look_control,
+                        root,
+                        height_source,
+                        self.scale,
+                        None,
+                        max(sum(bone.length for bone in eye_sources) / len(eye_sources), height_source.length),
+                    )
+                else:
+                    look_control.parent = None
+                    look_control.use_connect = False
+                    look_control.use_deform = False
+                any_extra_control = True
+
+            for control_bone in (head_control, look_control):
+                if control_bone is not None:
+                    control_bone.parent = None
+                    control_bone.use_connect = False
+                    control_bone.use_deform = False
+                    any_extra_control = True
 
             if root is not None and any_extra_control:
                 ensure_settings_control_bone(edit_bones, root, self.scale)
@@ -694,7 +729,7 @@ class HaloRig:
             self.rig_pose = self.rig_ob.pose
 
         root_control = self.rig_pose.bones[0] if len(self.rig_pose.bones) else None
-        min_size, max_size = utils.to_aabb(self.rig_ob)
+        min_size, max_size = stable_armature_rest_aabb(self.rig_ob)
         control_shape_scale = abs((max_size - min_size).length) * 0.1 * self.shape_scale
         if control_shape_scale <= 0:
             control_shape_scale = self.shape_scale
@@ -719,35 +754,53 @@ class HaloRig:
                 has_eye_controls=look_control is not None and len(eye_bone_names) >= 2,
             )
 
-        if settings_control is not None:
-            if head_control is not None:
-                targets = []
-                if root_control is not None:
-                    targets.append(armature_target_spec(
-                        root_control.name,
-                        head_follow_root_prop_name,
-                        f"Whether {head_control.name} ignores the root bone",
-                        invert=True,
-                    ))
-                set_foundry_armature_constraint_targets(head_control, self.rig_ob, targets)
+        if head_control is not None:
+            head_targets = []
+            if reverse_control and head_driver_name:
+                head_targets.append(armature_target_spec(head_driver_name))
+            elif settings_control is not None and root_control is not None:
+                head_targets.append(armature_target_spec(
+                    root_control.name,
+                    head_follow_root_prop_name,
+                    f"Whether {head_control.name} follows the root bone",
+                ))
+            set_foundry_armature_constraint_targets(
+                head_control,
+                self.rig_ob,
+                head_targets,
+                use_current_location=reverse_control,
+            )
 
-            if look_control is not None:
-                targets = []
+        if look_control is not None:
+            look_targets = []
+            if reverse_control:
+                target_eye_names = [name for name in eye_bone_names[:2] if self.rig_pose.bones.get(name) is not None]
+                if target_eye_names:
+                    target_weight = 1.0 / len(target_eye_names)
+                    look_targets.extend(armature_target_spec(name, weight=target_weight) for name in target_eye_names)
+                elif head_control is not None:
+                    look_targets.append(armature_target_spec(head_control_name))
+                elif head_driver_name:
+                    look_targets.append(armature_target_spec(head_driver_name))
+            elif settings_control is not None:
                 if root_control is not None:
-                    targets.append(armature_target_spec(
+                    look_targets.append(armature_target_spec(
                         root_control.name,
                         look_follow_root_prop_name,
-                        f"Whether {look_control.name} ignores the root bone",
-                        invert=True,
+                        f"Whether {look_control.name} follows the root bone",
                     ))
                 if head_control is not None:
-                    targets.append(armature_target_spec(
+                    look_targets.append(armature_target_spec(
                         head_control_name,
                         look_follow_head_prop_name,
-                        f"Whether {look_control.name} ignores {head_control_name}",
-                        invert=True,
+                        f"Whether {look_control.name} follows {head_control_name}",
                     ))
-                set_foundry_armature_constraint_targets(look_control, self.rig_ob, targets)
+            set_foundry_armature_constraint_targets(
+                look_control,
+                self.rig_ob,
+                look_targets,
+                use_current_location=reverse_control,
+            )
 
         gun_control = self.rig_pose.bones.get(gun_control_name)
         if gun_control is not None:
@@ -766,16 +819,17 @@ class HaloRig:
                     self.rig_ob,
                     head_control_name,
                 )
-                con = cast(bpy.types.Constraint, head_driver.constraints.new('DAMPED_TRACK'))
-                con.name = head_track_constraint_name
-                con.target = self.rig_ob
-                con.subtarget = head_control_name
-                con.track_axis = 'TRACK_Z'
-                con.influence = 0.0
-                if settings_control is not None:
-                    add_settings_control_prop_driver(con, self.rig_ob, head_track_prop_name)
+                if not reverse_control:
+                    con = cast(bpy.types.Constraint, head_driver.constraints.new('DAMPED_TRACK'))
+                    con.name = head_track_constraint_name
+                    con.target = self.rig_ob
+                    con.subtarget = head_control_name
+                    con.track_axis = 'TRACK_Z'
+                    con.influence = 0.0
+                    if settings_control is not None:
+                        add_settings_control_prop_driver(con, self.rig_ob, head_track_prop_name)
                 clear_neck_assist_constraints(head_driver)
-                if head_driver.name == head_deform_name:
+                if not reverse_control and head_driver.name == head_deform_name:
                     self.bones_with_fk_controllers.add(head_driver.name)
 
         if len(eye_bone_names) >= 2 and look_control is not None:
@@ -791,15 +845,16 @@ class HaloRig:
                     self.rig_ob,
                     look_control_name,
                 )
-                con = cast(bpy.types.Constraint, eye_bone.constraints.new('DAMPED_TRACK'))
-                con.name = eye_track_constraint_name
-                con.target = self.rig_ob
-                con.subtarget = look_control_name
-                con.track_axis = 'TRACK_X'
-                con.influence = 0.0
-                if settings_control is not None:
-                    add_settings_control_prop_driver(con, self.rig_ob, eye_track_prop_name)
-                self.bones_with_fk_controllers.add(eye_name)
+                if not reverse_control:
+                    con = cast(bpy.types.Constraint, eye_bone.constraints.new('DAMPED_TRACK'))
+                    con.name = eye_track_constraint_name
+                    con.target = self.rig_ob
+                    con.subtarget = look_control_name
+                    con.track_axis = 'TRACK_X'
+                    con.influence = 0.0
+                    if settings_control is not None:
+                        add_settings_control_prop_driver(con, self.rig_ob, eye_track_prop_name)
+                    self.bones_with_fk_controllers.add(eye_name)
 
         if gun_pose_bone_name and gun_control is not None:
             gun_bone = self.rig_pose.bones.get(gun_pose_bone_name)
@@ -899,8 +954,10 @@ class HaloRig:
                         mid_fkb = fkb.parent
                         if root is not None and reach_fp_ik_fix and "_hand." in fkb.name:
                             pole_pos = calculate_lateral_pole_position(root, root_fkb, mid_fkb, fkb)
-                            pole_target.head = pole_pos
-                            pole_target.tail = pole_pos + (mid_fkb.y_axis.normalized() * max(mid_fkb.length * 0.35, 0.01))
+                        else:
+                            pole_pos = calculate_pole_position(root_fkb, mid_fkb, fkb)
+                        pole_target.head = pole_pos
+                        pole_target.tail = pole_pos + (mid_fkb.y_axis.normalized() * max(mid_fkb.length * 0.35, 0.01))
 
                         angle = calculate_pole_angle(root_fkb, fkb, pole_target.head)
                         fk_ik_mapping[fkb_name] = ik_name, pt_name, angle
@@ -1076,7 +1133,7 @@ class HaloRig:
             if not fk_bone_names:
                 bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
                 self.rig_pose = self.rig_ob.pose
-                self.build_extra_control_bones(deform_fk_mapping, constraints_only)
+                self.build_extra_control_bones(deform_fk_mapping, constraints_only, reverse_controls)
                 return
                     
             # IK
@@ -1123,7 +1180,7 @@ class HaloRig:
         else:
             self.rig_ob.nwo.invert_control_rig = False
 
-        min_size, max_size = utils.to_aabb(self.rig_ob)
+        min_size, max_size = stable_armature_rest_aabb(self.rig_ob)
         shape_scale = abs((max_size - min_size).length) * 0.1
         ik_shape = bpy.data.objects.get(ik_shape_name)
         if ik_shape is None:
@@ -1168,7 +1225,7 @@ class HaloRig:
             con.target_space = 'LOCAL_OWNER_ORIENT'
             con.owner_space = 'LOCAL'
 
-        self.build_extra_control_bones(deform_fk_mapping, constraints_only)
+        self.build_extra_control_bones(deform_fk_mapping, constraints_only, reverse_controls)
 
         apply_fk_control_shapes(self.rig_pose, fk_bone_names, fk_shape)
         apply_torso_control_shapes(self.rig_pose, deform_fk_mapping, shape_scale * self.shape_scale)
@@ -1190,6 +1247,7 @@ class HaloRig:
             ptb.color.palette = 'THEME01'
 
             ikb.custom_shape = ik_shape
+            ikb.custom_shape_wire_width = 2.5
             ikb.custom_shape_scale_xyz = Vector.Fill(3, self.scale / 0.03048 * 1.2)
             ikb.use_custom_shape_bone_size = True
             ikb.custom_shape_translation = Vector((0.0, ikb.length, 0.0))
@@ -1203,37 +1261,41 @@ class HaloRig:
             ptb.custom_shape_translation = Vector((0.0, 0.0, 0.0))
             ptb.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
 
-            if settings_pb is not None:
+            clear_ik_inversion_constraints(ikb, self.rig_ob)
+            ik_target_specs = []
+            pole_target_specs = []
+            if reverse_controls:
+                if source_deform_name is not None:
+                    add_ik_inversion_constraints(ikb, self.rig_ob, source_deform_name)
+                pole_target_specs.append(armature_target_spec(ikb_name))
+            elif settings_pb is not None:
                 prop_name = ik_root_follow_property_name(fkb_name)
                 if root_control is not None:
-                    set_foundry_armature_constraint_targets(
-                        ikb,
-                        self.rig_ob,
-                        [
-                            armature_target_spec(
-                                root_control.name,
-                                prop_name,
-                                f"Whether {ikb_name} ignores the root bone",
-                                invert=True,
-                            ),
-                        ],
-                    )
+                    ik_target_specs.append(armature_target_spec(
+                        root_control.name,
+                        prop_name,
+                        f"Whether {ikb_name} follows the root bone",
+                    ))
 
-                pole_target_specs = [
-                    armature_target_spec(
-                        ikb_name,
-                        pole_target_follow_ik_property_name(fkb_name),
-                        f"Whether {pt_name} follows {ikb_name}",
-                    ),
-                ]
+                pole_target_specs.append(armature_target_spec(
+                    ikb_name,
+                    pole_target_follow_ik_property_name(fkb_name),
+                    f"Whether {pt_name} follows {ikb_name}",
+                ))
                 if root_control is not None:
                     pole_target_specs.append(armature_target_spec(
                         root_control.name,
                         prop_name,
-                        f"Whether {pt_name} ignores the root bone",
-                        invert=True,
+                        f"Whether {pt_name} follows the root bone",
                     ))
-                set_foundry_armature_constraint_targets(ptb, self.rig_ob, pole_target_specs)
+
+            set_foundry_armature_constraint_targets(ikb, self.rig_ob, ik_target_specs)
+            set_foundry_armature_constraint_targets(
+                ptb,
+                self.rig_ob,
+                pole_target_specs,
+                use_current_location=reverse_controls,
+            )
             
             clear_matching_constraints(
                 fkb,
@@ -1242,19 +1304,20 @@ class HaloRig:
                 self.rig_ob,
                 ikb_name,
             )
-            con = cast(bpy.types.Constraint, fkb.constraints.new('IK'))
-            con.name = ik_constraint_name
-            con.target = self.rig_ob
-            con.subtarget = ikb_name
-            con.chain_count = fk_ik_chain_count(fkb)
-            con.use_tail = False
-            
-            con.pole_target = self.rig_ob
-            con.pole_subtarget = pt_name
-            con.pole_angle = angle
-            con.influence = 0.0
-            if settings_pb is not None:
-                add_ik_control_prop_driver(con, self.rig_ob, ik_control_property_name(fkb_name))
+            if not reverse_controls:
+                con = cast(bpy.types.Constraint, fkb.constraints.new('IK'))
+                con.name = ik_constraint_name
+                con.target = self.rig_ob
+                con.subtarget = ikb_name
+                con.chain_count = fk_ik_chain_count(fkb)
+                con.use_tail = False
+
+                con.pole_target = self.rig_ob
+                con.pole_subtarget = pt_name
+                con.pole_angle = angle
+                con.influence = 0.0
+                if settings_pb is not None:
+                    add_ik_control_prop_driver(con, self.rig_ob, ik_control_property_name(fkb_name))
 
             clear_matching_constraints(
                 fkb,
@@ -1263,14 +1326,59 @@ class HaloRig:
                 self.rig_ob,
                 ikb_name,
             )
-            con = cast(bpy.types.Constraint, fkb.constraints.new('COPY_ROTATION'))
-            con.name = ik_copy_rotation_constraint_name
-            con.target = self.rig_ob
-            con.subtarget = ikb_name
-            con.influence = 0.0
-            if settings_pb is not None:
-                add_ik_control_prop_driver(con, self.rig_ob, ik_control_property_name(fkb_name))
+            if not reverse_controls:
+                con = cast(bpy.types.Constraint, fkb.constraints.new('COPY_ROTATION'))
+                con.name = ik_copy_rotation_constraint_name
+                con.target = self.rig_ob
+                con.subtarget = ikb_name
+                con.influence = 0.0
+                if settings_pb is not None:
+                    add_ik_control_prop_driver(con, self.rig_ob, ik_control_property_name(fkb_name))
             
+def clear_ik_inversion_constraints(ikb: bpy.types.PoseBone, rig_ob: bpy.types.Object):
+    clear_matching_constraints(ikb, ik_child_of_constraint_name, 'CHILD_OF', rig_ob)
+    clear_matching_constraints(ikb, ik_copy_location_constraint_name, 'COPY_LOCATION', rig_ob)
+    clear_matching_constraints(ikb, ik_copy_rotation_constraint_name, 'COPY_ROTATION', rig_ob)
+
+def add_ik_inversion_constraints(ikb: bpy.types.PoseBone, rig_ob: bpy.types.Object, source_deform_name: str):
+    con = cast(bpy.types.Constraint, ikb.constraints.new('CHILD_OF'))
+    con.name = ik_child_of_constraint_name
+    con.target = rig_ob
+    con.subtarget = source_deform_name
+    con.target_space = 'WORLD'
+    con.owner_space = 'WORLD'
+    con.set_inverse_pending = False
+    con.inverse_matrix = Matrix.Identity(4)
+    con.influence = 1.0
+
+def control_rig_build_in_rest_position(method):
+    def wrapped(self, *args, **kwargs):
+        arm = getattr(self, "rig_ob", None)
+        if arm is None or arm.type != 'ARMATURE':
+            return method(self, *args, **kwargs)
+
+        original_pose_position = arm.data.pose_position
+        arm.data.pose_position = 'REST'
+        try:
+            bpy.context.view_layer.update()
+        except RuntimeError:
+            pass
+
+        try:
+            return method(self, *args, **kwargs)
+        finally:
+            if arm.name in bpy.data.objects:
+                arm.data.pose_position = original_pose_position
+                try:
+                    bpy.context.view_layer.update()
+                except RuntimeError:
+                    pass
+
+    return wrapped
+
+HaloRig.build_and_apply_control_shapes = control_rig_build_in_rest_position(HaloRig.build_and_apply_control_shapes)
+HaloRig.build_fk_ik_rig = control_rig_build_in_rest_position(HaloRig.build_fk_ik_rig)
+
 def fk_ik_chain_count(fkb: bpy.types.PoseBone):
     count = 0
     while fkb.parent is not None:
@@ -1307,13 +1415,14 @@ def add_settings_control_prop_driver(driver_owner, rig_ob: bpy.types.Object, pro
 def add_ik_control_prop_driver(con: bpy.types.Constraint, rig_ob: bpy.types.Object, prop_name: str):
     add_settings_control_prop_driver(con, rig_ob, prop_name)
 
-def armature_target_spec(subtarget: str, prop_name: str | None = None, description: str = "", invert=False):
-    return subtarget, prop_name, description, invert
+def armature_target_spec(subtarget: str, prop_name: str | None = None, description: str = "", invert=False, weight=1.0):
+    return subtarget, prop_name, description, invert, weight
 
 def set_foundry_armature_constraint_targets(
     pbone: bpy.types.PoseBone,
     rig_ob: bpy.types.Object,
-    target_specs: list[tuple[str, str | None, str, bool]],
+    target_specs: list[tuple[str, str | None, str, bool, float]],
+    use_current_location=False,
 ):
     clear_foundry_armature_constraints(pbone, rig_ob, {spec[0] for spec in target_specs})
     if not target_specs:
@@ -1324,16 +1433,16 @@ def set_foundry_armature_constraint_targets(
     con.name = foundry_armature_constraint_name
     con.influence = 1.0
     con.use_deform_preserve_volume = True
-    con.use_current_location = False
+    con.use_current_location = use_current_location
 
-    for subtarget, prop_name, description, invert in target_specs:
+    for subtarget, prop_name, description, invert, weight in target_specs:
         target = con.targets.new()
         target.target = rig_ob
         target.subtarget = subtarget
-        target.weight = 1.0 if invert else 0.0
+        target.weight = weight if prop_name is None or invert else 0.0
         if prop_name is not None and settings_bone is not None:
             ensure_settings_bool_prop(settings_bone, prop_name, description)
-            add_settings_control_prop_driver(target, rig_ob, prop_name, invert=invert, data_path="weight")
+            add_settings_control_prop_driver(target, rig_ob, prop_name, multiplier=weight, invert=invert, data_path="weight")
 
 def clear_foundry_armature_constraints(
     pbone: bpy.types.PoseBone,
@@ -1363,7 +1472,7 @@ def add_root_child_of_constraint(pbone: bpy.types.PoseBone, rig_ob: bpy.types.Ob
         ensure_settings_bool_prop(
             settings_bone,
             prop_name,
-            f"Whether {pbone.name} ignores the root bone",
+            f"Whether {pbone.name} follows the root bone",
         )
 
     set_foundry_armature_constraint_targets(
@@ -1373,8 +1482,7 @@ def add_root_child_of_constraint(pbone: bpy.types.PoseBone, rig_ob: bpy.types.Ob
             armature_target_spec(
                 root_name,
                 prop_name,
-                f"Whether {pbone.name} ignores the root bone",
-                invert=True,
+                f"Whether {pbone.name} follows the root bone",
             ),
         ],
     )
@@ -1589,6 +1697,34 @@ def is_foundry_deform_custom_shape(shape: bpy.types.Object) -> bool:
             return True
 
     return False
+
+def stable_armature_rest_aabb(arm: bpy.types.Object) -> tuple[Vector, Vector]:
+    try:
+        matrix = utils.halo_transforms(arm)
+    except AttributeError:
+        matrix = arm.matrix_world
+    coords = []
+    for bone in arm.data.bones:
+        if is_control_bone_name(bone.name) or not bone.use_deform:
+            continue
+
+        coords.append(matrix @ bone.head_local)
+        coords.append(matrix @ bone.tail_local)
+
+    if not coords:
+        return utils.to_aabb(arm)
+
+    min_co = Vector((
+        min(co.x for co in coords),
+        min(co.y for co in coords),
+        min(co.z for co in coords),
+    ))
+    max_co = Vector((
+        max(co.x for co in coords),
+        max(co.y for co in coords),
+        max(co.z for co in coords),
+    ))
+    return min_co, max_co
 
 
 def predict_tail_from_previous(previous_fk_bone, current_edit_bone):
@@ -1807,6 +1943,7 @@ def apply_fk_control_shapes(rig_pose: bpy.types.Pose, fk_bone_names: list[str], 
 
         pbone.color.palette = 'THEME07'
         pbone.custom_shape = shape
+        pbone.custom_shape_wire_width = 2.0
         source_name = name[3:] if name.startswith("FK_") else name
         shape_scale = 2.2 if bone_name_matches_suffix(source_name, "hand") else 1.0
         pbone.custom_shape_scale_xyz = Vector.Fill(3, shape_scale)
@@ -1974,7 +2111,6 @@ def place_front_control_bone(
     parent: bpy.types.EditBone | None,
     length_source: bpy.types.EditBone | float | None = None,
 ) -> bpy.types.EditBone:
-    control_bone.matrix = root.matrix.copy()
     if hasattr(length_source, "length"):
         source_length = length_source.length
     elif isinstance(length_source, (int, float)):
@@ -1982,11 +2118,11 @@ def place_front_control_bone(
     else:
         source_length = height_source.length
 
-    control_bone.length = max(source_length * 0.35, 0.01)
-    bone_axis = control_bone.tail - control_bone.head
     offset = Vector((0.0, (-2 / 0.03048) * scale, 0.0))
     control_bone.head = height_source.head + offset
-    control_bone.tail = control_bone.head + bone_axis
+    # Front-facing target shapes are flat in the bone's local XY plane, so avoid
+    # inheriting root roll here; some rigs tip the head/look targets sideways.
+    point_bone_tail_global_up(control_bone, max(source_length * 0.35, 0.01))
 
     control_bone.parent = parent
     control_bone.use_connect = False
@@ -2004,6 +2140,7 @@ def ensure_ik_control_props(settings_bone: bpy.types.PoseBone, fk_ik_mapping: di
     remove_settings_prop(settings_bone, legacy_pole_target_follow_ik_prop_name)
 
     for fkb_name in fk_ik_mapping:
+        remove_settings_prop(settings_bone, legacy_ik_root_follow_property_name(fkb_name))
         prop_name = ik_control_property_name(fkb_name)
         ensure_settings_float_prop(settings_bone, prop_name, f"IK influence for {fkb_name}")
         ensure_settings_bool_prop(
@@ -2014,7 +2151,7 @@ def ensure_ik_control_props(settings_bone: bpy.types.PoseBone, fk_ik_mapping: di
         ensure_settings_bool_prop(
             settings_bone,
             ik_root_follow_property_name(fkb_name),
-            f"Whether {fkb_name.replace('FK_', 'IK_', 1)} ignores the root bone",
+            f"Whether {fkb_name.replace('FK_', 'IK_', 1)} follows the root bone",
         )
 
 def ensure_look_control_props(
@@ -2023,6 +2160,10 @@ def ensure_look_control_props(
     has_look_control: bool,
     has_eye_controls: bool,
 ):
+    remove_settings_prop(settings_bone, legacy_head_follow_root_prop_name)
+    remove_settings_prop(settings_bone, legacy_look_follow_root_prop_name)
+    remove_settings_prop(settings_bone, legacy_look_follow_head_prop_name)
+
     if has_head_control:
         ensure_settings_float_prop(
             settings_bone,
@@ -2032,7 +2173,7 @@ def ensure_look_control_props(
         ensure_settings_bool_prop(
             settings_bone,
             head_follow_root_prop_name,
-            f"Whether {head_control_name} ignores the root bone",
+            f"Whether {head_control_name} follows the root bone",
         )
     else:
         remove_settings_prop(settings_bone, head_track_prop_name)
@@ -2042,7 +2183,7 @@ def ensure_look_control_props(
         ensure_settings_bool_prop(
             settings_bone,
             look_follow_root_prop_name,
-            f"Whether {look_control_name} ignores the root bone",
+            f"Whether {look_control_name} follows the root bone",
         )
     else:
         remove_settings_prop(settings_bone, look_follow_root_prop_name)
@@ -2051,7 +2192,7 @@ def ensure_look_control_props(
         ensure_settings_bool_prop(
             settings_bone,
             look_follow_head_prop_name,
-            f"Whether {look_control_name} ignores {head_control_name}",
+            f"Whether {look_control_name} follows {head_control_name}",
         )
     else:
         remove_settings_prop(settings_bone, look_follow_head_prop_name)
@@ -2073,6 +2214,9 @@ def ensure_gun_control_props(settings_bone: bpy.types.PoseBone):
     )
 
 def ik_root_follow_property_name(fkb_name: str) -> str:
+    return f"{ik_control_property_name(fkb_name)} follows root"
+
+def legacy_ik_root_follow_property_name(fkb_name: str) -> str:
     return f"{ik_control_property_name(fkb_name)} ignore root"
 
 def pole_target_follow_ik_property_name(fkb_name: str) -> str:
