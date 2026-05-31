@@ -1341,14 +1341,34 @@ def clear_ik_inversion_constraints(ikb: bpy.types.PoseBone, rig_ob: bpy.types.Ob
     clear_matching_constraints(ikb, ik_copy_rotation_constraint_name, 'COPY_ROTATION', rig_ob)
 
 def add_ik_inversion_constraints(ikb: bpy.types.PoseBone, rig_ob: bpy.types.Object, source_deform_name: str):
-    con = cast(bpy.types.Constraint, ikb.constraints.new('CHILD_OF'))
-    con.name = ik_child_of_constraint_name
+    con = cast(bpy.types.Constraint, ikb.constraints.new('COPY_LOCATION'))
+    con.name = ik_copy_location_constraint_name
     con.target = rig_ob
     con.subtarget = source_deform_name
+    con.use_x = True
+    con.use_y = True
+    con.use_z = True
+    con.invert_x = False
+    con.invert_y = False
+    con.invert_z = False
+    con.use_offset = False
     con.target_space = 'WORLD'
     con.owner_space = 'WORLD'
-    con.set_inverse_pending = False
-    con.inverse_matrix = Matrix.Identity(4)
+    con.influence = 1.0
+
+    con = cast(bpy.types.Constraint, ikb.constraints.new('COPY_ROTATION'))
+    con.name = ik_copy_rotation_constraint_name
+    con.target = rig_ob
+    con.subtarget = source_deform_name
+    con.use_x = True
+    con.use_y = True
+    con.use_z = True
+    con.invert_x = False
+    con.invert_y = False
+    con.invert_z = False
+    con.mix_mode = 'REPLACE'
+    con.target_space = 'LOCAL_OWNER_ORIENT'
+    con.owner_space = 'LOCAL'
     con.influence = 1.0
 
 def control_rig_build_in_rest_position(method):
