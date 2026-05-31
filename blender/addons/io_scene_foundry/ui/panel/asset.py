@@ -60,7 +60,7 @@ class NWO_OT_CopyScenario(bpy.types.Operator):
             
         with ScenarioTag(path=scenario) as scen:
             new_tag_path = scen._TagPath_from_string(new_scenario)
-            scen.tag.SelectField("ShortEnum:type").Value = 0 # set to solo
+            scen.tag.SelectField("type").Value = 0 # set to solo
             scen.tag.SaveAsCopy(new_tag_path)
         
         if new_scenario.exists():
