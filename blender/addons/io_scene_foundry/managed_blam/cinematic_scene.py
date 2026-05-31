@@ -396,7 +396,7 @@ class CinematicCustomScript:
         actor_attachment_names = actor_attachment_names or {}
         actor_attachment_weapon_names = actor_attachment_weapon_names or {}
         attachment_name = ""
-        attachment_key = event["script_attachment"]
+        attachment_key = event.script_attachment
         if attachment_key and attachment_key != "NONE":
             attachment_name = actor_attachment_names.get(event.actor, {}).get(attachment_key, "")
 
@@ -416,7 +416,11 @@ class CinematicCustomScript:
                     else:
                         weapon_name = object_tag_weapon_names.get(event.actor, "")
                     if weapon_name:
-                        self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(event.script_type == "WEAPON_TRIGGER_START")}'
+                        if event.script_type == "WEAPON_TRIGGER_START":
+                            self.script = f'(weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") 1) (weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") 0)'
+                        else:
+                            f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") 0'
+                            
             case 'SET_VARIANT':
                 if target_name and event.script_variant:
                     self.script = f'object_set_variant {obj_text} "{event.script_variant}"'

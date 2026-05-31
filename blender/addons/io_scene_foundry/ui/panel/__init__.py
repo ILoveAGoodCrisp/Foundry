@@ -274,7 +274,7 @@ def pose_control_label(prop_name: str) -> str:
     return utils.formalise_string(prop_name)
 
 def _cinematic_event_script_attachment(event):
-    attachment_key = event["script_attachment"]
+    attachment_key = event.script_attachment
     if event.actor is None or attachment_key in {"", "NONE"}:
         return None
 

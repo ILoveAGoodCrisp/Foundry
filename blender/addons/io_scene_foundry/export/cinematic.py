@@ -918,13 +918,6 @@ class QUA:
             attachment_element.SelectField("attachment marker name").SetStringData(attachment_marker_name)
             attachment_element.SelectField("attachment type").Path = tag._TagPath_from_string(attachment_type)
 
-        def attachment_can_fire_weapon(attachment_type: str) -> bool:
-            if Path(attachment_type).suffix.lower() == ".weapon":
-                return True
-
-            weapon_path = Path(utils.get_tags_path(), attachment_type).with_suffix(".weapon")
-            return weapon_path.exists() and weapon_path.is_file()
-
         object_tag_weapon_names = {} # used for custom scripts
         actor_attachment_names = {} # used for custom scripts
         actor_attachment_weapon_names = {} # used for weapon trigger scripts
@@ -959,7 +952,7 @@ class QUA:
                 actor_attachments[str(index + 1)] = attachment_object_name
                 if index == 0:
                     actor_attachments["0"] = attachment_object_name
-                if attachment_can_fire_weapon(attachment_type):
+                if Path(attachment_type).suffix.lower() == ".weapon":
                     actor_weapon_attachments = actor_attachment_weapon_names.setdefault(actor.ob, {})
                     actor_weapon_attachments[attachment.name or str(index + 1)] = attachment_object_name
                     actor_weapon_attachments[f"ATTACHMENT_{index}"] = attachment_object_name

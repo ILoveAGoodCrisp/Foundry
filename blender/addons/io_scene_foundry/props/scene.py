@@ -1971,42 +1971,16 @@ def script_attachment_matches(value: str, attachment, index: int) -> bool:
         or (value == "0" and index == 0)
     )
 
-def script_attachment_value(event) -> str:
-    return event["script_attachment"]
-
-def script_attachment_number(value: str) -> int:
-    if not value or value == "NONE":
-        return 0
-
-    if value.isdigit():
-        return int(value)
-
-    if value.startswith("ATTACHMENT_"):
-        try:
-            return int(value.rsplit("_", 1)[1]) + 1
-        except (IndexError, ValueError):
-            return 1
-
-    return 1
-
 def cinematic_event_pointer_valid(ob: bpy.types.Object) -> bool:
-    try:
-        return ob is not None and bool(ob.name)
-    except (ReferenceError, AttributeError):
-        return False
+    return ob is not None and bool(ob.name)
     
 class NWO_CinematicEvent(PropertyGroup):
     def script_attachment_items(self, context):
         items = [("NONE", "Actor", "Apply this script to the actor", 0, 0)]
         if not cinematic_event_pointer_valid(self.actor):
-            current_value = script_attachment_value(self)
-            current_number = script_attachment_number(current_value)
-            if current_value not in {"", "NONE"}:
-                items.append((current_value, f"Attachment {current_value}", "Apply this script to this actor attachment", 0, current_number))
             for index in range(1, 33):
                 identifier = str(index)
-                if identifier != current_value and index != current_number:
-                    items.append((identifier, f"Attachment {index}", "Apply this script to this actor attachment", 0, index))
+                items.append((identifier, f"Attachment {index}", "Apply this script to this actor attachment", 0, index))
             return items
 
         for index, attachment in enumerate(self.actor.nwo.attachments):
@@ -2019,7 +1993,7 @@ class NWO_CinematicEvent(PropertyGroup):
         if not cinematic_event_pointer_valid(self.actor):
             return "NONE"
 
-        attachment_value = script_attachment_value(self)
+        attachment_value = self.script_attachment
         if attachment_value not in {"", "NONE"}:
             for index, attachment in enumerate(self.actor.nwo.attachments):
                 if script_attachment_matches(attachment_value, attachment, index):

@@ -1404,7 +1404,7 @@ class GetCinematicBase(bpy.types.Operator):
         if event.actor is None:
             return ""
 
-        attachment_key = event["script_attachment"]
+        attachment_key = event.script_attachment
         if attachment_key and attachment_key != "NONE":
             for index, attachment in enumerate(event.actor.nwo.attachments):
                 if (
