@@ -1,3 +1,5 @@
+import re
+
 import bpy
 
 from ... import utils
@@ -14,13 +16,15 @@ from ...tools.rigging import (
     get_head_driver_bone_name,
     head_control_name,
     head_track_constraint_name,
+    ik_blend_property_name,
     ik_collection_name,
     ik_child_of_constraint_name,
     ik_constraint_name,
-    ik_control_property_name,
     ik_copy_location_constraint_name,
     ik_copy_rotation_constraint_name,
     is_control_bone_name,
+    is_finger_ik_chain_source_name,
+    is_finger_ik_source_name,
     look_control_name,
     look_child_of_constraint_name,
     misc_control_collection_name,
@@ -33,7 +37,7 @@ from ...tools.rigging import (
 )
 from bpy_extras import anim_utils
 from math import ceil, floor
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 
 def scene_control_scale():
@@ -353,7 +357,7 @@ def ik_target_bake_contexts(arm: bpy.types.Object) -> list[tuple[str, bpy.types.
         if len(chain) < 2:
             continue
 
-        contexts.append((ik_control_property_name(fkb.name), fkb, ikb, ptb, chain))
+        contexts.append((ik_blend_property_name(fkb.name), fkb, ikb, ptb, chain))
 
     return contexts
 
@@ -661,6 +665,21 @@ class NWO_OT_BakeIKControl(bpy.types.Operator):
     @classmethod
     def description(cls, context, properties):
         direction = cls.resolve_direction_from_context(context, properties)
+        prop_name = getattr(properties, "prop_name", "")
+        arm = context.object if context is not None else None
+        is_ik_prop = bool(
+            arm is not None
+            and getattr(arm, "type", None) == 'ARMATURE'
+            and prop_name
+            and fk_bones_from_ik_prop(arm, prop_name)
+        )
+        if not is_ik_prop and prop_name:
+            if direction == 'FK_TO_IK':
+                return "Enable this pose control and preserve the affected bones"
+            elif direction == 'IK_TO_FK':
+                return "Disable this pose control and preserve the affected bones"
+            return "Toggle this pose control and preserve the affected bones"
+
         if direction == 'FK_TO_IK':
             return "Snap IK controls to the current FK pose and enable IK"
         elif direction == 'IK_TO_FK':
@@ -694,7 +713,7 @@ class NWO_OT_BakeIKControl(bpy.types.Operator):
         self.frame_end = context.scene.frame_end
         self.do_bake = False
         self.direction = self.resolve_direction_from_context(context, self)
-        if self._ik_context(context, report=True) is None:
+        if self._snap_context(context, report=True) is None:
             return {'CANCELLED'}
         return context.window_manager.invoke_props_dialog(self)
 
@@ -709,23 +728,29 @@ class NWO_OT_BakeIKControl(bpy.types.Operator):
             key_row.prop(self, "key_before_start")
             key_row.prop(self, "key_after_end")
 
-        ik_context = self._ik_context(context)
-        if ik_context is None:
+        snap_context = self._snap_context(context)
+        if snap_context is None:
             return
 
-        _arm, _settings_bone, _fkb, ikb, ptb, chain, direction = ik_context
         layout.separator()
-        layout.label(text="Snapped bones:")
+        layout.label(text="Snapped bones:" if snap_context["type"] == "IK" else "Preserved bones:")
         col = layout.column(align=True)
-        for source_name, target_name in ik_snap_display_rows(direction, chain, ikb, ptb):
-            col.label(text=f"          {source_name} -> {target_name}")
+        if snap_context["type"] == "IK":
+            for _fkb, ikb, ptb, chain in snap_context["contexts"]:
+                for source_name, target_name in ik_snap_display_rows(snap_context["direction"], chain, ikb, ptb):
+                    col.label(text=f"          {source_name} -> {target_name}")
+        else:
+            for pbone in snap_context["bones"]:
+                col.label(text=f"          {pbone.name}")
 
     def execute(self, context):
-        ik_context = self._ik_context(context, report=True)
-        if ik_context is None:
+        snap_context = self._snap_context(context, report=True)
+        if snap_context is None:
             return {'CANCELLED'}
 
-        arm, settings_bone, fkb, ikb, ptb, chain, direction = ik_context
+        arm = snap_context["arm"]
+        settings_bone = snap_context["settings_bone"]
+        direction = snap_context["direction"]
         if self.do_bake and self.frame_end < self.frame_start:
             self.report({'WARNING'}, "End frame must be greater than or equal to start frame")
             return {'CANCELLED'}
@@ -741,7 +766,7 @@ class NWO_OT_BakeIKControl(bpy.types.Operator):
         utils.set_active_object(arm)
 
         try:
-            affected_bones = ik_affected_bones(direction, chain, ikb, ptb)
+            affected_bones = snap_context_affected_bones(snap_context)
             if self.do_bake:
                 frames = list(range(self.frame_start, self.frame_end + 1))
                 if self.key_before_start:
@@ -750,65 +775,79 @@ class NWO_OT_BakeIKControl(bpy.types.Operator):
                     key_ik_state(context, settings_bone, self.prop_name, affected_bones, self.frame_end + 1)
 
                 for frame in frames:
-                    snap_ik_control_frame(
-                        context,
-                        settings_bone,
-                        self.prop_name,
-                        direction,
-                        chain,
-                        fkb,
-                        ikb,
-                        ptb,
-                        frame,
-                        keyframe=True,
-                    )
+                    snap_control_context_frame(context, snap_context, frame, keyframe=True)
 
                 set_settings_prop_key_interpolation(arm, self.prop_name, frames)
-                self.report({'INFO'}, f"Baked {'FK to IK' if direction == 'FK_TO_IK' else 'IK to FK'} for {fkb.name}")
+                self.report({'INFO'}, f"Baked {'on' if direction == 'FK_TO_IK' else 'off'} for {self.prop_name}")
             else:
-                snap_ik_control_frame(
-                    context,
-                    settings_bone,
-                    self.prop_name,
-                    direction,
-                    chain,
-                    fkb,
-                    ikb,
-                    ptb,
-                    original_frame,
-                    keyframe=False,
-                )
-                self.report({'INFO'}, f"Snapped {'FK to IK' if direction == 'FK_TO_IK' else 'IK to FK'} for {fkb.name}")
+                snap_control_context_frame(context, snap_context, original_frame, keyframe=False)
+                self.report({'INFO'}, f"Snapped {self.prop_name} {'on' if direction == 'FK_TO_IK' else 'off'}")
         finally:
             context.scene.frame_set(original_frame)
             utils.restore_mode(original_mode)
 
         return {'FINISHED'}
 
-    def _ik_context(self, context, report=False):
+    def _snap_context(self, context, report=False):
+        ik_context = self._ik_context(context)
+        if ik_context is not None:
+            return ik_context
+
+        generic_context = self._generic_context(context)
+        if generic_context is not None:
+            return generic_context
+
+        if report:
+            self.report({'WARNING'}, f"Failed to find driven controls for {self.prop_name}")
+
+    def _ik_context(self, context):
         arm = context.object
         settings_bone = arm.pose.bones.get(settings_control_name)
         if settings_bone is None or self.prop_name not in settings_bone:
-            if report:
-                self.report({'WARNING'}, f"Failed to find {settings_control_name}.{self.prop_name}")
             return None
 
-        fkb = fk_bone_from_ik_prop(arm, self.prop_name)
-        if fkb is None:
-            if report:
-                self.report({'WARNING'}, f"Failed to find FK bone for {self.prop_name}")
+        contexts = []
+        for fkb in fk_bones_from_ik_prop(arm, self.prop_name):
+            ikb = arm.pose.bones.get(fkb.name.replace("FK_", "IK_", 1))
+            ptb = arm.pose.bones.get(fkb.name.replace("FK_", "PT_", 1))
+            if ikb is None:
+                continue
+
+            chain = fk_chain_for_end_bone(fkb)
+            if not chain:
+                continue
+            contexts.append((fkb, ikb, ptb, chain))
+
+        if not contexts:
             return None
 
-        ikb = arm.pose.bones.get(fkb.name.replace("FK_", "IK_", 1))
-        ptb = arm.pose.bones.get(fkb.name.replace("FK_", "PT_", 1))
-        if ikb is None or ptb is None:
-            if report:
-                self.report({'WARNING'}, f"Failed to find IK controls for {fkb.name}")
+        return {
+            "type": "IK",
+            "arm": arm,
+            "settings_bone": settings_bone,
+            "prop_name": self.prop_name,
+            "contexts": contexts,
+            "direction": self.resolve_direction_from_context(context, self),
+        }
+
+    def _generic_context(self, context):
+        arm = context.object
+        settings_bone = arm.pose.bones.get(settings_control_name)
+        if settings_bone is None or self.prop_name not in settings_bone:
             return None
 
-        chain = fk_chain_for_end_bone(fkb)
-        direction = self.resolve_direction_from_context(context, self)
-        return arm, settings_bone, fkb, ikb, ptb, chain, direction
+        bones = settings_prop_affected_pose_bones(arm, self.prop_name)
+        if not bones:
+            return None
+
+        return {
+            "type": "GENERIC",
+            "arm": arm,
+            "settings_bone": settings_bone,
+            "prop_name": self.prop_name,
+            "bones": bones,
+            "direction": self.resolve_direction_from_context(context, self),
+        }
 
 def ensure_armature_action(arm: bpy.types.Object):
     if arm.animation_data is None:
@@ -816,9 +855,31 @@ def ensure_armature_action(arm: bpy.types.Object):
     if arm.animation_data.action is None:
         arm.animation_data.action = bpy.data.actions.new(f"ACT-{arm.name}")
 
-def ik_snap_display_rows(direction: str, chain: list[bpy.types.PoseBone], ikb: bpy.types.PoseBone, ptb: bpy.types.PoseBone) -> list[tuple[str, str]]:
+def snap_context_affected_bones(snap_context) -> list[bpy.types.PoseBone]:
+    if snap_context["type"] == "IK":
+        affected = []
+        for _fkb, ikb, ptb, chain in snap_context["contexts"]:
+            affected.extend(ik_affected_bones(snap_context["direction"], chain, ikb, ptb))
+        return unique_pose_bones(affected)
+
+    return unique_pose_bones(snap_context["bones"])
+
+def unique_pose_bones(bones) -> list[bpy.types.PoseBone]:
+    unique = []
+    seen = set()
+    for bone in bones:
+        if bone is None or bone.name in seen:
+            continue
+        unique.append(bone)
+        seen.add(bone.name)
+
+    return unique
+
+def ik_snap_display_rows(direction: str, chain: list[bpy.types.PoseBone], ikb: bpy.types.PoseBone, ptb: bpy.types.PoseBone | None) -> list[tuple[str, str]]:
     if direction == 'FK_TO_IK':
         rows = [(chain[-1].name, ikb.name)] if chain else []
+        if ptb is None:
+            return rows
         if len(chain) > 1:
             rows.append((chain[-2].name, ptb.name))
         else:
@@ -827,8 +888,11 @@ def ik_snap_display_rows(direction: str, chain: list[bpy.types.PoseBone], ikb: b
 
     return [(ikb.name, pbone.name) for pbone in chain]
 
-def ik_affected_bones(direction: str, chain: list[bpy.types.PoseBone], ikb: bpy.types.PoseBone, ptb: bpy.types.PoseBone) -> list[bpy.types.PoseBone]:
-    return [ikb, ptb] if direction == 'FK_TO_IK' else list(chain)
+def ik_affected_bones(direction: str, chain: list[bpy.types.PoseBone], ikb: bpy.types.PoseBone, ptb: bpy.types.PoseBone | None) -> list[bpy.types.PoseBone]:
+    if direction == 'FK_TO_IK':
+        return [bone for bone in (ikb, ptb) if bone is not None]
+
+    return list(chain)
 
 def key_ik_state(
     context: bpy.types.Context,
@@ -842,6 +906,142 @@ def key_ik_state(
     keyframe_settings_prop(settings_bone, prop_name, frame)
     for pbone in affected_bones:
         keyframe_pose_bone_transform(pbone, frame)
+
+def snap_control_context_frame(context, snap_context, frame: int, keyframe=False):
+    if snap_context["type"] == "IK":
+        snap_ik_contexts_frame(
+            context,
+            snap_context["settings_bone"],
+            snap_context["arm"],
+            snap_context["prop_name"] if "prop_name" in snap_context else None,
+            snap_context["direction"],
+            snap_context["contexts"],
+            frame,
+            keyframe,
+        )
+        return
+
+    snap_generic_control_frame(
+        context,
+        snap_context["settings_bone"],
+        snap_context["prop_name"] if "prop_name" in snap_context else None,
+        snap_context["direction"],
+        snap_context["bones"],
+        frame,
+        keyframe,
+    )
+
+def snap_ik_contexts_frame(
+    context: bpy.types.Context,
+    settings_bone: bpy.types.PoseBone,
+    arm: bpy.types.Object,
+    prop_name: str | None,
+    direction: str,
+    contexts: list[tuple[bpy.types.PoseBone, bpy.types.PoseBone, bpy.types.PoseBone | None, list[bpy.types.PoseBone]]],
+    frame: int,
+    keyframe=False,
+):
+    if not prop_name:
+        return
+
+    context.scene.frame_set(frame)
+    if direction == 'FK_TO_IK':
+        set_settings_control_prop_value(settings_bone, prop_name, False)
+        context.view_layer.update()
+        targets = []
+        for fkb, _ikb, ptb, chain in contexts:
+            ik_matrix = ik_snap_target_matrix(fkb, _ikb)
+            pole_position = calculate_pose_pole_position(chain[0], chain[-2], fkb, ptb) if ptb is not None and len(chain) > 1 else None
+            targets.append((ik_matrix, pole_position))
+
+        set_settings_control_prop_value(settings_bone, prop_name, True)
+        context.view_layer.update()
+        for (_fkb, ikb, ptb, _chain), (ik_matrix, pole_position) in zip(contexts, targets):
+            ikb.matrix = ik_matrix
+            if ptb is not None and pole_position is not None:
+                set_pose_bone_matrix_translation(ptb, pole_position)
+        context.view_layer.update()
+
+        if keyframe:
+            for _fkb, ikb, ptb, _chain in contexts:
+                keyframe_pose_bone_transform(ikb, frame)
+                if ptb is not None:
+                    keyframe_pose_bone_transform(ptb, frame)
+            keyframe_settings_prop(settings_bone, prop_name, frame)
+        return
+
+    set_settings_control_prop_value(settings_bone, prop_name, True)
+    context.view_layer.update()
+    visual_matrices = {}
+    for _fkb, _ikb, _ptb, chain in contexts:
+        visual_matrices.update({pbone.name: pbone.matrix.copy() for pbone in chain})
+
+    set_settings_control_prop_value(settings_bone, prop_name, False)
+    context.view_layer.update()
+    for _fkb, _ikb, _ptb, chain in contexts:
+        for pbone in chain:
+            pbone.matrix = visual_matrices[pbone.name]
+    context.view_layer.update()
+
+    if keyframe:
+        for _fkb, _ikb, _ptb, chain in contexts:
+            for pbone in chain:
+                keyframe_pose_bone_transform(pbone, frame)
+        keyframe_settings_prop(settings_bone, prop_name, frame)
+
+def ik_snap_target_matrix(fkb: bpy.types.PoseBone, ikb: bpy.types.PoseBone) -> Matrix:
+    if is_finger_ik_source_name(fkb.name):
+        matrix = ikb.matrix.copy()
+        matrix.translation = fkb.tail.copy()
+        return matrix
+
+    return fkb.matrix.copy()
+
+def snap_generic_control_frame(
+    context: bpy.types.Context,
+    settings_bone: bpy.types.PoseBone,
+    prop_name: str | None,
+    direction: str,
+    affected_bones: list[bpy.types.PoseBone],
+    frame: int,
+    keyframe=False,
+):
+    if not prop_name:
+        return
+
+    context.scene.frame_set(frame)
+    context.view_layer.update()
+    visual_matrices = {pbone.name: pbone.matrix.copy() for pbone in affected_bones}
+    set_settings_control_prop_value(settings_bone, prop_name, direction == 'FK_TO_IK')
+    context.view_layer.update()
+    for pbone in affected_bones:
+        pbone.matrix = visual_matrices[pbone.name]
+    context.view_layer.update()
+
+    if keyframe:
+        for pbone in affected_bones:
+            keyframe_pose_bone_transform(pbone, frame)
+        keyframe_settings_prop(settings_bone, prop_name, frame)
+
+def set_settings_control_prop_value(settings_bone: bpy.types.PoseBone, prop_name: str, enabled: bool):
+    if settings_prop_uses_bool(settings_bone, prop_name):
+        settings_bone[prop_name] = bool(enabled)
+    else:
+        settings_bone[prop_name] = 1.0 if enabled else 0.0
+    settings_bone.id_data.update_tag()
+
+def settings_prop_uses_bool(settings_bone: bpy.types.PoseBone, prop_name: str) -> bool:
+    if prop_name in settings_bone and isinstance(settings_bone[prop_name], bool):
+        return True
+
+    lower_name = prop_name.lower()
+    return (
+        "follows " in lower_name
+        or "follow " in lower_name
+        or "ignores " in lower_name
+        or "ignore " in lower_name
+        or "root_ignore" in lower_name
+    )
 
 def snap_ik_control_frame(
     context: bpy.types.Context,
@@ -857,13 +1057,13 @@ def snap_ik_control_frame(
 ):
     context.scene.frame_set(frame)
     if direction == 'FK_TO_IK':
-        settings_bone[prop_name] = 0.0
+        set_settings_control_prop_value(settings_bone, prop_name, False)
         context.view_layer.update()
 
-        ik_matrix = fkb.matrix.copy()
+        ik_matrix = ik_snap_target_matrix(fkb, ikb)
         pole_position = calculate_pose_pole_position(chain[0], chain[-2], fkb, ptb) if len(chain) > 1 else fkb.head.copy()
 
-        settings_bone[prop_name] = 1.0
+        set_settings_control_prop_value(settings_bone, prop_name, True)
         context.view_layer.update()
         ikb.matrix = ik_matrix
         set_pose_bone_matrix_translation(ptb, pole_position)
@@ -875,11 +1075,11 @@ def snap_ik_control_frame(
             keyframe_settings_prop(settings_bone, prop_name, frame)
         return
 
-    settings_bone[prop_name] = 1.0
+    set_settings_control_prop_value(settings_bone, prop_name, True)
     context.view_layer.update()
     visual_matrices = {pbone.name: pbone.matrix.copy() for pbone in chain}
 
-    settings_bone[prop_name] = 0.0
+    set_settings_control_prop_value(settings_bone, prop_name, False)
     context.view_layer.update()
     for pbone in chain:
         pbone.matrix = visual_matrices[pbone.name]
@@ -925,15 +1125,52 @@ class NWO_OT_KeyframeControlRigSettings(bpy.types.Operator):
         self.report({'INFO'}, f"Keyframed {keyed_count} {settings_control_name} propert{'y' if keyed_count == 1 else 'ies'}")
         return {'FINISHED'}
 
-def fk_bone_from_ik_prop(arm: bpy.types.Object, prop_name: str) -> bpy.types.PoseBone | None:
+POSE_BONE_DATA_PATH_RE = re.compile(r'pose\.bones\["([^"]+)"\]')
+
+def fk_bones_from_ik_prop(arm: bpy.types.Object, prop_name: str) -> list[bpy.types.PoseBone]:
+    bones = []
     for pbone in arm.pose.bones:
-        if pbone.name.startswith("FK_") and ik_control_property_name(pbone.name) == prop_name:
-            return pbone
+        if pbone.name.startswith("FK_") and ik_blend_property_name(pbone.name) == prop_name:
+            bones.append(pbone)
+
+    return bones
+
+def fk_bone_from_ik_prop(arm: bpy.types.Object, prop_name: str) -> bpy.types.PoseBone | None:
+    bones = fk_bones_from_ik_prop(arm, prop_name)
+    return bones[0] if bones else None
+
+def settings_prop_affected_pose_bones(arm: bpy.types.Object, prop_name: str) -> list[bpy.types.PoseBone]:
+    animation_data = arm.animation_data
+    if animation_data is None:
+        return []
+
+    prop_path = settings_prop_data_path(prop_name)
+    affected_names = []
+    for fcurve in animation_data.drivers:
+        driver = fcurve.driver
+        if not any(
+            target.id == arm and target.data_path == prop_path
+            for var in driver.variables
+            for target in var.targets
+        ):
+            continue
+
+        match = POSE_BONE_DATA_PATH_RE.search(fcurve.data_path)
+        if match is not None:
+            affected_names.append(match.group(1))
+
+    return [
+        arm.pose.bones[name]
+        for name in dict.fromkeys(affected_names)
+        if arm.pose.bones.get(name) is not None
+    ]
 
 def fk_chain_for_end_bone(fkb: bpy.types.PoseBone) -> list[bpy.types.PoseBone]:
     chain = []
     pbone = fkb
     while pbone is not None and pbone.name.startswith("FK_"):
+        if is_finger_ik_source_name(fkb.name) and not is_finger_ik_chain_source_name(pbone.name):
+            break
         chain.append(pbone)
         pbone = pbone.parent
 

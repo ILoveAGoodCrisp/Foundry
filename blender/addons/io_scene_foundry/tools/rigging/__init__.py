@@ -67,6 +67,9 @@ ik_constraint_name = 'Foundry IK'
 ik_child_of_constraint_name = 'Foundry IK Child Of'
 ik_copy_location_constraint_name = 'Foundry IK Copy Location'
 ik_copy_rotation_constraint_name = 'Foundry IK Copy Rotation'
+finger_curl_constraint_name = 'Foundry Finger Curl'
+foot_roll_toe_counter_constraint_name = 'Foundry Foot Roll Toe Counter'
+legacy_foot_roll_constraint_name = 'Foundry Foot Roll'
 legacy_head_follow_root_prop_name = "Head track ignores root"
 legacy_look_follow_root_prop_name = "Look track ignores root"
 legacy_look_follow_head_prop_name = "Look ignores head"
@@ -76,6 +79,7 @@ look_follow_head_prop_name = "Look follows head"
 head_track_prop_name = "Head Track"
 eye_track_prop_name = "Eye Track"
 gun_control_prop_name = "gun_control"
+hands_follow_gun_prop_name = "Hands follow gun"
 legacy_pole_target_follow_ik_prop_name = "Pole Target Follow IK"
 
 reach_fp_ik_fix_render_models = frozenset({
@@ -106,6 +110,7 @@ bone_links = (
     ("pinky1", "pinky2", "pinky3"),
     ("ring1", "ring2", "ring3"),
     ("middle1", "middle2", "middle3"),
+    ("finger1", "finger2", "finger3"),
     ("thigh", "shin", "hinge", "toe", "toe_atr_u"),
 )
 
@@ -119,7 +124,46 @@ bones_to_add_fk = (
     "chest",
 )
 
-ik_endpoint_bone_suffixes = ("foot", "tarsus", "hand", "toe_atr_u")
+finger_ik_chain_bone_suffixes = (
+    "index1",
+    "index2",
+    "index3",
+    "index_low",
+    "index_mid",
+    "index_tip",
+    "thumb1",
+    "thumb2",
+    "thumb3",
+    "thumb_low",
+    "thumb_mid",
+    "thumb_tip",
+    "pinky1",
+    "pinky2",
+    "pinky3",
+    "pinky_low",
+    "pinky_mid",
+    "pinky_tip",
+    "ring1",
+    "ring2",
+    "ring3",
+    "ring_low",
+    "ring_mid",
+    "ring_tip",
+    "middle1",
+    "middle2",
+    "middle3",
+    "middle_low",
+    "middle_mid",
+    "middle_tip",
+    "finger1",
+    "finger2",
+    "finger3",
+    "finger_low",
+    "finger_mid",
+    "finger_tip",
+)
+finger_ik_endpoint_bone_suffixes = ("index3", "thumb3", "pinky3", "ring3", "middle3", "finger3", "index_tip", "thumb_tip", "pinky_tip", "ring_tip", "middle_tip", "finger_tip")
+ik_endpoint_bone_suffixes = ("foot", "tarsus", "hand", "toe_atr_u", *finger_ik_endpoint_bone_suffixes)
 
 head_bone_name = '_head'
 eyes_bone_name = '_eye'
@@ -808,6 +852,8 @@ class HaloRig:
             apply_control_shape(gun_control, gun_shape, control_shape_scale, 'THEME04', use_bone_size=False)
             if settings_control is not None:
                 ensure_gun_control_props(settings_control)
+        elif settings_control is not None:
+            remove_settings_prop(settings_control, hands_follow_gun_prop_name)
 
         if head_driver_name and head_control is not None:
             head_driver = self.rig_pose.bones.get(head_driver_name)
@@ -905,7 +951,7 @@ class HaloRig:
             return pbone
         
         if constraints_only:
-            existing_ik_targets = []
+            ik_target_specs = []
             existing_head_fk_names = []
 
             for bone in self.rig_pose.bones:
@@ -919,10 +965,9 @@ class HaloRig:
                     if is_ik_endpoint_fk_name(bone.name):
                         ik_name = bone.name.replace("FK_", "IK_", 1)
                         pt_name = ik_name.replace("IK_", "PT_", 1)
-                        if self.rig_pose.bones.get(ik_name) is not None and self.rig_pose.bones.get(pt_name) is not None:
-                            existing_ik_targets.append((bone.name, ik_name, pt_name))
+                        ik_target_specs.append((bone.name, ik_name, pt_name))
 
-            if existing_ik_targets or existing_head_fk_names:
+            if ik_target_specs or existing_head_fk_names:
                 bpy.ops.object.mode_set(mode='EDIT', toggle=False)
                 edit_bones = self.rig_data.edit_bones
                 root = edit_bones[0] if len(edit_bones) else None
@@ -931,21 +976,35 @@ class HaloRig:
                     if fk_head is not None:
                         point_bone_tail_global_up(fk_head)
 
-                if existing_ik_targets:
+                if ik_target_specs:
                     remove_legacy_fk_ik_slider_bones(edit_bones)
                     if root is not None:
                         settings_bone = ensure_settings_control_bone(edit_bones, root, self.scale)
                         settings_bone_name = settings_bone.name
-                    for fkb_name, ik_name, pt_name in existing_ik_targets:
+                    for fkb_name, ik_name, pt_name in ik_target_specs:
                         fkb = edit_bones.get(fkb_name)
-                        ik_target = edit_bones.get(ik_name)
-                        pole_target = edit_bones.get(pt_name)
-                        if fkb is None or ik_target is None or pole_target is None or fkb.parent is None or fkb.parent.parent is None:
+                        if fkb is None or fkb.parent is None or fkb.parent.parent is None:
                             continue
+
+                        ik_target = edit_bones.get(ik_name)
+                        if ik_target is None:
+                            ik_target = edit_bones.new(ik_name)
+                            copy_edit_bone_transform(ik_target, fkb)
 
                         ik_target.parent = None
                         ik_target.use_connect = False
                         ik_target.use_deform = False
+
+                        if is_finger_ik_source_name(fkb_name):
+                            copy_finger_ik_edit_bone_transform(ik_target, fkb)
+                            fk_ik_mapping[fkb_name] = ik_name, None, 0.0
+                            ik_bone_names.append(ik_name)
+                            continue
+
+                        pole_target = edit_bones.get(pt_name)
+                        if pole_target is None:
+                            pole_target = edit_bones.new(pt_name)
+
                         pole_target.parent = None
                         pole_target.use_connect = False
                         pole_target.use_deform = False
@@ -963,6 +1022,8 @@ class HaloRig:
                         fk_ik_mapping[fkb_name] = ik_name, pt_name, angle
                         ik_bone_names.append(ik_name)
                         ik_bone_names.append(pt_name)
+
+                    ik_bone_names.extend(ensure_foot_roll_control_bones(edit_bones, deform_fk_mapping))
 
                 align_x_mirror_control_bone_rolls(edit_bones, (*fk_bone_names, *ik_bone_names))
 
@@ -1151,7 +1212,13 @@ class HaloRig:
                 ikb: bpy.types.EditBone
                 copy_edit_bone_transform(ikb, fkb)
                 ikb.parent = None
-                
+
+                if is_finger_ik_source_name(fkb.name):
+                    copy_finger_ik_edit_bone_transform(ikb, fkb)
+                    fk_ik_mapping[fkb.name] = ikb.name, None, 0.0
+                    ik_bone_names.append(ikb.name)
+                    continue
+
                 pole_target = self.rig_data.edit_bones.new(ikb.name.replace("IK_", "PT_"))
                 if reach_fp_ik_fix and "_hand." in fkb.name:
                     pole_pos = calculate_lateral_pole_position(root, root_fkb, mid_fkb, fkb)
@@ -1166,7 +1233,9 @@ class HaloRig:
                 
                 ik_bone_names.append(ikb.name)
                 ik_bone_names.append(pole_target.name)
-                
+
+            ik_bone_names.extend(ensure_foot_roll_control_bones(self.rig_data.edit_bones, deform_fk_mapping))
+
             align_x_mirror_control_bone_rolls(self.rig_data.edit_bones, (*fk_bone_names, *ik_bone_names))
 
             bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -1233,33 +1302,64 @@ class HaloRig:
         settings_pb = self.rig_pose.bones.get(settings_control_name)
         if settings_pb is not None:
             apply_settings_control_shape(settings_pb, get_or_create_shape(settings_shape_name, settings_shape_vert_coords, settings_shape_edges))
-            ensure_ik_control_props(settings_pb, fk_ik_mapping)
+            ensure_ik_control_props(settings_pb, fk_ik_mapping, self.rig_pose)
 
         root_control = self.rig_pose.bones[0] if len(self.rig_pose.bones) else None
+        gun_control = self.rig_pose.bones.get(gun_control_name)
+        hand_gun_description = f"Whether hand controls follow {gun_control_name}"
             
         for fkb_name, (ikb_name, pt_name, angle) in fk_ik_mapping.items():
             fkb = self.rig_pose.bones[fkb_name]
             ikb = self.rig_pose.bones[ikb_name]
-            ptb = self.rig_pose.bones[pt_name]
+            ptb = self.rig_pose.bones.get(pt_name) if pt_name is not None else None
+            foot_rollb = self.rig_pose.bones.get(foot_roll_control_bone_name(fkb_name)) if is_foot_roll_source_name(fkb_name) else None
+            foot_roll_pivotb = self.rig_pose.bones.get(foot_roll_pivot_bone_name(fkb_name)) if is_foot_roll_source_name(fkb_name) else None
             
             fkb.color.palette = 'THEME07'
             ikb.color.palette = 'THEME01'
-            ptb.color.palette = 'THEME01'
+            if ptb is not None:
+                ptb.color.palette = 'THEME01'
+
+            is_finger_ik = is_finger_ik_source_name(fkb_name)
+            ik_shape_scale = 0.45 if is_finger_ik else 1.2
+            pole_shape_scale = 0.35 if is_finger_ik else 1.0
+            if is_finger_ik:
+                configure_finger_ik_limits(fkb)
+                setup_finger_curl_constraints(fkb, self.rig_ob, settings_pb, not reverse_controls)
 
             ikb.custom_shape = ik_shape
             ikb.custom_shape_wire_width = 2.5
-            ikb.custom_shape_scale_xyz = Vector.Fill(3, self.scale / 0.03048 * 1.2)
+            ikb.custom_shape_scale_xyz = Vector.Fill(3, self.scale / 0.03048 * ik_shape_scale)
             ikb.use_custom_shape_bone_size = True
             ikb.custom_shape_translation = Vector((0.0, ikb.length, 0.0))
             source_deform_name = fk_to_deform_mapping.get(fkb_name)
             source_deform = self.rig_pose.bones.get(source_deform_name) if source_deform_name is not None else None
             ikb.custom_shape_rotation_euler = ik_shape_rotation_for_source(ikb, source_deform or fkb)
 
-            ptb.custom_shape = pole_shape
-            ptb.custom_shape_scale_xyz = Vector.Fill(3, self.scale / 0.03048)
-            # ptb.use_custom_shape_bone_size = True
-            ptb.custom_shape_translation = Vector((0.0, 0.0, 0.0))
-            ptb.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
+            if foot_rollb is not None:
+                foot_rollb.color.palette = 'THEME01'
+                foot_rollb.rotation_mode = 'XYZ'
+                foot_rollb.lock_location = (True, True, True)
+                foot_rollb.lock_rotation = (True, True, False)
+                foot_rollb.lock_scale = (True, True, True)
+                foot_rollb.custom_shape = ik_shape
+                foot_rollb.custom_shape_wire_width = 2.5
+                foot_rollb.custom_shape_scale_xyz = Vector.Fill(3, self.scale / 0.03048 * 0.8)
+                foot_rollb.use_custom_shape_bone_size = True
+                foot_rollb.custom_shape_translation = Vector((0.0, foot_rollb.length, 0.0))
+                foot_rollb.custom_shape_rotation_euler = ik_shape_rotation_for_source(foot_rollb, source_deform or fkb)
+                if foot_roll_pivotb is not None:
+                    foot_roll_pivotb.rotation_mode = 'XYZ'
+                    foot_roll_pivotb.bone.hide = True
+                    foot_roll_pivotb.bone.hide_select = True
+                    add_foot_roll_pivot_driver(foot_roll_pivotb, self.rig_ob, foot_rollb.name, ikb)
+
+            if ptb is not None:
+                ptb.custom_shape = pole_shape
+                ptb.custom_shape_scale_xyz = Vector.Fill(3, self.scale / 0.03048 * pole_shape_scale)
+                # ptb.use_custom_shape_bone_size = True
+                ptb.custom_shape_translation = Vector((0.0, 0.0, 0.0))
+                ptb.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
 
             clear_ik_inversion_constraints(ikb, self.rig_ob)
             ik_target_specs = []
@@ -1267,35 +1367,69 @@ class HaloRig:
             if reverse_controls:
                 if source_deform_name is not None:
                     add_ik_inversion_constraints(ikb, self.rig_ob, source_deform_name)
-                pole_target_specs.append(armature_target_spec(ikb_name))
+                if ptb is not None:
+                    pole_target_specs.append(armature_target_spec(ikb_name))
             elif settings_pb is not None:
-                prop_name = ik_root_follow_property_name(fkb_name)
-                if root_control is not None:
-                    ik_target_specs.append(armature_target_spec(
-                        root_control.name,
-                        prop_name,
-                        f"Whether {ikb_name} follows the root bone",
-                    ))
+                if is_finger_ik:
+                    hand_target_name = finger_ik_hand_follow_target_name(fkb_name, self.rig_pose)
+                    if hand_target_name is not None:
+                        ik_target_specs.append(armature_target_spec(
+                            hand_target_name,
+                            finger_ik_hand_follow_property_name(fkb_name),
+                            f"Whether {ikb_name} follows {hand_target_name}",
+                        ))
+                else:
+                    prop_name = ik_root_follow_property_name(fkb_name)
+                    if root_control is not None:
+                        ik_target_specs.append(armature_target_spec(
+                            root_control.name,
+                            prop_name,
+                            f"Whether {ikb_name} follows the root bone",
+                        ))
 
-                pole_target_specs.append(armature_target_spec(
-                    ikb_name,
-                    pole_target_follow_ik_property_name(fkb_name),
-                    f"Whether {pt_name} follows {ikb_name}",
-                ))
-                if root_control is not None:
-                    pole_target_specs.append(armature_target_spec(
-                        root_control.name,
-                        prop_name,
-                        f"Whether {pt_name} follows the root bone",
-                    ))
+                    if ptb is not None:
+                        pole_target_specs.append(armature_target_spec(
+                            ikb_name,
+                            pole_target_follow_ik_property_name(fkb_name),
+                            f"Whether {pt_name} follows {ikb_name}",
+                        ))
+                        if root_control is not None:
+                            pole_target_specs.append(armature_target_spec(
+                                root_control.name,
+                                prop_name,
+                                f"Whether {pt_name} follows the root bone",
+                            ))
 
-            set_foundry_armature_constraint_targets(ikb, self.rig_ob, ik_target_specs)
-            set_foundry_armature_constraint_targets(
-                ptb,
-                self.rig_ob,
-                pole_target_specs,
-                use_current_location=reverse_controls,
-            )
+                    if gun_control is not None and is_hand_ik_source_name(fkb_name):
+                        ik_target_specs.append(armature_target_spec(
+                            gun_control_name,
+                            hands_follow_gun_prop_name,
+                            hand_gun_description,
+                        ))
+
+            if foot_rollb is not None:
+                follow_target_bone = foot_roll_pivotb or foot_rollb
+                set_foundry_armature_constraint_targets(follow_target_bone, self.rig_ob, ik_target_specs)
+                set_foundry_armature_constraint_targets(ikb, self.rig_ob, [])
+                if foot_roll_pivotb is not None:
+                    set_foundry_armature_constraint_targets(foot_rollb, self.rig_ob, [])
+                setup_foot_roll_toe_counter_constraint(
+                    self.rig_pose.bones.get(source_deform_name) if source_deform_name is not None else None,
+                    foot_rollb,
+                    ikb,
+                    self.rig_ob,
+                    fkb_name,
+                    settings_pb is not None and not reverse_controls,
+                )
+            else:
+                set_foundry_armature_constraint_targets(ikb, self.rig_ob, ik_target_specs)
+            if ptb is not None:
+                set_foundry_armature_constraint_targets(
+                    ptb,
+                    self.rig_ob,
+                    pole_target_specs,
+                    use_current_location=reverse_controls,
+                )
             
             clear_matching_constraints(
                 fkb,
@@ -1310,14 +1444,15 @@ class HaloRig:
                 con.target = self.rig_ob
                 con.subtarget = ikb_name
                 con.chain_count = fk_ik_chain_count(fkb)
-                con.use_tail = False
+                con.use_tail = is_finger_ik
 
-                con.pole_target = self.rig_ob
-                con.pole_subtarget = pt_name
-                con.pole_angle = angle
+                if ptb is not None:
+                    con.pole_target = self.rig_ob
+                    con.pole_subtarget = pt_name
+                    con.pole_angle = angle
                 con.influence = 0.0
                 if settings_pb is not None:
-                    add_ik_control_prop_driver(con, self.rig_ob, ik_control_property_name(fkb_name))
+                    add_ik_control_prop_driver(con, self.rig_ob, ik_blend_property_name(fkb_name))
 
             clear_matching_constraints(
                 fkb,
@@ -1326,14 +1461,14 @@ class HaloRig:
                 self.rig_ob,
                 ikb_name,
             )
-            if not reverse_controls:
+            if not reverse_controls and not is_finger_ik:
                 con = cast(bpy.types.Constraint, fkb.constraints.new('COPY_ROTATION'))
                 con.name = ik_copy_rotation_constraint_name
                 con.target = self.rig_ob
                 con.subtarget = ikb_name
                 con.influence = 0.0
                 if settings_pb is not None:
-                    add_ik_control_prop_driver(con, self.rig_ob, ik_control_property_name(fkb_name))
+                    add_ik_control_prop_driver(con, self.rig_ob, ik_blend_property_name(fkb_name))
             
 def clear_ik_inversion_constraints(ikb: bpy.types.PoseBone, rig_ob: bpy.types.Object):
     clear_matching_constraints(ikb, ik_child_of_constraint_name, 'CHILD_OF', rig_ob)
@@ -1400,6 +1535,9 @@ HaloRig.build_and_apply_control_shapes = control_rig_build_in_rest_position(Halo
 HaloRig.build_fk_ik_rig = control_rig_build_in_rest_position(HaloRig.build_fk_ik_rig)
 
 def fk_ik_chain_count(fkb: bpy.types.PoseBone):
+    if is_finger_ik_source_name(fkb.name):
+        return max(len(finger_ik_chain_pose_bones(fkb)) - 1, 0)
+
     count = 0
     while fkb.parent is not None:
         parent = fkb.parent
@@ -1410,6 +1548,101 @@ def fk_ik_chain_count(fkb: bpy.types.PoseBone):
             break
         
     return count
+
+def configure_finger_ik_limits(fkb: bpy.types.PoseBone):
+    chain_bones = finger_ik_chain_pose_bones(fkb)
+
+    for bone in chain_bones:
+        for axis_name in ("x", "y", "z"):
+            setattr(bone, f"lock_ik_{axis_name}", axis_name == "y")
+            setattr(bone, f"use_ik_limit_{axis_name}", False)
+
+def setup_finger_curl_constraints(
+    fkb: bpy.types.PoseBone,
+    rig_ob: bpy.types.Object,
+    settings_bone: bpy.types.PoseBone | None,
+    enabled: bool,
+):
+    chain_bones = finger_ik_chain_pose_bones(fkb)
+    if len(chain_bones) < 2:
+        return
+
+    prop_name = finger_curl_property_name(fkb.name)
+    bend_axis = finger_ik_chain_bend_axis(chain_bones)
+    if settings_bone is not None:
+        ensure_settings_float_prop(settings_bone, prop_name, f"How much rotations cascade through {finger_ik_control_property_name(fkb.name)}")
+
+    for previous_bone, current_bone in zip(chain_bones, chain_bones[1:]):
+        clear_named_constraints(current_bone, finger_curl_constraint_name, 'COPY_ROTATION')
+        if not enabled or settings_bone is None:
+            continue
+
+        hinge_axis = finger_ik_hinge_axis(previous_bone, bend_axis)
+        con = cast(bpy.types.Constraint, current_bone.constraints.new('COPY_ROTATION'))
+        con.name = finger_curl_constraint_name
+        con.target = rig_ob
+        con.subtarget = previous_bone.name
+        con.target_space = 'LOCAL_OWNER_ORIENT'
+        con.owner_space = 'LOCAL'
+        con.mix_mode = 'ADD'
+        con.use_x = hinge_axis == "x"
+        con.use_y = hinge_axis == "y"
+        con.use_z = hinge_axis == "z"
+        con.influence = 0.0
+        add_settings_control_prop_driver(con, rig_ob, prop_name)
+
+def clear_named_constraints(pbone: bpy.types.PoseBone, constraint_name: str, constraint_type: str):
+    for con in reversed(pbone.constraints):
+        name_matches = con.name == constraint_name or con.name.startswith(f"{constraint_name}.")
+        if con.type == constraint_type and name_matches:
+            pbone.constraints.remove(con)
+
+def finger_ik_chain_pose_bones(fkb: bpy.types.PoseBone) -> list[bpy.types.PoseBone]:
+    chain_bones = []
+    current = fkb
+    while current is not None and is_finger_ik_chain_source_name(current.name):
+        chain_bones.append(current)
+        current = current.parent
+
+    chain_bones.reverse()
+    return chain_bones
+
+def finger_ik_chain_bend_axis(chain_bones: list[bpy.types.PoseBone]) -> Vector | None:
+    if len(chain_bones) < 3:
+        return None
+
+    for root_bone, mid_bone, end_bone in zip(chain_bones, chain_bones[1:], chain_bones[2:]):
+        root_to_mid = mid_bone.bone.head_local - root_bone.bone.head_local
+        mid_to_end = end_bone.bone.head_local - mid_bone.bone.head_local
+        bend_axis = root_to_mid.cross(mid_to_end)
+        if bend_axis.length >= 1e-6:
+            bend_axis.normalize()
+            return bend_axis
+
+    return None
+
+def finger_ik_hinge_axis(pbone: bpy.types.PoseBone, bend_axis: Vector | None) -> str:
+    if bend_axis is None:
+        return "x"
+
+    x_axis = bone_local_axis(pbone.bone, Vector((1.0, 0.0, 0.0)))
+    z_axis = bone_local_axis(pbone.bone, Vector((0.0, 0.0, 1.0)))
+    return "x" if abs(bend_axis.dot(x_axis)) >= abs(bend_axis.dot(z_axis)) else "z"
+
+def finger_ik_hinge_limits(
+    pbone: bpy.types.PoseBone,
+    bend_axis: Vector | None,
+    hinge_axis: str,
+) -> tuple[float, float]:
+    if bend_axis is None:
+        return radians(-120.0), radians(120.0)
+
+    local_axis = Vector((1.0, 0.0, 0.0)) if hinge_axis == "x" else Vector((0.0, 0.0, 1.0))
+    hinge_vector = bone_local_axis(pbone.bone, local_axis)
+    if bend_axis.dot(hinge_vector) >= 0.0:
+        return radians(-10.0), radians(120.0)
+
+    return radians(-120.0), radians(10.0)
 
 def add_settings_control_prop_driver(driver_owner, rig_ob: bpy.types.Object, prop_name: str, multiplier=1.0, invert=False, data_path="influence"):
     try:
@@ -1687,8 +1920,8 @@ def update_bounds(bounds: dict[str, tuple[Vector, Vector]], bone_name: str, co: 
 
 def fallback_deform_shape_transform(pbone: bpy.types.PoseBone, rig_shape_scale: float) -> tuple[Vector, Vector]:
     bone_length = max(pbone.length, 0.01)
-    thickness = max(bone_length * 0.12, rig_shape_scale * 0.005, 0.005)
-    return Vector((thickness, bone_length * 0.5, thickness)), Vector((0.0, bone_length * 0.5, 0.0))
+    cube_half_size = max(bone_length * 0.12, rig_shape_scale * 0.005, 0.005)
+    return Vector.Fill(3, cube_half_size), Vector((0.0, 0.0, 0.0))
 
 def deform_shape_transform_from_bounds(bounds: tuple[Vector, Vector], bone_length: float, fallback_scale: Vector, fallback_translation: Vector) -> tuple[Vector, Vector]:
     min_co, max_co = bounds
@@ -2051,6 +2284,32 @@ def is_foot_ik_source_name(name: str) -> bool:
 
     return any(bone_name_matches_suffix(name, suffix) for suffix in ("foot", "tarsus", "toe_atr_u"))
 
+def is_hand_ik_source_name(name: str) -> bool:
+    if name.startswith(("FK_", "IK_", "PT_")):
+        name = name[3:]
+
+    return bone_name_matches_suffix(name, "hand")
+
+def is_foot_roll_source_name(name: str) -> bool:
+    if name.startswith(("FK_", "IK_", "PT_")):
+        name = name[3:]
+    elif name.startswith("CTRL_"):
+        name = name[5:]
+
+    return any(bone_name_matches_suffix(name, suffix) for suffix in ("foot", "tarsus"))
+
+def is_finger_ik_source_name(name: str) -> bool:
+    if name.startswith(("FK_", "IK_", "PT_")):
+        name = name[3:]
+
+    return any(bone_name_matches_suffix(name, suffix) for suffix in finger_ik_endpoint_bone_suffixes)
+
+def is_finger_ik_chain_source_name(name: str) -> bool:
+    if name.startswith(("FK_", "IK_", "PT_")):
+        name = name[3:]
+
+    return any(bone_name_matches_suffix(name, suffix) for suffix in finger_ik_chain_bone_suffixes)
+
 def roll_angle_between_bone_planes(owner_bone: bpy.types.Bone, source_bone: bpy.types.Bone) -> float:
     owner_y = bone_local_axis(owner_bone, Vector((0.0, 1.0, 0.0)))
     owner_z = bone_local_axis(owner_bone, Vector((0.0, 0.0, 1.0)))
@@ -2108,6 +2367,206 @@ def copy_edit_bone_transform(target: bpy.types.EditBone, source: bpy.types.EditB
     target.tail = source.tail.copy()
     target.roll = source.roll
 
+def copy_finger_ik_edit_bone_transform(target: bpy.types.EditBone, source: bpy.types.EditBone):
+    direction = source.y_axis.copy()
+    if direction.length < 1e-6:
+        direction = source.tail - source.head
+    if direction.length < 1e-6:
+        direction = Vector((0.0, 1.0, 0.0))
+    direction.normalize()
+
+    target.head = source.tail.copy()
+    target.tail = target.head + direction * max(source.length * 0.5, 0.01)
+    target.roll = source.roll
+
+def ensure_foot_roll_control_bones(edit_bones, deform_fk_mapping: dict[str, str]):
+    foot_roll_names = []
+    for deform_name, fk_name in deform_fk_mapping.items():
+        if not is_foot_roll_source_name(fk_name):
+            continue
+
+        foot_bone = edit_bones.get(deform_name)
+        toe_bone = find_foot_roll_toe_edit_bone(foot_bone)
+        ik_bone = edit_bones.get(fk_name.replace("FK_", "IK_", 1))
+        if foot_bone is None or toe_bone is None or ik_bone is None:
+            continue
+
+        pivot_bone = ensure_control_bone(edit_bones, foot_roll_pivot_bone_name(fk_name))
+        copy_edit_bone_transform(pivot_bone, toe_bone)
+        pivot_bone.length = max(toe_bone.length, foot_bone.length * 0.35, 0.01)
+        align_foot_roll_control_bone_roll(pivot_bone)
+        pivot_bone.parent = None
+        pivot_bone.use_connect = False
+        pivot_bone.use_deform = False
+
+        control_bone = ensure_control_bone(edit_bones, foot_roll_control_bone_name(fk_name))
+        copy_edit_bone_transform(control_bone, toe_bone)
+        control_bone.length = max(toe_bone.length, foot_bone.length * 0.35, 0.01)
+        align_foot_roll_control_bone_roll(control_bone)
+        ik_bone.parent = pivot_bone
+        ik_bone.use_connect = False
+        control_bone.parent = ik_bone
+        control_bone.use_connect = False
+        control_bone.use_deform = False
+        foot_roll_names.append(pivot_bone.name)
+        foot_roll_names.append(control_bone.name)
+
+    return foot_roll_names
+
+def align_foot_roll_control_bone_roll(control_bone: bpy.types.EditBone):
+    toe_axis = control_bone.y_axis.copy()
+    if toe_axis.length < 1e-6:
+        return
+
+    toe_axis.normalize()
+    hinge_axis = toe_axis.cross(Vector((0.0, 0.0, 1.0)))
+    if hinge_axis.length < 1e-6:
+        return
+
+    hinge_axis.normalize()
+    control_bone.align_roll(hinge_axis)
+
+def find_foot_roll_toe_edit_bone(foot_bone: bpy.types.EditBone | None) -> bpy.types.EditBone | None:
+    if foot_bone is None:
+        return None
+
+    for child in foot_bone.children:
+        if bone_name_matches_suffix(child.name, "toe"):
+            return child
+
+    for child in foot_bone.children:
+        if "toe" in normalized_bone_name(child.name):
+            return child
+
+    return None
+
+def setup_foot_roll_toe_counter_constraint(
+    foot_bone: bpy.types.PoseBone | None,
+    roll_bone: bpy.types.PoseBone,
+    ik_bone: bpy.types.PoseBone,
+    rig_ob: bpy.types.Object,
+    fkb_name: str,
+    add_driver: bool,
+):
+    toe_bone = find_foot_roll_toe_pose_bone(foot_bone)
+    if toe_bone is None:
+        return
+
+    for con in reversed(toe_bone.constraints):
+        if con.name == legacy_foot_roll_constraint_name or con.name.startswith(f"{legacy_foot_roll_constraint_name}."):
+            toe_bone.constraints.remove(con)
+    clear_matching_constraints(
+        toe_bone,
+        foot_roll_toe_counter_constraint_name,
+        'COPY_ROTATION',
+        rig_ob,
+        roll_bone.name,
+    )
+
+    axis_name, axis_index = foot_roll_hinge_info(roll_bone)
+    con = cast(bpy.types.Constraint, toe_bone.constraints.new('COPY_ROTATION'))
+    con.name = foot_roll_toe_counter_constraint_name
+    con.target = rig_ob
+    con.subtarget = roll_bone.name
+    con.target_space = 'LOCAL_OWNER_ORIENT'
+    con.owner_space = 'LOCAL'
+    con.mix_mode = 'ADD'
+    con.use_x = axis_name == "x"
+    con.use_y = False
+    con.use_z = axis_name == "z"
+    invert_rotation = foot_roll_pivot_driver_sign(roll_bone, ik_bone) > 0.0
+    con.invert_x = axis_name == "x" and invert_rotation
+    con.invert_y = False
+    con.invert_z = axis_name == "z" and invert_rotation
+    con.influence = 0.0
+    add_foot_roll_toe_counter_driver(con, rig_ob, roll_bone.name, fkb_name, axis_index, add_driver)
+
+def find_foot_roll_toe_pose_bone(foot_bone: bpy.types.PoseBone | None) -> bpy.types.PoseBone | None:
+    if foot_bone is None:
+        return None
+
+    for child in foot_bone.children:
+        if bone_name_matches_suffix(child.name, "toe"):
+            return child
+
+    for child in foot_bone.children:
+        if "toe" in normalized_bone_name(child.name):
+            return child
+
+    return None
+
+def foot_roll_hinge_info(roll_bone: bpy.types.PoseBone) -> tuple[str, int]:
+    return "z", 2
+
+def add_foot_roll_toe_counter_driver(
+    con: bpy.types.Constraint,
+    rig_ob: bpy.types.Object,
+    roll_bone_name: str,
+    fkb_name: str,
+    axis_index: int,
+    use_ik_multiplier: bool,
+):
+    try:
+        con.driver_remove("influence")
+    except (TypeError, ValueError, RuntimeError):
+        pass
+
+    driver = con.driver_add("influence").driver
+    driver.type = 'SCRIPTED'
+
+    roll_var = driver.variables.new()
+    roll_var.name = "roll_angle"
+    roll_var.type = 'SINGLE_PROP'
+    roll_target = roll_var.targets[0]
+    roll_target.id = rig_ob
+    roll_target.data_path = f'pose.bones["{roll_bone_name}"].rotation_euler[{axis_index}]'
+
+    expression = f"min(max(-roll_angle / {radians(5.0):.6f}, 0.0), 1.0)"
+    if use_ik_multiplier:
+        ik_var = driver.variables.new()
+        ik_var.name = "ik_value"
+        ik_var.type = 'SINGLE_PROP'
+        ik_target = ik_var.targets[0]
+        ik_target.id = rig_ob
+        ik_target.data_path = f'pose.bones["{settings_control_name}"]["{ik_blend_property_name(fkb_name)}"]'
+        expression = f"({expression}) * min(max(ik_value, 0.0), 1.0)"
+
+    driver.expression = expression
+
+def add_foot_roll_pivot_driver(
+    pivot_bone: bpy.types.PoseBone,
+    rig_ob: bpy.types.Object,
+    roll_bone_name: str,
+    ik_bone: bpy.types.PoseBone,
+):
+    try:
+        pivot_bone.driver_remove("rotation_euler", 2)
+    except (TypeError, ValueError, RuntimeError):
+        pass
+
+    driver = pivot_bone.driver_add("rotation_euler", 2).driver
+    driver.type = 'SCRIPTED'
+
+    roll_var = driver.variables.new()
+    roll_var.name = "roll_angle"
+    roll_var.type = 'SINGLE_PROP'
+    roll_target = roll_var.targets[0]
+    roll_target.id = rig_ob
+    roll_target.data_path = f'pose.bones["{roll_bone_name}"].rotation_euler[2]'
+    driver.expression = f"roll_angle * {foot_roll_pivot_driver_sign(pivot_bone, ik_bone):.6f}"
+
+def foot_roll_pivot_driver_sign(
+    pivot_bone: bpy.types.PoseBone,
+    ik_bone: bpy.types.PoseBone,
+) -> float:
+    hinge_axis = bone_local_axis(pivot_bone.bone, Vector((0.0, 0.0, 1.0)))
+    foot_offset = ik_bone.bone.head_local - pivot_bone.bone.head_local
+    if foot_offset.length < 1e-6:
+        foot_offset = ik_bone.matrix.translation - pivot_bone.matrix.translation
+
+    lift = hinge_axis.cross(foot_offset).dot(Vector((0.0, 0.0, 1.0)))
+    return 1.0 if lift >= 0.0 else -1.0
+
 def match_edit_bone_length(target: bpy.types.EditBone, source: bpy.types.EditBone):
     target.length = max(source.length, 0.01)
 
@@ -2156,23 +2615,58 @@ def remove_legacy_fk_ik_slider_bones(edit_bones):
             if bone is not None:
                 edit_bones.remove(bone)
 
-def ensure_ik_control_props(settings_bone: bpy.types.PoseBone, fk_ik_mapping: dict[str, tuple[str, str, float]]):
+def ensure_ik_control_props(
+    settings_bone: bpy.types.PoseBone,
+    fk_ik_mapping: dict[str, tuple[str, str | None, float]],
+    rig_pose: bpy.types.Pose | None = None,
+):
     remove_settings_prop(settings_bone, legacy_pole_target_follow_ik_prop_name)
+    remove_legacy_foot_roll_props(settings_bone)
 
-    for fkb_name in fk_ik_mapping:
+    for fkb_name, (_, pt_name, _) in fk_ik_mapping.items():
         remove_settings_prop(settings_bone, legacy_ik_root_follow_property_name(fkb_name))
-        prop_name = ik_control_property_name(fkb_name)
+        if is_finger_ik_source_name(fkb_name):
+            remove_settings_prop(settings_bone, ik_control_property_name(fkb_name))
+            remove_settings_prop(settings_bone, legacy_finger_ik_hand_follow_property_name(fkb_name))
+            remove_settings_prop(settings_bone, f"{ik_control_property_name(fkb_name)} follows root")
+            remove_settings_prop(settings_bone, f"{ik_control_property_name(fkb_name)} ignore root")
+            remove_settings_prop(settings_bone, f"{ik_control_property_name(fkb_name)} PT follows IK")
+
+        prop_name = ik_blend_property_name(fkb_name)
         ensure_settings_float_prop(settings_bone, prop_name, f"IK influence for {fkb_name}")
-        ensure_settings_bool_prop(
-            settings_bone,
-            pole_target_follow_ik_property_name(fkb_name),
-            f"Whether {fkb_name.replace('FK_', 'PT_', 1)} follows {fkb_name.replace('FK_', 'IK_', 1)}",
-        )
-        ensure_settings_bool_prop(
-            settings_bone,
-            ik_root_follow_property_name(fkb_name),
-            f"Whether {fkb_name.replace('FK_', 'IK_', 1)} follows the root bone",
-        )
+        pole_prop_name = pole_target_follow_ik_property_name(fkb_name)
+        if pt_name is not None:
+            ensure_settings_bool_prop(
+                settings_bone,
+                pole_prop_name,
+                f"Whether {pt_name} follows {fkb_name.replace('FK_', 'IK_', 1)}",
+            )
+
+        root_prop_name = ik_root_follow_property_name(fkb_name)
+        hand_prop_name = finger_ik_hand_follow_property_name(fkb_name)
+        if is_finger_ik_source_name(fkb_name):
+            ensure_settings_float_prop(
+                settings_bone,
+                finger_curl_property_name(fkb_name),
+                f"How much rotations cascade through {finger_ik_control_property_name(fkb_name)}",
+            )
+            remove_settings_prop(settings_bone, root_prop_name)
+            hand_target_name = finger_ik_hand_follow_target_name(fkb_name, rig_pose)
+            if hand_target_name is not None:
+                ensure_settings_bool_prop(
+                    settings_bone,
+                    hand_prop_name,
+                    f"Whether {fkb_name.replace('FK_', 'IK_', 1)} follows {hand_target_name}",
+                )
+            else:
+                remove_settings_prop(settings_bone, hand_prop_name)
+        else:
+            remove_settings_prop(settings_bone, hand_prop_name)
+            ensure_settings_bool_prop(
+                settings_bone,
+                root_prop_name,
+                f"Whether {fkb_name.replace('FK_', 'IK_', 1)} follows the root bone",
+            )
 
 def ensure_look_control_props(
     settings_bone: bpy.types.PoseBone,
@@ -2232,29 +2726,113 @@ def ensure_gun_control_props(settings_bone: bpy.types.PoseBone):
         gun_control_prop_name,
         f"How much {gun_bone_name} copies {gun_control_name}",
     )
+    ensure_settings_bool_prop(
+        settings_bone,
+        hands_follow_gun_prop_name,
+        f"Whether hand controls follow {gun_control_name}",
+        default=True,
+    )
 
 def ik_root_follow_property_name(fkb_name: str) -> str:
-    return f"{ik_control_property_name(fkb_name)} follows root"
+    return f"{ik_blend_property_name(fkb_name)} follows root"
+
+def ik_blend_property_name(fkb_name: str) -> str:
+    if is_finger_ik_source_name(fkb_name):
+        return finger_ik_control_property_name(fkb_name)
+
+    return ik_control_property_name(fkb_name)
+
+def finger_ik_control_property_name(fkb_name: str) -> str:
+    side = ""
+    if fkb_name.endswith(".L"):
+        side = "_l"
+    elif fkb_name.endswith(".R"):
+        side = "_r"
+
+    return f"IK fingers{side}"
+
+def foot_roll_control_bone_name(fkb_name: str) -> str:
+    name = fkb_name[3:] if fkb_name.startswith("FK_") else fkb_name
+    side = ""
+    if name.endswith(".L") or name.endswith(".R"):
+        side = name[-2:]
+        name = name[:-2]
+
+    name = "".join(ch if ch.isalnum() else "_" for ch in name.lower()).strip("_")
+    return f"IK_{name}_roll{side}"
+
+def foot_roll_pivot_bone_name(fkb_name: str) -> str:
+    name = foot_roll_control_bone_name(fkb_name)
+    side = ""
+    if name.endswith(".L") or name.endswith(".R"):
+        side = name[-2:]
+        name = name[:-2]
+
+    return f"{name}_pivot{side}"
+
+def finger_ik_hand_follow_property_name(fkb_name: str) -> str:
+    return f"{finger_ik_control_property_name(fkb_name)} follows IK hand"
+
+def finger_curl_property_name(fkb_name: str) -> str:
+    side = ""
+    if fkb_name.endswith(".L"):
+        side = "_l"
+    elif fkb_name.endswith(".R"):
+        side = "_r"
+
+    return f"Finger curl{side}"
+
+def legacy_finger_ik_hand_follow_property_name(fkb_name: str) -> str:
+    return f"{ik_control_property_name(fkb_name)} follows IK hand"
+
+def finger_ik_hand_follow_target_name(
+    fkb_name: str,
+    rig_pose: bpy.types.Pose | None = None,
+) -> str | None:
+    side = ""
+    if fkb_name.endswith(".L"):
+        side = ".L"
+    elif fkb_name.endswith(".R"):
+        side = ".R"
+
+    target_name = f"IK_hand{side}"
+    if rig_pose is not None and rig_pose.bones.get(target_name) is None:
+        return None
+
+    return target_name
 
 def legacy_ik_root_follow_property_name(fkb_name: str) -> str:
-    return f"{ik_control_property_name(fkb_name)} ignore root"
+    return f"{ik_blend_property_name(fkb_name)} ignore root"
 
 def pole_target_follow_ik_property_name(fkb_name: str) -> str:
-    return f"{ik_control_property_name(fkb_name)} PT follows IK"
+    return f"{ik_blend_property_name(fkb_name)} PT follows IK"
 
 def remove_settings_prop(settings_bone: bpy.types.PoseBone, prop_name: str):
     if prop_name in settings_bone:
         del settings_bone[prop_name]
 
-def ensure_settings_float_prop(settings_bone: bpy.types.PoseBone, prop_name: str, description: str, default=0.0):
+def remove_legacy_foot_roll_props(settings_bone: bpy.types.PoseBone):
+    for prop_name in [key for key in settings_bone.keys() if str(key).lower().startswith("foot roll ")]:
+        remove_settings_prop(settings_bone, prop_name)
+
+def ensure_settings_float_prop(
+    settings_bone: bpy.types.PoseBone,
+    prop_name: str,
+    description: str,
+    default=0.0,
+    min_value=0.0,
+    max_value=1.0,
+    soft_min=0.0,
+    soft_max=1.0,
+):
     if prop_name not in settings_bone:
         settings_bone[prop_name] = default
 
     settings_bone.id_properties_ui(prop_name).update(
-        min=0.0,
-        max=1.0,
-        soft_min=0.0,
-        soft_max=1.0,
+        min=min_value,
+        max=max_value,
+        soft_min=soft_min,
+        soft_max=soft_max,
         description=description,
     )
 

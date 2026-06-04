@@ -2735,11 +2735,11 @@ class NWOImporter:
             con.target = armature
             con.subtarget = camera_control_bone.name
             
-            con = camera.constraints.new('COPY_ROTATION')
-            con.target = armature
-            con.subtarget = camera_control_bone.name
-            con.target_space = 'LOCAL_OWNER_ORIENT'
-            con.owner_space = 'LOCAL'
+            # con = camera.constraints.new('COPY_ROTATION')
+            # con.target = armature
+            # con.subtarget = camera_control_bone.name
+            # con.target_space = 'LOCAL_OWNER_ORIENT'
+            # con.owner_space = 'LOCAL'
 
         self.context.scene.camera = camera
         return camera

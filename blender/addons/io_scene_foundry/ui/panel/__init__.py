@@ -37,11 +37,16 @@ POSE_CONTROL_UI_GROUPS = (
     ("Look", "VIEWZOOM"),
     ("Gun", "CONSTRAINT_BONE"),
     ("IK Blend", "CON_KINEMATIC"),
+    ("Finger IK", "CON_KINEMATIC"),
+    ("Finger Curl", "CON_ROTLIKE"),
+    ("Finger IK Follow", "CON_CHILDOF"),
     ("IK Pole Follow", "CONSTRAINT_BONE"),
     ("IK Root Follow", "CON_CHILDOF"),
     ("Root Follow", "CON_CHILDOF"),
     ("Other", "PROPERTIES"),
 )
+
+FINGER_IK_POSE_CONTROL_TOKENS = ("thumb", "index", "middle", "ring", "pinky", "finger")
 
 def _animation_armature_for_event_ui(context: bpy.types.Context, animation) -> bpy.types.Object | None:
     for track in getattr(animation, "action_tracks", []):
@@ -241,7 +246,13 @@ def pose_control_group_name(prop_name: str) -> str:
     is_ik = lower_name.startswith(("ik ", "ik_")) or lower_name.startswith("root_follow_ik")
     if "gun" in lower_name:
         return "Gun"
+    if is_finger_curl_pose_control(prop_name):
+        return "Finger Curl"
     if is_ik:
+        if is_finger_ik_follow_pose_control(prop_name):
+            return "Finger IK Follow"
+        if is_finger_ik_pose_control(prop_name):
+            return "Finger IK"
         if follows_ik:
             return "IK Pole Follow"
         if follows_root:
@@ -264,6 +275,24 @@ def is_ik_pole_follow_pose_control(prop_name: str) -> bool:
         or "pt follows ik" in lower_name
     )
 
+def is_finger_ik_pose_control(prop_name: str) -> bool:
+    lower_name = prop_name.lower()
+    is_ik = lower_name.startswith(("ik ", "ik_"))
+    return is_ik and any(token in lower_name for token in FINGER_IK_POSE_CONTROL_TOKENS)
+
+def is_finger_ik_follow_pose_control(prop_name: str) -> bool:
+    lower_name = prop_name.lower()
+    return is_finger_ik_pose_control(prop_name) and (
+        "follows ik hand" in lower_name
+        or "follows hand" in lower_name
+        or "follow ik hand" in lower_name
+        or "follow hand" in lower_name
+    )
+
+def is_finger_curl_pose_control(prop_name: str) -> bool:
+    lower_name = prop_name.lower()
+    return lower_name.startswith(("finger curl", "finger_curl"))
+
 def is_root_follow_pose_control(prop_name: str) -> bool:
     lower_name = prop_name.lower()
     return (
@@ -278,7 +307,15 @@ def is_ik_blend_pose_control(prop_name: str) -> bool:
     lower_name = prop_name.lower()
     is_ik = lower_name.startswith("ik ") or lower_name.startswith("ik_")
     follows_root = is_root_follow_pose_control(prop_name)
-    return is_ik and not follows_root and not is_ik_pole_follow_pose_control(prop_name)
+    return (
+        is_ik
+        and not follows_root
+        and not is_ik_pole_follow_pose_control(prop_name)
+        and not is_finger_ik_follow_pose_control(prop_name)
+    )
+
+def has_snap_bake_pose_control(prop_name: str) -> bool:
+    return pose_control_group_name(prop_name) != "Other"
 
 def pose_control_label(prop_name: str) -> str:
     return utils.formalise_string(prop_name)
@@ -2001,7 +2038,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             for key in props:
                 row = col.row(align=True)
                 row.prop(settings_bone, f'["{key}"]', text=key)
-                if is_ik_blend_pose_control(key):
+                if has_snap_bake_pose_control(key):
                     op = row.operator("nwo.bake_ik_control", text="", icon='FILE_REFRESH')
                     op.prop_name = key
 
