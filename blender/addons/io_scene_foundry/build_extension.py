@@ -31,6 +31,7 @@ REQUIRED_WHEELS: tuple[tuple[str, str], ...] = (
     ("networkx", "3.4.2"),
     ("pillow", "12.2.0"),
     ("py360convert", "1.0.4"),
+    ("coacd", "1.0.11"),
 )
 
 

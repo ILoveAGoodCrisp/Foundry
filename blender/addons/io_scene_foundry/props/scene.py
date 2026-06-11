@@ -2896,6 +2896,99 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     # user_removed_all_zone_set: bpy.props.BoolProperty()
 
+    coacd_threshold: bpy.props.FloatProperty(
+        name="Concavity Threshold",
+        description="Controls how tightly the hulls hug the original mesh",
+        default=0.05,
+        min=0.01,
+        max=1.0,
+    )
+    coacd_max_hulls: bpy.props.IntProperty(
+        name="Max Hulls",
+        description="Sets the absolute limit on the number of generated convex shapes (-1 for no limit)",
+        default=5,
+        min=-1,
+        max=64,
+    )
+    coacd_preprocess_mode: bpy.props.EnumProperty(
+        name="Preprocess",
+        description="Controls manifold preprocessing mode. Set to 'Off' for open or unclosed meshes",
+        items=[
+            ("auto", "Auto", "Automatically checks and preprocesses non-manifold meshes"),
+            ("on", "On", "Forces preprocessing on (for non-watertight/dirty meshes)"),
+            ("off", "Off", "Forces preprocessing off (retains original open mesh structure)"),
+        ],
+        default="auto",
+    )
+    coacd_decimate: bpy.props.BoolProperty(
+        name="Decimate Hulls",
+        description="Enable vertex decimation on generated convex hulls",
+        default=True,
+    )
+    coacd_max_vertices: bpy.props.IntProperty(
+        name="Max Vertices per Hull",
+        description="Maximum number of vertices allowed for each convex hull",
+        default=32,
+        min=4,
+        max=1024,
+    )
+    coacd_preprocess_resolution: bpy.props.IntProperty(
+        name="Preprocess Resolution",
+        description="Resolution for manifold preprocessing (20-100)",
+        default=50,
+        min=20,
+        max=100,
+    )
+    coacd_sample_resolution: bpy.props.IntProperty(
+        name="Sample Resolution",
+        description="Sampling resolution for Hausdorff distance calculation (1000-10000)",
+        default=2000,
+        min=1000,
+        max=10000,
+    )
+    coacd_mcts_nodes: bpy.props.IntProperty(
+        name="MCTS Nodes",
+        description="Max number of child nodes in MCTS (10-40)",
+        default=20,
+        min=10,
+        max=40,
+    )
+    coacd_mcts_iterations: bpy.props.IntProperty(
+        name="MCTS Iterations",
+        description="Number of search iterations in MCTS (60-2000)",
+        default=150,
+        min=60,
+        max=2000,
+    )
+    coacd_mcts_max_depth: bpy.props.IntProperty(
+        name="MCTS Max Depth",
+        description="Max search depth in MCTS (1-7)",
+        default=3,
+        min=1,
+        max=7,
+    )
+    coacd_pca: bpy.props.BoolProperty(
+        name="PCA",
+        description="Enable PCA pre-processing",
+        default=False,
+    )
+    coacd_merge: bpy.props.BoolProperty(
+        name="Merge",
+        description="Enable merge post-processing",
+        default=True,
+    )
+    coacd_seed: bpy.props.IntProperty(
+        name="Seed",
+        description="Random seed used for sampling (0 for random)",
+        default=0,
+        min=0,
+    )
+    coacd_advanced: bpy.props.BoolProperty(
+        name="Advanced Settings",
+        description="Show advanced CoACD parameters",
+        default=False,
+    )
+
     def items_mesh_type(self, context):
         """Function to handle context for mesh enum lists"""
         h4 = utils.is_corinth(context)
