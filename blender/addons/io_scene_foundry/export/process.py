@@ -735,8 +735,18 @@ class ExportScene:
                             self.temp_meshes.add(copy_ob.data)
                             
                         case ObjectCopy.WATER_PHYSICS:
-                            copy_ob.data = copy_ob.data.copy()
+                            if copy_ob.eval_ob is not None:
+                                copy_ob.data = bpy.data.meshes.new_from_object(
+                                    copy_ob.eval_ob,
+                                    preserve_all_data_layers=True,
+                                    depsgraph=self.depsgraph,
+                                )
+                                copy_ob.eval_ob = None
+                                copy_ob.modifiers = tuple()
+                            else:
+                                copy_ob.data = copy_ob.data.copy()
                             copy_props["bungie_mesh_type"] = MeshType.water_physics_volume.value
+                            copy_props["foundry_simplify"] = 1
                             self._setup_water_physics_props(copy_ob.nwo, copy_props)
                             self.temp_meshes.add(copy_ob.data)
                             
@@ -1075,7 +1085,6 @@ class ExportScene:
                         match nwo.water_type:
                             case 'BOTH':
                                 copy = ObjectCopy.WATER_PHYSICS
-                                props["foundry_simplify"] = 1
                             case 'PHYSICS':
                                 if self.processed_meshes.get(ob.data):
                                     copy = ObjectCopy.WATER_PHYSICS
