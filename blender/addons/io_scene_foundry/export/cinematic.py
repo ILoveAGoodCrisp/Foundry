@@ -426,14 +426,14 @@ class QUA:
         self.blender_scene = blender_scene
 
     def get_shot_index_and_frame(self, frame_index: int) -> tuple[int | None, int]:
-        current_frame_index = 0
-        previous_frame_index = 0
+        frame_base = int(self.corinth)
+        shot_start = frame_base
         for idx, count in enumerate(self.shot_counts):
-            current_frame_index += (count - 1)
-            if frame_index <= current_frame_index and frame_index >= previous_frame_index:
-                return idx, frame_index - previous_frame_index
+            shot_end = shot_start + count
+            if shot_start <= frame_index < shot_end:
+                return idx, frame_index - shot_start + frame_base
             
-            previous_frame_index = current_frame_index
+            shot_start = shot_end
         
         return None, 0
             
