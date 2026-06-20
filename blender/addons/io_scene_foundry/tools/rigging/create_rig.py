@@ -1192,6 +1192,7 @@ class NWO_OT_KeyframeControlRigSettings(bpy.types.Operator):
         return bool(arm and arm.type == 'ARMATURE' and arm.pose.bones.get(settings_control_name))
 
     def execute(self, context):
+        arm = context.object
         settings_bone = context.object.pose.bones.get(settings_control_name)
         frame = context.scene.frame_current
         keyed_count = 0
@@ -1202,7 +1203,7 @@ class NWO_OT_KeyframeControlRigSettings(bpy.types.Operator):
             except (TypeError, ValueError):
                 continue
 
-            if abs(value) <= 1e-6:
+            if abs(value) <= 1e-6 and not settings_prop_has_fcurve(arm, prop_name):
                 continue
 
             keyframe_settings_prop(settings_bone, prop_name, frame)
@@ -1214,6 +1215,17 @@ class NWO_OT_KeyframeControlRigSettings(bpy.types.Operator):
 
         self.report({'INFO'}, f"Keyframed {keyed_count} {settings_control_name} propert{'y' if keyed_count == 1 else 'ies'}")
         return {'FINISHED'}
+
+def settings_prop_has_fcurve(arm: bpy.types.Object, prop_name: str) -> bool:
+    if arm.animation_data is None or arm.animation_data.action is None:
+        return False
+
+    fcurves = utils.get_fcurves(arm.animation_data.action, arm)
+    if not fcurves:
+        return False
+
+    data_path = settings_prop_data_path(prop_name)
+    return any(fcurve.data_path == data_path for fcurve in fcurves)
 
 POSE_BONE_DATA_PATH_RE = re.compile(r'pose\.bones\["([^"]+)"\]')
 
