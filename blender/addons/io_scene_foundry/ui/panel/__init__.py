@@ -913,6 +913,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 box_lightmapping.prop(scene_nwo_export, "lightmap_quality_h4")
             else:
                 box_lightmapping.prop(scene_nwo_export, "lightmap_quality")
+            if not self.h4 or scene_nwo_export.lightmap_quality_h4 in {'__custom__', '__asset__'}:
+                box_lightmapping.prop(scene_nwo_export, "lightmap_region")
             if not scene_nwo_export.lightmap_all_bsps:
                 box_lightmapping.prop(scene_nwo_export, "lightmap_specific_bsp")
             box_lightmapping.prop(scene_nwo_export, "lightmap_all_bsps")
