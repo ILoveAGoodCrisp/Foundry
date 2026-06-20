@@ -377,6 +377,14 @@ class LightMapper:
             asset_name = Path(asset_path).name
             bsps = [r.name for r in scene_nwo.regions_table if r.name.lower() != 'shared']
             lightmapper_globals_paths = [str(Path(asset_path, f'{asset_name}_{b}.lightmapper_globals')) for b in bsps]
+            
+            # Create defaults
+            default_lm_tag = Path(utils.get_tags_path(), r'globals\lightmapper_settings\default_new.lightmapper_globals')
+            if default_lm_tag.exists():
+                for lg_path in lightmapper_globals_paths:
+                    if not Path(lg_path).exists():
+                        utils.copy_file(default_lm_tag, lg_path)
+                        
             if self.light_group:
                 ob = bpy.context.scene.objects.get(self.light_group)
                 if ob is not None:
