@@ -110,6 +110,12 @@ COLLISION_FACE_MODES = (
     FaceMode.breakable.value,
 )
 
+WATER_PHYSICS_SIMPLIFY_MERGE_DISTANCE = 0.1
+WATER_PHYSICS_SIMPLIFY_PLANAR_ANGLE = radians(5)
+WATER_PHYSICS_SIMPLIFY_BOUNDARY_DISTANCE = 0.1
+WATER_PHYSICS_SIMPLIFY_BOUNDARY_ANGLE = radians(15)
+WATER_PHYSICS_SIMPLIFY_BOUNDARY_PASSES = 8
+
 def add_triangle_mod(scene, ob: bpy.types.Object) -> bpy.types.Modifier:
     mods = ob.modifiers
     for m in mods:
@@ -124,6 +130,124 @@ def add_decimate_mod(ob: bpy.types.Object) -> bpy.types.Modifier:
     mods = ob.modifiers
     decimate_mod = mods.new('Decimate', 'DECIMATE')
     decimate_mod.decimate_type = 'DISSOLVE'
+
+def mesh_triangle_count(mesh: bpy.types.Mesh) -> int:
+    return sum(max(poly.loop_total - 2, 0) for poly in mesh.polygons)
+
+def water_physics_boundary_dissolve_candidates(bm):
+    candidates = []
+    candidate_neighbors = {}
+
+    for vert in bm.verts:
+        if not vert.is_valid:
+            continue
+
+        boundary_edges = [edge for edge in vert.link_edges if edge.is_valid and edge.is_boundary]
+        if len(boundary_edges) != 2:
+            continue
+
+        vert_a = boundary_edges[0].other_vert(vert)
+        vert_b = boundary_edges[1].other_vert(vert)
+        if not vert_a.is_valid or not vert_b.is_valid:
+            continue
+
+        line = vert_b.co - vert_a.co
+        line_length_squared = line.length_squared
+        if line_length_squared == 0:
+            continue
+
+        factor = (vert.co - vert_a.co).dot(line) / line_length_squared
+        if factor <= 0.0 or factor >= 1.0:
+            continue
+
+        closest = vert_a.co + line * factor
+        if (vert.co - closest).length > WATER_PHYSICS_SIMPLIFY_BOUNDARY_DISTANCE:
+            continue
+
+        edge_a = vert_a.co - vert.co
+        edge_b = vert_b.co - vert.co
+        if edge_a.length_squared == 0 or edge_b.length_squared == 0:
+            continue
+
+        deflection = pi - edge_a.angle(edge_b, pi)
+        if deflection > WATER_PHYSICS_SIMPLIFY_BOUNDARY_ANGLE:
+            continue
+
+        candidates.append(vert)
+        candidate_neighbors[vert] = (vert_a, vert_b)
+
+    # Dissolving adjacent boundary verts in the same pass can over-collapse smooth loops.
+    dissolved = []
+    blocked = set()
+    for vert in candidates:
+        if vert in blocked:
+            continue
+
+        vert_a, vert_b = candidate_neighbors[vert]
+        dissolved.append(vert)
+        blocked.update((vert, vert_a, vert_b))
+
+    return dissolved
+
+def simplify_water_physics_mesh(mesh: bpy.types.Mesh, scene: 'VirtualScene') -> None:
+    before_triangles = mesh_triangle_count(mesh)
+    bm = bmesh.new()
+    try:
+        bm.from_mesh(mesh)
+        if not bm.faces:
+            return
+
+        bmesh.ops.remove_doubles(
+            bm,
+            verts=bm.verts,
+            dist=WATER_PHYSICS_SIMPLIFY_MERGE_DISTANCE,
+        )
+        bmesh.ops.dissolve_degenerate(
+            bm,
+            edges=bm.edges,
+            dist=WATER_PHYSICS_SIMPLIFY_MERGE_DISTANCE,
+        )
+        bmesh.ops.dissolve_limit(
+            bm,
+            angle_limit=WATER_PHYSICS_SIMPLIFY_PLANAR_ANGLE,
+            use_dissolve_boundaries=False,
+            verts=bm.verts,
+            edges=bm.edges,
+            delimit=set(),
+        )
+
+        for _ in range(WATER_PHYSICS_SIMPLIFY_BOUNDARY_PASSES):
+            boundary_verts = water_physics_boundary_dissolve_candidates(bm)
+            if not boundary_verts:
+                break
+
+            verts_before = len(bm.verts)
+            bmesh.ops.dissolve_verts(
+                bm,
+                verts=boundary_verts,
+                use_face_split=False,
+                use_boundary_tear=False,
+            )
+            bmesh.ops.dissolve_degenerate(
+                bm,
+                edges=bm.edges,
+                dist=WATER_PHYSICS_SIMPLIFY_MERGE_DISTANCE,
+            )
+            if len(bm.verts) == verts_before:
+                break
+
+        bmesh.ops.triangulate(
+            bm,
+            faces=bm.faces,
+            quad_method=utils.tri_mod_to_bmesh_tri(scene.quad_method),
+            ngon_method=utils.tri_mod_to_bmesh_tri(scene.ngon_method),
+        )
+        bm.to_mesh(mesh)
+        mesh.update()
+    finally:
+        bm.free()
+
+    print(f"--- Water physics simplification [{mesh.name}]: {before_triangles} -> {mesh_triangle_count(mesh)} triangles")
     
 def read_frame_id_list() -> list:
     filepath = Path(utils.addon_root(), "export", "frameidlist.csv")
@@ -1316,12 +1440,7 @@ class VirtualMesh:
             mesh = ob.data
             
         if props.get("foundry_simplify"):
-            bm = bmesh.new()
-            bm.from_mesh(mesh)
-            bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.1)
-            bmesh.ops.dissolve_limit(bm, angle_limit=radians(5), use_dissolve_boundaries=False, verts=bm.verts, edges=bm.edges, delimit=set())
-            bm.to_mesh(mesh)
-            bm.free()
+            simplify_water_physics_mesh(mesh, scene)
             
         if ob.transform is not None:
             mesh.transform(ob.transform)
