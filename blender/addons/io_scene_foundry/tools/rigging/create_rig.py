@@ -634,9 +634,9 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
 
 class NWO_OT_BakeIKControl(bpy.types.Operator):
     bl_idname = "nwo.bake_ik_control"
-    bl_label = "Snap & Bake Bones to Other Bones"
+    bl_label = "Snap Bones"
     bl_description = "Toggle IK/FK and snap the affected bones so the pose is preserved"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO", "REGISTER"}
 
     prop_name: bpy.props.StringProperty(options={'HIDDEN'})
     direction: bpy.props.EnumProperty(
@@ -697,9 +697,12 @@ class NWO_OT_BakeIKControl(bpy.types.Operator):
         if direction != 'TOGGLE':
             return direction
 
+        return cls.resolve_auto_direction_from_context(context, getattr(properties, "prop_name", ""))
+
+    @classmethod
+    def resolve_auto_direction_from_context(cls, context, prop_name: str):
         arm = context.object
         settings_bone = arm.pose.bones.get(settings_control_name) if arm is not None and arm.type == 'ARMATURE' else None
-        prop_name = getattr(properties, "prop_name", "")
         if settings_bone is None or prop_name not in settings_bone:
             return 'FK_TO_IK'
 
@@ -712,10 +715,11 @@ class NWO_OT_BakeIKControl(bpy.types.Operator):
         self.frame_start = context.scene.frame_start
         self.frame_end = context.scene.frame_end
         self.do_bake = False
-        self.direction = self.resolve_direction_from_context(context, self)
+        self.direction = self.resolve_auto_direction_from_context(context, self.prop_name)
         if self._snap_context(context, report=True) is None:
             return {'CANCELLED'}
-        return context.window_manager.invoke_props_dialog(self)
+        return self.execute(context)
+        # return context.window_manager.invoke_props_dialog(self)
 
     def draw(self, context):
         layout = self.layout
@@ -783,7 +787,10 @@ class NWO_OT_BakeIKControl(bpy.types.Operator):
                 snap_control_context_frame(context, snap_context, original_frame, keyframe=False)
                 self.report({'INFO'}, f"Snapped {self.prop_name} {'on' if direction == 'FK_TO_IK' else 'off'}")
         finally:
-            context.scene.frame_set(original_frame)
+            if self.do_bake:
+                context.scene.frame_set(original_frame)
+            else:
+                context.view_layer.update()
             utils.restore_mode(original_mode)
 
         return {'FINISHED'}
@@ -954,12 +961,12 @@ def snap_ik_contexts_frame(
             pole_position = calculate_pose_pole_position(chain[0], chain[-2], fkb, ptb) if ptb is not None and len(chain) > 1 else None
             targets.append((ik_matrix, pole_position))
 
-        set_settings_control_prop_value(settings_bone, prop_name, True)
-        context.view_layer.update()
         for (_fkb, ikb, ptb, _chain), (ik_matrix, pole_position) in zip(contexts, targets):
             ikb.matrix = ik_matrix
             if ptb is not None and pole_position is not None:
                 set_pose_bone_matrix_translation(ptb, pole_position)
+        context.view_layer.update()
+        set_settings_control_prop_value(settings_bone, prop_name, True)
         context.view_layer.update()
 
         if keyframe:
@@ -979,9 +986,7 @@ def snap_ik_contexts_frame(
     set_settings_control_prop_value(settings_bone, prop_name, False)
     context.view_layer.update()
     for _fkb, _ikb, _ptb, chain in contexts:
-        for pbone in chain:
-            pbone.matrix = visual_matrices[pbone.name]
-    context.view_layer.update()
+        restore_pose_bone_matrices(context, chain, visual_matrices)
 
     if keyframe:
         for _fkb, _ikb, _ptb, chain in contexts:
@@ -996,6 +1001,18 @@ def ik_snap_target_matrix(fkb: bpy.types.PoseBone, ikb: bpy.types.PoseBone) -> M
         return matrix
 
     return fkb.matrix.copy()
+
+def restore_pose_bone_matrices(
+    context: bpy.types.Context,
+    bones: list[bpy.types.PoseBone],
+    matrices: dict[str, Matrix],
+):
+    for pbone in bones:
+        matrix = matrices.get(pbone.name)
+        if matrix is None:
+            continue
+        pbone.matrix = matrix
+        context.view_layer.update()
 
 def snap_generic_control_frame(
     context: bpy.types.Context,
@@ -1012,16 +1029,91 @@ def snap_generic_control_frame(
     context.scene.frame_set(frame)
     context.view_layer.update()
     visual_matrices = {pbone.name: pbone.matrix.copy() for pbone in affected_bones}
+    compensated_bone_names = set()
+    if direction == 'FK_TO_IK':
+        compensated_bone_names = compensate_armature_follow_target_matrices(
+            context,
+            settings_bone.id_data,
+            prop_name,
+            affected_bones,
+            visual_matrices,
+        )
     set_settings_control_prop_value(settings_bone, prop_name, direction == 'FK_TO_IK')
     context.view_layer.update()
-    for pbone in affected_bones:
-        pbone.matrix = visual_matrices[pbone.name]
-    context.view_layer.update()
+    restore_pose_bone_matrices(
+        context,
+        [pbone for pbone in affected_bones if pbone.name not in compensated_bone_names],
+        visual_matrices,
+    )
 
     if keyframe:
         for pbone in affected_bones:
             keyframe_pose_bone_transform(pbone, frame)
         keyframe_settings_prop(settings_bone, prop_name, frame)
+
+def compensate_armature_follow_target_matrices(
+    context: bpy.types.Context,
+    arm: bpy.types.Object,
+    prop_name: str,
+    bones: list[bpy.types.PoseBone],
+    visual_matrices: dict[str, Matrix],
+) -> set[str]:
+    compensated_bone_names = set()
+    for pbone in bones:
+        matrix = visual_matrices.get(pbone.name)
+        if matrix is None:
+            continue
+
+        compensated = False
+        for target_bone in armature_constraint_targets_driven_by_prop(arm, pbone, prop_name):
+            deform = target_bone.matrix @ target_bone.bone.matrix_local.inverted_safe()
+            matrix = deform.inverted_safe() @ matrix
+            compensated = True
+
+        if compensated:
+            pbone.matrix = matrix
+            context.view_layer.update()
+            compensated_bone_names.add(pbone.name)
+
+    return compensated_bone_names
+
+def armature_constraint_targets_driven_by_prop(
+    arm: bpy.types.Object,
+    pbone: bpy.types.PoseBone,
+    prop_name: str,
+) -> list[bpy.types.PoseBone]:
+    animation_data = arm.animation_data
+    if animation_data is None:
+        return []
+
+    prop_path = settings_prop_data_path(prop_name)
+    driven_paths = {
+        fcurve.data_path
+        for fcurve in animation_data.drivers
+        if any(
+            target.id == arm and target.data_path == prop_path
+            for var in fcurve.driver.variables
+            for target in var.targets
+        )
+    }
+    if not driven_paths:
+        return []
+
+    targets = []
+    for con in pbone.constraints:
+        if con.type != 'ARMATURE':
+            continue
+
+        for index, target in enumerate(con.targets):
+            data_path = f'pose.bones["{pbone.name}"].constraints["{con.name}"].targets[{index}].weight'
+            if data_path not in driven_paths or target.target != arm:
+                continue
+
+            target_bone = arm.pose.bones.get(target.subtarget)
+            if target_bone is not None:
+                targets.append(target_bone)
+
+    return targets
 
 def set_settings_control_prop_value(settings_bone: bpy.types.PoseBone, prop_name: str, enabled: bool):
     if settings_prop_uses_bool(settings_bone, prop_name):
@@ -1063,10 +1155,10 @@ def snap_ik_control_frame(
         ik_matrix = ik_snap_target_matrix(fkb, ikb)
         pole_position = calculate_pose_pole_position(chain[0], chain[-2], fkb, ptb) if len(chain) > 1 else fkb.head.copy()
 
-        set_settings_control_prop_value(settings_bone, prop_name, True)
-        context.view_layer.update()
         ikb.matrix = ik_matrix
         set_pose_bone_matrix_translation(ptb, pole_position)
+        context.view_layer.update()
+        set_settings_control_prop_value(settings_bone, prop_name, True)
         context.view_layer.update()
 
         if keyframe:
@@ -1081,9 +1173,7 @@ def snap_ik_control_frame(
 
     set_settings_control_prop_value(settings_bone, prop_name, False)
     context.view_layer.update()
-    for pbone in chain:
-        pbone.matrix = visual_matrices[pbone.name]
-    context.view_layer.update()
+    restore_pose_bone_matrices(context, chain, visual_matrices)
 
     if keyframe:
         for pbone in chain:

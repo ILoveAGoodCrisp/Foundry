@@ -2043,6 +2043,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if has_snap_bake_pose_control(key):
                     op = row.operator("nwo.bake_ik_control", text="", icon='FILE_REFRESH')
                     op.prop_name = key
+                    op.direction = 'TOGGLE'
 
     def draw_camera_shot_properties(self, box: bpy.types.UILayout, camera: bpy.types.Object):
         nwo = camera.nwo
