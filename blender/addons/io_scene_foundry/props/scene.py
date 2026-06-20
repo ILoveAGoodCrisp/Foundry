@@ -2519,33 +2519,42 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         set=set_game_frame,
         min=0,
     )
+
+    def _cinematic_shot_starts(self, scene):
+        shot_starts = [scene.frame_start]
+        for marker in utils.get_timeline_markers(scene):
+            if marker.frame <= scene.frame_start:
+                continue
+            if marker.frame != shot_starts[-1]:
+                shot_starts.append(marker.frame)
+
+        return shot_starts
+
+    def _current_cinematic_shot_index(self, scene, shot_starts=None):
+        if shot_starts is None:
+            shot_starts = self._cinematic_shot_starts(scene)
+
+        shot_index = 0
+        for idx, shot_start in enumerate(shot_starts):
+            if scene.frame_current < shot_start:
+                break
+            shot_index = idx
+
+        return shot_index
     
     def get_current_shot(self):
         scene = self.id_data
-        markers = utils.get_timeline_markers(scene)
-        frame_current = scene.frame_current
-        if frame_current < all([m.frame for m in markers]):
-            return 1
-        
-        if markers:
-            add_index = int(markers[0].frame > scene.frame_start)
-            for idx, marker in enumerate(markers):
-                if marker.frame <= frame_current and (len(markers) - 1 == idx or markers[idx + 1].frame > frame_current):
-                    return idx + 1 + add_index
-            
-        return 1
+        return self._current_cinematic_shot_index(scene) + 1
     
     def set_current_shot(self, value):
         scene = self.id_data
-        if value == 1:
+        shot_starts = self._cinematic_shot_starts(scene)
+        shot_index = value - 1
+        if shot_index < 0 or shot_index >= len(shot_starts):
             scene.frame_current = scene.frame_start
             return
-        markers = utils.get_timeline_markers(scene)
-        marker_index = value - 2
-        if marker_index < 0 or marker_index >= len(markers):
-            scene.frame_current = scene.frame_start
-        else:
-            scene.frame_current = markers[marker_index].frame
+
+        scene.frame_current = shot_starts[shot_index]
     
     current_shot: bpy.props.IntProperty(
         name="Current Shot",
@@ -2558,27 +2567,21 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     def get_shot_frame(self):
         scene = self.id_data
-        marker_index = self.current_shot - 2
-        if marker_index < 0:
-            return scene.frame_current - scene.frame_start
-        markers = utils.get_timeline_markers(scene) 
-        marker_frame = markers[marker_index].frame
-        return scene.frame_current - marker_frame + int(utils.is_corinth(bpy.context))
+        shot_starts = self._cinematic_shot_starts(scene)
+        shot_index = self._current_cinematic_shot_index(scene, shot_starts)
+        frame_base = int(utils.is_corinth(bpy.context))
+        return max(scene.frame_current - shot_starts[shot_index], 0) + frame_base
         
     def set_shot_frame(self, value):
         scene = self.id_data
-        markers = utils.get_timeline_markers(scene)
-        marker_index = self.current_shot - 2
-        if marker_index < 0:
-            frame = scene.frame_start + value
-        elif marker_index >= len(markers):
-            frame = markers[-1].frame + value
-        else:
-            frame = markers[marker_index].frame + value
+        shot_starts = self._cinematic_shot_starts(scene)
+        shot_index = self._current_cinematic_shot_index(scene, shot_starts)
+        frame_base = int(utils.is_corinth(bpy.context))
+        frame = max(shot_starts[shot_index], shot_starts[shot_index] + value - frame_base)
             
         # check that frame is in current shot
-        if len(markers) > marker_index + 1:
-            next_marker_frame = markers[marker_index + 1].frame
+        if len(shot_starts) > shot_index + 1:
+            next_marker_frame = shot_starts[shot_index + 1]
             if frame >= next_marker_frame:
                 scene.frame_current = next_marker_frame - 1
                 return
