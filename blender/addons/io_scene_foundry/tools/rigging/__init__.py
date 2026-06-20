@@ -164,6 +164,8 @@ finger_ik_chain_bone_suffixes = (
 )
 finger_ik_endpoint_bone_suffixes = ("index3", "thumb3", "pinky3", "ring3", "middle3", "finger3", "index_tip", "thumb_tip", "pinky_tip", "ring_tip", "middle_tip", "finger_tip")
 ik_endpoint_bone_suffixes = ("foot", "tarsus", "hand", "toe_atr_u", *finger_ik_endpoint_bone_suffixes)
+generate_new_finger_ik_controls = False
+generate_new_foot_roll_controls = False
 
 head_bone_name = '_head'
 eyes_bone_name = '_eye'
@@ -965,6 +967,8 @@ class HaloRig:
                     if is_ik_endpoint_fk_name(bone.name):
                         ik_name = bone.name.replace("FK_", "IK_", 1)
                         pt_name = ik_name.replace("IK_", "PT_", 1)
+                        if is_finger_ik_source_name(bone.name) and not generate_new_finger_ik_controls and self.rig_pose.bones.get(ik_name) is None:
+                            continue
                         ik_target_specs.append((bone.name, ik_name, pt_name))
 
             if ik_target_specs or existing_head_fk_names:
@@ -1023,7 +1027,11 @@ class HaloRig:
                         ik_bone_names.append(ik_name)
                         ik_bone_names.append(pt_name)
 
-                    ik_bone_names.extend(ensure_foot_roll_control_bones(edit_bones, deform_fk_mapping))
+                    ik_bone_names.extend(ensure_foot_roll_control_bones(
+                        edit_bones,
+                        deform_fk_mapping,
+                        create_missing=generate_new_foot_roll_controls,
+                    ))
 
                 align_x_mirror_control_bone_rolls(edit_bones, (*fk_bone_names, *ik_bone_names))
 
@@ -1158,7 +1166,7 @@ class HaloRig:
                         
                     deform_fk_mapping[edit_bone.name] = fk_bone.name
                     fk_bone_names.append(fk_bone.name)
-                    if is_ik_endpoint_fk_name(fk_bone.name):
+                    if is_ik_endpoint_fk_name(fk_bone.name) and (generate_new_finger_ik_controls or not is_finger_ik_source_name(fk_bone.name)):
                         fk_bones_for_ik.append(fk_bone)
                     previous_fk_bone = fk_bone
 
@@ -1234,7 +1242,11 @@ class HaloRig:
                 ik_bone_names.append(ikb.name)
                 ik_bone_names.append(pole_target.name)
 
-            ik_bone_names.extend(ensure_foot_roll_control_bones(self.rig_data.edit_bones, deform_fk_mapping))
+            ik_bone_names.extend(ensure_foot_roll_control_bones(
+                self.rig_data.edit_bones,
+                deform_fk_mapping,
+                create_missing=generate_new_foot_roll_controls,
+            ))
 
             align_x_mirror_control_bone_rolls(self.rig_data.edit_bones, (*fk_bone_names, *ik_bone_names))
 
@@ -2379,10 +2391,19 @@ def copy_finger_ik_edit_bone_transform(target: bpy.types.EditBone, source: bpy.t
     target.tail = target.head + direction * max(source.length * 0.5, 0.01)
     target.roll = source.roll
 
-def ensure_foot_roll_control_bones(edit_bones, deform_fk_mapping: dict[str, str]):
+def ensure_foot_roll_control_bones(edit_bones, deform_fk_mapping: dict[str, str], create_missing=True):
     foot_roll_names = []
     for deform_name, fk_name in deform_fk_mapping.items():
         if not is_foot_roll_source_name(fk_name):
+            continue
+
+        control_name = foot_roll_control_bone_name(fk_name)
+        pivot_name = foot_roll_pivot_bone_name(fk_name)
+        if not create_missing:
+            if edit_bones.get(pivot_name) is not None:
+                foot_roll_names.append(pivot_name)
+            if edit_bones.get(control_name) is not None:
+                foot_roll_names.append(control_name)
             continue
 
         foot_bone = edit_bones.get(deform_name)
@@ -2391,7 +2412,7 @@ def ensure_foot_roll_control_bones(edit_bones, deform_fk_mapping: dict[str, str]
         if foot_bone is None or toe_bone is None or ik_bone is None:
             continue
 
-        pivot_bone = ensure_control_bone(edit_bones, foot_roll_pivot_bone_name(fk_name))
+        pivot_bone = ensure_control_bone(edit_bones, pivot_name)
         copy_edit_bone_transform(pivot_bone, toe_bone)
         pivot_bone.length = max(toe_bone.length, foot_bone.length * 0.35, 0.01)
         align_foot_roll_control_bone_roll(pivot_bone)
@@ -2399,7 +2420,7 @@ def ensure_foot_roll_control_bones(edit_bones, deform_fk_mapping: dict[str, str]
         pivot_bone.use_connect = False
         pivot_bone.use_deform = False
 
-        control_bone = ensure_control_bone(edit_bones, foot_roll_control_bone_name(fk_name))
+        control_bone = ensure_control_bone(edit_bones, control_name)
         copy_edit_bone_transform(control_bone, toe_bone)
         control_bone.length = max(toe_bone.length, foot_bone.length * 0.35, 0.01)
         align_foot_roll_control_bone_roll(control_bone)
