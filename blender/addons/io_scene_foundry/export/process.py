@@ -319,7 +319,7 @@ class ExportScene:
         self.external_animations = {}
         self.local_views = set()
         self.decorators = []
-        self.hidden_objects = set()
+        self.hidden_objects = {}
         self.marker_instancers = []
         self.used_game_object_names = set()
         self.pretend_object_instances = {}
@@ -353,9 +353,13 @@ class ExportScene:
             self.context.view_layer.update()
 
         for ob in self.context.view_layer.objects:
-            if ob.hide_get():
-                self.hidden_objects.add(ob)
-                ob.hide_set(False)
+            hidden, viewport_hidden = ob.hide_get(), ob.hide_viewport
+            if hidden or viewport_hidden:
+                self.hidden_objects[ob] = hidden, viewport_hidden
+                if hidden:
+                    ob.hide_set(False)
+                if viewport_hidden:
+                    ob.hide_viewport = False
             
             # if self.asset_type.supports_animations:
             #     if ob.type == 'MESH':
@@ -2605,8 +2609,11 @@ class ExportScene:
             if refresh_view_layer:
                 self.context.view_layer.update()
             
-        for ob in self.hidden_objects:
-            ob.hide_set(True)
+        for ob, (hidden, viewport_hidden) in self.hidden_objects.items():
+            if hidden:
+                ob.hide_set(True)
+            if viewport_hidden:
+                ob.hide_viewport = True
         
         if self.asset_type in {AssetType.MODEL, AssetType.ANIMATION} and self.scene_settings.animations and self.scene_settings.active_animation_index > -1:
             self.scene_settings.active_animation_index = self.scene_settings.active_animation_index

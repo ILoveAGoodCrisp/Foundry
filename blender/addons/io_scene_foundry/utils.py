@@ -5780,7 +5780,7 @@ def test_point_bvh(bvhs, point):
 
 class DepsgraphRead:
     def __init__(self):
-        self.hidden_objects = set()
+        self.hidden_objects = {}
         self.local_view = None
         self.marker_instancers = []
     
@@ -5792,17 +5792,22 @@ class DepsgraphRead:
         self.local_views = exit_local_view(bpy.context)
         bpy.context.view_layer.update()
         
-        for ob in bpy.context.view_layer.objects:
-            if ob.hide_get():
-                self.hidden_objects.add(ob)
-                ob.hide_set(False)
+        for ob in self.context.view_layer.objects:
+            hidden, viewport_hidden = ob.hide_get(), ob.hide_viewport
+            if hidden or viewport_hidden:
+                self.hidden_objects[ob] = hidden, viewport_hidden
+                if hidden:
+                    ob.hide_set(False)
+                if viewport_hidden:
+                    ob.hide_viewport = False
                 
         
     def __exit__(self, exc_type, exc_value, traceback):
-        
-        
-        for ob in self.hidden_objects:
-            ob.hide_set(True)
+        for ob, (hidden, viewport_hidden) in self.hidden_objects.items():
+            if hidden:
+                ob.hide_set(True)
+            if viewport_hidden:
+                ob.hide_viewport = True
             
         set_local_view(bpy.context, self.local_views)
         
