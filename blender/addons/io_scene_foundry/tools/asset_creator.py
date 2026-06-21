@@ -334,7 +334,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         
         if self.generate_halo_skeleton:
             needs_aim_bones = self.output_biped or self.output_vehicle or self.output_giant
-            add_rig(context, needs_aim_bones, True)
+            add_rig(context, needs_aim_bones)
         
         # Save the file to the asset folder
         if self.save_new_blend_file:
