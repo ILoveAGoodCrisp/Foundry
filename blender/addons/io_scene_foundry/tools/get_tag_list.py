@@ -256,7 +256,7 @@ class NWO_TagExplore(bpy.types.Operator):
                     self.report({'WARNING'}, "Failed to open file")
         else:
             setattr(self.nwo, self.prop, relative_path(self.filepath))
-            if getattr(self, "do_rename"):
+            if getattr(self, "do_rename", False):
                 context.object.active_material.name = Path(self.filepath).with_suffix("").name
         return {"FINISHED"}
     
