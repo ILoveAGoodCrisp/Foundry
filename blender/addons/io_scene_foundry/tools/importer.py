@@ -2083,7 +2083,7 @@ class NWO_Import(bpy.types.Operator):
                     if scene_nwo.animations:
                         scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
                         
-                if self.generate_frames and imported_animations:
+                if self.generate_frames and imported_animations and 'jma' in importer.extensions:
                     generator = FrameGenerator(a for a in scene_nwo.animations if a not in current_animations)
                     generator.generate()
 

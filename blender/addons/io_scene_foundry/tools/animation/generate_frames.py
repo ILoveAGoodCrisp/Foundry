@@ -138,14 +138,17 @@ class FrameGenerator:
                 if target_fc is None:
                     continue
 
-                    target_fcurves[key].keyframe_points.insert(target_frame, first_key.co.y, options={'FAST'})
+                target_fc.keyframe_points.insert(target_frame, first_key.co.y, options={'FAST'})
             else:
                 for key, source_fc in source_fcurves.items():
                     first_key = next((kp for kp in source_fc.keyframe_points if int(kp.co.x) == source_frame), None)
                     if not first_key:
                         continue
-
-                    target_fcurves[key].keyframe_points.insert(target_frame, first_key.co.y, options={'FAST'})
+                    
+                    target_fc = target_fcurves.get(key)
+                    
+                    if target_fc:
+                        target_fc.keyframe_points.insert(target_frame, first_key.co.y, options={'FAST'})
             
         if assume_movement:
             
