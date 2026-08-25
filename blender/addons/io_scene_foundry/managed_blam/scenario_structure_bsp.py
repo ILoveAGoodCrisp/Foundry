@@ -379,7 +379,7 @@ class ScenarioStructureBspTag(Tag):
             objects.append(ob)
             # utils.unlink(ob)
             structure_collection.objects.link(ob)
-            ob.nwo.proxy_instance = True
+            ob.nwo.proxy_instance = not self.corinth
             ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
             
             # separate out the seams
