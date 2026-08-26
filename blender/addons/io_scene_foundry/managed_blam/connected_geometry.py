@@ -23,6 +23,7 @@ from ..tools import materials as special_materials
 
 from .. import utils
 from . import import_transform
+from .havok_tagfile import HavokTagfileReader
 from .Tags import TagFieldBlock, TagFieldBlockElement
 from mathutils.geometry import tessellate_polygon
 
@@ -1510,7 +1511,7 @@ class StructureCollision(BSP):
         self.sky_index = sky_index
     
 class HavokCollision:
-    """A minimal importer for Tool's serialized HaloCompressedMeshShape data."""
+    """Import Tool's serialized Halo Havok collision meshes."""
 
     _MAX_POOL_VALUES = 4_000_000
     _COLLISION_TYPE_NAMES = {
@@ -1632,7 +1633,9 @@ class HavokCollision:
             return None
 
         data = bytes(serialized_data)
-        mesh_data = cls._extract_mesh_data(data, len(collision_materials))
+        mesh_data = cls._extract_static_compound_mesh_data(data, len(collision_materials))
+        if mesh_data is None:
+            mesh_data = cls._extract_mesh_data(data, len(collision_materials))
         if mesh_data is None:
             return None
 
@@ -1643,20 +1646,179 @@ class HavokCollision:
 
         return cls(name, vertices, faces, material_indices, collision_materials, render_triangle_mappings, collision_type)
 
+    @classmethod
+    def _extract_static_compound_mesh_data(cls, data: bytes, material_count: int):
+        if not data.startswith(HavokTagfileReader._MAGIC) or b"HaloStaticCompoundMeshShape" not in data:
+            return None
+
+        try:
+            root = HavokTagfileReader(data).parse()
+        except (EOFError, IndexError, KeyError, struct.error, UnicodeDecodeError, ValueError):
+            return None
+        if not isinstance(root, dict) or "hkpStaticCompoundShape" not in root.get("classes", ()):
+            return None
+
+        instances = root.get("fields", {}).get("instances")
+        if not isinstance(instances, list) or not instances:
+            return None
+
+        vertices = []
+        faces = []
+        material_indices = []
+        render_triangle_mappings = []
+        for instance in instances:
+            if not isinstance(instance, dict):
+                continue
+            instance_fields = instance.get("fields", {})
+            transform = cls._static_compound_instance_matrix(instance_fields.get("transform"))
+            if transform is None:
+                continue
+
+            for compressed_shape in cls._find_compressed_mesh_shapes(instance_fields.get("shape")):
+                storage_definitions = compressed_shape.get("fields", {}).get("meshStorageDefinitions", ())
+                if not isinstance(storage_definitions, list):
+                    continue
+                for storage in storage_definitions:
+                    mesh_data = cls._mesh_data_from_storage(storage, material_count)
+                    if mesh_data is None:
+                        continue
+
+                    storage_vertices, storage_faces, storage_materials, storage_mappings = mesh_data
+                    first_vertex = len(vertices)
+                    vertices.extend((transform @ Vector(vertex)).to_tuple() for vertex in storage_vertices)
+                    faces.extend(
+                        (a + first_vertex, b + first_vertex, c + first_vertex)
+                        for a, b, c in storage_faces
+                    )
+                    material_indices.extend(storage_materials)
+                    render_triangle_mappings.extend(storage_mappings)
+
+        if not vertices or not faces:
+            return None
+        if len(render_triangle_mappings) != len(faces):
+            render_triangle_mappings = []
+        return vertices, faces, material_indices, render_triangle_mappings
+
+    @staticmethod
+    def _static_compound_instance_matrix(transform):
+        if not isinstance(transform, tuple) or len(transform) < 11:
+            return Matrix.Identity(4)
+        values = transform[:11]
+        if not all(math.isfinite(value) for value in values):
+            return None
+
+        translation = Vector(values[:3])
+        rotation_values = (values[7], values[4], values[5], values[6])
+        rotation_length_squared = sum(value * value for value in rotation_values)
+        rotation = Quaternion(rotation_values) if rotation_length_squared > 1.0e-12 else Quaternion()
+        rotation.normalize()
+        scale = Vector(values[8:11])
+        return Matrix.LocRotScale(translation, rotation, scale)
+
+    @staticmethod
+    def _find_compressed_mesh_shapes(shape):
+        found = []
+        pending = [shape]
+        visited = set()
+        while pending:
+            value = pending.pop()
+            if isinstance(value, dict):
+                identity = id(value)
+                if identity in visited:
+                    continue
+                visited.add(identity)
+                if "HaloCompressedMeshShape" in value.get("classes", ()):
+                    found.append(value)
+                    continue
+                pending.extend(value.get("fields", {}).values())
+            elif isinstance(value, list):
+                pending.extend(value)
+        return found
+
+    @classmethod
+    def _mesh_data_from_storage(cls, storage, material_count: int):
+        if not isinstance(storage, dict):
+            return None
+        fields = storage.get("fields", {})
+        vertex_values = fields.get("VertexPool")
+        index_values = fields.get("IndexPool")
+        if not isinstance(vertex_values, list) or not isinstance(index_values, list):
+            return None
+        if len(vertex_values) < 9 or len(vertex_values) % 3 or len(index_values) < 4 or len(index_values) % 4:
+            return None
+        if not cls._valid_vertex_pool(vertex_values):
+            return None
+
+        vertices = [
+            (vertex_values[index], vertex_values[index + 1], vertex_values[index + 2])
+            for index in range(0, len(vertex_values), 3)
+        ]
+        faces = []
+        material_indices = []
+        valid_triangle_indices = []
+        for triangle_index, index in enumerate(range(0, len(index_values), 4)):
+            a, b, c, combined_material = index_values[index:index + 4]
+            if min(a, b, c) < 0 or max(a, b, c) >= len(vertices) or len({a, b, c}) < 3:
+                continue
+            faces.append((a, b, c))
+            material_indices.append(cls._material_index_from_combined_data(combined_material, material_count))
+            valid_triangle_indices.append(triangle_index)
+
+        if not faces:
+            return None
+        render_triangle_mappings = cls._render_mappings_from_storage(
+            fields.get("RenderMapping"),
+            fields.get("IORenderTriangleIndices"),
+            len(index_values) // 4,
+        )
+        if render_triangle_mappings:
+            render_triangle_mappings = [render_triangle_mappings[index] for index in valid_triangle_indices]
+        return vertices, faces, material_indices, render_triangle_mappings
+
+    @staticmethod
+    def _render_mappings_from_storage(descriptors, mapped_indices, triangle_count: int):
+        if not isinstance(descriptors, list) or not isinstance(mapped_indices, list):
+            return []
+        if len(descriptors) != triangle_count:
+            return []
+
+        mapping_index_bits = 25
+        mapping_index_mask = (1 << mapping_index_bits) - 1
+        mappings = []
+        for descriptor in descriptors:
+            if descriptor < 0:
+                return []
+            first_mapped_index = descriptor & mapping_index_mask
+            mapped_triangle_count = descriptor >> mapping_index_bits
+            end_mapped_index = first_mapped_index + mapped_triangle_count
+            if mapped_triangle_count > 15 or end_mapped_index > len(mapped_indices):
+                return []
+            mapping = tuple(mapped_indices[first_mapped_index:end_mapped_index])
+            if any(index < 0 for index in mapping):
+                return []
+            mappings.append(mapping)
+        return mappings
+
     @staticmethod
     def _read_packed_int(data: bytes, offset: int) -> tuple[int, int]:
-        result = 0
-        shift = 0
-        while offset < len(data):
+        if offset >= len(data):
+            raise ValueError("Invalid packed Havok integer")
+
+        byte = data[offset]
+        offset += 1
+        negative = bool(byte & 1)
+        value = (byte & 0x7E) >> 1
+        shift = 6
+        while byte & 0x80 and offset < len(data):
             byte = data[offset]
             offset += 1
-            result |= (byte & 0x7F) << shift
-            if not byte & 0x80:
-                value = (result >> 1) ^ -(result & 1)
-                return value, offset
+            value |= (byte & 0x7F) << shift
             shift += 7
             if shift > 63:
                 break
+        else:
+            if not byte & 0x80:
+                return (-value if negative else value), offset
 
         raise ValueError("Invalid packed Havok integer")
 

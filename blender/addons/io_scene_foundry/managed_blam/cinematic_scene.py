@@ -272,7 +272,7 @@ class CinematicObjectFunctionKeyframe:
         
     def from_element(self, element: TagFieldBlockElement):
         self.clear_function = element.SelectField("flags").TestBit("clear function (Value and Interpolation time are unused)")
-        self.frame = element.SelectField("frame").Data
+        self.frame = element.SelectField("LongInteger:frame").Data
         self.value = element.SelectField("value").Data
         self.interpolation_time = element.SelectField("interpolation time").Data
     
