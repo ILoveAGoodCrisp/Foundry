@@ -1213,9 +1213,11 @@ class BSPCollisionMaterial:
             self.name = render.ShortName
         
         self.global_material = ""
+        self.global_material_override = ""
         if utils.is_corinth():
             override = element.SelectField("override material name").Data
             if override:
+                self.global_material_override = override
                 self.global_material = override
                 
         if not self.global_material and render and Path(render.Filename).exists():
@@ -1413,6 +1415,14 @@ class BSP:
                         blender_materials_map[mat] = idx
             elif surface.material:
                 mesh.materials.append(surface.material.blender_material)
+
+            global_material_override_masks = {}
+            for surface_index, material in enumerate(map_material):
+                override = getattr(material, "global_material_override", "") if material is not None else ""
+                if override:
+                    global_material_override_masks.setdefault(override, np.zeros(len(self.surfaces), dtype=np.int8))[surface_index] = 1
+            for override, mask in global_material_override_masks.items():
+                utils.add_face_prop(mesh, "global_material", None if mask.all() else mask).global_material = override
         
         if any_ladder:
             utils.add_face_prop(mesh, "ladder", map_ladder if split_ladder else None)
@@ -2061,7 +2071,9 @@ class HavokCollision:
 
     @staticmethod
     def _material_index_from_combined_data(combined_data: int, material_count: int) -> int:
-        material_index = combined_data & 0x0FFF
+        # HaloCompressedMeshShape packs the environment collision layer above
+        # an 11-bit material index. Bit 0x800 is not part of the material.
+        material_index = combined_data & 0x07FF
         if material_count:
             if material_index < material_count:
                 return material_index
@@ -2109,20 +2121,33 @@ class HavokCollision:
         mesh.update()
 
         material_slots = {}
+        blender_material_slots = {}
+        global_material_override_masks = {}
+        material_indices_array = np.asarray(material_indices)
         for material_index in sorted(set(material_indices)):
             if material_index < 0 or material_index >= len(self.collision_materials):
                 continue
 
             collision_material = self.collision_materials[material_index]
+            override = getattr(collision_material, "global_material_override", "")
+            if override:
+                mask = global_material_override_masks.setdefault(override, np.zeros(len(faces), dtype=np.int8))
+                mask[material_indices_array == material_index] = 1
             blender_material = getattr(collision_material, "blender_material", None)
             if blender_material is None:
                 continue
 
-            material_slots[material_index] = len(mesh.materials)
-            mesh.materials.append(blender_material)
+            slot_index = blender_material_slots.get(blender_material)
+            if slot_index is None:
+                slot_index = len(mesh.materials)
+                blender_material_slots[blender_material] = slot_index
+                mesh.materials.append(blender_material)
+            material_slots[material_index] = slot_index
 
         if material_slots:
             mesh.polygons.foreach_set("material_index", [material_slots.get(i, 0) for i in material_indices])
+        for override, mask in global_material_override_masks.items():
+            utils.add_face_prop(mesh, "global_material", None if mask.all() else mask).global_material = override
 
         if len(render_triangle_mappings) == len(mesh.polygons):
             render_triangle_indices = np.array([mapping[0] if mapping else -1 for mapping in render_triangle_mappings], dtype=np.int32)
@@ -2136,6 +2161,8 @@ class HavokCollision:
             for collision_type_name in sorted(set(collision_type_names)):
                 collision_type_mask = np.array([name == collision_type_name for name in collision_type_names], dtype=np.int8)
                 if collision_type_mask.any():
+                    if collision_type_name == "default" and collision_type_mask.all():
+                        continue
                     utils.add_face_prop(mesh, "collision_type", None if collision_type_mask.all() else collision_type_mask).collision_type = collision_type_name
             mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
 
@@ -3354,6 +3381,9 @@ class Mesh:
             ladder_mask = np.zeros(face_count, dtype=np.int8)
             breakable_mask = np.zeros(face_count, dtype=np.int8)
             collision_type_masks = {}
+            collision_material_indices = np.full(face_count, -1, dtype=np.int32)
+            collision_material_slots = {material: index for index, material in enumerate(mesh.materials) if material is not None}
+            global_material_override_masks = {}
             
             for mapping in surface_triangle_mapping:
                 surf = mapping.surface
@@ -3377,6 +3407,21 @@ class Mesh:
                     collision_type = getattr(surf, "collision_type", "")
                     if collision_type:
                         collision_type_masks.setdefault(collision_type, np.zeros(face_count, dtype=np.int8))[idx] = 1
+
+                    collision_material = getattr(surf, "material", None)
+                    if collision_material is not None:
+                        blender_material = getattr(collision_material, "blender_material", None)
+                        if blender_material is not None:
+                            material_slot = collision_material_slots.get(blender_material)
+                            if material_slot is None:
+                                material_slot = len(mesh.materials)
+                                collision_material_slots[blender_material] = material_slot
+                                mesh.materials.append(blender_material)
+                            collision_material_indices[idx] = material_slot
+
+                        override = getattr(collision_material, "global_material_override", "")
+                        if override:
+                            global_material_override_masks.setdefault(override, np.zeros(face_count, dtype=np.int8))[idx] = 1
                         
             render_only_mask = np.zeros(face_count, dtype=np.int8)
             for f in indices:
@@ -3391,7 +3436,17 @@ class Mesh:
                 utils.add_face_prop(mesh, "face_mode", None if breakable_mask.all() else breakable_mask).face_mode = 'breakable'
             for collision_type, collision_type_mask in collision_type_masks.items():
                 if collision_type_mask.any():
+                    if collision_type == "default" and collision_type_mask.all():
+                        continue
                     utils.add_face_prop(mesh, "collision_type", None if collision_type_mask.all() else collision_type_mask).collision_type = collision_type
+            material_mask = collision_material_indices >= 0
+            if material_mask.any():
+                final_material_indices = np.empty(face_count, dtype=np.int32)
+                mesh.polygons.foreach_get("material_index", final_material_indices)
+                final_material_indices[material_mask] = collision_material_indices[material_mask]
+                mesh.polygons.foreach_set("material_index", final_material_indices)
+            for override, override_mask in global_material_override_masks.items():
+                utils.add_face_prop(mesh, "global_material", None if override_mask.all() else override_mask).global_material = override
             if render_only_mask.any():
                 utils.add_face_prop(mesh, "face_mode", None if render_only_mask.all() else render_only_mask).face_mode = 'render_only'
 

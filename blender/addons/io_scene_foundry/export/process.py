@@ -1060,6 +1060,7 @@ class ExportScene:
         data_nwo: NWO_MeshPropertiesGroup = mesh.nwo
         copy = None
         skip = False
+        force_collision_only = False
         
         match self.asset_type:
             case AssetType.MODEL | AssetType.MULTI_MODEL:
@@ -1094,6 +1095,12 @@ class ExportScene:
                 match mesh_type:
                     case '_connected_geometry_mesh_type_default':
                         mesh_type = '_connected_geometry_mesh_type_poop'
+                    case '_connected_geometry_mesh_type_collision':
+                        if self.corinth:
+                            mesh_type = '_connected_geometry_mesh_type_poop_collision'
+                        else:
+                            mesh_type = '_connected_geometry_mesh_type_poop'
+                            force_collision_only = True
                     case '_connected_geometry_mesh_type_structure':
                         mesh_type = '_connected_geometry_mesh_type_default'
                         seam_material = mesh.materials.get("+seam")
@@ -1194,6 +1201,9 @@ class ExportScene:
             self.processed_meshes[ob.data] = mesh_props
         else:
             mesh_props.update(tmp_mesh_props)
+
+        if force_collision_only:
+            mesh_props["bungie_face_mode"] = FaceMode.collision_only.value
 
         return copy, skip
     
@@ -1538,7 +1548,7 @@ class ExportScene:
                     if self.asset_type.supports_global_materials and prop.global_material.strip():
                         mat = prop.global_material.strip().replace(' ', "_")
                         if mat:
-                            if self.corinth and mesh_type_value in {MeshType.poop.value or MeshType.poop_collision.value}:
+                            if self.corinth and mesh_type_value in {MeshType.poop.value, MeshType.poop_collision.value}:
                                 mesh_props["bungie_mesh_global_material"] = mat
                                 mesh_props["bungie_mesh_poop_collision_override_global_material"] = 1
                             else:
