@@ -4,6 +4,7 @@
 
 ## Requirements
 - Blender 5.2 or above
+- Windows (Please note Linux users can run Blender through Wine. Windows Arm is supported provided you run the x64 version of Blender)
 - One or more of the following Halo Editing Kits: [HREK](https://store.steampowered.com/app/1695793/Halo_Reach_Mod_Tools__MCC/),
 [H4EK](https://store.steampowered.com/app/1695792/Halo_4_Mod_Tools__MCC/),
 [H2AMPEK](https://store.steampowered.com/app/1695790/Halo_2_Anniversary_MP_Mod_Tools__MCC/)
