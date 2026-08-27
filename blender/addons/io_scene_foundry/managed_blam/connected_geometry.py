@@ -1522,7 +1522,7 @@ class HavokCollision:
         4: "none",
     }
 
-    def __init__(self, name: str, vertices: list[tuple[float, float, float]], faces: list[tuple[int, int, int]], material_indices: list[int], collision_materials: list[BSPCollisionMaterial], render_triangle_mappings: list[tuple[int, ...]] | None = None, collision_type: int = 0):
+    def __init__(self, name: str, vertices: list[tuple[float, float, float]], faces: list[tuple[int, int, int]], material_indices: list[int], collision_materials: list[BSPCollisionMaterial], render_triangle_mappings: list[tuple[int, ...]] | None = None, collision_type: int = 0, source_instance_indices: list[int] | None = None, source_local_vertices: list[tuple[float, float, float]] | None = None, collision_type_names: list[str] | None = None):
         self.name = name
         self.vertices = vertices
         self.faces = faces
@@ -1535,10 +1535,35 @@ class HavokCollision:
             collision_type = 0
         self.collision_type = collision_type
         self.collision_type_name = self._COLLISION_TYPE_NAMES.get(collision_type, "default")
+        self.source_instance_indices = source_instance_indices or []
+        if len(self.source_instance_indices) != len(self.faces):
+            self.source_instance_indices = []
+        self.source_local_vertices = source_local_vertices or []
+        if len(self.source_local_vertices) != len(self.vertices):
+            self.source_local_vertices = []
+        self.collision_type_names = collision_type_names or [self.collision_type_name] * len(self.faces)
+        if len(self.collision_type_names) != len(self.faces):
+            self.collision_type_names = [self.collision_type_name] * len(self.faces)
 
     @property
     def has_render_triangle_mappings(self) -> bool:
         return len(self.render_triangle_mappings) == len(self.faces) and any(self.render_triangle_mappings)
+
+    @property
+    def has_source_instance_indices(self) -> bool:
+        return len(self.source_instance_indices) == len(self.faces)
+
+    @property
+    def has_source_local_vertices(self) -> bool:
+        return len(self.source_local_vertices) == len(self.vertices)
+
+    def source_instance_face_indices(self) -> dict[int, list[int]]:
+        grouped = {}
+        if not self.has_source_instance_indices:
+            return grouped
+        for face_index, instance_index in enumerate(self.source_instance_indices):
+            grouped.setdefault(instance_index, []).append(face_index)
+        return grouped
 
     @property
     def unmapped_face_indices(self) -> list[int]:
@@ -1639,12 +1664,18 @@ class HavokCollision:
         if mesh_data is None:
             return None
 
-        vertices, faces, material_indices, render_triangle_mappings = mesh_data
+        if len(mesh_data) == 6:
+            vertices, faces, material_indices, render_triangle_mappings, source_instance_indices, source_local_vertices = mesh_data
+        else:
+            vertices, faces, material_indices, render_triangle_mappings = mesh_data
+            source_instance_indices = []
+            source_local_vertices = []
         vertices = cls._scale_vertices(vertices)
+        source_local_vertices = cls._scale_vertices(source_local_vertices)
         if not vertices or not faces:
             return None
 
-        return cls(name, vertices, faces, material_indices, collision_materials, render_triangle_mappings, collision_type)
+        return cls(name, vertices, faces, material_indices, collision_materials, render_triangle_mappings, collision_type, source_instance_indices, source_local_vertices)
 
     @classmethod
     def _extract_static_compound_mesh_data(cls, data: bytes, material_count: int):
@@ -1666,10 +1697,15 @@ class HavokCollision:
         faces = []
         material_indices = []
         render_triangle_mappings = []
+        source_instance_indices = []
+        source_local_vertices = []
         for instance in instances:
             if not isinstance(instance, dict):
                 continue
             instance_fields = instance.get("fields", {})
+            source_instance_index = instance_fields.get("userData", -1)
+            if not isinstance(source_instance_index, int):
+                source_instance_index = -1
             transform = cls._static_compound_instance_matrix(instance_fields.get("transform"))
             if transform is None:
                 continue
@@ -1686,18 +1722,20 @@ class HavokCollision:
                     storage_vertices, storage_faces, storage_materials, storage_mappings = mesh_data
                     first_vertex = len(vertices)
                     vertices.extend((transform @ Vector(vertex)).to_tuple() for vertex in storage_vertices)
+                    source_local_vertices.extend(storage_vertices)
                     faces.extend(
                         (a + first_vertex, b + first_vertex, c + first_vertex)
                         for a, b, c in storage_faces
                     )
                     material_indices.extend(storage_materials)
                     render_triangle_mappings.extend(storage_mappings)
+                    source_instance_indices.extend([source_instance_index] * len(storage_faces))
 
         if not vertices or not faces:
             return None
         if len(render_triangle_mappings) != len(faces):
             render_triangle_mappings = []
-        return vertices, faces, material_indices, render_triangle_mappings
+        return vertices, faces, material_indices, render_triangle_mappings, source_instance_indices, source_local_vertices
 
     @staticmethod
     def _static_compound_instance_matrix(transform):
@@ -2029,6 +2067,7 @@ class HavokCollision:
             faces = self.faces
             material_indices = self.material_indices
             render_triangle_mappings = self.render_triangle_mappings
+            collision_type_names = self.collision_type_names
         else:
             used_vertex_indices = sorted({vertex_index for face_index in face_indices for vertex_index in self.faces[face_index]})
             vertex_remap = {vertex_index: remapped_index for remapped_index, vertex_index in enumerate(used_vertex_indices)}
@@ -2042,6 +2081,7 @@ class HavokCollision:
                 self.render_triangle_mappings[face_index] if face_index < len(self.render_triangle_mappings) else ()
                 for face_index in face_indices
             ]
+            collision_type_names = [self.collision_type_names[face_index] for face_index in face_indices]
 
         mesh = bpy.data.meshes.new(name or self.name)
         mesh.from_pydata(vertices=vertices, edges=[], faces=faces)
@@ -2073,7 +2113,10 @@ class HavokCollision:
             render_triangle_count_attribute.data.foreach_set("value", render_triangle_counts)
 
         if not for_physics:
-            utils.add_face_prop(mesh, "collision_type").collision_type = self.collision_type_name
+            for collision_type_name in sorted(set(collision_type_names)):
+                collision_type_mask = np.array([name == collision_type_name for name in collision_type_names], dtype=np.int8)
+                if collision_type_mask.any():
+                    utils.add_face_prop(mesh, "collision_type", None if collision_type_mask.all() else collision_type_mask).collision_type = collision_type_name
             mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
 
         ob = bpy.data.objects.new(name or self.name, mesh)
