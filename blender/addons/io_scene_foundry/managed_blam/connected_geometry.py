@@ -1585,13 +1585,23 @@ class HavokCollision:
         section_triangle_ranges: list[tuple[int, int, int]] | None = None,
         claimed_render_triangles: dict[tuple[int, int], str] | None = None,
         rejected_face_indices: set[int] | None = None,
+        face_indices: list[int] | None = None,
+        mapped_face_indices: set[int] | None = None,
     ) -> list[SurfaceMapping]:
         if not self.has_render_triangle_mappings:
             return []
 
         grouped_mappings = {}
-        for face_index, render_triangle_indices in enumerate(self.render_triangle_mappings):
+        candidate_face_indices = range(len(self.faces)) if face_indices is None else face_indices
+        for face_index in candidate_face_indices:
+            if face_index < 0 or face_index >= len(self.render_triangle_mappings):
+                if rejected_face_indices is not None:
+                    rejected_face_indices.add(face_index)
+                continue
+
+            render_triangle_indices = self.render_triangle_mappings[face_index]
             resolved_triangles = []
+            has_matching_collision_type = False
             has_collision_type_conflict = False
             for render_triangle_index in render_triangle_indices:
                 resolved = self._resolve_render_triangle_index(render_triangle_index, section_triangle_ranges)
@@ -1603,12 +1613,22 @@ class HavokCollision:
                     if claimed_collision_type is not None:
                         if claimed_collision_type != self.collision_type_name:
                             has_collision_type_conflict = True
+                        else:
+                            has_matching_collision_type = True
                         continue
 
                 resolved_triangles.append(resolved)
 
-            if has_collision_type_conflict and rejected_face_indices is not None:
-                rejected_face_indices.add(face_index)
+            if has_collision_type_conflict:
+                if rejected_face_indices is not None:
+                    rejected_face_indices.add(face_index)
+                continue
+            if not resolved_triangles and not has_matching_collision_type:
+                if rejected_face_indices is not None:
+                    rejected_face_indices.add(face_index)
+                continue
+            if mapped_face_indices is not None:
+                mapped_face_indices.add(face_index)
             if not resolved_triangles:
                 continue
 
