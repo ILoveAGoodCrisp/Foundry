@@ -260,6 +260,17 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
                         index,
                     )
                 )
+            if asset_type == 'scenario':
+                index += 1
+                items.append(
+                    utils.nwo_enum(
+                        "collision",
+                        "Collision",
+                        "Non rendered geometry which provides collision only",
+                        "collider",
+                        index,
+                    )
+                )
         elif asset_type == 'prefab' or asset_type == 'multi_prefab':
             # index += 1
             items.append(
