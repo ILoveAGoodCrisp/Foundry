@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "io_scene_foundry"
-version = "1.9.15"
+version = "1.9.16"
 name = "Foundry"
 tagline = "An import & export pipeline for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer"
 maintainer = "Crisp"
@@ -17,7 +17,7 @@ blender_version_min = "5.2.0"
 
 license = ["SPDX:GPL-3.0-or-later"]
 
-platforms = ["windows-amd64", "windows-x64", "windows-arm64"]
+platforms = ["windows-amd64", "windows-x64"]
 
 wheels = [
   "./wheels/cffi-2.0.0-cp313-cp313-win_amd64.whl",
