@@ -544,10 +544,10 @@ class ExportScene:
                 
             if self.corinth:
                 new_default_coll = PoopCollisionType.none.value
-                if has_phys:
+                if has_phys and proxy_collision.nwo.poop_collision_type == "default":
                     mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.bullet_collision.value
                 else:
-                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType.default.value
+                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType[proxy_collision.nwo.poop_collision_type].value
             
             coll_props.update(mesh_props)
             ob_halo_data[proxy_collision] = (coll_props, region, permutation, tuple())
@@ -1112,6 +1112,9 @@ class ExportScene:
                 match mesh_type:
                     case '_connected_geometry_mesh_type_poop':
                         self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
+                    case '_connected_geometry_mesh_type_poop_collision':
+                        if self.corinth:
+                            self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
                     case '_connected_geometry_mesh_type_seam':
                         if props.get("bungie_mesh_seam_associated_bsp") is None:
                             props["bungie_mesh_seam_associated_bsp"] = region
@@ -1235,6 +1238,8 @@ class ExportScene:
     def _setup_poop_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, data_nwo: NWO_MeshPropertiesGroup, props: dict, mesh_props: dict):
         props["bungie_mesh_poop_lighting"] = PoopLighting[nwo.poop_lighting].value
         props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
+        if self.corinth:
+            props["bungie_mesh_poop_collision_type"] = PoopCollisionType[nwo.poop_collision_type].value
         if self.export_settings.force_imposter_policy_never:
             props["bungie_mesh_poop_imposter_policy"] = PoopInstanceImposterPolicy.never.value
             # props["bungie_mesh_poop_imposter_transition_distance"] = 999999
@@ -1512,8 +1517,6 @@ class ExportScene:
             
             match prop.type:
                         
-                case 'collision_type':
-                    mesh_props["bungie_mesh_poop_collision_type"] = PoopCollisionType[prop.collision_type].value
                 case 'face_mode':
                     face_mode = FaceMode[prop.face_mode]
                     

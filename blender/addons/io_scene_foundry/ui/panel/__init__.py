@@ -2732,17 +2732,20 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             elif nwo.mesh_type in (
                 "_connected_geometry_mesh_type_default",
                 "_connected_geometry_mesh_type_structure",
+                "_connected_geometry_mesh_type_collision",
             ) and utils.poll_ui(('scenario', 'prefab', 'multi_prefab')):
                 if h4 and nwo.mesh_type == "_connected_geometry_mesh_type_structure" and utils.poll_ui(('scenario',)):
                     row = col.row()
                     row.use_property_split = False
                     picon = 'CHECKBOX_HLT' if nwo.proxy_instance else 'CHECKBOX_DEHLT'
                     row.prop(nwo, "proxy_instance", text="Instanced Structure", icon=picon)
-                if nwo.mesh_type == "_connected_geometry_mesh_type_default" or (
+                if nwo.mesh_type in {"_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision"} or (
                     nwo.mesh_type == "_connected_geometry_mesh_type_structure"
                     and h4
                     and nwo.proxy_instance
                 ):
+                    if h4:
+                        col.prop(nwo, "poop_collision_type")
                     col.prop(nwo, "poop_lighting", text="Lighting Policy")
 
                     if h4:

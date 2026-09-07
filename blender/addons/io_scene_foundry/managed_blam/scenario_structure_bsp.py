@@ -853,6 +853,10 @@ class ScenarioStructureBspTag(Tag):
                 triangle_count = triangle_counts.get(definition, 0)
                 if triangle_count < 1:
                     continue
+                # Collision type is object-wide in Foundry. Leave conflicting
+                # faces for the standalone fallback instead of mixing a mesh.
+                if definition.havok_collision_type_name not in {None, collision.collision_type_name}:
+                    continue
 
                 definition_claims = claimed_render_triangles.setdefault(definition, {})
                 definition_mapped_faces = set()
@@ -868,6 +872,7 @@ class ScenarioStructureBspTag(Tag):
                 mapped_face_indices[collision].update(definition_mapped_faces)
                 if mappings:
                     definition.surface_triangle_mapping.extend(mappings)
+                definition.havok_collision_type_name = collision.collision_type_name
                 definition.has_collision = True
                 definition.collision_is_proxy = False
                 mapped_definitions.add(definition)
@@ -921,8 +926,14 @@ class ScenarioStructureBspTag(Tag):
                     continue
 
                 collision_type_name = collision.collision_type_name
-                definition_parts = parts_by_definition.setdefault(definition, {})
-                part = definition_parts.get(collision_type_name)
+                # Tool cannot safely partition shared proxy vertices by
+                # collision type, so recover at most one type per definition.
+                if definition.havok_collision_type_name not in {None, collision_type_name}:
+                    continue
+
+                part = parts_by_definition.get(definition)
+                if part is not None and part["collision_type_name"] != collision_type_name:
+                    continue
                 if part is not None and part["source_instance_index"] != source_instance_index:
                     claimed_face_indices[collision].update(face_indices)
                     continue
@@ -930,12 +941,15 @@ class ScenarioStructureBspTag(Tag):
                 if part is None:
                     part = {
                         "source_instance_index": source_instance_index,
+                        "collision_type": collision.collision_type,
+                        "collision_type_name": collision_type_name,
                         "vertices": [],
                         "faces": [],
                         "material_indices": [],
                         "collision_materials": collision.collision_materials,
                     }
-                    definition_parts[collision_type_name] = part
+                    parts_by_definition[definition] = part
+                    definition.havok_collision_type_name = collision_type_name
 
                 used_vertex_indices = sorted({vertex_index for face_index in face_indices for vertex_index in collision.faces[face_index]})
                 vertex_remap = {vertex_index: remapped_index for remapped_index, vertex_index in enumerate(used_vertex_indices)}
@@ -959,22 +973,8 @@ class ScenarioStructureBspTag(Tag):
         definition_collision_objects = []
         proxy_count = 0
         collision_only_count = 0
-        for definition, parts_by_type in parts_by_definition.items():
-            vertices = []
-            faces = []
-            material_indices = []
-            collision_type_names = []
-            collision_materials = []
-            for collision_type_name, part in sorted(parts_by_type.items()):
-                first_vertex = len(vertices)
-                vertices.extend(part["vertices"])
-                faces.extend(tuple(index + first_vertex for index in face) for face in part["faces"])
-                material_indices.extend(part["material_indices"])
-                collision_type_names.extend([collision_type_name] * len(part["faces"]))
-                if not collision_materials:
-                    collision_materials = part["collision_materials"]
-
-            if not faces:
+        for definition, part in parts_by_definition.items():
+            if not part["faces"]:
                 continue
 
             render_object = definition.blender_render
@@ -982,11 +982,11 @@ class ScenarioStructureBspTag(Tag):
             name = f"{render_object.name}_proxy_collision" if has_render_mesh else f"instance_definition:{definition.index}"
             collision_object = HavokCollision(
                 name,
-                vertices,
-                faces,
-                material_indices,
-                collision_materials,
-                collision_type_names=collision_type_names,
+                part["vertices"],
+                part["faces"],
+                part["material_indices"],
+                part["collision_materials"],
+                collision_type=part["collision_type"],
             ).to_object()
             definition.blender_collision = collision_object
             definition.has_collision = True

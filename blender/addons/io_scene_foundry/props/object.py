@@ -916,6 +916,21 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         override={'LIBRARY_OVERRIDABLE'},
     )
+
+    poop_collision_type: bpy.props.EnumProperty(
+        name="Collision Type",
+        description="The type of Havok collision to generate from this instance",
+        options=set(),
+        default="default",
+        items=[
+            ("default", "Full", "Collision that interacts with physics objects and projectiles"),
+            ("invisible_wall", "Invisible Wall", "Collision that interacts with physics objects only"),
+            ("play_collision", "Player Collision", "Collision that affects physics objects and physical projectiles, such as grenades"),
+            ("bullet_collision", "Bullet Collision", "Collision that only interacts with simple projectiles, such as bullets"),
+            ("none", "None", "Do not generate Havok collision for this instance"),
+        ],
+        override={'LIBRARY_OVERRIDABLE'},
+    )
     
     poop_render_only: bpy.props.BoolProperty(
         name="Render Only",

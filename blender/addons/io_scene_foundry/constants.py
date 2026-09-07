@@ -260,7 +260,6 @@ face_prop_type_items = [
             # ('shadow_only', "Shadow Only", "reach,corinth:model,sky"), 
             ('breakable', "Breakable", "reach:scenario"), 
             ('lightmap_only', "Lightmap Only", "reach,corinth:scenario,prefab"), 
-            ('collision_type', "Collision Type", "corinth:scenario,prefab"), 
             ('face_sides', "Two-Sided", "reach,corinth:model,scenario,prefab,sky"), # face_two_sided & face_two_sided_type
             ('transparent', "Transparent", "reach,corinth:model,scenario,prefab,sky"),
             ('region', "Region", "reach,corinth:model,sky"),
@@ -297,7 +296,6 @@ face_prop_descriptions = {
     'shadow_only': "",
     'breakable': "",
     'lightmap_only': "",
-    'collision_type': "The type of havok collision to generate from this mesh",
     'face_sides': "Render the backfacing normal of this mesh if it has render geometry. Collision geometry will be two-sided and will not result in open edges, but will be more expensive",
     'transparent': "Game treats this mesh as being transparent. If you're using a shader/material which has transparency, set this flag. Transparency is used in lightmapping and for allowing AI to see through a mesh",
     'region': "The name of the region these faces should be associated with",

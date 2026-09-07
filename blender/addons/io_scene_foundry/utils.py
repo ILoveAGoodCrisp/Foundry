@@ -34,7 +34,7 @@ import queue
 
 from . import foundry_output
 from .tools.node_tree_arrange import arrange
-from .constants import COLLISION_MESH_TYPES, OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR, css_colors
+from .constants import OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR, css_colors
 from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
 # import requests
@@ -1354,7 +1354,7 @@ def get_prop_from_collection(ob, valid_type):
     return ''
 
 def print_warning(string="Warning"):
-    print("\033[93m" + string + "\033[0m")
+    print("\033[93m" + str(string) + "\033[0m")
 
 
 def print_error(string="Error"):
@@ -2446,17 +2446,6 @@ def amf_addon_installed():
         
     return False
     
-def has_collision_type(ob: bpy.types.Object) -> bool:
-    nwo = ob.nwo
-    mesh_type = nwo.mesh_type
-    if not poll_ui(('scenario', 'prefab')) and mesh_type != '_connected_geometry_mesh_type_collision':
-        return False
-    if mesh_type in COLLISION_MESH_TYPES:
-        return True
-    if is_instance_or_structure_proxy(ob):
-        return True
-    return False
-
 def get_sky_perm(mat: bpy.types.Material) -> int:
     name = mat.name
     index_part = name.rpartition('+sky')[2]
@@ -6463,6 +6452,12 @@ class AnimationName:
         self.type = AnimationStateType.ACTION
         self.custom = False
         self.stance = False
+
+        self._parse(name)
+        if not self.valid and not self.custom:
+            print_warning(f"Invalid animation name: {name!r}. Keeping the original name.")
+
+    def _parse(self, name: str):
         
         tokens = list(tokenise(name))
         if not tokens:
@@ -6519,7 +6514,6 @@ class AnimationName:
             if len(destination_tokens) == 1:
                 destination_tokens.insert(0, "any")
             elif len(destination_tokens) != 2:
-                print_warning(("Bad transition animation name?", name, destination_tokens))
                 return
 
             self.type = AnimationStateType.TRANSITION
@@ -6550,13 +6544,10 @@ class AnimationName:
         if 2 <= len(graph_tokens) <= 4:
             graph_tokens[-1:-1] = ("any",) * (5 - len(graph_tokens))
 
-        if len(graph_tokens) < 5:
+        if len(graph_tokens) != 5:
             return
 
-        self.mode, self.weapon_class, self.weapon_type, self.set, self.state = graph_tokens[:5]
-
-        if len(graph_tokens) > 5:
-            print_warning(("Bad animation name?", name, graph_tokens[5:]))
+        self.mode, self.weapon_class, self.weapon_type, self.set, self.state = graph_tokens
             
         self.valid = True
         

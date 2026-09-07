@@ -51,8 +51,6 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         match self.type:
             case 'face_mode':
                 return f"{self.face_mode.replace('_', ' ').title()}"
-            case 'collision_type':
-                return f"{self.collision_type.replace('_', ' ').title()}"
             case 'face_sides':
                 return "Two-Sided" if self.two_sided else "One-Sided"
             case 'transparent':
@@ -125,18 +123,6 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         ]
     )
     
-    collision_type: bpy.props.EnumProperty(
-        name="Collision Type",
-        options=set(),
-        description=face_prop_descriptions['collision_type'],
-        items=[
-            ("default", "Full", "Collision mesh that interacts with the physics objects and with projectiles"),
-            ("invisible_wall", "Invisible Wall Collision", "Collision mesh that interacts with the physics objects only"),
-            ("play_collision", "Player Collision", "Collision mesh that affects physics objects and physical projectiles, such as grenades"),
-            ("bullet_collision", "Bullet Collision", "Collision mesh that only interacts with simple projectiles, such as bullets")
-        ]
-    )
-
     two_sided: bpy.props.BoolProperty(
         name="Two Sided",
         description=face_prop_descriptions['face_sides'],
@@ -743,12 +729,3 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         name="Highlight",
     )
-    
-    def poop_collision_type_items(self, context):
-        items = []
-        items.append(("default", "Full", "Collision mesh that interacts with the physics objects and with projectiles"))
-        items.append(("invisible_wall", "Sphere Collision", "Collision mesh that interacts with the physics objects only"))
-        items.append(("play_collision", "Player Collision", "Collision mesh that affects physics objects and physical projectiles, such as grenades"))
-        items.append(("bullet_collision", "Bullet Collision", "Collision mesh that only interacts with simple projectiles, such as bullets"))
-        
-        return items

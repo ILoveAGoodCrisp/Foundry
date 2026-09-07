@@ -189,10 +189,9 @@ class SurfaceMapping:
         return mapping
 
 class HavokCollisionSurface:
-    def __init__(self, index: int, material, collision_type: str):
+    def __init__(self, index: int, material):
         self.index = index
         self.material = material
-        self.collision_type = collision_type
         self.ladder = False
         self.breakable = False
         self.slip_surface = False
@@ -220,6 +219,7 @@ class InstanceDefinition:
         self.has_physics = False
         self.blender_physics = []
         self.blender_render = None
+        self.havok_collision_type_name = None
         if not utils.is_corinth() and not for_cinematic:
             self.has_collision = element.SelectField("Struct:collision info[0]/Block:surfaces").Elements.Count > 0
             self.collision_is_proxy = self.has_collision and (element.SelectField("Block:surfaces").Elements.Count == 0 or element.SelectField("Block:render bsp").Elements.Count > 0)
@@ -245,6 +245,8 @@ class InstanceDefinition:
         self.blender_render = None
         if result:
             self.blender_render = result[0]
+            if self.havok_collision_type_name:
+                self.blender_render.nwo.poop_collision_type = self.havok_collision_type_name
             if self.surface_triangle_mapping:
                 self.collision_only_surface_indices = [idx for idx, mapping in enumerate(self.surface_triangle_mapping) if mapping.collision_only]
             
@@ -1532,7 +1534,7 @@ class HavokCollision:
         4: "none",
     }
 
-    def __init__(self, name: str, vertices: list[tuple[float, float, float]], faces: list[tuple[int, int, int]], material_indices: list[int], collision_materials: list[BSPCollisionMaterial], render_triangle_mappings: list[tuple[int, ...]] | None = None, collision_type: int = 0, source_instance_indices: list[int] | None = None, source_local_vertices: list[tuple[float, float, float]] | None = None, collision_type_names: list[str] | None = None):
+    def __init__(self, name: str, vertices: list[tuple[float, float, float]], faces: list[tuple[int, int, int]], material_indices: list[int], collision_materials: list[BSPCollisionMaterial], render_triangle_mappings: list[tuple[int, ...]] | None = None, collision_type: int = 0, source_instance_indices: list[int] | None = None, source_local_vertices: list[tuple[float, float, float]] | None = None):
         self.name = name
         self.vertices = vertices
         self.faces = faces
@@ -1551,10 +1553,6 @@ class HavokCollision:
         self.source_local_vertices = source_local_vertices or []
         if len(self.source_local_vertices) != len(self.vertices):
             self.source_local_vertices = []
-        self.collision_type_names = collision_type_names or [self.collision_type_name] * len(self.faces)
-        if len(self.collision_type_names) != len(self.faces):
-            self.collision_type_names = [self.collision_type_name] * len(self.faces)
-
     @property
     def has_render_triangle_mappings(self) -> bool:
         return len(self.render_triangle_mappings) == len(self.faces) and any(self.render_triangle_mappings)
@@ -1647,7 +1645,7 @@ class HavokCollision:
             group_key = material_index
             surface, triangle_mappings = grouped_mappings.get(group_key, (None, None))
             if surface is None:
-                surface = HavokCollisionSurface(material_index, material, self.collision_type_name)
+                surface = HavokCollisionSurface(material_index, material)
                 triangle_mappings = []
                 grouped_mappings[group_key] = (surface, triangle_mappings)
 
@@ -2099,7 +2097,6 @@ class HavokCollision:
             faces = self.faces
             material_indices = self.material_indices
             render_triangle_mappings = self.render_triangle_mappings
-            collision_type_names = self.collision_type_names
         else:
             used_vertex_indices = sorted({vertex_index for face_index in face_indices for vertex_index in self.faces[face_index]})
             vertex_remap = {vertex_index: remapped_index for remapped_index, vertex_index in enumerate(used_vertex_indices)}
@@ -2113,8 +2110,6 @@ class HavokCollision:
                 self.render_triangle_mappings[face_index] if face_index < len(self.render_triangle_mappings) else ()
                 for face_index in face_indices
             ]
-            collision_type_names = [self.collision_type_names[face_index] for face_index in face_indices]
-
         mesh = bpy.data.meshes.new(name or self.name)
         mesh.from_pydata(vertices=vertices, edges=[], faces=faces)
         mesh.transform(import_transform.mesh_matrix())
@@ -2158,16 +2153,12 @@ class HavokCollision:
             render_triangle_count_attribute.data.foreach_set("value", render_triangle_counts)
 
         if not for_physics:
-            for collision_type_name in sorted(set(collision_type_names)):
-                collision_type_mask = np.array([name == collision_type_name for name in collision_type_names], dtype=np.int8)
-                if collision_type_mask.any():
-                    if collision_type_name == "default" and collision_type_mask.all():
-                        continue
-                    utils.add_face_prop(mesh, "collision_type", None if collision_type_mask.all() else collision_type_mask).collision_type = collision_type_name
             mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
 
         ob = bpy.data.objects.new(name or self.name, mesh)
         ob.matrix_world = import_transform.rotation_matrix()
+        if not for_physics:
+            ob.nwo.poop_collision_type = self.collision_type_name
         if not mesh.materials and not for_physics:
             apply_props_material(ob, "Collision")
 
@@ -3380,7 +3371,6 @@ class Mesh:
             slip_mask = np.zeros(face_count, dtype=np.int8)
             ladder_mask = np.zeros(face_count, dtype=np.int8)
             breakable_mask = np.zeros(face_count, dtype=np.int8)
-            collision_type_masks = {}
             collision_material_indices = np.full(face_count, -1, dtype=np.int32)
             collision_material_slots = {material: index for index, material in enumerate(mesh.materials) if material is not None}
             global_material_override_masks = {}
@@ -3403,10 +3393,6 @@ class Mesh:
                         ladder_mask[idx] = 1
                     if surf.breakable:
                         breakable_mask[idx] = 1
-
-                    collision_type = getattr(surf, "collision_type", "")
-                    if collision_type:
-                        collision_type_masks.setdefault(collision_type, np.zeros(face_count, dtype=np.int8))[idx] = 1
 
                     collision_material = getattr(surf, "material", None)
                     if collision_material is not None:
@@ -3434,11 +3420,6 @@ class Mesh:
                 utils.add_face_prop(mesh, "ladder", None if ladder_mask.all() else ladder_mask)
             if breakable_mask.any():
                 utils.add_face_prop(mesh, "face_mode", None if breakable_mask.all() else breakable_mask).face_mode = 'breakable'
-            for collision_type, collision_type_mask in collision_type_masks.items():
-                if collision_type_mask.any():
-                    if collision_type == "default" and collision_type_mask.all():
-                        continue
-                    utils.add_face_prop(mesh, "collision_type", None if collision_type_mask.all() else collision_type_mask).collision_type = collision_type
             material_mask = collision_material_indices >= 0
             if material_mask.any():
                 final_material_indices = np.empty(face_count, dtype=np.int32)
