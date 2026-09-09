@@ -3031,11 +3031,17 @@ class AnimationTag(Tag):
         return [name for group in self._base_animation_candidate_name_groups(graph, tag_animation) for name in group]
 
     def _position_offset_overlay(self, graph: dict, tag_animation: Animation) -> Animation | None:
-        """Find the position offset assigned beside an animation in the mode graph."""
+        """Find an offset in the animation's own scope before considering aliases."""
         target_key = self._animation_identity_key(tag_animation)
         primary_paths, rename_paths = self._graph_animation_path_groups(graph, tag_animation)
+        tag_name = getattr(tag_animation, "name", None)
+        canonical_name = (
+            tag_name.tag_name
+            if tag_name is not None and tag_name.valid and not tag_name.custom
+            else None
+        )
 
-        for path in primary_paths + rename_paths:
+        for path in ([canonical_name] if canonical_name else []) + primary_paths + rename_paths:
             path_name = utils.AnimationName(path)
             if not path_name.valid or path_name.custom:
                 continue
@@ -3055,6 +3061,11 @@ class AnimationTag(Tag):
                         return None
                     if animation.animation_type == AnimationType.OVERLAY and animation.frame_count > 0:
                         return animation
+                # An existing canonical scope with no offset means no offset.
+                # Searching aliases here can apply a missile/vehicle adjustment
+                # to an otherwise correctly selected rifle idle base.
+                if path == canonical_name:
+                    return None
 
         return None
 
@@ -3156,6 +3167,7 @@ class AnimationTag(Tag):
                     add(token)
                     add("any")
             elif token == "any":
+                add("any")
                 for key in nested_keys:
                     add(key)
             else:
