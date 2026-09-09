@@ -346,10 +346,8 @@ class FrameEventListTag(Tag):
         self.block_effect_references.RemoveAllElements()
             
     def from_blender(self, animations: list):
-        self.block_sound_references.RemoveAllElements()
-        self.block_effect_references.RemoveAllElements()
-        self.block_frame_events.RemoveAllElements()
-        
+        # Child blends only own a subset of the graph. Keep other animations and
+        # their reference indices intact when updating this blend's events.
         blender_animations = {a.name.replace(":", " "): a for a in self.scene_nwo.animations if a.export_this}
         
         unique_sounds_set = set()
@@ -414,27 +412,45 @@ class FrameEventListTag(Tag):
             effect.variant = u[10]
             unique_effects[u] = effect
             
-        for idx, sound in enumerate(sorted(unique_sounds.values(), key=lambda x: Path(x.tag).with_suffix("").name)):
-            sound.index = idx
-            sound.to_element(self.block_sound_references.AddElement(), self.corinth)
-            
-        for idx, effect in enumerate(sorted(unique_effects.values(), key=lambda x: Path(x.tag).with_suffix("").name)):
-            effect.index = idx
-            effect.to_element(self.block_effect_references.AddElement(), self.corinth)
-        
+        def write_references(block, references):
+            existing = []
+            for element in block.Elements:
+                reference = Reference()
+                reference.from_element(element, self.corinth)
+                existing.append(reference)
+
+            for reference in sorted(references.values(), key=lambda x: Path(x.tag).with_suffix("").name):
+                # Compare before assigning the index; all loaded references have
+                # the default index. Reuse entries so repeated exports don't grow
+                # the shared reference tables.
+                index = next((i for i, old in enumerate(existing)
+                              if old.__dict__ == reference.__dict__), None)
+                if index is None:
+                    index = len(existing)
+                    reference.to_element(block.AddElement(), self.corinth)
+                    stored = Reference()
+                    stored.__dict__.update(reference.__dict__)
+                    existing.append(stored)
+                reference.index = index
+
+        write_references(self.block_sound_references, unique_sounds)
+        write_references(self.block_effect_references, unique_effects)
+
         for animation in animations:
-            frame_event = self.block_frame_events.AddElement()
-            frame_event.Fields[0].SetStringData(animation.name.tag_name)
             blender_animation = blender_animations.get(animation.name.data_name)
             if blender_animation is None:
                 blender_animation = blender_animations.get(animation.name.tag_name)
-                if not blender_animation:
-                    # utils.print_warning(f"--- Animation Graph contains animation {name_with_spaces} but Blender does not (or it is not set to export)")
-                    continue
-                
-            if not blender_animation.animation_events:
+            if blender_animation is None:
                 continue
-            
+
+            # Replace only this animation, including when its events were deleted.
+            for index in reversed(range(self.block_frame_events.Elements.Count)):
+                element = self.block_frame_events.Elements[index]
+                if element.Fields[0].GetStringData() == animation.name.tag_name:
+                    self.block_frame_events.RemoveElement(index)
+
+            frame_event = self.block_frame_events.AddElement()
+            frame_event.Fields[0].SetStringData(animation.name.tag_name)
             frame_event.Fields[1].Data = animation.frame_count
 
             for blender_event in blender_animation.animation_events:
