@@ -107,7 +107,7 @@ class NWO_MT_MaterialAttributeAddMenu(bpy.types.Menu):
         scene_nwo = utils.get_scene_props()
         asset_type = scene_nwo.asset_type
         
-        for name, display_name, mask in sorted(face_prop_type_items, key=lambda x: x[1]):
+        for name, display_name, mask, _ in sorted(face_prop_type_items, key=lambda x: x[1]):
             games, asset_types = mask.split(":")
             games = games.split(",")
             asset_types = asset_types.split(",")
