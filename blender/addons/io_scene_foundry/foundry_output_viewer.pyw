@@ -844,7 +844,7 @@ class ExportStatus:
             if heading and not SECTION_LINE.match(heading):
                 completed = EXPORT_COMPLETE_LINE.match(heading)
                 if completed and not self.finished:
-                    self.status = heading
+                    self.status = f"{heading} at {time.strftime('%H:%M:%S')}"
                     self.completed_duration = completed.group(1)
                     self.state = "success"
                     self.finished = True
