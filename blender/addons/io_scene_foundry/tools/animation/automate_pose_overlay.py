@@ -328,22 +328,24 @@ class PoseBuilder:
         self.uses_yaw = yaw is not None
         
     def _pre_build(self, scene: bpy.types.Scene, frame_start: int,  action: bpy.types.Action, slot):
-        # Clear any existing keyframe data on aim bones
-        for slot in action.slots:
-            fcurves = utils.get_fcurves(action, slot)
-            fc_bone_names = []
-            if self.uses_control:
-                fc_bone_names.append(f'pose.bones["{self.control.name}"].')
-            if self.uses_pitch:
-                fc_bone_names.append(f'pose.bones["{self.pitch.name}"].')
-            if self.uses_yaw:
-                fc_bone_names.append(f'pose.bones["{self.yaw.name}"].')
-                
-            fc_bone_names = tuple(fc_bone_names)
+        # Clear aim keyframes only in the slot being converted.
+        fcurves = utils.get_fcurves(action, slot)
+        if fcurves is None:
+            raise RuntimeError(f"Action [{action.name}] has no usable action slot")
+        fc_bone_names = []
+        if self.uses_control:
+            fc_bone_names.append(f'pose.bones["{self.control.name}"].')
+        if self.uses_pitch:
+            fc_bone_names.append(f'pose.bones["{self.pitch.name}"].')
+        if self.uses_yaw:
+            fc_bone_names.append(f'pose.bones["{self.yaw.name}"].')
 
-            for fc in fcurves:
-                if fc.data_path.startswith(fc_bone_names):
-                    fcurves.remove(fc)
+        fc_bone_names = tuple(fc_bone_names)
+
+        # Snapshot before removal to avoid mutating the live RNA iterator.
+        for fc in list(fcurves):
+            if fc.data_path.startswith(fc_bone_names):
+                fcurves.remove(fc)
                     
         # Set the current frame to the first frame of animation and ensure transform matches pedestal
         scene.frame_set(frame_start)
@@ -910,5 +912,3 @@ class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
         self.layout.label(text="Select the animation tag file")
         self.layout.label(text="containing the blend screens")
         self.layout.label(text="you wish to use for conversion")
-    
-    
