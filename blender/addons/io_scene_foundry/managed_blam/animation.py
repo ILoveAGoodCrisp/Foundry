@@ -2991,11 +2991,27 @@ class AnimationTag(Tag):
         primary_paths, rename_paths = self._graph_animation_path_groups(graph, tag_animation)
         groups = []
 
+        if canonical_name:
+            groups.append([canonical_name])
+            scoped_names = []
+            for path in primary_paths + rename_paths:
+                path_name = utils.AnimationName(path)
+                if not path_name.valid or path_name.custom:
+                    continue
+                scoped_name = ":".join((
+                    path_name.mode, path_name.weapon_class,
+                    path_name.weapon_type, path_name.set, canonical_state,
+                ))
+                if scoped_name not in scoped_names:
+                    scoped_names.append(scoped_name)
+            if scoped_names:
+                groups.append(scoped_names)
+
         primary_names = self._ordered_base_candidate_names(
             primary_paths,
             canonical_name,
             canonical_state,
-            include_canonical_name=bool(canonical_name),
+            include_canonical_name=False,
         )
         if primary_names:
             groups.append(primary_names)
