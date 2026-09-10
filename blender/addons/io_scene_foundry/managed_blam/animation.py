@@ -4035,7 +4035,10 @@ class AnimationTag(Tag):
             base_candidate_names = [name for group in base_candidate_name_groups for name in group]
             base_candidates = []
             base_tag_animations = []
-            use_rest_base = tag_animation.is_pose_overlay and tag_animation.name.state in POSE_OVERLAY_REST_BASE_STATES
+            named_rest_base = tag_animation.name.tag_name.lower() in {"any:look", "any:aim_spine"}
+            use_rest_base = named_rest_base or (
+                tag_animation.is_pose_overlay and tag_animation.name.state in POSE_OVERLAY_REST_BASE_STATES
+            )
             skipped_base_candidate_reason = ""
             if use_rest_base:
                 skipped_base_candidate_reason = "pose overlay uses rest base"
@@ -4079,18 +4082,19 @@ class AnimationTag(Tag):
             else:
                 base_frame = default_frame_channels(defaults)
 
-            base_frame = self._base_frame_with_position_offset(
-                tag_animation,
-                base_frame,
-                defaults,
-                overlay_defaults,
-                graph,
-                shared_static_codec,
-                resource_cache,
-                animation_cache,
-                all_tag_animations,
-                final_frame_stack,
-            )
+            if not named_rest_base:
+                base_frame = self._base_frame_with_position_offset(
+                    tag_animation,
+                    base_frame,
+                    defaults,
+                    overlay_defaults,
+                    graph,
+                    shared_static_codec,
+                    resource_cache,
+                    animation_cache,
+                    all_tag_animations,
+                    final_frame_stack,
+                )
 
             self._debug_print_applied_base_animation(
                 tag_animation,
