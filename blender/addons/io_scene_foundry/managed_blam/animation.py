@@ -142,10 +142,6 @@ FINAL_FRAME_LOOPERS = (
     "advance",
 )
 
-POSE_OVERLAY_REST_BASE_STATES = {
-    "aim_spine",
-}
-
 POSITION_OFFSET_STATE = "position_offset"
 
 WRINKLE_FACE_REGION_MAP = [
@@ -4036,9 +4032,6 @@ class AnimationTag(Tag):
             base_candidates = []
             base_tag_animations = []
             named_rest_base = tag_animation.name.tag_name.lower() in {"any:look", "any:aim_spine"}
-            use_rest_base = named_rest_base or (
-                tag_animation.is_pose_overlay and tag_animation.name.state in POSE_OVERLAY_REST_BASE_STATES
-            )
             skipped_base_candidate_reason = ""
             if use_rest_base:
                 skipped_base_candidate_reason = "pose overlay uses rest base"
