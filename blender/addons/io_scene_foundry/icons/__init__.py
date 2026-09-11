@@ -55,6 +55,9 @@ def _remove_collection():
 
 def _ensure_collection(recreate=False):
     global foundry_icons, icons_active
+    if bpy.app.background:
+        return None
+
     if recreate:
         _remove_collection()
 
@@ -132,6 +135,9 @@ def _load_builtin_icon(icon_name, force_reload=False):
 
 
 def load_all_icons(force_reload=False):
+    if bpy.app.background:
+        return
+
     for path in icons_dir.glob("*.png"):
         _load_icon_into_collection(path.stem, path, force_reload=force_reload)
 
@@ -210,6 +216,9 @@ def get_icon_id_in_directory(thumnail_path):
 
 
 def register():
+    if bpy.app.background:
+        return
+
     load_all_icons(force_reload=True)
     if _reload_icons not in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.append(_reload_icons)
