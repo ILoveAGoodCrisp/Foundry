@@ -2170,13 +2170,14 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         duplicated_actions = set()
         
         if self.copy and current_animation:
-            for key, value in current_animation.items():
-                if key == "name":
-                    animation[key] = f"{current_animation.name}_copy"
-                elif key == "name_old":
-                    animation[key] = f"{current_animation.name}_copy"
-                else:
+            # RNA reads can discard invalid stored properties, so resolve the
+            # name before iterating and copy a snapshot of the remaining data.
+            source_name = current_animation.name or current_animation.name_old or "animation"
+            for key, value in list(current_animation.items()):
+                if key not in {"name", "name_old"}:
                     animation[key] = value
+            animation["name"] = f"{source_name}_copy"
+            animation["name_old"] = animation["name"]
             # animation.animation_renames.clear()
             for track in animation.action_tracks:
                 if track.action:
