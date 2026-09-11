@@ -4033,7 +4033,7 @@ class AnimationTag(Tag):
             base_tag_animations = []
             named_rest_base = tag_animation.name.tag_name.lower() in {"any:look", "any:aim_spine"}
             skipped_base_candidate_reason = ""
-            if use_rest_base:
+            if named_rest_base:
                 skipped_base_candidate_reason = "pose overlay uses rest base"
             elif not base_candidate_names:
                 skipped_base_candidate_reason = "custom animation name not found in graph"

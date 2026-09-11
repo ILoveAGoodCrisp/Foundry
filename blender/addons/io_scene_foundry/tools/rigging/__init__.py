@@ -1179,7 +1179,8 @@ class HaloRig:
                         fk_bone.parent = edit_bone.parent
                     else:
                         fk_bone.parent = previous_fk_bone
-                        fk_bone.use_connect = True
+                        # Preserve translation freedom in the source chain.
+                        fk_bone.use_connect = edit_bone.use_connect
                         
                     deform_fk_mapping[edit_bone.name] = fk_bone.name
                     fk_bone_names.append(fk_bone.name)

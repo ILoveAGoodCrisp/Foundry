@@ -162,6 +162,24 @@ def bake_control_rig_actions(context, arm: bpy.types.Object, actions):
     arm.select_set(True)
     utils.set_active_object(arm)
 
+    # Connected FK bones cannot retain location keys from translated deform
+    # joints (for example the engineer's retracting neck).
+    disconnected_controls = []
+    for pb in arm.pose.bones:
+        if not pb.name.startswith("FK_") or not pb.bone.use_connect:
+            continue
+        for con in pb.constraints:
+            if con.type == 'COPY_TRANSFORMS' and con.target == arm:
+                source = arm.data.bones.get(con.subtarget)
+                if source is not None and not source.use_connect:
+                    disconnected_controls.append(pb.name)
+                    break
+    if disconnected_controls:
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        for name in disconnected_controls:
+            arm.data.edit_bones[name].use_connect = False
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
     control_bone_names = {pb.name for pb in arm.pose.bones if is_control_bone_name(pb.name)}
     for pb in arm.pose.bones:
         pb.select = pb.name in control_bone_names
