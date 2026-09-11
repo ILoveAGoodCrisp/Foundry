@@ -12,6 +12,7 @@ from .animation.transforms_lock import NWO_OT_LockChildBoneLocation, NWO_OT_Lock
 from .refresh_cinematic_controls import NWO_OT_RefreshCinematicControls
 
 from .cache_builder import NWO_OT_CacheBuild, NWO_OT_LaunchMCC, NWO_OT_OpenModFolder
+from .megalo import NWO_OT_BuildMegaloVariants, NWO_OT_SelectMegaloVariant
 from .collection_manager import NWO_CollectionManager_Create, NWO_CollectionManager_CreateMove
 from .append_grid_materials import NWO_OT_AppendGridMaterials
 from .shader_duplicate import NWO_OT_ShaderDuplicate
@@ -231,6 +232,8 @@ classes = (
     NWO_OT_ShaderDuplicate,
     NWO_OT_AppendGridMaterials,
     NWO_OT_CacheBuild,
+    NWO_OT_BuildMegaloVariants,
+    NWO_OT_SelectMegaloVariant,
     NWO_OT_LaunchMCC,
     NWO_OT_OpenModFolder,
     NWO_OT_RefreshCinematicControls,

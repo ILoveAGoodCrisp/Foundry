@@ -263,7 +263,9 @@ def draw_game_launcher_settings(scene_nwo_halo_launcher, col):
 
     col.prop(scene_nwo_halo_launcher, "run_game_scripts")
     col.prop(scene_nwo_halo_launcher, "forge")
-    col.prop(scene_nwo_halo_launcher, "megalo_variant")
+    row = col.row(align=True)
+    row.prop(scene_nwo_halo_launcher, "megalo_variant")
+    row.operator("nwo.select_megalo_variant", text="", icon='VIEWZOOM')
     if utils.is_corinth():
         col.prop(scene_nwo_halo_launcher, "enable_firefight")
         if scene_nwo_halo_launcher.enable_firefight:

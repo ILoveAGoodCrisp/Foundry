@@ -4238,6 +4238,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_cache_tools(self, box, nwo):
         col = box.column()
         col.operator("nwo.cache_build", icon_value=get_icon_id("excession"))
+        col.operator("nwo.build_megalo_variants", text="Build Megalo Variants", icon='FILE_SCRIPT')
         col.operator("nwo.launch_mcc", icon_value=get_icon_id("tag_test"))
         if bpy.ops.nwo.open_mod_folder.poll():
             col.operator("nwo.open_mod_folder", icon='FILE_FOLDER')
