@@ -503,6 +503,7 @@ def _write_animation_asset_blend(context: bpy.types.Context, blend_path: Path, a
         bpy.data.libraries.write(
             str(blend_path),
             datablocks,
+            path_remap='RELATIVE',
             compress=context.preferences.filepaths.use_file_compression,
         )
     finally:

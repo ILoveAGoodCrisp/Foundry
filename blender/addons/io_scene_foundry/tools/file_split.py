@@ -179,6 +179,7 @@ class NWO_OT_FileSplit(bpy.types.Operator):
             bpy.data.libraries.write(
                 str(path),
                 {temp_scene},
+                path_remap='RELATIVE',
                 compress=context.preferences.filepaths.use_file_compression,
             )
             
