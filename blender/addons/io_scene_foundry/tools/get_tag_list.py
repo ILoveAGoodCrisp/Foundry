@@ -77,7 +77,7 @@ class NWO_GetTagsList(bpy.types.Operator):
         elif self.list_type in cinematic_event_props:
             nwo = context.scene.nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
         elif self.list_type in event_data_props:
-            animation = scene_nwo.animations[scene_nwo.active_animation_index]
+            animation = scene_nwo if scene_nwo.asset_type == 'single_animation' else scene_nwo.animations[scene_nwo.active_animation_index]
             event = animation.animation_events[animation.active_animation_event_index]
             nwo = event.event_data[event.active_event_data_index]
         elif self.list_type in attachment_props:
@@ -273,7 +273,7 @@ class NWO_TagExplore(bpy.types.Operator):
         elif self.prop in cinematic_event_props:
             nwo = context.scene.nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
         elif self.prop in event_data_props:
-            animation = scene_nwo.animations[scene_nwo.active_animation_index]
+            animation = scene_nwo if scene_nwo.asset_type == 'single_animation' else scene_nwo.animations[scene_nwo.active_animation_index]
             event = animation.animation_events[animation.active_animation_event_index]
             nwo = event.event_data[event.active_event_data_index]
         elif self.prop in attachment_props:

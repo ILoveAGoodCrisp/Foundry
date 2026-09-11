@@ -5336,14 +5336,14 @@ class AnimationTag(Tag):
             print(animation.name, sorted(list(animation.state_types)))
         print("+++++++++++++++++++++++++++++++")
         
-    def events_from_blender(self):
+    def events_from_blender(self, blender_animations=None):
         print(self.tag_path.RelativePathWithExtension)
         frame_event_list_path = Path(self.tag_path.RelativePath).with_suffix(".frame_event_list")
         with FrameEventListTag(path=frame_event_list_path) as events:
-            events.from_blender(self.get_animations())
+            events.from_blender(self.get_animations(), blender_animations)
             print(self.tag_path.RelativePathWithExtension)
             event_list_tag_ref = self.tag.SelectField("Struct:definitions[0]/Reference:imported events")
-            if event_list_tag_ref.Path.RelativePathWithExtension != events.tag_path.RelativePathWithExtension:
+            if event_list_tag_ref.Path is None or event_list_tag_ref.Path.RelativePathWithExtension != events.tag_path.RelativePathWithExtension:
                 event_list_tag_ref.Path = events.tag_path
                 self.tag_has_changes = True
         

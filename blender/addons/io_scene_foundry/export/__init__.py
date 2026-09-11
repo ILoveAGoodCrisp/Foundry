@@ -786,6 +786,7 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
         print("\n\nWriting Tags")
         print("-----------------------------------------------------------------------\n")
         export_scene.tool_import_simple(sidecar_path)
+        export_scene.export_single_animation_events(sidecar_path)
         
     if not single_animation and not child_animation and export_settings.export_mode in {'FULL', 'TAGS'}:
         if export_settings.export_mode == 'TAGS':

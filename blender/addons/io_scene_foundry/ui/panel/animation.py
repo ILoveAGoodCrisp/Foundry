@@ -696,6 +696,52 @@ class NWO_OT_AddAnimationEventData(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class NWO_OT_SingleAddAnimationEventData(bpy.types.Operator):
+    bl_idname = "nwo.single_add_animation_event_data"
+    bl_label = "Add"
+    bl_description = "Add a new animation event data item"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        if context.scene is None:
+            return False
+        scene_nwo = utils.get_scene_props()
+        _, event = _get_active_animation_event(scene_nwo, True)
+        return scene_nwo.asset_type == 'single_animation' and event is not None
+
+    def execute(self, context):
+        _, event = _get_active_animation_event(utils.get_scene_props(), True)
+        event.event_data.add()
+        event.active_event_data_index = len(event.event_data) - 1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+
+class NWO_OT_SingleRemoveAnimationEventData(bpy.types.Operator):
+    bl_idname = "nwo.single_remove_animation_event_data"
+    bl_label = "Remove"
+    bl_description = "Remove an animation event data item from the list"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        if context.scene is None:
+            return False
+        scene_nwo = utils.get_scene_props()
+        _, event = _get_active_animation_event(scene_nwo, True)
+        return (scene_nwo.asset_type == 'single_animation' and event is not None
+                and 0 <= event.active_event_data_index < len(event.event_data))
+
+    def execute(self, context):
+        _, event = _get_active_animation_event(utils.get_scene_props(), True)
+        event.event_data.remove(event.active_event_data_index)
+        if event.active_event_data_index > len(event.event_data) - 1:
+            event.active_event_data_index = len(event.event_data) - 1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+
 class NWO_OT_RemoveAnimationEventData(bpy.types.Operator):
     bl_idname = "nwo.remove_animation_event_data"
     bl_label = "Remove"

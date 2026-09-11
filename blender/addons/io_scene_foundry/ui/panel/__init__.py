@@ -743,8 +743,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         rows=rows,
                     )
                     col = row.column(align=True)
-                    col.operator("nwo.add_animation_event_data", icon="ADD", text="")
-                    col.operator("nwo.remove_animation_event_data", icon="REMOVE", text="")
+                    col.operator("nwo.single_add_animation_event_data", icon="ADD", text="")
+                    col.operator("nwo.single_remove_animation_event_data", icon="REMOVE", text="")
                     
                     data = item.event_data[item.active_event_data_index]
                     
@@ -783,7 +783,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         col.prop(data, "flag_reverse_only")
                         col.prop(data, "flag_fp_no_aged_weapons")
                 else:
-                    box.operator("nwo.add_animation_event_data", icon="ADD", text="Add Event Data")
+                    box.operator("nwo.single_add_animation_event_data", icon="ADD", text="Add Event Data")
                 
             elif (
                 item.event_type

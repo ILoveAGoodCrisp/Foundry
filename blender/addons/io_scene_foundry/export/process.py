@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import random
 import uuid
+from types import SimpleNamespace
+import xml.etree.ElementTree as ET
 import bmesh
 import bpy
 from mathutils import Matrix, Vector
@@ -2522,6 +2524,7 @@ class ExportScene:
             nodes = animation.nodes
             nodes_dict = {node.ob: node for node in nodes + [self.virtual_scene.skeleton_node]}
             self._export_granny_file(granny_path, nodes_dict, animation)
+            dump_frame_animation_events(animation.anim.animation_events, granny_path.with_suffix(".json"))
             print(f"--- Saved gr2 to {granny_path}")
             
 
@@ -2808,6 +2811,22 @@ class ExportScene:
             tool_patches.extend(patcher.reach_plane_builder(return_patches=True))
 
         return tool_patches
+
+    def export_single_animation_events(self, sidecar_path):
+        sidecar = ET.parse(Path(self.data_dir, sidecar_path))
+        output = sidecar.find(".//OutputTag[@Type='model_animation_graph']")
+        if output is None or not output.text or not output.text.strip():
+            raise RuntimeError("Parent sidecar has no animation graph output for frame events")
+
+        graph_path = Path(output.text.strip()).with_suffix(".model_animation_graph")
+        name = Path(bpy.data.filepath).stem.replace(":", " ")
+        animation = SimpleNamespace(
+            animation_events=self.scene_settings.animation_events,
+            frame_start=self.context.scene.frame_start,
+        )
+        self.print_post("--- Adding Single Animation Frame Events")
+        with AnimationTag(path=graph_path) as graph:
+            graph.events_from_blender({name: animation})
 
     def tool_import_simple(self, sidecar_path):
         import_failed, error = utils.run_tool_sidecar(

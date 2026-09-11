@@ -27,7 +27,11 @@ def propgroup_to_dict(pg: PropertyGroup) -> dict:
             continue
         if key == "marker":
             marker = getattr(pg, key, None)
-            data["marker_name"] = marker.nwo.marker_model_group if marker else ""
+            data["marker_name"] = getattr(pg, "marker_name", "") or (marker.nwo.marker_model_group if marker else "")
+            continue
+        if key == "marker_name" and hasattr(pg, "marker"):
+            marker = pg.marker
+            data[key] = pg.marker_name or (marker.nwo.marker_model_group if marker else "")
             continue
 
         value = getattr(pg, key)
@@ -65,7 +69,9 @@ def animation_event_to_dict(event: PropertyGroup) -> dict:
 def apply_dict_to_propgroup(pg: PropertyGroup, data: dict):
     for key, value in data.items():
         if key == "marker_name":
-            if hasattr(pg, "marker"):
+            if hasattr(pg, "marker_name"):
+                pg.marker_name = value
+            elif hasattr(pg, "marker"):
                 pg.marker = bpy.data.objects.get(value) if value else None
             continue
 
@@ -101,11 +107,10 @@ def dump_frame_animation_events(
         if getattr(event, "event_type", None) == FRAME_EVENT_TYPE
     ]
     
-    if data:
-        filepath.parent.mkdir(parents=True, exist_ok=True)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
 
-        with filepath.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4)
+    with filepath.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
 
 
 def import_frame_animation_events(
@@ -345,16 +350,17 @@ class FrameEventListTag(Tag):
         self.block_sound_references.RemoveAllElements()
         self.block_effect_references.RemoveAllElements()
             
-    def from_blender(self, animations: list):
+    def from_blender(self, animations: list, blender_animations=None):
         # Child blends only own a subset of the graph. Keep other animations and
         # their reference indices intact when updating this blend's events.
-        blender_animations = {a.name.replace(":", " "): a for a in self.scene_nwo.animations if a.export_this}
+        if blender_animations is None:
+            blender_animations = {a.name.replace(":", " "): a for a in self.scene_nwo.animations if a.export_this}
         
         unique_sounds_set = set()
         unique_effects_set = set()
 
         for b_animation in blender_animations.values():
-            if b_animation.external:
+            if getattr(b_animation, "external", False):
                 
                 to_remove = []
                 for i, e in enumerate(b_animation.animation_events):
@@ -454,6 +460,8 @@ class FrameEventListTag(Tag):
             frame_event.Fields[1].Data = animation.frame_count
 
             for blender_event in blender_animation.animation_events:
+                if blender_event.event_type != FRAME_EVENT_TYPE:
+                    continue
                 animation_event = AnimationEvent()
                 animation_event.from_blender(blender_animation, blender_event, unique_sounds, unique_effects)
                 
@@ -623,4 +631,3 @@ class FrameEventListTag(Tag):
             animation_name_events[name] = animation_events
             
         return animation_name_events
-                    

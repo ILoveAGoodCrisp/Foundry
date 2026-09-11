@@ -128,6 +128,8 @@ classes = [
     animation.NWO_UL_AnimProps_EventsData,
     animation.NWO_OT_AddAnimationEventData,
     animation.NWO_OT_RemoveAnimationEventData,
+    animation.NWO_OT_SingleAddAnimationEventData,
+    animation.NWO_OT_SingleRemoveAnimationEventData,
     animation.NWO_UL_AnimProps_Events,
     animation.NWO_OT_DeleteAnimation,
     animation.NWO_OT_UnlinkAnimation,
