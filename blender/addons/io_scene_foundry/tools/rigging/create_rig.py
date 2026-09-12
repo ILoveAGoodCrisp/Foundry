@@ -152,7 +152,7 @@ def bake_control_rig_actions(context, arm: bpy.types.Object, actions):
         arm.animation_data_create()
 
     original_action = arm.animation_data.action
-    original_slot_identifier = arm.animation_data.last_slot_identifier
+    original_slot = arm.animation_data.action_slot
     original_active = context.view_layer.objects.active
     selected_objects = [ob for ob in context.selected_objects]
     selected_pose_bones = {pb.name: pb.select for pb in arm.pose.bones}
@@ -205,19 +205,21 @@ def bake_control_rig_actions(context, arm: bpy.types.Object, actions):
         for action in actions:
             print(f"Baking action: {action.name}")
 
-            start, end = utils.get_frame_start_end_from_keyframes(action, arm)
+            if not len(action.slots):
+                continue
+            slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
+            # Resolve this action's slot before reading its frame range.
+            start, end = utils.get_frame_start_end_from_keyframes(action, slot.identifier)
             if end - start < 1:
                 continue
 
-            if len(action.slots):
-                slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
-                arm.animation_data.last_slot_identifier = slot.identifier
             arm.animation_data.action = action
+            arm.animation_data.action_slot = slot
             anim_utils.bake_action(arm, action=action, frames=range(start, end + 1), bake_options=options)
             baked_count += 1
     finally:
         arm.animation_data.action = original_action
-        arm.animation_data.last_slot_identifier = original_slot_identifier
+        arm.animation_data.action_slot = original_slot
         for pb in arm.pose.bones:
             pb.select = selected_pose_bones.get(pb.name, False)
         utils.deselect_all_objects()
@@ -428,7 +430,7 @@ def correct_baked_ik_target_actions(context, arm: bpy.types.Object, actions):
         return 0
 
     original_action = arm.animation_data.action
-    original_slot_identifier = arm.animation_data.last_slot_identifier
+    original_slot = arm.animation_data.action_slot
     original_frame = context.scene.frame_current
     original_mode = context.mode
     original_active = context.view_layer.objects.active
@@ -441,14 +443,16 @@ def correct_baked_ik_target_actions(context, arm: bpy.types.Object, actions):
 
     try:
         for action in list(dict.fromkeys(action for action in actions if action is not None)):
-            start, end = utils.get_frame_start_end_from_keyframes(action, arm)
+            if not len(action.slots):
+                continue
+            slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
+            # Resolve this action's slot before reading its frame range.
+            start, end = utils.get_frame_start_end_from_keyframes(action, slot.identifier)
             if end < start:
                 continue
 
-            if len(action.slots):
-                slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
-                arm.animation_data.last_slot_identifier = slot.identifier
             arm.animation_data.action = action
+            arm.animation_data.action_slot = slot
 
             for prop_name, _fkb, ikb, ptb, _chain in contexts:
                 remove_settings_prop_fcurve(action, arm, prop_name)
@@ -488,7 +492,7 @@ def correct_baked_ik_target_actions(context, arm: bpy.types.Object, actions):
         for prop_name in prop_names:
             settings_bone[prop_name] = 0.0
         arm.animation_data.action = original_action
-        arm.animation_data.last_slot_identifier = original_slot_identifier
+        arm.animation_data.action_slot = original_slot
         context.scene.frame_set(original_frame)
         utils.deselect_all_objects()
         for ob in selected_objects:
@@ -510,7 +514,7 @@ def correct_baked_head_look_target_actions(context, arm: bpy.types.Object, actio
         return 0
 
     original_action = arm.animation_data.action
-    original_slot_identifier = arm.animation_data.last_slot_identifier
+    original_slot = arm.animation_data.action_slot
     original_frame = context.scene.frame_current
     original_mode = context.mode
     original_active = context.view_layer.objects.active
@@ -524,14 +528,16 @@ def correct_baked_head_look_target_actions(context, arm: bpy.types.Object, actio
     try:
         muted_constraints = mute_constraints_by_name(arm, (head_track_constraint_name, eye_track_constraint_name))
         for action in list(dict.fromkeys(action for action in actions if action is not None)):
-            start, end = utils.get_frame_start_end_from_keyframes(action, arm)
+            if not len(action.slots):
+                continue
+            slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
+            # Resolve this action's slot before reading its frame range.
+            start, end = utils.get_frame_start_end_from_keyframes(action, slot.identifier)
             if end < start:
                 continue
 
-            if len(action.slots):
-                slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
-                arm.animation_data.last_slot_identifier = slot.identifier
             arm.animation_data.action = action
+            arm.animation_data.action_slot = slot
 
             for control_bone, _source_bones, _axis_index, _distance in contexts:
                 remove_pose_bone_transform_fcurves(action, arm, control_bone.name)
@@ -554,7 +560,7 @@ def correct_baked_head_look_target_actions(context, arm: bpy.types.Object, actio
         for con, muted in muted_constraints:
             con.mute = muted
         arm.animation_data.action = original_action
-        arm.animation_data.last_slot_identifier = original_slot_identifier
+        arm.animation_data.action_slot = original_slot
         context.scene.frame_set(original_frame)
         utils.deselect_all_objects()
         for ob in selected_objects:
@@ -595,7 +601,7 @@ def correct_baked_pole_target_actions(context, arm: bpy.types.Object, actions):
         return 0
 
     original_action = arm.animation_data.action
-    original_slot_identifier = arm.animation_data.last_slot_identifier
+    original_slot = arm.animation_data.action_slot
     original_frame = context.scene.frame_current
     original_mode = context.mode
     original_active = context.view_layer.objects.active
@@ -607,14 +613,16 @@ def correct_baked_pole_target_actions(context, arm: bpy.types.Object, actions):
 
     try:
         for action in list(dict.fromkeys(action for action in actions if action is not None)):
-            start, end = utils.get_frame_start_end_from_keyframes(action, arm)
+            if not len(action.slots):
+                continue
+            slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
+            # Resolve this action's slot before reading its frame range.
+            start, end = utils.get_frame_start_end_from_keyframes(action, slot.identifier)
             if end < start:
                 continue
 
-            if len(action.slots):
-                slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
-                arm.animation_data.last_slot_identifier = slot.identifier
             arm.animation_data.action = action
+            arm.animation_data.action_slot = slot
 
             for _fkb, ptb, _chain in contexts:
                 remove_pose_bone_transform_fcurves(action, arm, ptb.name)
@@ -639,7 +647,7 @@ def correct_baked_pole_target_actions(context, arm: bpy.types.Object, actions):
             corrected_count += 1
     finally:
         arm.animation_data.action = original_action
-        arm.animation_data.last_slot_identifier = original_slot_identifier
+        arm.animation_data.action_slot = original_slot
         context.scene.frame_set(original_frame)
         utils.deselect_all_objects()
         for ob in selected_objects:
