@@ -1404,42 +1404,8 @@ class NWO_Import(bpy.types.Operator):
                     if importer.to_x_rot:
                         utils.transform_scene(context, 1, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_amf_objects, actions=[])
                         
-                if self.legacy_okay and 'jms' in importer.extensions:
-                    toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
-                    if not toolset_addon_enabled:
-                        addon_utils.enable('io_scene_halo')
-                    jms_files = importer.sorted_filepaths["jms"]
-                    
-                    arm = None
-                
-                    if scene_nwo.main_armature:
-                        arm = scene_nwo.main_armature
-                    else:
-                        arm = utils.get_rig_prioritize_active(context)
-                    
-                    if arm is not None:
-                        arm.hide_set(False)
-                        arm.hide_select = False
-                        utils.set_active_object(arm)
-                        
-                    # Transform Scene so it's ready for JMS files
-                    if importer.needs_scaling:
-                        if arm is not None:
-                            utils.transform_scene(context, (1 / importer.scale_factor), importer.to_x_rot, scene_nwo.forward_direction, 'x', objects=[arm], actions=[])
-         
-                    imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_type)
-                    
-                    if importer.needs_scaling:
-                        if arm is None:
-                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_jms_objects, actions=[])
-                        else:
-                            utils.transform_scene(context, importer.scale_factor, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=[arm] + imported_jms_objects, actions=[])
-
-                    if imported_jms_objects:
-                        imported_objects.extend(imported_jms_objects)
-                        
-                    if not toolset_addon_enabled:
-                        addon_utils.disable('io_scene_halo')
+                if 'jms' in importer.extensions:
+                    imported_objects.extend(importer.import_jms_files(importer.sorted_filepaths["jms"], self.legacy_type))
 
 
                             
@@ -2280,9 +2246,11 @@ class NWO_Import(bpy.types.Operator):
             if utils.amf_addon_installed() and 'amf' in self.scope:
                 self.amf_okay = True
                 self.filter_glob += "*.amf;"
-            if utils.blender_toolset_installed() and 'jms' in self.scope:
+            if 'jms' in self.scope:
                 self.legacy_okay = True
-                self.filter_glob += '*.jms;*.ass;'
+                self.filter_glob += '*.jms;'
+                if utils.blender_toolset_installed():
+                    self.filter_glob += '*.ass;'
             if 'jma' in self.scope:
                 self.legacy_okay = True
                 self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;'
@@ -2383,6 +2351,20 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, "always_extract_bitmaps")
             
 class JMSMaterialSlot:
+    @classmethod
+    def from_name(cls, name):
+        """Read file material flags without creating materials or requiring ass_jms."""
+        from types import SimpleNamespace
+        result = cls.__new__(cls)
+        result.material = SimpleNamespace(name=name)
+        result.name = name
+        result._material_props_from_name()
+        result.slip_surface = ']' in name
+        result.emissive_power = None
+        result.material.name = re.sub(r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+', '', name).strip()
+        result.mesh_type = result._mesh_type_from_special_name()
+        return result
+
     def __init__(self, slot: bpy.types.MaterialSlot):
         self.material = slot.material
         self.index = slot.slot_index
@@ -4351,17 +4333,42 @@ class NWOImporter:
         self.jms_light_objects = []
         self.jms_hidden_objects = []
         
+        native_objects = []
         for path in reversed(jms_files): # reversed so render folders get evaluated first
-            self.import_jms_file(path, legacy_type)
+            if Path(path).suffix.lower() == '.jms':
+                from ..legacy.jms_importer import import_jms
+                native_objects.extend(import_jms(self, path, legacy_type))
+            else:
+                self.import_ass_file(path, legacy_type)
             
         meshes = {ob.data for ob in self.jms_mesh_objects}
         
         for me in meshes:
             utils.consolidate_face_attributes(me)
 
-        return self.jms_marker_objects + self.jms_mesh_objects + self.jms_frame_objects + self.jms_light_objects + self.jms_hidden_objects
-    
-    def import_jms_file(self, path, legacy_type):
+        return native_objects + self.jms_marker_objects + self.jms_mesh_objects + self.jms_frame_objects + self.jms_light_objects + self.jms_hidden_objects
+
+    def import_ass_file(self, path, legacy_type):
+        """ASS retains the toolset converter; native JMS never enters this path."""
+        enabled = addon_utils.check('io_scene_halo')[0]
+        if not enabled:
+            addon_utils.enable('io_scene_halo')
+        previous = set(bpy.data.objects)
+        arm = self.scene_nwo.main_armature or utils.get_rig_prioritize_active(bpy.context)
+        if arm is not None and self.needs_scaling:
+            utils.transform_scene(bpy.context, 1 / self.scale_factor, self.to_x_rot, self.scene_nwo.forward_direction, 'x', objects=[arm], actions=[])
+        try:
+            self._import_ass_file(path, legacy_type)
+        finally:
+            objects = list(set(bpy.data.objects) - previous)
+            if arm is not None:
+                objects.append(arm)
+            if objects and self.needs_scaling:
+                utils.transform_scene(bpy.context, self.scale_factor, self.from_x_rot, 'x', self.scene_nwo.forward_direction, objects=objects, actions=[])
+            if not enabled:
+                addon_utils.disable('io_scene_halo')
+
+    def _import_ass_file(self, path, legacy_type):
         # get all objects that exist prior to import
         pre_import_objects = set(bpy.data.objects)
         path = Path(path)
@@ -4370,10 +4377,7 @@ class NWOImporter:
         ext = path.suffix.strip('.').upper()
         print(f"Importing {ext}: {file_name}")
         with utils.MutePrints():
-            if ext == 'JMS':
-                bpy.ops.import_scene.jms(files=[{'name': path.name}], directory=str(path.parent), reuse_armature=True, empty_markers=True)
-            else:
-                bpy.ops.import_scene.ass(filepath=str(path))
+            bpy.ops.import_scene.ass(filepath=str(path))
                 
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
         arm = utils.get_rig_prioritize_active(bpy.context)
@@ -5431,7 +5435,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             else:
                  self.report({'WARNING'}, "AMF Toolset not installed, cannot import AMF")
                  return {'CANCELLED'}
-        elif self.import_type in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
+        elif self.import_type == "jms":
+            self.legacy_okay = True
+        elif self.import_type in {"ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
             if utils.blender_toolset_installed():
                 self.legacy_okay = True
             else:
