@@ -108,6 +108,8 @@ class Reader:
 
     def number(self, integer=False):
         parts = self.text().split()
+        if not parts:
+            raise JMSError(f'Expected number at line {self.line}')
         self.pending.extendleft(reversed(parts[1:]))
         try:
             if integer and re.fullmatch(r'[+-]?\d+', parts[0]):

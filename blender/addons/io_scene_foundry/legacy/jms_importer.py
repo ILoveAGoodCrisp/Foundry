@@ -67,18 +67,9 @@ class JMSImporter:
         selected, active = list(context.selected_objects), context.view_layer.objects.active
         self.collection = bpy.data.collections.new(self.path.stem)
         context.scene.collection.children.link(self.collection)
-        self.collection['jms_version'] = self.jms.version
-        self.collection['jms_materials'] = json.dumps([asdict(m) for m in self.jms.materials])
-        self.collection['jms_checksum'] = str(self.jms.checksum)
         try:
-            self.node_matrices()
-            self.build_armature()
-            self.build_materials()
-            self.build_meshes()
-            self.build_markers()
-            self.build_shapes()
-            self.build_constraints()
-            self.build_extras()
+            self.store_metadata()
+            self.build_contents()
             return self.objects
         except Exception:
             if context.object and context.object.mode != 'OBJECT':
@@ -105,6 +96,25 @@ class JMSImporter:
                 if ob.name in context.view_layer.objects:
                     ob.select_set(True)
             context.view_layer.objects.active = active
+
+    def store_metadata(self):
+        self.collection['jms_version'] = self.jms.version
+        self.collection['jms_materials'] = json.dumps([asdict(m) for m in self.jms.materials])
+        self.collection['jms_checksum'] = str(self.jms.checksum)
+
+    def build_contents(self):
+        self.node_matrices()
+        self.build_armature()
+        self.build_materials()
+        self.build_meshes()
+        self.build_markers()
+        self.build_shapes()
+        self.build_constraints()
+        self.build_extras()
+
+    def mesh_created(self, ob, source_indices):
+        """Adapter hook for formats with instance-local skin and UV bindings."""
+        pass
 
     def build_armature(self):
         if not self.jms.nodes:
@@ -174,7 +184,7 @@ class JMSImporter:
             ob.data.nwo['boundary_surface_type'] = ('soft_ceiling', 'soft_kill', 'slip_surface').index(kind)
 
     def apply_materials(self, ob, faces_by_material):
-        collision = ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_collision'
+        collision = self.uses_collision_material(ob)
         physics = ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_physics'
         slots = {}
         for index, faces in faces_by_material.items():
@@ -193,13 +203,13 @@ class JMSImporter:
                     indices = np.zeros(len(ob.data.polygons), dtype=np.bool_)
                     indices[faces] = True
                 self.owner._apply_jms_material_props(ob.data, ob.nwo, props, indices)
-            if ob.data.nwo.mesh_type in {'_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics'}:
+            if (collision or physics) and self.supports_collision_material_properties():
                 mask = np.zeros(len(ob.data.polygons), dtype=np.bool_)
                 mask[faces] = True
                 if not collision and len(faces) == len(ob.data.polygons):
-                    ob.nwo.global_material = material.name
+                    ob.nwo.global_material = self.collision_material_name(index, material)
                 elif mask.any():
-                    utils.add_face_prop(ob.data, 'global_material', mask).global_material = material.name
+                    utils.add_face_prop(ob.data, 'global_material', mask).global_material = self.collision_material_name(index, material)
         if collision or physics:
             from ..tools.property_apply import apply_props_material
             display_material = 'Collision' if collision else 'Physics'
@@ -210,13 +220,28 @@ class JMSImporter:
                 self.created_materials.append(ob.data.materials[0])
         utils.consolidate_face_attributes(ob.data)
 
+    def collision_material_name(self, index, material):
+        return material.name
+
+    def supports_collision_material_properties(self):
+        return self.is_model or self.owner.corinth
+
+    def uses_collision_material(self, ob):
+        return ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_collision'
+
     def build_meshes(self):
         j = self.jms
         rotation = self.rotation.to_3x3()
+        skipped_triangles = 0
         for (region, permutation, lod), triangles in j.triangle_groups().items():
             # Object-only portal policies cannot be represented by face layers.
             groups = defaultdict(list)
             for triangle in triangles:
+                # Repeated vertex indices create invalid loops that can crash
+                # Blender's custom-normal calculation. Keep them in source data.
+                if len(set(triangle.vertices)) != 3:
+                    skipped_triangles += 1
+                    continue
                 props = self.props.get(triangle.material)
                 policy = tuple(getattr(props, p, False) for p in ('portal_one_way', 'portal_door', 'portal_vis_blocker', 'blocks_sound', 'ai_deafening'))
                 groups[(self.mesh_kind(props), policy)].append(triangle)
@@ -245,6 +270,7 @@ class JMSImporter:
                 self.configure_mesh(ob, kind, region, permutation)
                 ob['jms_lod'] = lod
                 self.apply_materials(ob, faces_by_material)
+                self.mesh_created(ob, list(remap))
                 if self.armature:
                     # Mesh coordinates are world-space; preserve them on transformed rigs.
                     ob.parent = self.armature
@@ -266,6 +292,9 @@ class JMSImporter:
                     if weights:
                         modifier = ob.modifiers.new('Armature', 'ARMATURE')
                         modifier.object = self.armature
+
+        if skipped_triangles:
+            utils.print_warning(f'{self.path.name}: skipped {skipped_triangles} triangles with repeated vertex indices')
 
     def place(self, ob, transform, parent=-1, local=True):
         matrix = self.transform(transform)
