@@ -2797,12 +2797,12 @@ class ExportScene:
                 )
     
     def _memory_tool_patches(self):
-        if self.corinth:
-            return []
-
         tool_path = Path(self.project_root, utils.get_tool_type()).with_suffix(".exe")
         patcher = ToolPatcher(tool_path)
-        tool_patches = []
+        tool_patches = patcher.skip_import_source_data(return_patches=True)
+        if self.corinth:
+            return tool_patches
+
         tool_patches.extend(patcher.reach_uncompressed_vertex_weights(return_patches=True))
         tool_patches.extend(patcher.reach_skip_vertex_compression(return_patches=True))
         if self.asset_type.supports_animations:

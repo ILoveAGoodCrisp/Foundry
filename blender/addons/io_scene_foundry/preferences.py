@@ -392,6 +392,9 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
     row.enabled = prefs.allow_tool_patches
     row.prop(prefs, "patch_tool_skip_vertex_compression")
     row = box.row(align=True)
+    row.enabled = prefs.allow_tool_patches
+    row.prop(prefs, "patch_tool_skip_import_source_data")
+    row = box.row(align=True)
     row.prop(prefs, "allow_foundation_plugin_install")
     row = box.row(align=True)
     row.prop(prefs, "granny_viewer_path")
@@ -592,6 +595,12 @@ class FoundryPreferences(AddonPreferences):
     patch_tool_skip_vertex_compression: BoolProperty(
         name="Skip Vertex Compression",
         description="Patch Reach tool.exe and tool_fast.exe to skip vertex welding and degenerate triangle compression passes",
+        default=False,
+    )
+
+    patch_tool_skip_import_source_data: BoolProperty(
+        name="Skip Import Source Data",
+        description="Skip embedding zipped geometry source files in tags when exporting with Reach, Halo 4, or Halo 2 Anniversary Tool. Import file metadata is retained",
         default=False,
     )
     

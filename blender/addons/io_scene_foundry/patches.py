@@ -72,6 +72,56 @@ class ToolPatcher:
 
         self._patch(addresses, patch, originals)
 
+    def skip_import_source_data(self, enabled=None, return_patches=False):
+        """Skip geometry import's zipped source payload, retaining file metadata.
+
+        Match the instruction context as well as the call so kit selection does
+        not depend on installation folder names. Offsets are PE file offsets.
+        """
+        prefs = bpy.context.preferences.addons[__package__].preferences
+        if enabled is None:
+            enabled = prefs.patch_tool_skip_import_source_data
+        enabled = enabled and prefs.allow_tool_patches
+        if return_patches and not enabled:
+            return []
+
+        # Reach, H4, H2AMP: parent_file_index store, argument setup, then
+        # tag_import_add_zipped_data_for_file_using_import_path. Keep the
+        # store and argument setup intact and NOP only the five-byte call.
+        variants = [
+            (0x270E0F, "41 89 81 44 01 00 00 e8 25 10 90 00", 5),
+            (0x1FD799, "41 89 81 44 01 00 00 8b d7 49 8b cc e8 b6 67 6c 00", 5),
+            (0x1FE919, "41 89 81 44 01 00 00 8b d7 49 8b cc e8 c6 fa 6e 00", 5),
+        ]
+        if self.tool_path.lower().endswith("_fast.exe"):
+            variants = [
+                # Reach inlines the function. Jump from file offset 0x1DC95B
+                # to 0x1DCD05, which restores RBX before advancing the loop.
+                (0x1DC954, "41 89 80 44 01 00 00 45 39 65 00 7e 12", 6),
+                (0x1E3CE7, "89 82 44 01 00 00 8b d7 49 8b cf e8 e1 42 51 00", 5),
+                (0x1E4277, "89 82 44 01 00 00 8b d7 49 8b cf e8 5d 8e 51 00", 5),
+            ]
+
+        matches = []
+        with open(self.tool_path, "rb") as tool:
+            for offset, signature, size in variants:
+                original = bytes.fromhex(signature)
+                replacement = bytes.fromhex("e9 a5 03 00 00 90") if size == 6 else b"\x90" * 5
+                patch = original[:-size] + replacement
+                tool.seek(offset)
+                if tool.read(len(original)) in (original, patch):
+                    matches.append((offset, patch, original))
+
+        if len(matches) != 1:
+            if not enabled and not matches:
+                return
+            raise RuntimeError("Unsupported Tool executable for the Skip Import Source Data patch")
+
+        offset, patch, original = matches[0]
+        if return_patches:
+            return self._enabled_patch_records(offset, patch, original, enabled)
+        self._toggle_patch(offset, patch, original, enabled)
+
     def reach_plane_builder(self, enabled=True, return_patches=False):
         patch = b"\xEB"
         if self.tool_path.lower().endswith("_fast.exe"):
