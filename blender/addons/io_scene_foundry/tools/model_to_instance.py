@@ -84,17 +84,7 @@ class ModelInstance:
                 if not model.path_exists(model.reference_render_model.Path):
                     return materials_shader_map
                 
-                for element in model.tag.SelectField("Block:model materials").Elements:
-                    name = element.SelectField("material name").GetStringData()
-                    global_material = element.SelectField("global material name").GetStringData()
-                    
-                    if not name:
-                        continue
-                    
-                    if global_material:
-                        model_materials_map[name] = global_material
-                    else:
-                        model_materials_map[name] = name
+                model_materials_map.update(model.model_materials())
                         
                 if model.path_exists(model.reference_physics_model.Path):
                     with PhysicsTag(path=model.reference_physics_model.Path) as physics:

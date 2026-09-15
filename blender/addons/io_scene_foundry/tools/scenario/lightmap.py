@@ -396,24 +396,11 @@ class LightMapper:
                     for lg_path in lightmapper_globals_paths:
                         min_co, max_co = utils.to_aabb(ob)
                         with LightmapperGlobalsTag(path=lg_path) as lm_globals:
-                            lm_globals.aabb_min.Data = min_co
-                            lm_globals.aabb_max.Data = max_co
-                            lm_globals.global_flags.SetBit("Restrict lightmap samples to Maya regions", True)
-                            # Force AO and one bounce - this is necessary for the H4 lightmap region to work
-                            no_bounce = lm_globals.mode.Value < 1
-                            if not lm_globals.local_flags.TestBit("Enable AO") or no_bounce:
-                                print("Enabling AO to ensure lightmap region functionality")
-                                lm_globals.local_flags.SetBit("Enable AO", True)
-                                if no_bounce:
-                                    print("Setting light mode to one bounce to ensure lightmap region functionality")
-                                    lm_globals.mode.Value = 1
-                            
-                            lm_globals.tag_has_changes = True
+                            lm_globals.restrict_to_region(min_co, max_co)
             else:
                 for lg_path in lightmapper_globals_paths:
                     with LightmapperGlobalsTag(path=lg_path) as lm_globals:
-                        lm_globals.global_flags.SetBit("Restrict lightmap samples to Maya regions", False)
-                        lm_globals.tag_has_changes = True
+                        lm_globals.clear_region_restriction()
                 
         try:
             if self.model_lightmap:

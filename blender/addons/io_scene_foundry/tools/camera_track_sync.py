@@ -46,4 +46,4 @@ def export_current_action_as_camera_track(context, asset_path):
     
     with CameraTrackTag(path=tag_path) as camera_track:
         camera_track.to_tag(context, animation, camera)
-        print(f"\nCamera Track [{animation.name}] exported to {camera_track.tag_path.RelativePathWithExtension}")
+    print(f"\nCamera Track [{animation.name}] exported to {camera_track.path}")

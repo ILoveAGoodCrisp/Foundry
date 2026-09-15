@@ -1,0 +1,85 @@
+"""Build and stage blam-tags and generated schemas for the Foundry extension.
+
+Run with a Python environment containing maturin; Rust and MSVC are required.
+The source checkout is copied to a temporary directory and never modified.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+PROFILES = ('haloce_mcc', 'halo2_mcc', 'halo3_mcc', 'halo3odst_mcc',
+            'haloreach_mcc', 'halo4_mcc', 'halo2amp_mcc')
+SCHEMAS = ('camera_track.json', 'globals.json', 'render_method_option.json',
+           'render_method_definition.json', 'material_shader.json', 'model.json',
+           'render_model.json', 'lightmapper_globals.json', '_meta.json')
+
+
+def stage_schemas(source, addon):
+    hashes = {}
+    for profile in PROFILES:
+        destination = addon / 'tags/definitions' / profile
+        destination.mkdir(parents=True, exist_ok=True)
+        for name in SCHEMAS:
+            schema = source / 'definitions' / profile / name
+            if not schema.is_file():
+                if name in ('camera_track.json', '_meta.json'):
+                    raise FileNotFoundError(schema)
+                continue  # Not every title has every tag group.
+            shutil.copy2(schema, destination / name)
+            hashes[f'{profile}/{name}'] = hashlib.sha256(schema.read_bytes()).hexdigest()
+    return hashes
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('source', type=Path)
+    parser.add_argument('--schemas-only', action='store_true',
+                        help='Refresh generated schemas without rebuilding the wheel')
+    args = parser.parse_args()
+    source = args.source.resolve()
+    addon = Path(__file__).resolve().parent / 'addons/io_scene_foundry'
+    if args.schemas_only:
+        hashes = stage_schemas(source, addon)
+        provenance_path = addon / 'tags/definitions/build.json'
+        provenance = json.loads(provenance_path.read_text()) if provenance_path.exists() else {}
+        provenance['schemas'] = hashes
+        provenance_path.write_text(json.dumps(provenance, indent=2) + '\n')
+        print(f'Staged {len(hashes)} schema assets.')
+        return
+    with tempfile.TemporaryDirectory(prefix='foundry-blam-') as folder:
+        checkout = Path(folder)
+        for name in ('blam-tags', 'blam-tags-py', 'blam-tags-bindgen', 'blam-tag-shell'):
+            shutil.copytree(source / name, checkout / name,
+                            ignore=shutil.ignore_patterns('target', '__pycache__', 'dist'))
+        shutil.copy2(source / 'Cargo.toml', checkout / 'Cargo.toml')
+        if (source / 'Cargo.lock').exists():
+            shutil.copy2(source / 'Cargo.lock', checkout / 'Cargo.lock')
+        subprocess.run([sys.executable, '-m', 'maturin', 'build', '--release',
+                        '-m', str(checkout / 'blam-tags-py/Cargo.toml'),
+                        '-o', str(checkout / 'dist')], check=True, cwd=checkout)
+        wheels = list((checkout / 'dist').glob('*.whl'))
+        if len(wheels) != 1:
+            raise RuntimeError(f'Expected one wheel, got {wheels}')
+        wheel = wheels[0]
+        (addon / 'wheels').mkdir(exist_ok=True)
+        shutil.copy2(wheel, addon / 'wheels' / wheel.name)
+        hashes = stage_schemas(source, addon)
+        provenance = {'wheel': wheel.name, 'wheel_sha256': hashlib.sha256(wheel.read_bytes()).hexdigest(),
+                      'schemas': hashes}
+        (addon / 'tags/definitions/build.json').write_text(json.dumps(provenance, indent=2) + '\n')
+        manifest = addon / 'blender_manifest.toml'
+        text = manifest.read_text()
+        entry = f'  "./wheels/{wheel.name}",'
+        if entry not in text:
+            text = text.replace('wheels = [', 'wheels = [\n' + entry)
+            manifest.write_text(text)
+        print(f'Staged {wheel.name} and {len(hashes)} schema assets for migrated features.')
+
+
+if __name__ == '__main__':
+    main()

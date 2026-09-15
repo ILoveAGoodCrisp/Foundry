@@ -212,18 +212,14 @@ def _model_variant_viewer_data(model_tag_path):
         default_region = "default"
         region_default_permutations = {}
         if render_model_path and Path(get_tags_path(), render_model_path).exists():
-            region_permutations, default_region, region_default_permutations = _get_render_model_region_data(render_model_path)
+            region_permutations = {name: permutations or ['default']
+                                   for name, permutations in model.render_regions().items()}
 
-        for variant_element in model.block_variants.Elements:
-            variant_name = variant_element.Fields[0].GetStringData()
+        for variant_name in variants:
             if not variant_name:
                 continue
-            variant_regions[variant_name] = _variant_region_permutations(
-                variant_element,
-                region_permutations,
-                default_region,
-                region_default_permutations,
-            )
+            variant_regions[variant_name] = model.variant_region_options(
+                variant_name, render_regions=region_permutations)
 
     return variants, region_permutations, variant_regions, render_model_path
 

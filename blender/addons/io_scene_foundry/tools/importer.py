@@ -2833,7 +2833,7 @@ class NWOImporter:
             
     def import_camera_track(self, file, animation_scale):
         with utils.TagImportMover(self.tags_dir, file) as mover:
-            with CameraTrackTag(path=mover.tag_path) as camera_track:
+            with CameraTrackTag(path=mover.tag_path, tag_must_exist=True) as camera_track:
                 camera, action = camera_track.to_blender_animation(self.context, animation_scale)
             
         return camera, action
@@ -2876,7 +2876,7 @@ class NWOImporter:
                         imported_animations.extend(self.import_animation_graph(animation, armature, render))
                         
                     if self.tag_import_lights and self.corinth:
-                        path = model.tag.SelectField("Reference:Lighting Info").Path
+                        path = model.get_lighting_info()
                         if path is not None:
                             lighting_info_path = Path(path.Filename)
                             if lighting_info_path.exists():
@@ -3034,8 +3034,8 @@ class NWOImporter:
                             temp_variant = self.tag_variant
 
                             if not temp_variant and (for_instance_conversion or is_game_object or self.scene_nwo.asset_type == 'cinematic'):
-                                if model.block_variants.Elements.Count:
-                                    temp_variant = model.block_variants.Elements[0].Fields[0].GetStringData()
+                                if model.get_model_variants():
+                                    temp_variant = model.get_model_variants()[0]
 
                             cache_key = None
                             if self._should_cache_object_import(existing_armature, pose, make_non_export, for_instance_conversion, return_cin_stuff):
@@ -3206,7 +3206,7 @@ class NWOImporter:
                                 imported_animations.extend(self.import_animation_graph(fp_anim_tag if use_fp_graph else animation, armature, render))
                                 
                             if self.tag_import_lights and self.corinth:
-                                path = model.tag.SelectField("Reference:Lighting Info").Path
+                                path = model.get_lighting_info()
                                 if path is not None:
                                     lighting_info_path = Path(path.Filename)
                                     if lighting_info_path.exists():
@@ -3335,8 +3335,8 @@ class NWOImporter:
                 if not temp_variant:
                     if default_variant:
                         temp_variant = default_variant
-                    elif model.block_variants.Elements.Count:
-                        temp_variant = model.block_variants.Elements[0].Fields[0].GetStringData()
+                    elif model.get_model_variants():
+                        temp_variant = model.get_model_variants()[0]
                 
                 allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
                 if temp_variant:
@@ -3383,7 +3383,7 @@ class NWOImporter:
                         imported_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
                         
                     if self.tag_import_lights and self.corinth:
-                        path = model.tag.SelectField("Reference:Lighting Info").Path
+                        path = model.get_lighting_info()
                         if path is not None:
                             lighting_info_path = Path(path.Filename)
                             if lighting_info_path.exists():

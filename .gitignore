@@ -31,3 +31,14 @@ copy to add-ons.bat
 
 /blender/addons/io_scene_foundry/blender_manifest.toml
 /tests
+!/tests/
+/tests/*
+!/tests/test_blam_tags_backend.py
+!/tests/test_blam_camera_blender.py
+!/tests/test_blam_metadata.py
+!/tests/test_blam_model.py
+!/tests/test_blam_wrappers_blender.py
+!/tests/test_blam_packaging.py
+
+# Generated from blam-tags by blender/build_blam_tags.py before packaging.
+/blender/addons/io_scene_foundry/tags/definitions/

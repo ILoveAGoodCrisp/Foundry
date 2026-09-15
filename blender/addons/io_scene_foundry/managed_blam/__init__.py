@@ -156,9 +156,10 @@ class Tag():
         """Return the tag and bungie tag path for tag creation"""
         tag = Tags.TagFile()
         if is_TagPath:
-            tag_path = self.path
-            # convert path to a str
-            self.path = tag_path.RelativePathWithExtension
+            # Native blam-tags readers return project-bound Python references.
+            # Convert at the boundary while this wrapper still uses ManagedBlam.
+            self.path = self.path.RelativePathWithExtension
+            tag_path = Tags.TagPath.FromPathAndExtension(*self._get_path_and_ext(self.path))
         else:
             tag_path = Tags.TagPath.FromPathAndExtension(*self._get_path_and_ext(self.path))
             
@@ -387,6 +388,8 @@ def mb_init(tag_path=None):
     context = bpy.context
 
     if tag_path:
+        if hasattr(tag_path, 'Filename'):
+            tag_path = tag_path.Filename
         tag_path = Path(tag_path)
         if tag_path.is_absolute() and tag_path.exists():
             switch_project_from_filepath(context, tag_path)

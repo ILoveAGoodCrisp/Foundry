@@ -1,0 +1,150 @@
+"""Model references and variant selection through native blam-tags fields."""
+from enum import Enum
+from pathlib import Path
+import random
+from types import SimpleNamespace
+from .backend import TagDocument, ReferenceField
+from .metadata import enum_index
+
+
+class RenderModelOverrideType(Enum):
+    campaign = 0
+    multiplayer = 1
+    firefight = 2
+    mainmenu = 3
+
+
+class ModelDocument(TagDocument):
+    tag_ext = 'model'
+    reference_render_model = property(lambda self: ReferenceField(self, 'render model'))
+    reference_collision_model = property(lambda self: ReferenceField(self, 'collision model'))
+    reference_animation = property(lambda self: ReferenceField(self, 'animation'))
+    reference_physics_model = property(lambda self: ReferenceField(self, 'physics_model'))
+
+    def variants(self):
+        return self.block(self.tag.root(), 'variants')
+
+    def get_model_variants(self):
+        return [self.value(e, 'name') for e in self.variants()]
+
+    def get_render_model(self, optional_tag_root=None, override_type=None):
+        reference = self.reference_render_model.Path
+        if self.game in {'halo4', 'halo2a'} and override_type is not None:
+            for element in self.block(self.tag.root(), 'game mode render model override'):
+                kind = enum_index(self.value(element, 'game mode'), tuple(e.name for e in RenderModelOverrideType))
+                if kind == override_type.value:
+                    reference = self.reference(element, 'render model override')
+                    break
+        return self.reference_filename(reference, optional_tag_root)
+
+    @staticmethod
+    def reference_filename(reference, root=None):
+        if reference is None:
+            return ''
+        return str(Path(root) / reference.RelativePathWithExtension) if root else reference.Filename
+
+    def get_model_paths(self, optional_tag_root=None, override_type=None):
+        return (self.get_render_model(optional_tag_root, override_type),
+                *(self.reference_filename(reference.Path, optional_tag_root) for reference in
+                  (self.reference_collision_model, self.reference_animation, self.reference_physics_model)))
+
+    def get_lighting_info(self):
+        return self.reference(self.tag.root(), 'Lighting Info') if self.game in {'halo4', 'halo2a'} else None
+
+    def assign_lighting_info_tag(self, path):
+        if self.game in {'halo4', 'halo2a'}:
+            self.set_reference(self.tag.root(), 'Lighting Info', path)
+
+    def model_materials(self):
+        name = 'materials' if self.game in {'halo3', 'halo3odst'} else 'model materials'
+        return {self.value(e, 'material name'): self.value(e, 'global material name') or self.value(e, 'material name')
+                for e in self.block(self.tag.root(), name) if self.value(e, 'material name')}
+
+    def set_asset_paths(self):
+        for field, extension in (('render model', 'render_model'), ('collision model', 'collision_model'),
+                                 ('animation', 'model_animation_graph'), ('physics_model', 'physics_model')):
+            path = Path(self.asset_dir) / (self.asset_name + '.' + extension)
+            self.set_reference(self.tag.root(), field, path if (self.tags_root / path).is_file() else None)
+
+    def set_model_overrides(self, render_model, collision_model, model_animation_graph, physics_model):
+        # Export creates local copies of the chosen templates before this call.
+        for source, field, extension in zip(
+                (render_model, collision_model, model_animation_graph, physics_model),
+                ('render model', 'collision model', 'animation', 'physics_model'),
+                ('render_model', 'collision_model', 'model_animation_graph', 'physics_model')):
+            if source and (self.tags_root / source).is_file():
+                self.set_reference(self.tag.root(), field, Path(self.asset_dir) / (self.asset_name + '.' + extension))
+
+    def get_variant_children(self, variant):
+        result = []
+        if not variant:
+            return result
+        for element in self.variants():
+            if self.value(element, 'name') == variant:
+                for child in self.block(element, 'objects'):
+                    result.append(SimpleNamespace(parent_marker=self.value(child, 'parent marker'),
+                        child_marker=self.value(child, 'child marker'),
+                        child_variant_name=self.value(child, 'child variant name'),
+                        child_object=self.reference(child, 'child object')))
+        return result
+
+    def render_regions(self):
+        reference = self.reference_render_model.Path
+        if not self.path_exists(reference):
+            return {}
+        with TagDocument(reference, tags_root=self.tags_root, game=self.game, must_exist=True,
+                         definitions=self.definitions) as render:
+            return {render.value(region, 'name'):
+                    [render.value(p, 'name') for p in render.block(region, 'permutations')]
+                    for region in render.block(render.tag.root(), 'regions')}
+
+    def is_sky(self):
+        # This render-model flag was introduced in Reach; H3/ODST do not define it.
+        if self.game != 'reach' or not self.path_exists(self.reference_render_model.Path):
+            return False
+        with TagDocument(self.reference_render_model.Path, tags_root=self.tags_root, game=self.game,
+                         must_exist=True, definitions=self.definitions) as render:
+            return render.required_field(render.tag.root(), 'flags').get_flag('this is supposed to be a sky')
+
+    def variant_region_options(self, variant, state=-1, render_regions=None):
+        if not variant:
+            return {}
+        if render_regions is None:
+            render_regions = self.render_regions()
+        default_region = 'default' if 'default' in render_regions else next(iter(render_regions), 'default')
+        for element in self.variants():
+            if self.value(element, 'name') != variant:
+                continue
+            result = {}
+            for region in self.block(element, 'regions'):
+                name = self.value(region, 'region name')
+                if name == 'default':
+                    name = default_region
+                options = result.setdefault(name, [])
+                permutations = self.block(region, 'permutations')
+                if not len(permutations):
+                    options.append('default')
+                for permutation in permutations:
+                    name_in_render = self.value(permutation, 'permutation name')
+                    if not name_in_render:
+                        continue
+                    options.append(name_in_render)
+                    if state == 0:
+                        continue
+                    for state_element in self.block(permutation, 'states'):
+                        kind = enum_index(self.value(state_element, 'state'),
+                                          ('default', 'minor damage', 'medium damage', 'major damage', 'destroyed'))
+                        if state == -1 or kind == state:
+                            options.append(self.value(state_element, 'permutation name'))
+                # Preserve "default" as a sentinel even when no such render permutation exists.
+                result[name] = list(dict.fromkeys(p for p in options if p))
+            for name, permutations in render_regions.items():
+                result.setdefault(name, list(permutations))
+            return result
+        return {}
+
+    def get_variant_regions_and_permutations(self, variant, state):
+        if not self.path_exists(self.reference_render_model.Path):
+            return set()
+        return {(region, random.choice(options)) for region, options in
+                self.variant_region_options(variant, state).items() if options}

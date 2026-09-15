@@ -4,7 +4,7 @@ from math import radians
 import bpy
 import os
 from mathutils import Matrix, Quaternion, Vector
-from ..managed_blam import Tag
+from ..tags.backend import CameraTrackDocument
 from .. import utils
 from . import import_transform
 
@@ -41,25 +41,35 @@ class ControlPoint:
         self.ok = rotation[3]
         self.ow = rotation[0]
         
-class CameraTrackTag(Tag):
+class CameraTrackTag(CameraTrackDocument):
     tag_ext = 'camera_track'
     
-    def _read_fields(self):
-        self.block_control_points = self.tag.SelectField('Block:control points')
+    def __init__(self, path="", *, tag_must_exist=False, always_save=False):
+        self.scene_nwo = utils.get_scene_props()
+        project = utils.get_project(self.scene_nwo.scene_project)
+        if project is None:
+            raise RuntimeError('Select a Halo project before opening a camera track')
+        if not path:
+            asset = utils.get_asset_path()
+            path = os.path.join(asset, os.path.basename(asset) + '.camera_track')
+        super().__init__(path, tags_root=utils.get_tags_path(), game=project.game,
+                         must_exist=tag_must_exist, always_save=always_save)
         
     def get_control_points(self) -> list[ControlPoint]:
         control_points = []
-        for element in self.block_control_points.Elements:
-            control_point = ControlPoint(element.ElementIndex)
-            control_point.pi, control_point.pj, control_point.pk = [float(n) for n in element.Fields[0].GetStringData()]
-            control_point.oi, control_point.oj, control_point.ok, control_point.ow = [float(n) for n in element.Fields[1].GetStringData()]
+        for index, (position, orientation) in enumerate(self.control_points()):
+            control_point = ControlPoint(index)
+            control_point.pi, control_point.pj, control_point.pk = position
+            control_point.oi, control_point.oj, control_point.ok, control_point.ow = orientation
             control_points.append(control_point)
             
         return control_points
     
     def to_blender_animation(self, context: bpy.types.Context, animation_scale=1):
         control_points = self.get_control_points()
-        track_name = utils.dot_partition(os.path.basename(utils.dot_partition(self.tag_path.ToString())))
+        if not control_points:
+            raise ValueError(f'Camera track has no control points: {self.path}')
+        track_name = os.path.splitext(os.path.basename(self.path))[0]
         camera_ob = utils.get_camera_track_camera(context)
         if camera_ob is None:
             camera_name = 'camera_' + track_name
@@ -117,33 +127,20 @@ class CameraTrackTag(Tag):
         control_points = []
         frame = animation.frame_start
         idx = 0
-        while frame <= animation.frame_end and idx < 16:
-            scene.frame_set(frame)
-            control_point = ControlPoint(idx)
-            
-            matrix = utils.halo_transforms_matrix(ob.matrix_world)
-
-            loc, rot, _ = matrix.decompose()
-            
-            control_point.set_ijk_from_location(loc)
-                
-            blender_orientation_matrix = rot.to_matrix()
-            camera_matrix_fixed = blender_orientation_matrix @ camera_correction_matrix.inverted_safe()
-            control_point.set_ijkw_from_rotation(camera_matrix_fixed.to_quaternion())
-            
-            control_points.append(control_point)
-            
-            frame += 1
-            idx += 1
-        
-        if self.block_control_points.Elements.Count:
-            self.block_control_points.RemoveAllElements()
-        
-        for cp in control_points:
-            e = self.block_control_points.AddElement()
-            e.Fields[0].Data = cp.pi, cp.pj, cp.pk
-            e.Fields[1].Data = cp.oi, cp.oj, cp.ok, cp.ow
-            
-        self.tag_has_changes = True
-        
-        context.scene.frame_current = current_frame
+        try:
+            while frame <= animation.frame_end and idx < 16:
+                scene.frame_set(frame)
+                control_point = ControlPoint(idx)
+                matrix = utils.halo_transforms_matrix(ob.matrix_world)
+                loc, rot, _ = matrix.decompose()
+                control_point.set_ijk_from_location(loc)
+                blender_orientation_matrix = rot.to_matrix()
+                camera_matrix_fixed = blender_orientation_matrix @ camera_correction_matrix.inverted_safe()
+                control_point.set_ijkw_from_rotation(camera_matrix_fixed.to_quaternion())
+                control_points.append(control_point)
+                frame += 1
+                idx += 1
+            self.replace_control_points([(cp.position_to_xyz(), (cp.oi, cp.oj, cp.ok, cp.ow))
+                                         for cp in control_points])
+        finally:
+            scene.frame_set(current_frame)

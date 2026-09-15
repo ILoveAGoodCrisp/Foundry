@@ -206,7 +206,8 @@ def bump_assembly_info_version(assembly_info_path: Path) -> str:
 
 def clear_existing_wheels(wheels_dir: Path) -> None:
     for wheel_path in wheels_dir.glob("*.whl"):
-        wheel_path.unlink()
+        if normalize_name(wheel_path.name.split('-')[0]) != 'blam-tags':
+            wheel_path.unlink()
 
 
 def download_wheels(args: argparse.Namespace, wheels_dir: Path) -> None:
@@ -287,6 +288,11 @@ def collect_required_wheels(wheels_dir: Path) -> list[str]:
 
         selected.append(matches[0].name)
 
+    # blam-tags is built from the local source checkout, not downloaded from PyPI.
+    blam_wheels = [p for p in wheel_files if normalize_name(p.name.split('-')[0]) == 'blam-tags']
+    if len(blam_wheels) != 1:
+        raise RuntimeError('Build exactly one blam-tags wheel with blender/build_blam_tags.py before packaging Foundry')
+    selected.append(blam_wheels[0].name)
     return selected
 
 
