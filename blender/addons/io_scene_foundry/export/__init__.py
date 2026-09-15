@@ -450,16 +450,10 @@ class NWO_ExportScene(Operator, ExportHelper):
         for p in projects:
             if p.name == scene_nwo.scene_project:
                 thumbnail = os.path.join(p.project_path, p.image_path)
-                if os.path.exists(thumbnail):
+                if os.path.isfile(thumbnail):
                     icon_id = get_icon_id_in_directory(thumbnail)
-                elif p.remote_server_name == "bngtoolsql":
-                    icon_id = get_icon_id("halo_reach")
-                elif p.remote_server_name == "metawins":
-                    icon_id = get_icon_id("halo_4")
-                elif p.remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
-                    icon_id = get_icon_id("halo_2amp")
                 else:
-                    icon_id = get_icon_id("tag_test")
+                    icon_id = utils.project_game_icon(context, p)
                 row.menu(NWO_MT_ProjectChooserMenuDisallowNew.bl_idname, text=scene_nwo.scene_project, icon_value=icon_id)
                 break
         else:

@@ -32,6 +32,7 @@ from subprocess import Popen, check_call, PIPE
 import threading
 import queue
 
+from .project import GAME_INFO, identify_game
 from . import foundry_output
 from .tools.node_tree_arrange import arrange
 from .constants import OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR, css_colors
@@ -1806,7 +1807,7 @@ def validate_ek() -> str | None:
     scene_project = get_scene_props().scene_project
     if not ek.exists():
         return f"{scene_project} Editing Kit path invalid"
-    elif not Path(ek, get_tool_type()).with_suffix('.exe').exists():
+    elif not Path(ek, 'tool').with_suffix('.exe').exists():
         return f"Tool not found, please check that you have tool.exe within your {scene_project} directory"
     elif not Path(ek, "data").exists():
         return f"Editing Kit data folder not found. Please ensure your {scene_project} directory has a 'data' folder"
@@ -1979,6 +1980,8 @@ def read_projects_list() -> list:
 
 class ProjectXML():
     def __init__(self):
+        self.game = ""
+        self.remote_server_name = ""
         self.name = ""
         self.display_name = ""
         self.remote_database_name = ""
@@ -1993,11 +1996,21 @@ class ProjectXML():
         has_changes = False
         self.project_xml = Path(project_root, "project.xml")
         try:
-            if not self.project_xml.exists():
-                return print(f"{project_root} is not a path to a valid Halo project. Expected project root directory to contain project.xml")
-            tree = ET.parse(self.project_xml)
+            tool_path = Path(project_root, "tool.exe")
+            if not tool_path.is_file():
+                return print_warning(f"{project_root} is not a valid Halo project. Expected tool.exe in the project root")
+            game = identify_game(tool_path)
+            if self.project_xml.exists():
+                tree = ET.parse(self.project_xml)
+            else:
+                root = ET.Element("project", name=Path(project_root).name, displayName=Path(project_root).name)
+                ET.SubElement(root, "tagDatastore", remoteDatabaseName="tags" if game in {"halo4", "halo2a"} else game, remoteServerName=GAME_INFO[game][4])
+                tree = ET.ElementTree(root)
+                has_changes = True
+        except ValueError as ex:
+            return print_warning(str(ex))
         except OSError as ex:
-            return print_warning(f"Failed to access project XML: {self.project_xml} ({ex})")
+            return print_warning(f"Failed to read project tool or XML in {project_root}: {ex}")
         except ET.ParseError as ex:
             return print_warning(f"Failed to parse XML: {self.project_xml} ({ex})")
         root = tree.getroot()
@@ -2015,14 +2028,12 @@ class ProjectXML():
             self.display_name = root.get('displayName', 0)
             if not self.display_name:
                 return print(f"Failed to parse XML: {self.project_xml}. Could not return displayName")
-        self.remote_database_name = root.find('./tagDatastore').get('remoteDatabaseName', 0)
-        if not self.remote_database_name:
-            return print(f"Failed to parse XML: {self.project_xml}. Could not return remoteDatabaseName")
-        # It's fine if these fail, they are only used to render icons
-        self.remote_server_name = root.find('./tagDatastore').get('remoteServerName', 0)
+        datastore = root.find('./tagDatastore')
+        self.remote_database_name = datastore.get('remoteDatabaseName', '') if datastore is not None else ''
+        self.remote_server_name = datastore.get('remoteServerName', '') if datastore is not None else ''
         image = root.find('./imagePath', 0)
         if image is not None:
-            self.image_path = image.text
+            self.image_path = image.text or ""
             
         material = root.find('./defaultMaterial', 0)
         if material is not None:
@@ -2030,20 +2041,20 @@ class ProjectXML():
                 material.text = self.default_material
                 has_changes = True
             else:
-                self.default_material = material.text
+                self.default_material = material.text or ""
         else:
             material = ET.SubElement(root, 'defaultMaterial')
             if self.default_material:
                 material.text = self.default_material
             else:
-                match self.remote_server_name:
-                    case 'bngtoolsql':
+                match game:
+                    case 'reach':
                         material.text = r"shaders\invalid.shader"
-                    case 'metawins':
+                    case 'halo4':
                         material.text = r"shaders\invalid.material"
-                    case 'episql.343i.selfhost.corp.microsoft.com':
+                    case 'halo2a':
                         material.text = r"shaders\invalid.material"
-                self.default_material = material.text
+                self.default_material = material.text or ""
             has_changes = True
         
         water = root.find('./defaultWater', 0)
@@ -2052,20 +2063,20 @@ class ProjectXML():
                 water.text = self.default_water
                 has_changes = True
             else:
-                self.default_water = water.text
+                self.default_water = water.text or ""
         else:
+            water = ET.SubElement(root, 'defaultWater')
             if self.default_water:
                 water.text = self.default_water
             else:
-                water = ET.SubElement(root, 'defaultWater')
-                match self.remote_server_name:
-                    case 'bngtoolsql':
+                match game:
+                    case 'reach':
                         water.text = r"levels\solo\m50\shaders\water\m50_atrium_fountain_water.shader_water"
-                    case 'metawins':
+                    case 'halo4':
                         water.text = r"levels\multi\z11_valhalla\materials\valhalla_water_river.material"
-                    case 'episql.343i.selfhost.corp.microsoft.com':
+                    case 'halo2a':
                         water.text = r"levels\sway\ca_sanctuary\materials\rocks\ca_sanctuary_rockflat_water.material"
-                self.default_water = water.text
+                self.default_water = water.text or ""
             has_changes = True
             
         blender_path = root.find('./blenderPath', 0)
@@ -2088,7 +2099,7 @@ class ProjectXML():
                 last_scenario.text = self.last_scenario
                 has_changes = True
             else:
-                self.last_scenario = last_scenario.text
+                self.last_scenario = last_scenario.text or ""
         elif self.last_scenario:
             last_scenario = ET.SubElement(root, 'lastScenario')
             last_scenario.text = self.last_scenario
@@ -2099,6 +2110,8 @@ class ProjectXML():
                 tree.write(self.project_xml, encoding='utf-8', xml_declaration=True)
             except OSError as ex:
                 return print_warning(f"Failed to update project XML: {self.project_xml} ({ex})")
+        self.game = game
+        return True
 
 def setup_projects_list(skip_registry_check=False, report=None):
     projects_list = read_projects_list()
@@ -2109,8 +2122,7 @@ def setup_projects_list(skip_registry_check=False, report=None):
     if projects_list is not None:
         for i in projects_list:
             xml = ProjectXML()
-            xml.parse(i)
-            if xml.name and xml.display_name and xml.remote_database_name and xml.project_xml:
+            if xml.parse(i):
                 if xml.display_name in display_names:
                     warning = f"{xml.display_name} already exists. Ensure new project has a unique project display name. This can be changed by editing the displayName field in {os.path.join(i, 'project.xml')}"
                     print_warning(warning)
@@ -2129,7 +2141,8 @@ def setup_projects_list(skip_registry_check=False, report=None):
                 p.name = xml.display_name
                 p.remote_server_name = xml.remote_server_name
                 p.image_path = xml.image_path
-                p.corinth = xml.remote_database_name == "tags"
+                p.game = xml.game
+                p.corinth = xml.game in {"halo4", "halo2a"}
                 p.default_material = xml.default_material
                 p.default_water = xml.default_water
                 p.last_scenario = xml.last_scenario
@@ -2149,9 +2162,9 @@ def setup_projects_list(skip_registry_check=False, report=None):
                 
             bonobo_path = value.rpartition('.exe"')[0].strip('"\' ')
             project_root = os.path.dirname(bonobo_path)
-            if os.path.exists(os.path.join(project_root, "project.xml")):
+            if Path(project_root, "tool.exe").is_file():
                 write_projects_list([project_root])
-                setup_projects_list(True, report)
+                return setup_projects_list(True, report)
                     
         except:
             pass
@@ -4919,24 +4932,14 @@ def project_game_icon(context, project=None):
         project = get_project(get_scene_props().scene_project)
     if not project:
         return get_icon_id('tag_test')
-    match project.remote_server_name:
-        case 'bngtoolsql':
-            return get_icon_id('halo_reach')
-        case 'metawins':
-            return get_icon_id('halo_4')
-        case 'episql.343i.selfhost.corp.microsoft.com':
-            return get_icon_id('halo_2amp')
+    info = GAME_INFO.get(project.game)
+    return get_icon_id(info[3] if info else 'tag_test')
         
 def project_game_for_mcc(context, project=None):
     if project is None:
         project = get_project(get_scene_props().scene_project)
-    match project.remote_server_name:
-        case 'bngtoolsql':
-            return 'HaloReach'
-        case 'metawins':
-            return 'Halo4'
-        case 'episql.343i.selfhost.corp.microsoft.com':
-            return 'Halo2A'
+    info = GAME_INFO.get(project.game) if project else None
+    return info[2] if info else None
         
 def project_icon(context, project=None):
     if project is None:
@@ -4945,7 +4948,7 @@ def project_icon(context, project=None):
         return get_icon_id('tag_test')
     
     thumbnail = Path(project.project_path, project.image_path)
-    if thumbnail.exists():
+    if thumbnail.is_file():
         return get_icon_id_in_directory(str(thumbnail))
     else:
         return project_game_icon(context, project)

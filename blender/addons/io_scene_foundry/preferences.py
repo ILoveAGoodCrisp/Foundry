@@ -20,6 +20,7 @@ class NWO_Project_ListItems(bpy.types.PropertyGroup):
     name: StringProperty()
     project_xml: StringProperty()
     corinth: BoolProperty()
+    game: StringProperty()
     remote_server_name: StringProperty()
     image_path: StringProperty()
     default_material: StringProperty()
@@ -34,7 +35,7 @@ class NWO_UL_Projects(bpy.types.UIList):
     ):
         if item:
             layout.label(text=item.name, icon_value=project_game_icon(context, item))
-            if Path(item.project_path, item.image_path).exists():
+            if Path(item.project_path, item.image_path).is_file():
                 layout.label(text="", icon_value=project_icon(context, item))
             # layout.label(text=item.project_path)
         else:
@@ -61,11 +62,16 @@ class NWO_ProjectAdd(Operator):
         new_project_path = Path(self.filepath)
         if new_project_path.is_file():
             new_project_path = new_project_path.parent
-        if not Path(new_project_path, "project.xml").exists():
+        if not Path(new_project_path, "tool.exe").is_file():
             new_project_path = new_project_path.parent
-            if not Path(new_project_path, "project.xml").exists():
-                self.report({'WARNING'}, f"{new_project_path} is not a path to a valid Halo project. Expected project root directory to contain project.xml")
+            if not Path(new_project_path, "tool.exe").is_file():
+                self.report({'WARNING'}, f"{new_project_path} is not a path to a valid Halo project. Expected project root directory to contain tool.exe")
                 return {'CANCELLED'}
+
+        xml = ProjectXML()
+        if not xml.parse(new_project_path):
+            self.report({'WARNING'}, "Could not load project. Check tool.exe and project.xml; see console for details")
+            return {'CANCELLED'}
         
         projects_list = read_projects_list()
         if projects_list is None:
@@ -77,7 +83,7 @@ class NWO_ProjectAdd(Operator):
         write_projects_list(projects_list)
         projects = setup_projects_list(report=self.report)
 
-        if self.set_scene_project or had_no_projects:
+        if projects and (self.set_scene_project or had_no_projects):
             nwo = get_scene_props()
             nwo.scene_project = projects[-1].name
         
@@ -161,7 +167,7 @@ class NWO_OT_ProjectEdit(Operator):
         prefs = get_prefs()
         active_project = prefs.projects[prefs.current_project_index]
         project_xml = Path(active_project.project_xml)
-        if not project_xml.exists():
+        if not Path(active_project.project_path, "tool.exe").is_file():
             self.report({'WARNING'}, "No active project")
             return {'CANCELLED'}
         
@@ -173,7 +179,9 @@ class NWO_OT_ProjectEdit(Operator):
         default_material = relative_path(self.material_path.strip(" '\""))
         if Path(get_tags_path(), default_material).exists():
             xml.default_material = default_material
-        xml.parse(project_xml.parent)
+        if not xml.parse(project_xml.parent):
+            self.report({'WARNING'}, "Could not update project settings; see console for details")
+            return {'CANCELLED'}
         
         active_project.name = xml.display_name
         active_project.project_name = xml.name

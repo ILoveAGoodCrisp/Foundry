@@ -142,16 +142,10 @@ class NWO_MT_ProjectChooserMenu(bpy.types.Menu):
         for p in projects:
             name = p.name
             thumbnail = Path(p.project_path, p.image_path)
-            if thumbnail.exists():
+            if thumbnail.is_file():
                 icon_id = get_icon_id_in_directory(str(thumbnail))
-            elif p.remote_server_name == "bngtoolsql":
-                icon_id = get_icon_id("halo_reach")
-            elif p.remote_server_name == "metawins":
-                icon_id = get_icon_id("halo_4")
-            elif p.remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
-                icon_id = get_icon_id("halo_2amp")
             else:
-                icon_id = get_icon_id("tag_test")
+                icon_id = utils.project_game_icon(context, p)
             layout.operator("nwo.project_select", text=name, icon_value=icon_id).project_name = name
 
         if self.bl_idname == "NWO_MT_ProjectChooser":

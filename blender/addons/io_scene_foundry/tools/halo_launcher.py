@@ -605,11 +605,11 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
     project = get_project()
     if project:
         project_xml = Path(project.project_xml)
-        if project_xml.exists():
+        if Path(project.project_path, "tool.exe").is_file():
             xml = ProjectXML()
             xml.last_scenario = str(Path(relative_path(filepath)).with_suffix(""))
-            xml.parse(project_xml.parent)
-            project.last_scenario = xml.last_scenario
+            if xml.parse(project_xml.parent):
+                project.last_scenario = xml.last_scenario
     
     run_ek_cmd(args, True)
 
