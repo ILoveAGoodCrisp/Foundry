@@ -14,7 +14,6 @@ FOUNDRY_DOCS = r"https://c20.reclaimers.net/general/community-tools/foundry"
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry"
 
 BLENDER_TOOLSET = r"https://github.com/General-101/Halo-Asset-Blender-Development-Toolset/releases"
-AMF_ADDON = r"https://github.com/Gravemind2401/Reclaimer/blob/master/Reclaimer.Blam/Resources/Blender%20AMF2.py"
 RECLAIMER = r"https://github.com/Gravemind2401/Reclaimer/releases"
 ANIMATION_REPO = r"https://github.com/77Mynameislol77/HaloAnimationRepository"
 
@@ -4265,19 +4264,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.operator('nwo.foundry_import', text="Import Cinematic Objects", icon='IMPORT').scope = 'object'
             col.operator('nwo.foundry_import', text="Import Cinematic Scenarios", icon='IMPORT').scope = 'scenario'
         else:
-            # amf_installed = utils.amf_addon_installed()
-            # toolset_installed = utils.blender_toolset_installed()
-            col.operator('nwo.foundry_import', text="Import Models & Animations", icon='IMPORT').scope = 'amf,jma,jms,model,render_model,scenario,scenario_structure_bsp,scenario_structure_lighting_info,particle_model,animation,prefab,structure_design,polyart_asset,decorator_set,cinematic'
-            # if not toolset_installed:
-            #     col.label(text="Halo Blender Toolset required for import of JMS/JMA/ASS files")
-            #     col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
-            # if not amf_installed:
-            #     col.label(text="AMF Importer required to import amf files")
-            #     col.operator("nwo.open_url", text="Download", icon_value=get_icon_id("amf")).url = AMF_ADDON
+            col.operator('nwo.foundry_import', text="Import Models & Animations", icon='IMPORT').scope = 'jma,jms,model,render_model,scenario,scenario_structure_bsp,scenario_structure_lighting_info,particle_model,animation,prefab,structure_design,polyart_asset,decorator_set,cinematic'
                 
             col.operator('nwo.foundry_import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
             col.operator('nwo.rename_import', text="Import Animation Renames & Copies", icon_value=get_icon_id("animation_rename"))
-            col.operator("nwo.convert_scene", text="Convert Scene", icon='RIGHTARROW')
         
     def draw_rig_tools(self, box, nwo):
         row = box.row()
@@ -4385,7 +4375,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         box_downloads.label(text="Other Resources")
         col = box_downloads.column()
         col.operator("nwo.open_url", text="Halo Blender Toolset", icon="BLENDER").url = BLENDER_TOOLSET
-        col.operator("nwo.open_url", text="AMF Importer", icon_value=get_icon_id("amf")).url = AMF_ADDON
         col.operator("nwo.open_url", text="Reclaimer", icon_value=get_icon_id("marathon")).url = RECLAIMER
         col.operator("nwo.open_url", text="Animation Repository", icon_value=get_icon_id("github")).url = ANIMATION_REPO
         #self.box.operator('nwo.register_icons', icon='FILE_REFRESH')
@@ -4613,8 +4602,6 @@ class NWO_OpenURL(bpy.types.Operator):
             return "Opens the github page for Foundry in a new tab"
         elif properties.url == BLENDER_TOOLSET:
             return "Opens the github releases page for the Halo Blender Development Toolset, a blender addon supporting H1/H2/H3/ODST. Opens in a new tab"
-        elif properties.url == AMF_ADDON:
-            return "Opens the download page for the AMF importer blender addon. This addon allows blender to import AMF files extracted from the Halo Tool - Reclaimer."
         elif properties.url == RECLAIMER:
             return "Opens the download page for Reclaimer, a tool for extracting render models, BSPs, and textures for Halo games"
         elif properties.url == ANIMATION_REPO:

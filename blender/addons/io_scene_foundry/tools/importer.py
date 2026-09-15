@@ -9,7 +9,6 @@ import re
 import time
 import traceback
 from uuid import uuid4
-import addon_utils
 import bmesh
 import bpy
 import bpy.props
@@ -620,7 +619,7 @@ def ensure_import_operator_enum_defaults(keywords):
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "scenario_structure_lighting_info", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
+formats = "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "scenario_structure_lighting_info", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
 
 xref_tag_types = (
     ".crate",
@@ -648,7 +647,6 @@ object_tag_types = (
 )
 
 filetype_suffixes = (
-    ("amf", (".amf",)),
     ("jms", legacy_model_formats),
     ("jma", legacy_animation_formats),
     ("bitmap", (".bitmap",)),
@@ -829,126 +827,11 @@ class XREF:
         
         self.name = xref_name
 
-class NWO_OT_ConvertScene(bpy.types.Operator):
-    bl_label = "Convert Scene"
-    bl_idname = "nwo.convert_scene"
-    bl_description = "Converts the scene from the selected format to Foundry standard"
-    
-    selected_only: bpy.props.BoolProperty(
-        name="Selected Only",
-        description="Restrict affected objects to only those selected"
-    )
-    
-    convert_type: bpy.props.EnumProperty(
-        name="Current Type",
-        description="The type of format objects are currently in",
-        items=[
-            ('jms', "JMS/ASS", ""),
-            ('amf', "AMF", ""),
-        ]
-    )
-    
-    jms_type: bpy.props.EnumProperty(
-        name="JMS Type",
-        description="Whether this is a model or a scenario",
-        items=[
-            ("model", "Model", ""),
-            ("scenario", "Scenario", "")
-        ]
-    )
-    
-    @classmethod
-    def poll(cls, context):
-        return utils.current_project_valid()
-    
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        layout.prop(self, "selected_only")
-        layout.prop(self, "convert_type", expand=True)
-        if self.convert_type == "jms":
-            layout.prop(self, "jms_type", expand=True)
-        
-    def invoke(self, context: bpy.types.Context, _):
-        return context.window_manager.invoke_props_dialog(self)
-    
-    def execute(self, context):
-        scene_nwo_export = utils.get_export_props()
-        failed = False
-        if self.selected_only:
-            objects_in_scope = context.selected_objects[:]
-        else:
-            objects_in_scope = bpy.data.objects[:]
-            
-        with utils.ExportManager():
-            utils.clear_output()
-            start = time.perf_counter()
-            user_cancelled = False
-            if scene_nwo_export.show_output:
-                utils.show_output()  # open Foundry Output so users can see progress
-                scene_nwo_export.show_output = False
-            try:
-                utils.print_section("FOUNDRY CONVERTER")
-                converter = NWOImporter(context, [], [], existing_scene=True)
-                match self.convert_type:
-                    case "amf":
-                        converter.amf_marker_objects = []
-                        converter.amf_mesh_objects = []
-                        converter.amf_other_objects = []
-                        converter.process_amf_objects(objects_in_scope, "")
-                    case "jms":
-                        if not utils.blender_toolset_installed():
-                            self.report({'WARNING'}, "Cannot convert scene from JMS/ASS format, Halo Blender Toolset is not installed")
-                            return {'CANCELLED'}
-                        
-                        converter.jms_file_marker_objects = []
-                        converter.jms_file_mesh_objects = []
-                        converter.jms_file_frame_objects = []
-                        converter.jms_file_light_objects = []
-                        converter.jms_file_proxy_objects = []
-                        converter.process_jms_objects(objects_in_scope, "", self.jms_type == 'model')
-                
-            except KeyboardInterrupt:
-                utils.print_warning("\nIMPORT CANCELLED BY USER")
-                self.user_cancelled = True
-                failed = True
-            except Exception as e:
-                failed = True
-                if isinstance(e, RuntimeError):
-                    utils.print_warning(traceback.format_exception_only(e)[0][14:])
-                else:
-                    utils.print_error("\n\nException hit. Please include in report\n")
-                    traceback.print_exc()
-                    print("FOUNDRY VERSION: ", utils.get_version_string())
-                    utils.print_warning(
-                        "Import failed spectacularly. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
-                    )
-                    utils.print_error(
-                        "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                    )
-                    failed = True
-                
-        end = time.perf_counter()
-        if user_cancelled:
-            self.report({'WARNING'}, "Cancelled by user")
-        elif failed:
-            utils.print_error("IMPORT FAILED")
-            self.report({'WARNING'}, "Import failed")
-        else:
-            print("\n-----------------------------------------------------------------------")
-            print(f"Completed in {utils.human_time(end - start, True)}")
-            print("-----------------------------------------------------------------------\n")
-
-        if failed:
-            bpy.ops.ed.undo_push()
-            bpy.ops.ed.undo()
-        
-        return {'FINISHED'}
 
 class NWO_Import(bpy.types.Operator):
     bl_label = "Foundry Import"
     bl_idname = "nwo.foundry_import"
-    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA, JMS, ASS, bitmap tags, camera_track tags, model tags (collision & skeleton only)"
+    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: JMA, JMS, ASS, bitmap tags, camera_track tags, model tags (collision & skeleton only)"
     
     @classmethod
     def poll(cls, context):
@@ -1015,7 +898,6 @@ class NWO_Import(bpy.types.Operator):
         min=1,
     )
     
-    amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     
     scope: bpy.props.StringProperty(
@@ -1389,21 +1271,6 @@ class NWO_Import(bpy.types.Operator):
                     marker.matrix_world = mouse_matrix
                 
                 
-                if 'amf' in importer.extensions and self.amf_okay:
-                    amf_module_name = utils.amf_addon_installed()
-                    amf_addon_enabled = addon_utils.check(amf_module_name)[0]
-                    if not amf_addon_enabled:
-                        addon_utils.enable(amf_module_name)
-                    amf_files = importer.sorted_filepaths["amf"]
-                    imported_amf_objects = importer.import_amf_files(amf_files, importer.scale_factor)
-                    if not amf_addon_enabled:
-                        addon_utils.disable(amf_module_name)
-                    if imported_amf_objects:
-                        imported_objects.extend(imported_amf_objects)
-                    
-                    if importer.to_x_rot:
-                        utils.transform_scene(context, 1, importer.from_x_rot, 'x', scene_nwo.forward_direction, objects=imported_amf_objects, actions=[])
-                        
                 if 'jms' in importer.extensions:
                     imported_objects.extend(importer.import_jms_files(importer.sorted_filepaths["jms"], self.legacy_type))
 
@@ -2243,9 +2110,6 @@ class NWO_Import(bpy.types.Operator):
             if 'cinematic' in self.scope:
                 self.filter_glob += '*.cinematic;'
                     
-            if utils.amf_addon_installed() and 'amf' in self.scope:
-                self.amf_okay = True
-                self.filter_glob += "*.amf;"
             if 'jms' in self.scope:
                 self.legacy_okay = True
                 self.filter_glob += '*.jms;*.ass;'
@@ -2264,7 +2128,7 @@ class NWO_Import(bpy.types.Operator):
         layout.scale_y = 1.25
         corinth = utils.is_corinth(context)
         scope_items = set(self.scope.split(',')) if self.scope else set()
-        if not self.scope or ('amf' in self.scope or 'jms' in self.scope or 'model' in self.scope or 'object' in self.scope):
+        if not self.scope or ('jms' in self.scope or 'model' in self.scope or 'object' in self.scope):
             box = layout.box()
             box.label(text="Model Settings")
             tag_type = 'material' if utils.is_corinth(context) else 'shader'
@@ -2351,7 +2215,7 @@ class NWO_Import(bpy.types.Operator):
 class JMSMaterialSlot:
     @classmethod
     def from_name(cls, name):
-        """Read file material flags without creating materials or requiring ass_jms."""
+        """Read file material flags without creating Blender materials."""
         from types import SimpleNamespace
         result = cls.__new__(cls)
         result.material = SimpleNamespace(name=name)
@@ -2363,17 +2227,6 @@ class JMSMaterialSlot:
         result.mesh_type = result._mesh_type_from_special_name()
         return result
 
-    def __init__(self, slot: bpy.types.MaterialSlot):
-        self.material = slot.material
-        self.index = slot.slot_index
-        self.name = slot.material.name
-        self._material_props_from_name()
-        self._material_props_from_ui()
-        
-        if self.water_surface:
-            self.mesh_type = '_connected_geometry_mesh_type_water_surface'
-        else:
-            self.mesh_type = self._mesh_type_from_special_name()
         
     def _mesh_type_from_special_name(self):
         name = self.material.name
@@ -2394,67 +2247,6 @@ class JMSMaterialSlot:
         
         return 'default'
             
-    def _material_props_from_ui(self):
-        self.two_sided = self.material.ass_jms.two_sided or self.two_sided
-        self.transparent_one_sided = self.material.ass_jms.transparent_1_sided or self.transparent_one_sided
-        self.transparent_two_sided = self.material.ass_jms.transparent_2_sided or self.transparent_two_sided
-        self.render_only = self.material.ass_jms.render_only or self.render_only
-        self.collision_only = self.material.ass_jms.collision_only or self.collision_only
-        self.sphere_collision_only = self.material.ass_jms.sphere_collision_only or self.sphere_collision_only
-        self.fog_plane = self.material.ass_jms.fog_plane or self.fog_plane
-        self.ladder = self.material.ass_jms.ladder or self.ladder
-        self.breakable = self.material.ass_jms.breakable or self.breakable
-        self.ai_deafening = self.material.ass_jms.ai_deafening or self.ai_deafening
-        self.no_shadow = self.material.ass_jms.no_shadow or self.no_shadow
-        self.shadow_only = self.material.ass_jms.shadow_only or self.shadow_only
-        self.lightmap_only = self.material.ass_jms.lightmap_only or self.lightmap_only
-        self.precise = self.material.ass_jms.precise or self.precise
-        self.portal_one_way = self.material.ass_jms.portal_1_way or self.portal_one_way
-        self.portal_door = self.material.ass_jms.portal_door or self.portal_door
-        self.portal_vis_blocker = self.material.ass_jms.portal_vis_blocker or self.portal_vis_blocker
-        self.ignored_by_lightmaps = self.material.ass_jms.ignored_by_lightmaps or self.ignored_by_lightmaps
-        self.blocks_sound = self.material.ass_jms.blocks_sound or self.blocks_sound
-        self.decal_offset = self.material.ass_jms.decal_offset or self.decal_offset
-        self.water_surface = self.material.ass_jms.water_surface or self.water_surface
-        self.slip_surface = self.material.ass_jms.slip_surface
-        # lightmap
-        if self.material.ass_jms.lightmap_res != 1:
-            self.lightmap_resolution_scale = utils.clamp(int(float(self.material.ass_jms.lightmap_res) * 3), 1, 7)
-        if self.material.ass_jms.additive_transparency != Color((0.0, 0.0, 0.0)):
-            self.lightmap_additive_transparency = self.material.ass_jms.additive_transparency
-        if self.material.ass_jms.two_sided_transparent_tint != Color((0.0, 0.0, 0.0)):
-            self.lightmap_translucency_tint_color = self.material.ass_jms.additive_transparency
-            
-        self.lightmap_transparency_override = self.material.ass_jms.override_lightmap_transparency
-            
-        # Emissive
-        self.emissive_power = None
-        self.emissive_color = None
-        self.emissive_quality = None
-        self.emissive_per_unit = None
-        self.emissive_shader_gel = None
-        self.emissive_focus = None
-        self.emissive_attenuation = None
-        self.emissive_attenuation_falloff = None
-        self.emissive_attenuation_cutoff = None
-        self.emissive_frustum_blend = None
-        self.emissive_frustum_falloff = None
-        self.emissive_frustum_cutoff = None
-        
-        if self.material.ass_jms.power > 0:
-            self.emissive_power = self.material.ass_jms.power
-            self.emissive_color = self.material.ass_jms.color
-            self.emissive_quality = self.material.ass_jms.quality
-            self.emissive_per_unit = self.material.ass_jms.power_per_unit_area
-            self.emissive_shader_gel = self.material.ass_jms.use_shader_gel
-            self.emissive_focus = radians(180 * (1 - self.material.ass_jms.emissive_focus))
-            self.emissive_attenuation = self.material.ass_jms.attenuation_enabled
-            if self.emissive_attenuation:
-                self.emissive_attenuation_falloff = self.material.ass_jms.falloff_distance
-                self.emissive_attenuation_cutoff = self.material.ass_jms.cutoff_distance
-            else:
-                self.emissive_attenuation_falloff = 0
-                self.emissive_attenuation_cutoff = 0
         
     def _material_props_from_name(self):
         name = self.material.name
@@ -4180,145 +3972,8 @@ class NWOImporter:
         utils.update_progress(job, 1)
         
         return images
-    
-    # AMF Importer
-    def import_amf_files(self, amf_files, scale_factor):
-        """Imports all amf files supplied"""
-        self.amf_marker_objects = []
-        self.amf_mesh_objects = []
-        self.amf_other_objects = []
-        import_size = 'MAX' if scale_factor == 1 else 'METERS'
-        for path in amf_files:
-            self.import_amf_file(path, import_size)
-            
-        return self.amf_mesh_objects + self.amf_marker_objects + self.amf_other_objects
 
-    def import_amf_file(self, path, import_size):
-        # get all objects that exist prior to import
-        path = Path(path)
-        pre_import_objects = bpy.data.objects[:]
-        file_name = utils.dot_partition(os.path.basename(path))
-        print(f"Importing AMF: {file_name}")
-        with utils.MutePrints():
-            bpy.ops.import_scene.amf(files=[{'name': path.name}], directory=str(path.parent), import_units=import_size, marker_prefix='')
-        new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
-        self.process_amf_objects(new_objects, file_name)
-        
-    def process_amf_objects(self, objects, file_name):
-        is_model = bool([ob for ob in objects if ob.type == 'ARMATURE'])
-        possible_bsp = file_name
-        if possible_bsp.lower() == 'shared': possible_bsp = "default_shared"
-        # Add all objects to a collection
-        if not self.existing_scene:
-            new_coll = bpy.data.collections.get(file_name, 0)
-            if not new_coll:
-                new_coll = bpy.data.collections.new(file_name)
-                self.scene_collection.children.link(new_coll)
-            if not is_model and possible_bsp:
-                new_coll.name = possible_bsp
-                possible_bsp = self._ensure_region_entry(possible_bsp, utils.SetType.SCENARIO)
-                new_coll.nwo.type = 'region'
-                new_coll.nwo.region = possible_bsp
-            
-        self.amf_poops = []
-        print("Setting object properties")
-        self.amf_object_instances = []
-        self.amf_file_mesh_objects = []
-        self.amf_file_marker_objects = []
-        for ob in objects:
-            if file_name:
-                utils.unlink(ob)
-                new_coll.objects.link(ob)
-            if ob.type == 'MESH':
-                self.setup_amf_mesh(ob, is_model)
-            elif ob.type == 'EMPTY':
-                self.setup_amf_marker(ob, is_model)
-            else:
-                self.amf_other_objects.append(ob)
-                
-        if self.amf_poops:
-            print("Fixing scale")
-            utils.stomp_scale_multi_user(self.amf_poops)
-        
-        if self.amf_object_instances:
-            unsolved_instances = self.solve_amf_object_instances()
-            if unsolved_instances:
-                utils.print_warning("\nUnable to determine object instance regions and/or permutations for:")
-                [utils.print_warning(f"- {ob.name}") for ob in unsolved_instances]
-                print("Review the source render_model tag (if available) to determine correct region/permutations\n")
-        
-        if not self.existing_scene:
-            utils.add_to_collection(self.amf_file_marker_objects, True, new_coll, name="markers")
-            utils.add_to_collection(self.amf_file_mesh_objects, True, new_coll, name="meshes")
-            
-        self.amf_marker_objects.extend(self.amf_file_marker_objects)
-        self.amf_mesh_objects.extend(self.amf_file_mesh_objects)
-        
-    def solve_amf_object_instances(self):
-        unsolved_instances = [ob for ob in self.amf_object_instances]
-        for ob in self.amf_object_instances:
-            solved_region = False
-            solved_permutation = False
-            part_we_care_about = ob.name.split(":")[1]
-            region_part, permutation_part = part_we_care_about.split("(")
-            for region in self.scene_nwo.regions_table:
-                if region_part.startswith(region.name):
-                    self.set_region(ob, region.name)
-                    ob.nwo.region_name = region.name
-                    ob.nwo.marker_uses_regions = True
-                    solved_region = True
-                    
-            permutation_part: str
-            permutation_part = permutation_part.strip(")").partition("_")[2]
-            for permutation in self.scene_nwo.permutations_table:
-                if permutation_part.startswith(permutation.name):
-                    self.set_permutation(ob, permutation.name)
-                    ob.nwo.permutation_name = permutation.name
-                    ob.nwo.marker_permutations.add().name = permutation.name
-                    ob.nwo.marker_permutation_type = 'include'
-                    solved_permutation = True
-                    
-            if solved_region and solved_permutation:
-                unsolved_instances.remove(ob)
-                
-        return unsolved_instances
-                    
-    
-    def setup_amf_mesh(self, ob, is_model):
-        name = utils.dot_partition(ob.name)
-        if is_model:
-            if name.startswith('Instances:'):
-                ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_object_instance'
-                self.amf_object_instances.append(ob)
-            else:
-                parts = name.split(':')
-                if len(parts) > 1:
-                    region, permutation = parts[0], parts[1]
-                    self.set_region(ob, utils.dot_partition(region))
-                    self.set_permutation(ob, utils.dot_partition(permutation))
-        else:
-            if name.startswith('Clusters'):
-                ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
-            else:
-                self.amf_poops.append(ob)
-                    
-        self.amf_file_mesh_objects.append(ob)
-        
-    def setup_amf_marker(self, ob, is_model):
-        name = utils.dot_partition(ob.name)
-        nwo = ob.nwo
-        if is_model:
-            if name.startswith('fx'):
-                nwo.marker_type = '_connected_geometry_marker_type_effects'
-            elif name.startswith('target'):
-                nwo.marker_type = '_connected_geometry_marker_type_target'
-            elif name.startswith('garbage'):
-                nwo.marker_type = '_connected_geometry_marker_type_garbage'
-            elif name.startswith('hint'):
-                nwo.marker_type = '_connected_geometry_marker_type_hint'
-                            
-        self.amf_file_marker_objects.append(ob)
-        
+
 # JMS/ASS importer
 ######################################################################
 
@@ -4332,257 +3987,7 @@ class NWOImporter:
             objects.extend(reader(self, path, legacy_type))
         return objects
 
-    def process_jms_objects(self, objects: list[bpy.types.Object], file_name, is_model):
-        self.light_data = set()
-        # Add all objects to a collection
-        if not self.existing_scene:
-            new_coll = bpy.data.collections.get(file_name, 0)
-            if not new_coll:
-                new_coll = bpy.data.collections.new(file_name)
-                self.scene_collection.children.link(new_coll)
-        if not is_model and not self.existing_scene:
-            possible_bsp = file_name
-            if possible_bsp.lower() == 'shared': possible_bsp = "default_shared"
-            new_coll.name = possible_bsp
-            possible_bsp = self._ensure_region_entry(possible_bsp, utils.SetType.SCENARIO)
-            new_coll.nwo.type = 'region'
-            new_coll.nwo.region = possible_bsp
-        
-        print("Setting object properties")
-        
-        self.processed_meshes = set()
-        if file_name:
-            self.new_coll = new_coll
-        else:
-            self.new_coll = self.scene_collection
-        
-        parents = {o.parent for o in objects if o.parent is not None}
-        
-        for ob in objects:
-            if file_name:
-                utils.unlink(ob)
-                new_coll.objects.link(ob)
-                
-            if ob.type == 'MESH' and ob.data.ass_jms.XREF_name:
-                xref = XREF(ob.name, ob.data.ass_jms.XREF_path, ob.data.ass_jms.XREF_name)
-                self.jms_hidden_objects.append(ob)
-                utils.unlink(ob)
-                ob = convert_to_marker(ob, maintain_mesh=True)
-                self.setup_jms_marker(ob, is_model, xref)
-                
-            elif ob.name.lower().startswith(legacy_frame_prefixes) or (ob.type != 'MESH' and ob in parents):
-                ob = self.setup_jms_frame(ob)
-                if not ob.parent and ob.type == 'EMPTY' and not (ob.name.lower().startswith(legacy_frame_prefixes) or "root" in ob.name):
-                    ob.nwo.export_this = False
-            elif ob.name.startswith('#') or (is_model and ob.type =='EMPTY' and ob.name.startswith('$')):
-                self.setup_jms_marker(ob, is_model)
-            elif ob.type == 'MESH':
-                self.setup_jms_mesh(ob, is_model)
-            elif ob.type == 'LIGHT':
-                self.light_data.add(ob.data)
-                self.jms_file_light_objects.append(ob)
-        
-        if not self.existing_scene:
-            utils.add_to_collection(self.jms_file_marker_objects, True, new_coll, name="markers")
-            utils.add_to_collection(self.jms_file_mesh_objects, True, new_coll, name="meshes")
-            if not is_model:
-                utils.add_to_collection(self.jms_file_frame_objects, True, new_coll, name="frames")
-            utils.add_to_collection(self.jms_file_light_objects, True, new_coll, name="lights")
-            
-        for data in self.light_data:
-            data.nwo.light_intensity = data.energy
-            utils.make_halo_light(data)
-            if data.halo_light.light_cone_shape == 'RECTANGLE':
-                data.nwo.light_shape = '_connected_geometry_light_shape_rectangle'
-            else:
-                data.nwo.light_shape = '_connected_geometry_light_shape_circle'
-                
-            if data.type == 'SPOT':
-                data.spot_size = data.halo_light.spot_size
-                data.spot_blend = data.halo_light.spot_blend
-            
-            if data.halo_light.use_near_atten:
-                #data.nwo.light_near_attenuation_start = data.halo_light.near_atten_start
-                #data.nwo.light_near_attenuation_end = data.halo_light.near_atten_end
-                data.shadow_soft_size = data.halo_light.near_atten_end * (1 / WU_SCALAR) * (1 / 0.03048)
-            
-            if data.halo_light.use_far_atten:
-                data.nwo.light_far_attenuation_start = data.halo_light.far_atten_start * (1 / WU_SCALAR)
-                data.nwo.light_far_attenuation_end = data.halo_light.far_atten_end * (1 / WU_SCALAR)
-            else:
-                data.nwo.light_far_attenuation_start = 80
-                data.nwo.light_far_attenuation_end = 200
-                
-    def setup_jms_frame(self, ob):
-        # ob.nwo.frame_override = True
-        if ob.type == 'MESH':
-            marker = convert_to_marker(ob)
-            if self.existing_scene:
-                for coll in ob.users_collection: coll.objects.link(marker)
-            bpy.data.objects.remove(ob)
-            self.jms_file_frame_objects.append(marker)
-            marker.nwo.is_frame = True
-            return marker
-        else:
-            if ob.type == 'EMPTY':
-                ob.nwo.is_frame = True
-            self.jms_file_frame_objects.append(ob)
-            return ob
-            
-    def setup_jms_marker(self, ob, is_model, xref: XREF = None):
-        perm, region = None, None
-        constraint = is_model and ob.name.startswith('$')
-        name = ob.name[1:]
-        if is_model and ')' in name:
-            perm_region, name = name.split(')')
-            if " " in perm_region:
-                perm, region = perm_region[1:].split(' ')
-        
-        if ob.type == 'EMPTY':
-            marker = ob
-            marker.name = name
-        else:
-            original_matrix = ob.matrix_world.copy()
-            original_parent = ob.parent
-            original_parent_type = ob.parent_type
-            original_parent_bone = ob.parent_bone
-            radius = max(ob.dimensions.x, ob.dimensions.y, ob.dimensions.z) / 2
-            scale = ob.scale.copy()
-            marker = bpy.data.objects.new(name, None)
-            if self.existing_scene:
-                for coll in ob.users_collection: coll.objects.link(marker)
-            bpy.data.objects.remove(ob)
-            marker.parent = original_parent
-            marker.parent_type = original_parent_type
-            marker.parent_bone = original_parent_bone
-            marker.matrix_world = original_matrix
-            marker.scale = scale
-            marker.empty_display_size = radius
-            marker.empty_display_type = 'ARROWS'
-            
-        if is_model and region is not None:
-            self._ensure_region_entry(region, utils.SetType.MODEL)
-            marker.nwo.region_name = region
-            marker.nwo.marker_uses_regions = True
-            
-            if is_model and perm is not None:
-                self._ensure_permutation_entry(perm, utils.SetType.MODEL)
-                marker.nwo.marker_permutations.add().name = perm
-                marker.nwo.marker_permutation_type = 'include'
-                
-        if xref is not None:
-            marker.nwo.marker_type = "_connected_geometry_marker_type_game_instance"
-            tag_path, fallback_tag_path = self._resolve_xref_tag_path(xref)
-            if tag_path:
-                marker.nwo.marker_game_instance_tag_name = tag_path
-            elif fallback_tag_path:
-                marker.nwo.marker_game_instance_tag_name = fallback_tag_path
 
-        elif constraint:
-            marker.nwo.marker_type = '_connected_geometry_marker_type_physics_constraint'
-            marker.nwo.physics_constraint_parent = marker.rigid_body_constraint.object1
-            marker.nwo.physics_constraint_child = marker.rigid_body_constraint.object2
-            if marker.rigid_body_constraint.type == 'HINGE':
-                marker.nwo.physics_constraint_type = '_connected_geometry_marker_type_physics_hinge_constraint'
-                if marker.rigid_body_constraint.use_limit_ang_z:
-                    marker.nwo.physics_constraint_uses_limits = True
-                    marker.nwo.hinge_constraint_minimum = marker.rigid_body_constraint.limit_ang_z_lower
-                    marker.nwo.hinge_constraint_maximum = marker.rigid_body_constraint.limit_ang_z_upper
-            elif marker.rigid_body_constraint.type == 'GENERIC':
-                marker.nwo.physics_constraint_type = '_connected_geometry_marker_type_physics_socket_constraint'
-                if marker.rigid_body_constraint.use_limit_ang_x or marker.rigid_body_constraint.use_limit_ang_y or marker.rigid_body_constraint.use_limit_ang_z:
-                    marker.nwo.physics_constraint_uses_limits = True
-                    if marker.rigid_body_constraint.use_limit_ang_x:
-                        marker.nwo.twist_constraint_start = marker.rigid_body_constraint.limit_ang_x_lower
-                        marker.nwo.twist_constraint_end = marker.rigid_body_constraint.limit_ang_x_upper
-                    if marker.rigid_body_constraint.use_limit_ang_y:
-                        marker.nwo.cone_angle = marker.rigid_body_constraint.limit_ang_y_upper
-                    if marker.rigid_body_constraint.use_limit_ang_z:
-                        marker.nwo.plane_constraint_minimum = marker.rigid_body_constraint.limit_ang_z_lower
-                        marker.nwo.plane_constraint_maximum = marker.rigid_body_constraint.limit_ang_z_upper
-
-        elif name.startswith('fx'):
-            marker.nwo.marker_type = '_connected_geometry_marker_type_effects'
-        elif name.startswith('target'):
-            marker.nwo.marker_type = '_connected_geometry_marker_type_target'
-            marker.empty_display_type = 'SPHERE'
-        elif name.startswith('garbage'):
-            marker.nwo.marker_type = '_connected_geometry_marker_type_garbage'
-        elif name.startswith('hint'):
-            marker.nwo.marker_type = '_connected_geometry_marker_type_hint'
-                
-        self.jms_file_marker_objects.append(marker)
-        
-    def setup_jms_mesh(self, original_ob, is_model):
-        new_objects = self.convert_material_props(original_ob)
-        for ob in new_objects:
-            mesh = ob.data
-            mesh_type_legacy = self.get_mesh_type(ob, is_model)
-            ob.nwo.mesh_type_temp = ''
-            if ob.name.startswith('%'):
-                self.set_poop_policies(ob)
-            if mesh_type_legacy:
-                mesh_type, material = self.mesh_and_material(mesh_type_legacy, is_model)
-                ob.data.nwo.mesh_type = mesh_type
-                        
-                if self.corinth and utils.test_face_prop_all(mesh, 'Render Only'):
-                    ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
-                    
-                if self.corinth and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure' and utils.test_face_prop_all(mesh, 'Slip Surface'):
-                    ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
-                    ob.nwo.export_this = False
-                    
-                if self.corinth and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure' and utils.test_face_prop_any(mesh, "Two-Sided"):
-                    ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
-
-                if mesh_type_legacy in ('collision', 'physics') and is_model:
-                    self.setup_collision_materials(ob, mesh_type_legacy)
-                    if mesh_type_legacy == 'physics':
-                        match ob.data.ass_jms.Object_Type:
-                            case "CAPSULES":
-                                ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_pill"
-                            case "SPHERE":
-                                ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_sphere"
-                            case "BOX":
-                                ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_box"
-                            case _:
-                                ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_none"
-                                
-                elif ob.parent and mesh_type_legacy == 'collision' and (ob.parent.name[0] == "%" and ob.parent.type == 'MESH'):
-                    # setup poop proxy
-                    # ob.nwo.proxy_parent = ob.parent.data
-                    ob.nwo.proxy_type = "collision"
-                    ob.parent.data.nwo.proxy_collision = ob
-                    utils.unlink(ob)
-                    # utils.get_foundry_storage_scene().collection.objects.link(ob)
-                    self.jms_file_proxy_objects.append(ob)
-                    return
-                    
-                if self.apply_materials:
-                    apply_props_material(ob, material)
-                
-            if is_model:
-                if ob.region_list:
-                    reg_perm = ob.region_list[0].name
-                    parts = reg_perm.split()
-                    if len(parts) == 1:
-                        self.set_region(ob, parts[0])
-                    elif len(parts) >= 2:
-                        self.set_region(ob, parts[-1])
-                        self.set_permutation(ob, parts[-2])
-                        
-                    if mesh_type_legacy == 'io':
-                        ob.nwo.marker_uses_regions = True
-                        ob.nwo.marker_permutation_type = 'include'
-                        ob.nwo.marker_permutations.add().name = ob.nwo.permutation_name
-                    
-            if ob.nwo.mesh_type == '_connected_geometry_mesh_type_structure':
-                ob.nwo.proxy_instance = True
-            elif ob.nwo.mesh_type == '_connected_geometry_mesh_type_seam':
-                ob.nwo.seam_back_manual = True
-            
-            self.jms_file_mesh_objects.append(ob)
-            
     def set_poop_policies(self, ob):
         for char in ob.name[1:]:
             match char:
@@ -4608,155 +4013,8 @@ class NWOImporter:
                     ob.nwo.poop_decal_spacing = True
                 case _:
                     return
-        
-    def convert_material_props(self, ob: bpy.types.Object):
-        if ob.name.startswith('$'):
-            return [ob]
-        
-        mesh_data = ob.data
-        if mesh_data in self.processed_meshes:
-            ob.nwo.mesh_type_temp = 'skip'
-            return [ob]
 
-        objects_to_setup = [ob]
-        self.processed_meshes.add(mesh_data)
-        jms_materials = [JMSMaterialSlot(slot) for slot in ob.material_slots if slot.material]
-        if not jms_materials:
-            return objects_to_setup
 
-        jms_materials_by_name = {mat.name: mat for mat in jms_materials}
-
-        mesh_types = list({m.mesh_type for m in jms_materials if m.mesh_type})
-        if len(mesh_types) == 1:
-            ob.nwo.mesh_type_temp = mesh_types[0]
-        elif len(mesh_types) > 1:
-            bm_original = bmesh.new()
-            bm_original.from_mesh(mesh_data)
-            utils.save_loop_normals(bm_original, mesh_data)
-            for jms_mat in jms_materials:
-                if jms_mat.mesh_type == 'default':
-                    continue
-                new_ob = ob.copy()
-                if self.existing_scene:
-                    for coll in ob.users_collection: coll.objects.link(new_ob)
-                new_ob.data = mesh_data.copy()
-                bm = bm_original.copy()
-                faces_to_remove = [face for face in bm.faces if face.material_index != jms_mat.index]
-                faces_to_remove_original = [face for face in bm_original.faces if face.material_index == jms_mat.index]
-                bmesh.ops.delete(bm, geom=faces_to_remove, context='FACES')
-                bmesh.ops.delete(bm_original, geom=faces_to_remove_original, context='FACES')
-                bm.to_mesh(new_ob.data)
-                bm.free()
-                utils.apply_loop_normals(new_ob.data)
-                utils.loop_normal_magic(new_ob.data)
-                utils.clean_materials(new_ob)
-                if new_ob.data.polygons:
-                    new_ob.nwo.mesh_type_temp = jms_mat.mesh_type
-                    objects_to_setup.append(new_ob)
-                    self.new_coll.objects.link(new_ob)
-                else:
-                    bpy.data.objects.remove(new_ob)
-                
-            bm_original.to_mesh(mesh_data)
-            bm_original.free()
-            if not mesh_data.polygons:
-                objects_to_setup.remove(ob)
-                bpy.data.objects.remove(ob)
-            else:
-                utils.apply_loop_normals(mesh_data)
-                utils.loop_normal_magic(mesh_data)
-                utils.clean_materials(ob)
-            
-        for setup_ob in objects_to_setup:
-            mesh = setup_ob.data
-            nwo = setup_ob.nwo
-            if len(mesh.materials) == 1 or self.matching_material_properties(mesh.materials, jms_materials):
-                material = mesh.materials[0] if mesh.materials else None
-                jms_mat = jms_materials_by_name.get(material.name) if material is not None else None
-                if jms_mat is not None:
-                    setup_ob.nwo.mesh_type_temp = jms_mat.mesh_type
-                    self._apply_jms_material_props(mesh, nwo, jms_mat)
-
-            elif len(mesh.materials) > 1:
-                material_face_indices = np.empty(len(mesh.polygons), dtype=np.int32)
-                mesh.polygons.foreach_get("material_index", material_face_indices)
-                for idx, material in enumerate(mesh.materials):
-                    jms_mat = jms_materials_by_name.get(material.name)
-                    if jms_mat is not None:
-                        indices = material_face_indices == idx
-                        if indices.any():
-                            self._apply_jms_material_props(mesh, nwo, jms_mat, indices=indices, apply_object_props=False)
-        
-        return objects_to_setup
-    
-    def matching_material_properties(self, materials: list[bpy.types.Material], scoped_jms_materials: list[JMSMaterialSlot]):
-        '''Checks if all jms materials have matching properties'''
-        if len(materials) <= 1:
-            return True
-        material_names = {m.name for m in materials}
-        matching_jms_materials = [jms_mat for jms_mat in scoped_jms_materials if jms_mat.name in material_names]
-        if len(matching_jms_materials) <= 1:
-            return True
-
-        first_mat = matching_jms_materials[0]
-        return all(mat == first_mat for mat in matching_jms_materials[1:])
-        
-    def setup_collision_materials(self, ob: bpy.types.Object, mesh_type_legacy: str):
-        if not ob.material_slots:
-            return
-        if mesh_type_legacy == 'physics' or len(ob.material_slots) == 1:
-            if ob.material_slots[0].material:
-                ob.data.nwo.face_global_material = ob.material_slots[0].material.name
-                
-        elif mesh_type_legacy == 'collision':
-            face_props = ob.data.nwo.face_props
-            for slot in ob.material_slots:
-                if not slot.material:
-                    continue
-                layer = face_props.add()
-                # layer.name = slot.material.name
-                layer.attribute_name = 'face_global_material'
-                layer.face_global_material = slot.material.name
-                layer.face_global_material_override = True
-                material_index = slot.slot_index
-                layer.attribute_name, layer.face_count = self.add_collision_face_attribute(ob.data, material_index, layer.attribute_name)
-                layer.color = utils.random_color()
-                
-    def add_collision_face_attribute(self, mesh, material_index, prefix):
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
-        face_attribute = bm.faces.layers.int.new(f"{prefix}_{str(uuid4())}")
-        for face in bm.faces:
-            if face.material_index == material_index:
-                face[face_attribute] = 1
-        
-        bm.to_mesh(mesh)
-                
-        return face_attribute.name, utils.layer_face_count(bm, face_attribute)
-        
-    def get_mesh_type(self, ob: bpy.types.Object, is_model):
-        if ob.nwo.mesh_type_temp == 'skip':
-            return ''
-        name = ob.name
-        if name.startswith('@'):
-            return 'collision'
-        elif name.startswith('$'):
-            return 'physics'
-        elif name.startswith('~') and not is_model:
-            return 'water_physics'
-        elif name.startswith('%'):
-            if is_model:
-                return 'io'
-            elif ob.nwo.mesh_type_temp and ob.nwo.mesh_type_temp != 'default':
-                return ob.nwo.mesh_type_temp
-            else:
-                return 'instance'
-            
-        elif ob.nwo.mesh_type_temp:
-            return ob.nwo.mesh_type_temp
-        
-        return 'default'
-    
     def mesh_and_material(self, mesh_type, is_model):
         material = ""
         match mesh_type:
@@ -4857,8 +4115,6 @@ class NWOImporter:
         jma = JMA()
         jma.from_file(path)
         action = jma.to_armature_action(arm)
-        # with utils.MutePrints():
-        #     bpy.ops.import_scene.jma(filepath=str(path))
         if action is not None:
             self.actions.append(action)
             animation = self.scene_nwo.animations.add()
@@ -4919,7 +4175,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     )
     # filename: bpy.props.StringProperty(options={'SKIP_SAVE'})
     # filter_glob: bpy.props.StringProperty(
-    #     default=".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.scenery;.biped;.model_animation_graph",
+    #     default=".jms;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.scenery;.biped;.model_animation_graph",
     #     options={"HIDDEN"},
     # )
     
@@ -5282,7 +4538,6 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         items=biped_weapon_source_items,
     )
     
-    amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     
     place_at_mouse : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
@@ -5355,21 +4610,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             # self.tag_animation = False
             self.tag_state = "default"
             
-        if self.import_type == "amf":
-            if utils.amf_addon_installed():
-                self.amf_okay = True
-            else:
-                 self.report({'WARNING'}, "AMF Toolset not installed, cannot import AMF")
-                 return {'CANCELLED'}
-        elif self.import_type in {"jms", "ass"}:
+        if self.import_type in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
             self.legacy_okay = True
-        elif self.import_type in {"jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
-            if utils.blender_toolset_installed():
-                self.legacy_okay = True
-            else:
-                self.report({'WARNING'}, "Blender Toolset not installed, cannot import JMA")
-                return {'CANCELLED'}
-            
+
         if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
             if self.import_type == "scenario":
                 global zone_set_items
@@ -5522,7 +4765,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
+    bl_file_extensions = ".jms;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
 
     @classmethod
     def poll_drop(cls, context):
