@@ -898,6 +898,8 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         ]
     )
 
+    legacy_asset_path: bpy.props.StringProperty(name="Legacy Asset Folder", subtype='DIR_PATH')
+
     export_mode: bpy.props.EnumProperty(
         name="Export Mode",
         options=set(),
@@ -1398,7 +1400,7 @@ def foundry_toolbar(layout, context):
             return sub_button.menu("NWO_MT_ProjectChooser")
         sub_project = row.row(align=True)
         sub_project.menu("NWO_MT_ProjectChooser", text="", icon_value=utils.project_icon(context))
-        error = utils.validate_ek()
+        error = utils.validate_ek(require_managed_blam=not utils.uses_legacy_export())
         if error is not None:
             sub_error = row.row()
             sub_error.label(text=error, icon="ERROR")

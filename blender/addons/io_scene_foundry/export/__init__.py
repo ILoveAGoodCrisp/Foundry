@@ -115,11 +115,11 @@ class NWO_ExportScene(Operator, ExportHelper):
     @classmethod
     def poll(cls, context):
         scene_nwo = utils.get_scene_props()
-        return utils.current_project_valid() and not validate_ek() and scene_nwo.asset_type != 'resource' and (utils.nwo_asset_type() == 'single_animation' or _is_child_animation_export(scene_nwo) or not scene_nwo.is_child_asset)
+        return utils.current_project_valid() and not validate_ek(require_managed_blam=not utils.uses_legacy_export()) and scene_nwo.asset_type != 'resource' and (utils.nwo_asset_type() == 'single_animation' or _is_child_animation_export(scene_nwo) or not scene_nwo.is_child_asset)
     
     @classmethod
     def description(cls, context, properties):
-        d = validate_ek()
+        d = validate_ek(require_managed_blam=not utils.uses_legacy_export())
         if d is not None:
             return "Export Unavaliable: " + d
         
@@ -222,6 +222,7 @@ class NWO_ExportScene(Operator, ExportHelper):
     def execute(self, context):
         scene_nwo_export = utils.get_export_props()
         scene_nwo = utils.get_scene_props()
+        legacy = utils.uses_legacy_export(scene_nwo.scene_project)
         
         # Write last export version
         scene_nwo.export_version = utils.get_version_string()
@@ -247,7 +248,18 @@ class NWO_ExportScene(Operator, ExportHelper):
             return {'CANCELLED'}
         
         global sidecar_path
-        if single_animation:
+        if legacy and not single_animation:
+            asset_path = scene_nwo_export.legacy_asset_path
+            if not asset_path or not scene_nwo_export.export_quick:
+                asset_path, asset_name = get_asset_info(self.filepath)
+            else:
+                asset_name = Path(asset_path).name
+            scene_nwo_export.legacy_asset_path = asset_path
+            sidecar_path_full = sidecar_path = ''
+            if self.export_invalid(asset_path):
+                scene_nwo.export_in_progress = False
+                return {'CANCELLED'}
+        elif single_animation:
             sidecar_path_full = ""
             sidecar_path = ""
             asset_name = ""
@@ -364,7 +376,7 @@ class NWO_ExportScene(Operator, ExportHelper):
                     self.failed = True
 
             # validate that a sidecar file exists
-            if not Path(sidecar_path_full).exists:
+            if not legacy and not Path(sidecar_path_full).exists():
                 utils.get_scene_props().sidecar_path = ""
 
             end = time.perf_counter()
@@ -475,6 +487,8 @@ class NWO_ExportScene(Operator, ExportHelper):
         col.separator()
         col.use_property_split = False
         # if not scene_nwo.is_child_asset:
+        if utils.uses_legacy_export(scene_nwo.scene_project):
+            col.prop(scene_nwo_export, "legacy_asset_path")
         col.prop(scene_nwo_export, "export_mode", text="")
         col.prop(scene_nwo_export, "event_level", text="")
         if scene_nwo.asset_type == 'camera_track_set':
@@ -695,6 +709,10 @@ def _schedule_scene_restore(window: bpy.types.Window, scene: bpy.types.Scene):
     bpy.app.timers.register(restore_scene, first_interval=0.0)
 
 def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth, single_animation, for_cache_build, collection_view_layer=None):
+    if utils.uses_legacy_export(scene_settings.scene_project):
+        from .legacy import export_legacy_asset
+        return export_legacy_asset(context, asset_name, asset_path, scene_settings, export_settings,
+                                   single_animation, collection_view_layer)
     asset_type = scene_settings.asset_type
     child_animation = _is_child_animation_export(scene_settings)
     if asset_type == 'camera_track_set':

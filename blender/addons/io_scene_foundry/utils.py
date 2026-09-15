@@ -233,6 +233,12 @@ def get_perm(
 def is_windows():
     return platform.system() == "Windows"
 
+def uses_legacy_export(project_name=None):
+    """The project game determines its intermediate format."""
+    project = get_project(project_name)
+    return bool(project and project.game in {'halo1', 'halo2', 'halo3', 'halo3odst'})
+
+
 def is_corinth(context=None):
     if context is None:
         context = bpy.context
@@ -1801,7 +1807,7 @@ def get_halo_material_count() -> tuple:
 
     return count, total
 
-def validate_ek() -> str | None:
+def validate_ek(require_managed_blam=True) -> str | None:
     """Returns an relevant error message if the current game does not reference a valid editing kit. Else returns None"""
     ek = Path(get_project_path())
     scene_project = get_scene_props().scene_project
@@ -1811,7 +1817,7 @@ def validate_ek() -> str | None:
         return f"Tool not found, please check that you have tool.exe within your {scene_project} directory"
     elif not Path(ek, "data").exists():
         return f"Editing Kit data folder not found. Please ensure your {scene_project} directory has a 'data' folder"
-    elif not Path(ek, "bin", "ManagedBlam.dll").exists():
+    elif require_managed_blam and not Path(ek, "bin", "ManagedBlam.dll").exists():
         return f"ManagedBlam not found in your {scene_project} bin folder, please ensure this exists"
     # elif not managed_blam.mb_operational:
     #     return 'Failed to load Managedblam.dll. Please check that your Halo Editing Kit is installed correctly'

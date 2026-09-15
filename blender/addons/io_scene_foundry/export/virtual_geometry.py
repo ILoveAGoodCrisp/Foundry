@@ -583,7 +583,8 @@ class VirtualAnimation:
 
         if sample:
             self.create_track_group(scene.skeleton_model.skeleton.animated_bones + animation_controls, scene, shape_key_objects, vector_events)
-            self.to_granny_animation(scene)
+            if scene.granny is not None:
+                self.to_granny_animation(scene)
             
         if not is_scene_anim:
             animation.pose_overlay = self.pose_overlay
@@ -735,6 +736,11 @@ class VirtualAnimation:
         if self.composite_blend_axis_values:
             scene.add_composite_blend_axis_values(self.name, self.composite_blend_axis_values)
 
+        if scene.granny is None:
+            if shape_key_data or vector_events:
+                raise RuntimeError('JMA export does not support PCA or vector animation events')
+            self.legacy_tracks = [(bone.name, positions[bone], orientations[bone], scales[bone]) for bone in bones]
+            return
         self.create_vector_track_groups(scene, vector_events)
         
         if self.overlay and pose_overlay_frame_data:
@@ -1239,7 +1245,7 @@ class VirtualMesh:
         self.bone_parent = ""
         self._setup(ob, scene, render_mesh, props, bones)
             
-        if not self.invalid:
+        if not self.invalid and scene.granny is not None:
             self.to_granny_data(scene)
             if negative_scaling:
                 scene.granny.invert_tri_topology_winding(self.granny_tri_topology)
@@ -1949,6 +1955,9 @@ class VirtualNode:
                 if self.mesh.invalid:
                     self.invalid = True
                     return
+
+                if scene.granny is None:
+                    return  # Text backends consume mesh arrays and transforms directly.
                     
                 self.granny_vertex_data = GrannyVertexData()
                 self.granny_vertex_data.vertex_component_names = self.mesh.vertex_component_names

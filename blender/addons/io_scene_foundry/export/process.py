@@ -117,7 +117,7 @@ class ExportScene:
         self.project_root = self.tags_dir.parent
         
         os.chdir(self.project_root)
-        self.granny = Granny(Path(self.project_root, "granny2_x64.dll"), self.corinth)
+        self.granny = None if getattr(self, 'legacy_export', False) else Granny(Path(self.project_root, "granny2_x64.dll"), self.corinth)
         
         self.forward = scene_settings.forward_direction
         self.from_halo_scale = 1 if scene_settings.scale == 'max' else 0.03048
@@ -164,7 +164,8 @@ class ExportScene:
         #         self.parent_asset_path_relative = parent_relative
         #         self.parent_asset_name = parent_relative.name
                 
-        self.sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context, self.tags_dir)
+        self.sidecar = (SimpleNamespace(lods=set(), animation_composites=[]) if getattr(self, 'legacy_export', False)
+                        else Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context, self.tags_dir))
         
         self.has_frame_events = False
         
