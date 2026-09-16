@@ -1,29 +1,8 @@
-
-
+"""Remaining object function and cinematic block conversion using .NET."""
 from collections import defaultdict
-from math import radians
-from pathlib import Path
-
-from mathutils import Matrix
-
-from .. import utils
-
-
-from .light import LightTag
-from .cheap_light import CheapLightTag
-from .connected_material import Function
-import bpy
 from . import Tag
-from . import import_transform
-from .connected_material import game_functions
+from .connected_material import Function, game_functions
 
-class Attachment:
-    def __init__(self):
-        self.function_names = set()
-        self.objects = []
-        self.armature = None
-    
-valid_attachment_tags = "cheap_light", "light"
 
 class LegacyObjectTag(Tag):
     """Custom function and cinematic conversion operations awaiting native bindings."""
@@ -35,76 +14,8 @@ class LegacyObjectTag(Tag):
             object_struct = first_struct.Elements[0].Fields[0]
         self.object_struct = object_struct
         self.reference_model = self.tag.SelectField(f"{object_struct.FieldPath}/Reference:model")
-        self.default_variant = self.tag.SelectField(f"{object_struct.FieldPath}/StringId:default model variant")
-        self.block_change_colors = self.tag.SelectField(f"{object_struct.FieldPath}/Block:change colors")
         self.block_functions = self.tag.SelectField(f"{object_struct.FieldPath}/Block:functions")
-        self.runtime_object_type = self.tag.SelectField(f"{object_struct.FieldPath}/ShortInteger:runtime object type")
-        self.attachments = self.tag.SelectField(f"{object_struct.FieldPath}/Block:attachments")
         
-    def attachments_to_blender(self, armature: bpy.types.Object, markers: list[bpy.types.Object], parent_collection):
-        
-        collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_attachments")
-        collection.nwo.type = 'exclude'
-        parent_collection.children.link(collection)
-        
-        attachments = []
-        for element in self.attachments.Elements:
-            attach_type = element.SelectField("type").Path
-            if not (self.path_exists(attach_type) and attach_type.Extension in valid_attachment_tags):
-                continue
-            
-            primary_scale = element.SelectField("primary scale").GetStringData()
-            secondary_scale = element.SelectField("secondary scale").GetStringData()
-            
-            data = None
-            attachment = Attachment()
-            if primary_scale:
-                attachment.function_names.add(primary_scale)
-            if secondary_scale:
-                attachment.function_names.add(secondary_scale)
-            match attach_type.Extension:
-                case "cheap_light":
-                    with CheapLightTag(path=attach_type) as cheap_light:
-                        data = cheap_light.to_blender(primary_scale, secondary_scale, attachment)
-                case "light":
-                    with LightTag(path=attach_type) as light:
-                        data = light.to_blender(primary_scale, secondary_scale, attachment)
-                        
-            if data is None:
-                continue
-            
-            marker_name = element.SelectField("marker").GetStringData()
-            found_marker = False
-            for m in markers:
-                if m.nwo.marker_model_group == marker_name:
-                    found_marker = True
-                    ob = bpy.data.objects.new(data.name, data)
-                    collection.objects.link(ob)
-                    if ob.type == 'LIGHT':
-                        ob.matrix_world = utils.halo_transforms(ob) @ Matrix.Rotation(radians(-90.0), 4, 'X')
-                        ob.scale *= (1 / 0.03048) * import_transform.scale_factor()
-                        # ob.update_tag(refresh={'DATA'})
-                        
-                    ob.parent = m
-                    ob.parent_type = 'OBJECT'
-                    attachment.objects.append(ob)
-            
-            attachment.armature = armature
-            attachments.append(attachment)
-                        
-            # if not found_marker:
-            #     ob = bpy.data.objects.new(data.name, data)
-            #     collection.objects.link(ob)
-            #     ob.parent = armature
-            #     ob.parent_type = 'OBJECT'
-            #     objects.append(ob)
-            
-        if not attachments:
-            bpy.data.collections.remove(collection)
-            
-        return attachments
-            
-
     def get_model_tag_path_full(self):
         model_path = self.reference_model.Path
         if model_path:

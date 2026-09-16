@@ -1,6 +1,16 @@
 """Object metadata using native field names, without Blender or .NET."""
 from .backend import TagDocument
 from .model import ModelDocument
+from dataclasses import dataclass
+from .backend import TagReference
+
+
+@dataclass(frozen=True)
+class ObjectAttachment:
+    reference: TagReference | None
+    marker: str
+    primary_scale: str
+    secondary_scale: str
 
 
 class ObjectModelReference:
@@ -107,6 +117,12 @@ class ObjectDocument(TagDocument):
 
     def get_function_names(self):
         return [self.value(e, 'export name') for e in self.block(self.object_struct(), 'functions')]
+
+    def get_attachments(self):
+        """Detached records remain usable after the tag is closed."""
+        return [ObjectAttachment(self.reference(e, 'type'), self.value(e, 'marker'),
+                                 self.value(e, 'primary scale'), self.value(e, 'secondary scale'))
+                for e in self.block(self.object_struct(), 'attachments')]
 
     def get_seat_names(self):
         return [self.value(e, 'label') for e in self.block(self.nested(self.tag.root(), 'unit'), 'seats')]

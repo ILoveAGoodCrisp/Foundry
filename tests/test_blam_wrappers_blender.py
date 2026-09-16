@@ -18,6 +18,49 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_attachment_records_reach_light_converter(self):
+        from unittest.mock import MagicMock
+        collection = SimpleNamespace(nwo=SimpleNamespace(), objects=SimpleNamespace(link=MagicMock()))
+        parent = SimpleNamespace(children=SimpleNamespace(link=MagicMock()))
+        created = []
+        def new_object(name, data):
+            ob = SimpleNamespace(name=name, data=data, type='EMPTY')
+            created.append(ob)
+            return ob
+        fake_bpy = SimpleNamespace(data=SimpleNamespace(
+            collections=SimpleNamespace(new=MagicMock(return_value=collection), remove=MagicMock()),
+            objects=SimpleNamespace(new=new_object)))
+        marker = SimpleNamespace(nwo=SimpleNamespace(marker_model_group='head'))
+        other = SimpleNamespace(nwo=SimpleNamespace(marker_model_group='body'))
+        armature = object()
+        converter = MagicMock()
+        converter.__enter__.return_value.to_blender.return_value = SimpleNamespace(name='lamp')
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+             patch.object(utils, 'get_project', return_value=SimpleNamespace(game='reach')), \
+             patch.object(utils, 'get_tags_path', return_value=root), \
+             patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+            (Path(root) / 'lamp.light').touch()
+            with ObjectTag('test.scenery') as obj:
+                block = obj.block(obj.object_struct(), 'attachments')
+                element = block[block.add()]
+                obj.set_reference(element, 'type', 'lamp.light')
+                obj.required_field(element, 'marker').set('head')
+                obj.required_field(element, 'primary scale').set('power')
+                obj.required_field(element, 'secondary scale').set('pulse')
+                with patch.dict(sys.modules, {'bpy': fake_bpy}), \
+                     patch('io_scene_foundry.managed_blam.light.LightTag', return_value=converter) as factory:
+                    attachments = obj.attachments_to_blender(armature, [marker, other], parent)
+                self.assertEqual(factory.call_args.kwargs['path'].RelativePathWithExtension, 'lamp.light')
+                self.assertTrue(factory.call_args.kwargs['tag_must_exist'])
+                self.assertEqual(len(created), 1)
+                self.assertIs(created[0].parent, marker)
+                self.assertEqual(attachments[0].objects, created)
+                self.assertIs(attachments[0].armature, armature)
+                self.assertEqual(attachments[0].function_names, {'power', 'pulse'})
+                converter.__enter__.return_value.to_blender.assert_called_once_with('power', 'pulse', attachments[0])
+                parent.children.link.assert_called_once_with(collection)
+
     def test_migrated_wrappers_do_not_initialize_managedblam(self):
         with tempfile.TemporaryDirectory() as root:
             with patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
@@ -34,6 +77,11 @@ class WrapperTests(unittest.TestCase):
                     obj.set_model_tag_path('test.model')
                     self.assertEqual(obj.get_variants(), [])
                     self.assertEqual(obj.functions_to_blender(), {})
+                    self.assertEqual(obj.attachments_to_blender(None, [], None), [])
+                    attachments = obj.block(obj.object_struct(), 'attachments')
+                    for reference in (None, 'missing.light', 'test.model'):
+                        obj.set_reference(attachments[attachments.add()], 'type', reference)
+                    # A populated block must not start .NET for missing or unsupported attachments.
                     self.assertEqual(obj.attachments_to_blender(None, [], None), [])
                 with ObjectTag('test.scenery') as obj:
                     self.assertEqual(obj.get_model_tag_path(), 'test.model')

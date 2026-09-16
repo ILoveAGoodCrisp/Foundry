@@ -15,6 +15,28 @@ GAMES = ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a')
 
 
 class ObjectTests(unittest.TestCase):
+    def test_attachment_records_survive_close(self):
+        for game in GAMES:
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root:
+                args = dict(tags_root=root, game=game)
+                with m.ObjectDocument('test.scenery', **args) as doc:
+                    block = doc.block(doc.object_struct(), 'attachments')
+                    for path in ('lamp.light', None, 'effect.effect'):
+                        element = block[block.add()]
+                        doc.set_reference(element, 'type', path)
+                        for name, value in [('marker', 'head'), ('primary scale', 'power'),
+                                            ('secondary scale', 'pulse')]:
+                            doc.required_field(element, name).set(value)
+                with m.ObjectDocument('test.scenery', **args) as doc:
+                    records = doc.get_attachments()
+                    self.assertFalse(doc.tag_has_changes)
+                self.assertEqual(records[0].reference.RelativePathWithExtension, 'lamp.light')
+                self.assertEqual(records[0].marker, 'head')
+                self.assertEqual(records[0].primary_scale, 'power')
+                self.assertEqual(records[0].secondary_scale, 'pulse')
+                self.assertIsNone(records[1].reference)
+                self.assertEqual(records[2].reference.Extension, 'effect')
+
     def test_references_roundtrip_and_abort(self):
         for game in GAMES:
             for group in ('scenery', 'weapon', 'biped', 'vehicle', 'device_machine'):

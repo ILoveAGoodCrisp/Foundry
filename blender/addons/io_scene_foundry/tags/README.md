@@ -14,6 +14,8 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
   for H4/H2AMP.
 - Object model references, variants, change colors, seat and weapon names,
   magazine/tether metadata, first-person model edits and scenery lighting references.
+- Object attachment references, marker names and scale-function names. Missing
+  and unsupported attachments are filtered before opening a legacy converter.
 
 The Blender-facing classes retain their existing import locations. Their
 implementations live in this package. Reference results are detached Python
@@ -67,15 +69,17 @@ The additional camera and wrapper suites run inside Blender:
 - `tests/test_blam_camera_blender.py`
 - `tests/test_blam_wrappers_blender.py`
 
-All 21 tests pass together in Blender 5.2 with addon dependencies available.
+All 23 tests pass together in Blender 5.2 with addon dependencies available.
 Coverage includes real tag serialization, edits and aborts, stale-handle-safe
 block construction, model references/variants, native color channels,
 title-specific fields, lightmapper settings, camera keyframes, packaging, and
 addon imports. Object tests cover five title profiles, inherited object fields,
 reference round trips and aborted edits, colors, weapon metadata and first-person
 block growth. Wrapper tests assert that ordinary migrated operations never
-initialize ManagedBlam. Custom function and light attachment conversion use
-`managed_blam/object_legacy.py` until their native bindings are available.
+initialize ManagedBlam. Attachment tests also cover detached records and marker
+parenting with a stubbed light converter. Object custom functions and cinematic
+block copying use `managed_blam/object_legacy.py`; attachment import opens only
+the referenced `LightTag` or `CheapLightTag` through the legacy converter.
 
 Read-only sampling also exercised existing tag files from all five H3+ kits:
 global/material metadata, 15 model tags with their render-model references,
@@ -95,3 +99,8 @@ schema does not prove classic editing-kit compatibility.
 Bitmap, render-geometry, animation and custom shader helper APIs need additional
 Python binding coverage. Keep specific title selection distinct from tag-format
 generation when migrating these systems.
+
+Cinematic object conversion needs lossless cross-tag block copying. The current
+Python field API exposes named flags but cannot transfer their raw bit masks;
+copying only visible names could discard unnamed bits. Add native block copying
+or raw flag access before replacing the legacy block serialization path.
