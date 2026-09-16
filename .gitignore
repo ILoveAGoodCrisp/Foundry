@@ -38,6 +38,7 @@ copy to add-ons.bat
 !/tests/test_blam_metadata.py
 !/tests/test_blam_model.py
 !/tests/test_blam_object.py
+!/tests/test_blam_functions.py
 !/tests/test_blam_wrappers_blender.py
 !/tests/test_blam_packaging.py
 

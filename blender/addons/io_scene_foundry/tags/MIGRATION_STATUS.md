@@ -22,7 +22,7 @@ and migrated wrappers can still hand specialized operations to legacy converters
 
 | Area | Work needed before removal |
 | --- | --- |
-| Functions, shaders and lights | Expose the Rust tag-function editor to Python; port Blender node conversion, materials, shader variants, decals and light converters. Remove the object-function fallback. |
+| Functions, shaders and lights | Extend the new function-decoding binding to editing operations; port materials, shader variants, decals and light converters. Remove unsupported object-function fallbacks. |
 | Geometry and resources | Port render models, collision, physics, particles, decorators and polyart, including resource extraction and Blender mesh/skeleton construction. |
 | Animation | Expose animation decoding and port graph edits, frame events, PCA and animation import. |
 | Bitmaps | Replace .NET bitmap extraction/conversion with native decoding; validate formats, mipmaps, cubemaps and texture use by materials. |
@@ -35,7 +35,7 @@ capability does not yet imply Foundry can call it through Python.
 
 ## Recommended implementation order
 
-1. Bind and test the tag-function editor, then migrate object/light/shader function consumers.
+1. Extend the tag-function decoding binding to remaining light/shader consumers and editing operations; eliminate unsupported-function fallbacks.
 2. Expose resource, bitmap and animation APIs needed by Foundry; migrate their callers.
 3. Complete geometry and scenario/cinematic workflows and eliminate fallbacks.
 4. Remove dependency plumbing and verify complete workflows against editing kits.
@@ -47,7 +47,7 @@ installer's separate .NET assembly inspection in `tools/halo_launcher.py`.
 
 ## Validation so far
 
-28 regression tests pass together in Blender, including native tag serialization,
+32 regression tests pass together in Blender, including native tag serialization,
 aborted writes, wrapper checks that reject ManagedBlam initialization, camera work,
 metadata, object/cinematic copying and cinematic-lighting transforms. There is
 also a Rust regression test for preserving unnamed flags during cross-tag copying.
@@ -60,3 +60,11 @@ import/export parity have not yet been established.
 Cinematic-lighting metadata now uses blam-tags. Converting referenced dynamic
 lights still uses `LightTag`; H4/H2AMP authored-probe conversion remains unimplemented,
 matching the previous wrapper's behavior.
+
+The first tag-function binding is implemented: `TagFunctionEditor` decodes and
+describes functions, evaluates outputs and normalized shapes, and round-trips bytes.
+It exposes basic, periodic, exponent, transition and MultiSpline editor graphs.
+Object-function node creation now uses it. Unsupported editor shapes still fall
+back before any nodes are created. A read-only sample across 60 H3+ object tags
+decoded and round-tripped 266 functions; two unknown transition indices required
+fallback. Editing methods and shader/light consumer migration are still pending.

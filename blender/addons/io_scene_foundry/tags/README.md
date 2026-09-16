@@ -20,6 +20,8 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
   and unsupported attachments are filtered before opening a legacy converter.
 - Cinematic-lighting creation and dynamic-light references, flags and placement
   metadata. Referenced light conversion still uses the legacy light wrapper.
+- Object-function node creation for supported native editor shapes; unsupported
+  shapes retain the legacy fallback before any nodes are created.
 - Cinematic scenery conversion when the source block layouts match the target
   schema. Incompatible layouts use the isolated legacy copy fallback.
 
@@ -68,6 +70,7 @@ With the wheel installed, these suites run without Blender:
 - `tests/test_blam_metadata.py`
 - `tests/test_blam_model.py`
 - `tests/test_blam_object.py`
+- `tests/test_blam_functions.py`
 - `tests/test_blam_packaging.py`
 
 The additional camera and wrapper suites run inside Blender:
@@ -75,7 +78,7 @@ The additional camera and wrapper suites run inside Blender:
 - `tests/test_blam_camera_blender.py`
 - `tests/test_blam_wrappers_blender.py`
 
-All 28 tests pass together in Blender 5.2 with addon dependencies available.
+All 32 tests pass together in Blender 5.2 with addon dependencies available.
 Coverage includes real tag serialization, edits and aborts, stale-handle-safe
 block construction, model references/variants, native color channels,
 title-specific fields, lightmapper settings, camera keyframes, packaging, and

@@ -19,6 +19,60 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_object_functions_create_blender_nodes(self):
+        import bpy
+        import struct
+        from io_scene_foundry.managed_blam.connected_material import Function
+        name = 'foundry_native_function_test'
+        group_name = 'function -> ' + name
+        try:
+            with tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game='reach')), \
+                 patch.object(utils, 'get_tags_path', return_value=root), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                blob = bytearray(32)
+                blob[0] = 1  # Scalar constant.
+                struct.pack_into('<ff', blob, 4, 0.375, 1.)
+                with ObjectTag('test.scenery') as obj:
+                    functions = obj.block(obj.object_struct(), 'functions')
+                    element = functions[functions.add()]
+                    obj.required_field(element, 'export name').set(name)
+                    mapping = obj.nested(element, 'default function')
+                    next(f for f in mapping.fields() if f.type_name == 'data').set(bytes(blob))
+                    dependencies = obj.functions_to_blender()
+                    self.assertEqual(dependencies[name], ['one'])
+                    group = bpy.data.node_groups[group_name]
+                    values = [n.outputs[0].default_value for n in group.nodes if n.bl_idname == 'ShaderNodeValue']
+                    self.assertIn(0.375, values)
+                    decoded = Function()
+                    decoded.from_native_object(obj, element)
+                    self.assertEqual(decoded.sample(0, 1, 4), [(0.25, 0.375, 'AUTO'), (0.5, 0.375, 'AUTO'), (0.75, 0.375, 'AUTO')])
+                    unsupported = functions[functions.add()]
+                    obj.required_field(unsupported, 'export name').set(name + '_unsupported')
+                    mapping = obj.nested(unsupported, 'default function')
+                    next(f for f in mapping.fields() if f.type_name == 'data').set(b'bad')
+                    with patch('io_scene_foundry.managed_blam.object_legacy.LegacyObjectTag') as legacy, \
+                         patch.object(Function, 'make_node_group') as create_nodes:
+                        legacy.return_value.__enter__.return_value.functions_to_blender.return_value = {'legacy': []}
+                        self.assertEqual(obj.functions_to_blender(), {'legacy': []})
+                        create_nodes.assert_not_called()
+                        legacy.assert_called_once()
+                    unsupported = functions[functions.add()]
+                    obj.required_field(unsupported, 'export name').set(name + '_unsupported')
+                    mapping = obj.nested(unsupported, 'default function')
+                    next(f for f in mapping.fields() if f.type_name == 'data').set(b'bad')
+                    with patch('io_scene_foundry.managed_blam.object_legacy.LegacyObjectTag') as legacy, \
+                         patch.object(Function, 'make_node_group') as create_nodes:
+                        legacy.return_value.__enter__.return_value.functions_to_blender.return_value = {'legacy': []}
+                        self.assertEqual(obj.functions_to_blender(), {'legacy': []})
+                        create_nodes.assert_not_called()
+                        legacy.assert_called_once()
+        finally:
+            group = bpy.data.node_groups.get(group_name)
+            if group is not None:
+                bpy.data.node_groups.remove(group)
+
     def test_native_attachment_records_reach_light_converter(self):
         from unittest.mock import MagicMock
         collection = SimpleNamespace(nwo=SimpleNamespace(), objects=SimpleNamespace(link=MagicMock()))

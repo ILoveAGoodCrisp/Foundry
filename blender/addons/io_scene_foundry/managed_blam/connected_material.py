@@ -922,6 +922,77 @@ class Function:
             self.clamp_max = editor.ClampRangeMax
             
     
+    def from_native_object(self, document, element):
+        """Read object metadata and a detached native function editor."""
+        from blam_tags import TagFunctionEditor
+        mapping = document.nested(element, 'default function')
+        data = next((field.value for field in mapping.fields() if field.type_name == 'data'), None)
+        if data is None:
+            raise ValueError('Object function has no mapping data')
+        editor = TagFunctionEditor(data)
+        description = editor.describe()
+        self.editor = editor
+        self.is_object_function = True
+        self.input = document.value(element, 'import name')
+        self.uses_input = bool(self.input)
+        self.input = self.input or 'one'
+        self.range = document.value(element, 'ranged interpolation name')
+        self.turn_off_with = document.value(element, 'turn off with')
+        self.scale_by = document.value(element, 'scale by')
+        self.min_value = document.value(element, 'min value')
+        flags = document.required_field(element, 'flags')
+        for attribute, name in [('invert', 'invert'), ('mapping_does_not_controls_active', 'mapping does not controls active'),
+                                ('always_active', 'always active'), ('random_time_offset', 'random time offset'),
+                                ('always_exports_value', 'always exports value'),
+                                ('turn_off_with_uses_magnitude', 'turn off with uses magnitude')]:
+            try:
+                setattr(self, attribute, flags.get_flag(name))
+            except KeyError:
+                setattr(self, attribute, False)
+        self.is_ranged = description['is_ranged']
+        self.master_type = FunctionEditorMasterType(description['master_type'])
+        self.color_type = FunctionEditorColorGraphType(description['color_type'])
+        self.is_color = self.color_type != FunctionEditorColorGraphType.Scalar
+        self.color_count = len(description['colors'])
+        self.is_exclusion = description['is_exclusion']
+        self.exclusion_min, self.exclusion_max = description['exclusion']
+        self.clamp_min, self.clamp_max = description['clamp']
+        for index, color in enumerate(description['colors']):
+            self.colors[index] = tuple(((color >> shift) & 255) / 255 for shift in (16, 8, 0, 24))
+        graphs = description['graphs']
+        self.graph_count = len(graphs)
+        self.is_basic_function = self.master_type == FunctionEditorMasterType.Basic
+        if self.master_type in {FunctionEditorMasterType.Periodic, FunctionEditorMasterType.Exponent, FunctionEditorMasterType.Transition}:
+            self.mins = [g['min'] for g in graphs]
+            self.maxes = [g['max'] for g in graphs]
+        if self.master_type == FunctionEditorMasterType.Periodic:
+            self.periodic_functions = [g['function'] for g in graphs]
+            self.frequencies = [g['frequency'] for g in graphs]
+            self.phases = [g['phase'] for g in graphs]
+        elif self.master_type == FunctionEditorMasterType.Exponent:
+            self.exponents = [g['exponent'] for g in graphs]
+        elif self.master_type == FunctionEditorMasterType.Transition:
+            self.transition_functions = [g['function'] for g in graphs]
+        elif self.master_type == FunctionEditorMasterType.Curve:
+            for graph_index, graph in enumerate(graphs):
+                segments = []
+                point_index = 0
+                for segment_index, (kind, smooth, coordinates) in enumerate(graph['segments']):
+                    segment = Segment(graph_index, segment_index)
+                    segment.type = FunctionEditorSegmentType(kind)
+                    if segment_index:
+                        segment.corner_type = FunctionEditorSegmentCornerType.Smooth if smooth else FunctionEditorSegmentCornerType.Corner
+                    points = []
+                    for offset, (x, y) in enumerate(coordinates):
+                        point = ControlPoint(graph_index, point_index + offset)
+                        point.x, point.y = x, y
+                        points.append(point)
+                    segment.control_points = [points[0], points[-1]]
+                    segment.spline_control_points = points[1:-1]
+                    point_index += len(points) - 1
+                    segments.append(segment)
+                self.graph_segments.append(segments)
+
     def to_element(self, element: TagFieldBlockElement, animated_function):
         element.SelectField("time period").Data = self.time_period
         editor = element.SelectField(animated_function).Value
@@ -929,7 +1000,7 @@ class Function:
         # Do stuff
         editor.EndUpdate()
         
-    def sample(self, start: int, end: int, sample_count=16):
+    def sample(self, start: int, end: int, sample_count=16, graph_index=0):
         sampled_points = []
         first = 0
         last = sample_count
@@ -939,7 +1010,11 @@ class Function:
                 continue
             t = i / sample_count
             x = start + (end - start) * t
-            y = self.editor.Evaluate(x, x)
+            if hasattr(self.editor, 'evaluate_shape') and self.master_type == FunctionEditorMasterType.Curve:
+                y = self.editor.evaluate_shape(x, float(graph_index))
+            else:
+                evaluate = getattr(self.editor, 'evaluate', None) or self.editor.Evaluate
+                y = evaluate(x, x)
             sampled_points.append((x, y, 'AUTO'))
         return sampled_points
     
@@ -964,7 +1039,7 @@ class Function:
                         # Blender float curves don't allow for handle control, so sampling the value to add more points for accuracy
                         curve_points.append((cp0.x, cp0.y, 'AUTO'))
                         curve_points.append((cp1.x, cp1.y, 'AUTO'))
-                        curve_points.extend(self.sample(cp0.x, cp1.x, 16))
+                        curve_points.extend(self.sample(cp0.x, cp1.x, 16, graph_index=graph_index))
                     else:
                         curve_points.append((cp0.x, cp0.y, 'VECTOR'))
                         curve_points.append((cp1.x, cp1.y, 'VECTOR'))

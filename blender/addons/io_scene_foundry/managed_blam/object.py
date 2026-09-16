@@ -8,17 +8,37 @@ class ObjectTag(BlenderTag, ObjectDocument):
         super().__init__(path, tag_must_exist=tag_must_exist, **kwargs)
 
     def functions_to_blender(self):
-        from .connected_material import game_functions
+        from .connected_material import Function, game_functions
+        from collections import defaultdict
         candidates = [e for e in self.block(self.object_struct(), 'functions')
                       if self.value(e, 'export name').strip()
                       and self.value(e, 'export name') != self.value(e, 'import name')
                       and self.value(e, 'export name') not in game_functions]
         if not candidates:
             return {}
-        # Custom function editors have no Python binding yet.
-        from .object_legacy import LegacyObjectTag
-        with LegacyObjectTag(path=self.system_path, tag_must_exist=True) as legacy:
-            return legacy.functions_to_blender()
+        decoded = {}
+        try:
+            for element in candidates:
+                function = Function()
+                function.from_native_object(self, element)
+                decoded[self.value(element, 'export name')] = function
+        except ValueError:
+            # Retain compatibility for editor shapes the native decoder cannot describe.
+            # Decode every function before creating Blender nodes so fallback never duplicates them.
+            from .object_legacy import LegacyObjectTag
+            with LegacyObjectTag(path=self.system_path, tag_must_exist=True) as legacy:
+                return legacy.functions_to_blender()
+        for name, function in decoded.items():
+            function.make_node_group(name)
+        dependencies = defaultdict(list)
+        for name, function in decoded.items():
+            function.to_blend_nodes(name=name)
+            if function.input.strip():
+                dependencies[name].append(function.input)
+            for dependency in (function.range, function.scale_by, function.turn_off_with):
+                if dependency.strip():
+                    dependencies[name].append(decoded[dependency].input if dependency in decoded else dependency)
+        return dependencies
 
     def attachments_to_blender(self, armature, markers, parent_collection):
         records = [record for record in self.get_attachments()
