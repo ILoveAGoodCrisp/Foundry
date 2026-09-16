@@ -8,7 +8,7 @@ from mathutils import Euler
 from ..managed_blam.cinematic_lighting import CinematicLightingTag
 from ..managed_blam.lisp_to_corinth import script_from_text
 
-from ..managed_blam.object import ObjectTag
+from ..managed_blam.object_legacy import LegacyObjectTag as ObjectTag
 from ..managed_blam.model import ModelTag
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.cinematic_scene import CinematicClip, CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicLighting, CinematicMusic, CinematicObjectFunction, CinematicObjectFunctionKeyframe, CinematicScreenEffect, CinematicTextureMovie, CinematicUserInputConstraints

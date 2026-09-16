@@ -1829,9 +1829,8 @@ class NWO_OT_GetCinematicFunctions(bpy.types.Operator):
         event = context.scene.nwo.cinematic_events[context.scene.nwo.active_cinematic_event_index]
         ob = event.actor
         with ObjectTag(path=ob.nwo.cinematic_object) as ob_tag:
-            is_weapon = ob_tag.tag_path.GroupType == 'weap'
-            for element in ob_tag.block_functions.Elements:
-                export_names.append(element.SelectField("export name").GetStringData())
+            is_weapon = ob_tag.tag_path.Extension == 'weapon'
+            export_names.extend(ob_tag.get_function_names())
                 
         if not export_names:
             return [("", "", "")]

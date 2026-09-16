@@ -16,7 +16,13 @@ PROFILES = ('haloce_mcc', 'halo2_mcc', 'halo3_mcc', 'halo3odst_mcc',
             'haloreach_mcc', 'halo4_mcc', 'halo2amp_mcc')
 SCHEMAS = ('camera_track.json', 'globals.json', 'render_method_option.json',
            'render_method_definition.json', 'material_shader.json', 'model.json',
-           'render_model.json', 'lightmapper_globals.json', '_meta.json')
+           'render_model.json', 'lightmapper_globals.json', '_meta.json',
+           'object.json', 'item.json', 'unit.json', 'device.json',
+           'scenery.json', 'weapon.json', 'biped.json', 'vehicle.json',
+           'equipment.json', 'crate.json', 'creature.json', 'giant.json',
+           'device_dispenser.json', 'spawner.json',
+           'device_machine.json', 'device_control.json', 'device_terminal.json', 'projectile.json',
+           'sound_scenery.json', 'effect_scenery.json')
 
 
 def stage_schemas(source, addon):

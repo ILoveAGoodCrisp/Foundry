@@ -245,21 +245,14 @@ def _get_external_graph_info() -> ExternalGraphInfo:
                 case ".biped" | ".vehicle" | ".giant":
                     with ObjectTag(path=path) as unit:
                         rel_path = unit.tag_path.RelativePathWithExtension
-                        seats = unit.tag.SelectField("Struct:unit[0]/Block:seats")
-                        for element in seats.Elements:
-                            label = element.SelectField("OldStringId:label").GetStringData()
+                        for label in unit.get_seat_names():
                             if label:
                                 info.vehicle_modes[label].add(rel_path)
                                 info.vehicle_modes_by_tag[rel_path].add(label)
                 case ".weapon":
                     with ObjectTag(path=path) as weapon:
                         rel_path = weapon.tag_path.RelativePathWithExtension
-                        weapon_class = weapon.tag.SelectField(
-                            "StringId:weapon class"
-                        ).GetStringData()
-                        weapon_type = weapon.tag.SelectField(
-                            "StringId:weapon name"
-                        ).GetStringData()
+                        weapon_class, weapon_type = weapon.get_weapon_names()
                         if weapon_class:
                             info.weapon_classes[weapon_class].add(rel_path)
                         if weapon_type:

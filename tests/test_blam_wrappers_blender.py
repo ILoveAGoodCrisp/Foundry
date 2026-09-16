@@ -10,6 +10,7 @@ ADDONS = Path(__file__).resolve().parents[1] / 'blender/addons'
 sys.path.insert(0, str(ADDONS))
 from io_scene_foundry import utils, managed_blam
 from io_scene_foundry.managed_blam.model import ModelTag
+from io_scene_foundry.managed_blam.object import ObjectTag
 from io_scene_foundry.managed_blam.globals import GlobalsTag
 from io_scene_foundry.managed_blam.render_method_option import RenderMethodOptionTag
 from io_scene_foundry.managed_blam.render_method_definition import RenderMethodDefinitionTag
@@ -29,6 +30,13 @@ class WrapperTests(unittest.TestCase):
                     self.assertEqual(model.get_model_variants(), [])
                 with ModelTag('test.model') as model:
                     self.assertEqual(model.reference_render_model.Path.RelativePathWithExtension, 'test.render_model')
+                with ObjectTag('test.scenery') as obj:
+                    obj.set_model_tag_path('test.model')
+                    self.assertEqual(obj.get_variants(), [])
+                    self.assertEqual(obj.functions_to_blender(), {})
+                    self.assertEqual(obj.attachments_to_blender(None, [], None), [])
+                with ObjectTag('test.scenery') as obj:
+                    self.assertEqual(obj.get_model_tag_path(), 'test.model')
                 for cls, method in [(GlobalsTag, 'get_global_materials'),
                                     (RenderMethodOptionTag, 'read_options'),
                                     (RenderMethodDefinitionTag, 'get_defaults')]:

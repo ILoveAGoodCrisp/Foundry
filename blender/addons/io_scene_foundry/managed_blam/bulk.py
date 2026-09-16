@@ -125,9 +125,7 @@ def report_seat_names():
             print('')
             print(vehicle.tag_path.RelativePath)
             print('-'*50)
-            seats_block = vehicle.tag.SelectField('Struct:unit[0]/Block:seats')
-            for element in seats_block.Elements:
-                seat_name = element.SelectField('label').GetStringData()
+            for seat_name in vehicle.get_seat_names():
                 print(f'--- {seat_name}')
                 seat_names.add(seat_name)
 

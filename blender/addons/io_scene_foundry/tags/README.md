@@ -12,6 +12,8 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
   material mappings, render-region metadata and Reach sky detection.
 - Lightmap-region bounds, restriction flags, ambient occlusion and bounce mode
   for H4/H2AMP.
+- Object model references, variants, change colors, seat and weapon names,
+  magazine/tether metadata, first-person model edits and scenery lighting references.
 
 The Blender-facing classes retain their existing import locations. Their
 implementations live in this package. Reference results are detached Python
@@ -19,7 +21,8 @@ objects; the few callers still passing them into legacy tag wrappers convert
 references at that boundary.
 
 The addon still requires ManagedBlam/Python.NET for unmigrated workflows:
-object tag operations, full geometry import, animation, bitmap operations,
+object custom functions/light attachments and cinematic object conversion,
+full geometry import, animation, bitmap operations,
 shader functions, scenario/cinematic editors and other specialized helpers.
 Removing that dependency now would break those workflows. The Foundation plugin
 installer also still uses .NET independently of tag access.
@@ -56,6 +59,7 @@ With the wheel installed, these suites run without Blender:
 - `tests/test_blam_tags_backend.py`
 - `tests/test_blam_metadata.py`
 - `tests/test_blam_model.py`
+- `tests/test_blam_object.py`
 - `tests/test_blam_packaging.py`
 
 The additional camera and wrapper suites run inside Blender:
@@ -63,14 +67,19 @@ The additional camera and wrapper suites run inside Blender:
 - `tests/test_blam_camera_blender.py`
 - `tests/test_blam_wrappers_blender.py`
 
-All 18 tests pass together in Blender 5.2 with addon dependencies available.
+All 21 tests pass together in Blender 5.2 with addon dependencies available.
 Coverage includes real tag serialization, edits and aborts, stale-handle-safe
 block construction, model references/variants, native color channels,
 title-specific fields, lightmapper settings, camera keyframes, packaging, and
-addon imports. Wrapper tests assert that ManagedBlam is never initialized.
+addon imports. Object tests cover five title profiles, inherited object fields,
+reference round trips and aborted edits, colors, weapon metadata and first-person
+block growth. Wrapper tests assert that ordinary migrated operations never
+initialize ManagedBlam. Custom function and light attachment conversion use
+`managed_blam/object_legacy.py` until their native bindings are available.
 
 Read-only sampling also exercised existing tag files from all five H3+ kits:
-global/material metadata and 15 model tags with their render-model references.
+global/material metadata, 15 model tags with their render-model references,
+and 25 object tags (scenery, weapons, bipeds, vehicles and machines).
 A Reach Cortana definition references a missing option tag; this is reported
 as a missing dependency instead of silently creating an empty tag. Editing-kit
 acceptance of newly written tags and complete import/export parity are still

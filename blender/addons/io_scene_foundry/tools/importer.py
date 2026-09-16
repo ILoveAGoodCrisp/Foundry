@@ -2997,15 +2997,15 @@ class NWOImporter:
                     if is_game_object:
                         if game_object.nwo.marker_game_instance_tag_variant_name.strip():
                             self.tag_variant = game_object.nwo.marker_game_instance_tag_variant_name
-                        elif obj.default_variant.GetStringData():
-                            self.tag_variant = obj.default_variant.GetStringData()
+                        elif obj.get_default_variant():
+                            self.tag_variant = obj.get_default_variant()
                         else:
                             self.tag_variant = ""
                             
                     if for_instance_conversion or return_cin_stuff:
                         if not self.tag_variant:
-                            if obj.default_variant.GetStringData():
-                                self.tag_variant = obj.default_variant.GetStringData()
+                            if obj.get_default_variant():
+                                self.tag_variant = obj.get_default_variant()
                             
                     model_path = obj.get_model_tag_path_full()
                     if not model_path or not Path(model_path).exists():
@@ -3119,14 +3119,9 @@ class NWOImporter:
                                                         utils.unlink(armature)
                                                         fp_collection.objects.link(armature)
                                                         # Load fp graph to work out skeleton
-                                                        block_fp = obj.tag.SelectField("Struct:player interface[0]/Block:first person")
-                                                        fp_anim_tag = None
-                                                        if self.import_fp_arms == FPARMS.SPARTAN:
-                                                            if block_fp.Elements.Count > 0 and block_fp.Elements[0].SelectField("Reference:first person animations").Path is not None:
-                                                                fp_anim_tag = block_fp.Elements[0].SelectField("Reference:first person animations").Path.Filename
-                                                        elif self.import_fp_arms == FPARMS.ELITE:
-                                                            if block_fp.Elements.Count > 1 and block_fp.Elements[1].SelectField("Reference:first person animations").Path is not None:
-                                                                fp_anim_tag = block_fp.Elements[1].SelectField("Reference:first person animations").Path.Filename
+                                                        fp_index = 0 if self.import_fp_arms == FPARMS.SPARTAN else 1
+                                                        fp_reference = obj.get_fp_animation(fp_index)
+                                                        fp_anim_tag = fp_reference.Filename if fp_reference else None
                                                                 
                                                         if fp_anim_tag is not None and Path(fp_anim_tag).exists():
                                                             with AnimationTag(path=fp_anim_tag) as fp_graph:
@@ -3236,20 +3231,17 @@ class NWOImporter:
                                 if self.biped_weapon_source and self.biped_weapon_source != BIPED_WEAPON_SOURCE_BIPED_TAG:
                                     weapon_paths.append(self.biped_weapon_source)
                                 else:
-                                    weapons = obj.tag.SelectField("Struct:unit[0]/Block:weapons")
-                                    if weapons is not None:
-                                        weapon_paths.extend([element.Fields[0].Path for element in weapons.Elements if element.Fields[0].Path is not None])
+                                    weapon_paths.extend(obj.get_unit_weapons())
 
                                 if weapon_paths:
                                     weapon_collection = bpy.data.collections.new(name=f"{model.tag_path.ShortName}_weapon")
                                     model_collection.children.link(weapon_collection)
                                     for weapon in weapon_paths:
-                                        weapon_name = weapon.ShortNameWithExtension if hasattr(weapon, "ShortNameWithExtension") else PureWindowsPath(weapon).name
+                                        weapon_name = Path(weapon.RelativePathWithExtension).name if hasattr(weapon, "RelativePathWithExtension") else PureWindowsPath(weapon).name
                                         utils.print_section(f"Importing Weapon: {weapon_name}")
                                         child = ChildObject()
-                                        parent_marker = obj.tag.SelectField("Struct:unit[0]/StringId:right_hand_node").GetStringData()
+                                        parent_marker, child_marker = obj.get_weapon_markers()
                                         child.parent_marker = parent_marker if parent_marker else "primary_weapon"
-                                        child_marker = obj.tag.SelectField("Struct:unit[0]/Struct:more damn nodes[0]/StringId:preferred_gun_node").GetStringData()
                                         child.child_marker = child_marker if child_marker else "right_hand"
                                         child.child_object = weapon
                                         imported_file_objects.extend(self.import_child_object(
@@ -3324,7 +3316,7 @@ class NWOImporter:
             if functions:
                 print(f"--- Created Blender node groups for {len(functions)} object functions")
             
-            default_variant = obj.default_variant.GetStringData()
+            default_variant = obj.get_default_variant()
             prop_names = []
             with ModelTag(path=model_path, raise_on_error=False) as model:
                 if not model.valid: return

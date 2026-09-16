@@ -3355,9 +3355,9 @@ class ExportScene:
             if Path(expected_scenery_path).exists() and Path(lighting_info).exists():
                 
                 with ObjectTag(path=expected_scenery_path) as scenery:
-                    lighting_info_tag_path = scenery._TagPath_from_string(lighting_info)
+                    lighting_info_tag_path = scenery.reference_from_path(lighting_info)
                     self.print_post(f"--- Setting sky scenery lighting info to {lighting_info_tag_path.RelativePathWithExtension}")
-                    scenery.tag.SelectField("Reference:Structure Lighting Tag").Path = lighting_info_tag_path
+                    scenery.set_structure_lighting(lighting_info_tag_path.RelativePathWithExtension)
                     
         if self.asset_type == AssetType.DECORATOR_SET:
             with DecoratorSetTag() as decorator_set:
