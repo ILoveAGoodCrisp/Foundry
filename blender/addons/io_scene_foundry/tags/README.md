@@ -111,12 +111,18 @@ The simulation-interpolation reference is copied independently of material effec
 
 Tests cover five H3+ profiles, nested function bytes and colors, and rejection of
 incompatible blocks without destination changes. H3 has a change-color layout
-difference (40 versus 36 bytes in a nested function struct). Empty blocks and
-static color containers with empty functions now copy natively; initial color
-permutations still pass the native layout check. Populated incompatible functions
-use the legacy fallback. A synthetic older layout tests both cases and verifies
-that a failed conversion does not save partial edits. The fallback still needs
-editing-kit validation.
+difference (40 versus 36 bytes in a nested function struct). Empty blocks,
+static colors and populated functions with the five known fields and zero-only
+padding now copy natively. The binding exposes read-only struct bytes and field
+offsets/widths so conversion can check every byte it would discard. Initial color
+permutations still pass the native layout check. Nonzero padding, unknown fields
+and other incompatible layouts retain the legacy fallback. Tests cover colors,
+flags, string inputs, nonzero-padding rejection and rollback after unknown fields.
+The fallback still needs editing-kit validation.
 Read-only sampling converted temporary copies of 36 H3 weapons, bipeds and
 vehicles and verified their initial color permutations after reopening. All 36
 used the native path; no original editing-kit tags were modified.
+An additional scan of 933 H3 object tags found three populated color-function
+blocks. Copies of all three convert natively, including the non-default colors
+and scale inputs on the reactor sky tag. These tests do not establish editing-kit
+acceptance of the resulting files.

@@ -202,7 +202,7 @@ class ObjectDocument(TagDocument):
             try:
                 target_block.copy_from(source_block)
             except ValueError as error:
-                if name == 'change colors' and self.game == 'halo3' and self._copy_h3_static_colors(source_block, target_block):
+                if name == 'change colors' and self.game == 'halo3' and self._copy_h3_colors(source_block, target_block):
                     continue
                 raise CinematicCopyUnsupported(f'{source.path}: {name}: {error}') from error
         functions = self.block(target, 'functions')
@@ -220,8 +220,33 @@ class ObjectDocument(TagDocument):
                 names.add(name)
         self.tag_has_changes = True
 
-    def _copy_h3_static_colors(self, source, target):
-        """Rebuild H3 color containers only when their incompatible function blocks are empty."""
+    @staticmethod
+    def _h3_color_function_fields(element):
+        """Accept only known fields and zero-filled gaps in the two known H3 layouts."""
+        expected = [('scale flags', 'long flags', 4), ('color lower bound', 'real rgb color', 12),
+                    ('color upper bound', 'real rgb color', 12), ('darken by', 'string id', 4),
+                    ('scale by', 'string id', 4)]
+        if not hasattr(element, 'raw_bytes'):
+            raise RuntimeError('Rebuild the blam-tags wheel: H3 color conversion needs layout-byte access')
+        raw = element.raw_bytes
+        if element.size not in (36, 40) or len(raw) != element.size:
+            return None
+        fields = [f for f in element.fields() if f.type_name not in ('pad', 'skip')
+                  and not (f.type_name == 'custom' and f.value in (None, b''))]
+        if [(f.clean_name, f.type_name, f.wire_width) for f in fields] != expected:
+            return None
+        covered = set()
+        for field in fields:
+            offsets = set(range(field.offset, field.offset + field.wire_width))
+            if field.offset + field.wire_width > len(raw) or covered.intersection(offsets):
+                return None
+            covered.update(offsets)
+        if any(value for offset, value in enumerate(raw) if offset not in covered):
+            return None
+        return fields
+
+    def _copy_h3_colors(self, source, target):
+        """Rebuild H3 colors when the only discarded function bytes are zero padding."""
         expected = [('initial permutations', 'block'), ('functions', 'block')]
         def fields(element):
             # Shipped layouts include an empty editor marker before these blocks.
@@ -230,8 +255,9 @@ class ObjectDocument(TagDocument):
         for element in source:
             if fields(element) != expected:
                 return False
-            if len(self.block(element, 'functions')):
-                return False
+            for function in self.block(element, 'functions'):
+                if self._h3_color_function_fields(function) is None:
+                    return False
         target.clear()
         for element in source:
             copied = target[target.add()]
@@ -241,4 +267,11 @@ class ObjectDocument(TagDocument):
                 self.block(copied, 'initial permutations').copy_from(self.block(element, 'initial permutations'))
             except ValueError as error:
                 raise CinematicCopyUnsupported(f'Incompatible H3 color permutations: {error}') from error
+            functions = self.block(copied, 'functions')
+            for function in self.block(element, 'functions'):
+                converted = functions[functions.add()]
+                if self._h3_color_function_fields(converted) is None:
+                    raise CinematicCopyUnsupported('Unexpected destination H3 color-function layout')
+                for field in self._h3_color_function_fields(function):
+                    self.required_field(converted, field.clean_name).copy_value_from(field)
         return True

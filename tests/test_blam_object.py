@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 import sys
 import tempfile
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 import unittest
 
 ADDON = Path(__file__).resolve().parents[1] / 'blender/addons/io_scene_foundry'
@@ -17,7 +17,7 @@ GAMES = ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a')
 
 
 class ObjectTests(unittest.TestCase):
-    def test_h3_unused_function_layout_does_not_force_legacy_copy(self):
+    def test_h3_color_function_padding_conversion(self):
         with tempfile.TemporaryDirectory() as root:
             definitions = Path(root) / 'definitions'
             profile = definitions / 'halo3_mcc'
@@ -40,14 +40,43 @@ class ObjectTests(unittest.TestCase):
                 colors = target.block(target.object_struct(), 'change colors')
                 self.assertEqual(target.value(target.block(colors[0], 'initial permutations')[0], 'variant name'), 'blue')
                 self.assertEqual(len(target.block(colors[0], 'functions')), 0)
-            # Populated incompatible function data must still fail and must not save a partial tag.
+            # Populated functions can convert when the extra inline bytes are zero.
             with m.ObjectDocument('test.weapon', **args) as source:
                 functions = source.block(source.block(source.object_struct(), 'change colors')[0], 'functions')
-                functions.add()
+                function = functions[functions.add()]
+                source.required_field(function, 'darken by').set('power')
+                source.required_field(function, 'scale by').set('pulse')
+                color = source.required_field(function, 'color upper bound')
+                color.set(type(color.value)(0.25, 0.5, 0.75))
+                flags = source.required_field(function, 'scale flags')
+                flag_name = 'blend in hsv'
+                flags.set_flag(flag_name, True)
+                raw = function.raw_bytes
+                self.assertEqual(raw[:4], bytes(4))
+                nonzero_padding = SimpleNamespace(size=function.size, fields=function.fields,
+                                                  raw_bytes=b'\x01' + raw[1:])
+                self.assertIsNone(source._h3_color_function_fields(nonzero_padding))
                 source.tag_has_changes = True
+            with m.ObjectDocument('test.weapon', **args) as source, m.ObjectDocument('test.scenery', **args) as target:
+                target.copy_cinematic_object(source)
+            with m.ObjectDocument('test.scenery', **args) as target:
+                function = target.block(target.block(target.object_struct(), 'change colors')[0], 'functions')[0]
+                self.assertEqual(target.value(function, 'darken by'), 'power')
+                self.assertEqual(target.value(function, 'scale by'), 'pulse')
+                color = target.value(function, 'color upper bound')
+                self.assertEqual((color.red, color.green, color.blue), (0.25, 0.5, 0.75))
+                self.assertTrue(target.required_field(function, 'scale flags').get_flag(flag_name))
+            # An unknown field must still reject the conversion without saving partial edits.
+            schema['structs']['object_change_color_function']['fields'][0] = {'type': 'long_integer', 'name': 'unknown setting'}
+            schema_path.write_text(json.dumps(schema))
+            with m.ObjectDocument('unknown.weapon', definitions=definitions, **args) as source:
+                colors = source.block(source.object_struct(), 'change colors')
+                functions = source.block(colors[colors.add()], 'functions')
+                function = functions[functions.add()]
+                source.required_field(function, 'unknown setting').set(1)
             before = (Path(root) / 'test.scenery').read_bytes()
             with self.assertRaises(m.CinematicCopyUnsupported):
-                with m.ObjectDocument('test.weapon', **args) as source, m.ObjectDocument('test.scenery', **args) as target:
+                with m.ObjectDocument('unknown.weapon', **args) as source, m.ObjectDocument('test.scenery', **args) as target:
                     target.copy_cinematic_object(source)
             self.assertEqual(before, (Path(root) / 'test.scenery').read_bytes())
 
