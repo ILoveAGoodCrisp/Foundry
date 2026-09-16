@@ -6,6 +6,12 @@ from .connected_material import Function, game_functions
 
 class LegacyObjectTag(Tag):
     """Custom function and cinematic conversion operations awaiting native bindings."""
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is not None:
+            self.tag_has_changes = False
+            self.always_save = False
+        return super().__exit__(exc_type, exc_value, traceback)
+
     def _read_fields(self):
         first_struct = self.tag.Fields[0]
         if first_struct.DisplayName == "object":
@@ -66,5 +72,59 @@ class LegacyObjectTag(Tag):
                     functions[export_name].append(func.turn_off_with)
 
         return functions
-    
-    
+
+def copy_cinematic_scenery_legacy(object_path, scenery_path, ammo_functions):
+    """Compatibility fallback for shipped layouts that differ from the native schema."""
+    AMMO_FUNCTIONS = ammo_functions
+    with LegacyObjectTag(path=object_path, tag_must_exist=True) as obj, LegacyObjectTag(path=scenery_path) as scenery:
+        scenery.reference_model.Path = obj.reference_model.Path
+        scenery_object = scenery.object_struct.Elements[0]
+        obj_object = obj.object_struct.Elements[0]
+        scenery_flags = scenery_object.SelectField("Flags:flags")
+        obj_flags = obj_object.SelectField("Flags:flags")
+        scenery_flags.SetBit("does not cast shadow", obj_flags.TestBit("does not cast shadow"))
+        scenery_flags.SetBit("search cardinal direction lightmaps on failure", obj_flags.TestBit("search cardinal direction lightmaps on failure"))
+        scenery_flags.SetBit("object scales attachments", obj_flags.TestBit("object scales attachments"))
+        scenery_flags.SetBit("sample enviroment lighting only ignore object lighting", obj_flags.TestBit("sample enviroment lighting only ignore object lighting"))
+        scenery_object.SelectField("bounding radius").Data = obj_object.SelectField("bounding radius").Data
+        scenery_object.SelectField("bounding offset").Data = obj_object.SelectField("bounding offset").Data
+        scenery_object.SelectField("lightmap shadow mode").Value = obj_object.SelectField("lightmap shadow mode").Value
+        scenery_object.SelectField("sweetener size").Value = obj_object.SelectField("sweetener size").Value
+        scenery_object.SelectField("dynamic light sphere radius").Data = obj_object.SelectField("dynamic light sphere radius").Data
+        scenery_object.SelectField("dynamic light sphere offset").Data = obj_object.SelectField("dynamic light sphere offset").Data
+        scenery_object.SelectField("default model variant").Data = obj_object.SelectField("default model variant").Data
+        scenery_object.SelectField("crate object").Path = obj_object.SelectField("crate object").Path
+        scenery_object.SelectField("creation effect").Path = obj_object.SelectField("creation effect").Path
+        scenery_object.SelectField("material effects").Path = obj_object.SelectField("material effects").Path
+        interpolation = obj_object.SelectField("simulation_interpolation")
+        if interpolation is not None:
+            scenery_object.SelectField("simulation_interpolation").Path = interpolation.Path
+        funcs = scenery_object.SelectField("functions")
+        funcs.Deserialize(obj_object.SelectField("functions").Serialize())
+        found_ones = False
+        found_tens = False
+        is_weapon = object_path.suffix.lower() == '.weapon'
+        for e in funcs.Elements:
+            e.SelectField("import name").SetStringData("zero")
+            if is_weapon:
+                if e.SelectField("export name").GetStringData() == AMMO_FUNCTIONS[0]:
+                    found_ones = True
+                elif e.SelectField("export name").GetStringData() == AMMO_FUNCTIONS[1]:
+                    found_tens = True
+
+        if is_weapon:
+            if not found_ones:
+                e = funcs.AddElement()
+                e.SelectField("import name").SetStringData("zero")
+                e.SelectField("export name").SetStringData(AMMO_FUNCTIONS[0])
+            if not found_tens:
+                e = funcs.AddElement()
+                e.SelectField("import name").SetStringData("zero")
+                e.SelectField("export name").SetStringData(AMMO_FUNCTIONS[1])
+
+        for name in ('attachments', 'hull surfaces', 'jetwash', 'widgets', 'change colors', 'spawn effects'):
+            source_block = obj_object.SelectField(name)
+            if source_block is not None:
+                scenery_object.SelectField(name).Deserialize(source_block.Serialize())
+
+        scenery.tag_has_changes = True

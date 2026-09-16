@@ -85,6 +85,9 @@ class WrapperTests(unittest.TestCase):
                     self.assertEqual(obj.attachments_to_blender(None, [], None), [])
                 with ObjectTag('test.scenery') as obj:
                     self.assertEqual(obj.get_model_tag_path(), 'test.model')
+                    with ObjectTag('cinematic.scenery') as scenery:
+                        scenery.copy_cinematic_object(obj)
+                        self.assertEqual(scenery.get_model_tag_path(), 'test.model')
                 for cls, method in [(GlobalsTag, 'get_global_materials'),
                                     (RenderMethodOptionTag, 'read_options'),
                                     (RenderMethodDefinitionTag, 'get_defaults')]:
@@ -109,6 +112,30 @@ class WrapperTests(unittest.TestCase):
             file, path = tag._get_tag_and_path(True)
         self.assertEqual(file, 'file')
         self.assertEqual(path, ('textures/test', 'bitmap'))
+
+    def test_failed_legacy_object_conversion_does_not_save(self):
+        from unittest.mock import MagicMock
+        from io_scene_foundry.managed_blam.object_legacy import LegacyObjectTag
+        document = object.__new__(LegacyObjectTag)
+        document.tag = MagicMock()
+        document.tag_has_changes = True
+        document.always_save = True
+        document.hide_prints = False
+        document.__exit__(RuntimeError, RuntimeError('copy failed'), None)
+        document.tag.Save.assert_not_called()
+        document.tag.Dispose.assert_called_once()
+
+    def test_failed_legacy_object_conversion_does_not_save(self):
+        from unittest.mock import MagicMock
+        from io_scene_foundry.managed_blam.object_legacy import LegacyObjectTag
+        document = object.__new__(LegacyObjectTag)
+        document.tag = MagicMock()
+        document.tag_has_changes = True
+        document.always_save = True
+        document.hide_prints = False
+        document.__exit__(RuntimeError, RuntimeError('copy failed'), None)
+        document.tag.Save.assert_not_called()
+        document.tag.Dispose.assert_called_once()
 
 
 if __name__ == '__main__':

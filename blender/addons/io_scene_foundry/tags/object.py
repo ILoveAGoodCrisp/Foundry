@@ -13,6 +13,10 @@ class ObjectAttachment:
     secondary_scale: str
 
 
+class CinematicCopyUnsupported(RuntimeError):
+    """The source layout cannot be copied losslessly to the scenery schema."""
+
+
 class ObjectModelReference:
     def __init__(self, document):
         self.document = document
@@ -161,3 +165,80 @@ class ObjectDocument(TagDocument):
 
     def set_structure_lighting(self, path):
         self.set_reference(self.tag.root(), 'Structure Lighting Tag', path)
+
+    def copy_cinematic_object(self, source, ammo_functions=()):
+        """Populate scenery from a same-project object; save only on successful context exit."""
+        if self.system_path.suffix != '.scenery' or self.game != source.game or self.tags_root != source.tags_root:
+            raise ValueError('Cinematic copying requires scenery in the source project and game')
+        target = self.object_struct()
+        original = source.object_struct()
+        if not hasattr(self.required_field(target, 'model'), 'copy_value_from'):
+            raise RuntimeError('Rebuild the blam-tags wheel: cinematic copying needs native copy APIs')
+        source_flags = source.required_field(original, 'flags')
+        target_flags = self.required_field(target, 'flags')
+        for name in ('does not cast shadow', 'search cardinal direction lightmaps on failure',
+                     'object scales attachments', 'sample enviroment lighting only ignore object lighting'):
+            try:
+                enabled = source_flags.get_flag(name)
+            except KeyError:
+                continue  # These flags do not exist in every title.
+            target_flags.set_flag(name, enabled)
+        for name in ('model', 'bounding radius', 'bounding offset', 'lightmap shadow mode',
+                     'sweetener size', 'dynamic light sphere radius', 'dynamic light sphere offset',
+                     'default model variant', 'crate object', 'creation effect', 'material effects',
+                     'simulation_interpolation'):
+            if original.field(name) is None:
+                continue
+            self.required_field(target, name).copy_value_from(source.required_field(original, name))
+        for name in ('functions', 'attachments', 'hull surfaces', 'jetwash', 'widgets',
+                     'change colors', 'spawn effects'):
+            if original.field(name) is None and target.field(name) is None:
+                continue
+            source_block = source.block(original, name)
+            target_block = self.block(target, name)
+            if not len(source_block):
+                target_block.clear()
+                continue
+            try:
+                target_block.copy_from(source_block)
+            except ValueError as error:
+                if name == 'change colors' and self.game == 'halo3' and self._copy_h3_static_colors(source_block, target_block):
+                    continue
+                raise CinematicCopyUnsupported(f'{source.path}: {name}: {error}') from error
+        functions = self.block(target, 'functions')
+        names = set()
+        for element in functions:
+            self.required_field(element, 'import name').set('zero')
+            names.add(self.value(element, 'export name'))
+        if source.system_path.suffix == '.weapon':
+            for name in ammo_functions:
+                if name in names:
+                    continue
+                element = functions[functions.add()]
+                self.required_field(element, 'import name').set('zero')
+                self.required_field(element, 'export name').set(name)
+                names.add(name)
+        self.tag_has_changes = True
+
+    def _copy_h3_static_colors(self, source, target):
+        """Rebuild H3 color containers only when their incompatible function blocks are empty."""
+        expected = [('initial permutations', 'block'), ('functions', 'block')]
+        def fields(element):
+            # Shipped layouts include an empty editor marker before these blocks.
+            return [(f.clean_name, f.type_name) for f in element.fields()
+                    if not (f.type_name == 'custom' and f.value in (None, b''))]
+        for element in source:
+            if fields(element) != expected:
+                return False
+            if len(self.block(element, 'functions')):
+                return False
+        target.clear()
+        for element in source:
+            copied = target[target.add()]
+            if fields(copied) != expected:
+                raise CinematicCopyUnsupported('Unexpected H3 change-color container layout')
+            try:
+                self.block(copied, 'initial permutations').copy_from(self.block(element, 'initial permutations'))
+            except ValueError as error:
+                raise CinematicCopyUnsupported(f'Incompatible H3 color permutations: {error}') from error
+        return True

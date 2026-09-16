@@ -1,5 +1,7 @@
 """Native object edits against real schemas and serialized tag files."""
 import importlib
+import json
+import shutil
 from pathlib import Path
 import sys
 import tempfile
@@ -15,6 +17,93 @@ GAMES = ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a')
 
 
 class ObjectTests(unittest.TestCase):
+    def test_h3_unused_function_layout_does_not_force_legacy_copy(self):
+        with tempfile.TemporaryDirectory() as root:
+            definitions = Path(root) / 'definitions'
+            profile = definitions / 'halo3_mcc'
+            shutil.copytree(ADDON / 'tags/definitions/halo3_mcc', profile)
+            schema_path = profile / 'object.json'
+            schema = json.loads(schema_path.read_text())
+            function = schema['structs']['object_change_color_function']
+            function['size'] += 4
+            function['fields'].insert(0, {'type': 'pad', 'name': 'legacy padding', 'definition': 4})
+            schema['structs']['object_change_colors']['fields'].insert(0, {'type': 'custom', 'name': ''})
+            schema_path.write_text(json.dumps(schema))
+            args = dict(tags_root=root, game='halo3')
+            with m.ObjectDocument('test.weapon', definitions=definitions, **args) as source:
+                colors = source.block(source.object_struct(), 'change colors')
+                permutations = source.block(colors[colors.add()], 'initial permutations')
+                source.required_field(permutations[permutations.add()], 'variant name').set('blue')
+            with m.ObjectDocument('test.weapon', **args) as source, m.ObjectDocument('test.scenery', **args) as target:
+                target.copy_cinematic_object(source)
+            with m.ObjectDocument('test.scenery', **args) as target:
+                colors = target.block(target.object_struct(), 'change colors')
+                self.assertEqual(target.value(target.block(colors[0], 'initial permutations')[0], 'variant name'), 'blue')
+                self.assertEqual(len(target.block(colors[0], 'functions')), 0)
+            # Populated incompatible function data must still fail and must not save a partial tag.
+            with m.ObjectDocument('test.weapon', **args) as source:
+                functions = source.block(source.block(source.object_struct(), 'change colors')[0], 'functions')
+                functions.add()
+                source.tag_has_changes = True
+            before = (Path(root) / 'test.scenery').read_bytes()
+            with self.assertRaises(m.CinematicCopyUnsupported):
+                with m.ObjectDocument('test.weapon', **args) as source, m.ObjectDocument('test.scenery', **args) as target:
+                    target.copy_cinematic_object(source)
+            self.assertEqual(before, (Path(root) / 'test.scenery').read_bytes())
+
+    def test_cinematic_copy_preserves_nested_data_and_references(self):
+        for game in GAMES:
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root:
+                args = dict(tags_root=root, game=game)
+                with m.ObjectDocument('test.weapon', **args) as source:
+                    obj = source.object_struct()
+                    source.set_model_tag_path('test.model')
+                    if game != 'halo3':
+                        source.set_reference(obj, 'simulation_interpolation', 'test.simulation_interpolation')
+                    source.set_reference(obj, 'material effects', 'test.material_effects')
+                    functions = source.block(obj, 'functions')
+                    function = functions[functions.add()]
+                    source.required_field(function, 'import name').set('power')
+                    source.required_field(function, 'export name').set('ammo_one')
+                    # Function curves are opaque data and must survive verbatim.
+                    curve = source.nested(function, 'default function')
+                    data = next(f for f in curve.fields() if f.type_name == 'data')
+                    data.set(bytes(range(32)))
+                    colors = source.block(obj, 'change colors')
+                    permutations = source.block(colors[colors.add()], 'initial permutations')
+                    permutation = permutations[permutations.add()]
+                    source.required_field(permutation, 'variant name').set('blue')
+                before = (Path(root) / 'test.weapon').read_bytes()
+                with m.ObjectDocument('test.weapon', **args) as source, \
+                     m.ObjectDocument('test.scenery', **args) as target:
+                    target.copy_cinematic_object(source, ('ammo_one', 'ammo_tens'))
+                self.assertEqual(before, (Path(root) / 'test.weapon').read_bytes())
+                with m.ObjectDocument('test.scenery', **args) as target:
+                    obj = target.object_struct()
+                    self.assertEqual(target.get_model_tag_path(), 'test.model')
+                    if game != 'halo3':
+                        self.assertEqual(target.reference(obj, 'simulation_interpolation').Extension, 'simulation_interpolation')
+                    self.assertEqual(target.reference(obj, 'material effects').Extension, 'material_effects')
+                    self.assertEqual(target.get_function_names(), ['ammo_one', 'ammo_tens'])
+                    functions = target.block(obj, 'functions')
+                    self.assertEqual([target.value(e, 'import name') for e in functions], ['zero', 'zero'])
+                    curve = target.nested(functions[0], 'default function')
+                    self.assertEqual(next(f for f in curve.fields() if f.type_name == 'data').value, bytes(range(32)))
+                    colors = target.block(obj, 'change colors')
+                    self.assertEqual(target.value(target.block(colors[0], 'initial permutations')[0], 'variant name'), 'blue')
+
+    def test_incompatible_block_copy_is_atomic(self):
+        with tempfile.TemporaryDirectory() as root:
+            args = dict(tags_root=root, game='reach')
+            with m.ObjectDocument('source.weapon', **args) as source, \
+                 m.ObjectDocument('target.scenery', **args) as target:
+                functions = target.block(target.object_struct(), 'functions')
+                target.required_field(functions[functions.add()], 'export name').set('keep')
+                before = target.tag.write_to_bytes()
+                with self.assertRaises(ValueError):
+                    functions.copy_from(source.block(source.object_struct(), 'attachments'))
+                self.assertEqual(target.tag.write_to_bytes(), before)
+
     def test_attachment_records_survive_close(self):
         for game in GAMES:
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root:

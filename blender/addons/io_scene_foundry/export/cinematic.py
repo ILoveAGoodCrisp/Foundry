@@ -8,7 +8,8 @@ from mathutils import Euler
 from ..managed_blam.cinematic_lighting import CinematicLightingTag
 from ..managed_blam.lisp_to_corinth import script_from_text
 
-from ..managed_blam.object_legacy import LegacyObjectTag as ObjectTag
+from ..managed_blam.object import ObjectTag
+from ..tags.object import CinematicCopyUnsupported
 from ..managed_blam.model import ModelTag
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.cinematic_scene import CinematicClip, CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicLighting, CinematicMusic, CinematicObjectFunction, CinematicObjectFunctionKeyframe, CinematicScreenEffect, CinematicTextureMovie, CinematicUserInputConstraints
@@ -271,7 +272,6 @@ class Actor:
         object_path = Path(tags_dir, self.original_tag)
         # Check that there is an animation graph
         with ObjectTag(path=object_path) as obj:
-            model_tag_path = obj.reference_model.Path
             model_path = obj.get_model_tag_path_full()
             if model_path is None or not Path(model_path).exists():
                 return f"Actor {self.name} has no valid model"
@@ -302,77 +302,12 @@ class Actor:
             scenery_path = object_path.with_suffix(".scenery")
             if not scenery_path.exists():
                 # No scenery? lets create it
-                with ObjectTag(path=scenery_path) as scenery:
-                    scenery.reference_model.Path = model_tag_path
-                    # Copy across important values
-                    scenery_object = scenery.object_struct.Elements[0]
-                    obj_object = obj.object_struct.Elements[0]
-                    scenery_flags = scenery_object.SelectField("Flags:flags")
-                    obj_flags = obj_object.SelectField("Flags:flags")
-                    # set some flags which might affect render
-                    scenery_flags.SetBit("does not cast shadow", obj_flags.TestBit("does not cast shadow"))
-                    scenery_flags.SetBit("search cardinal direction lightmaps on failure", obj_flags.TestBit("search cardinal direction lightmaps on failure"))
-                    scenery_flags.SetBit("object scales attachments", obj_flags.TestBit("object scales attachments"))
-                    scenery_flags.SetBit("sample enviroment lighting only ignore object lighting", obj_flags.TestBit("sample enviroment lighting only ignore object lighting"))
-                    # More stuff
-                    scenery_object.SelectField("bounding radius").Data = obj_object.SelectField("bounding radius").Data
-                    scenery_object.SelectField("bounding offset").Data = obj_object.SelectField("bounding offset").Data
-                    scenery_object.SelectField("lightmap shadow mode").Value = obj_object.SelectField("lightmap shadow mode").Value
-                    scenery_object.SelectField("sweetener size").Value = obj_object.SelectField("sweetener size").Value
-                    scenery_object.SelectField("dynamic light sphere radius").Data = obj_object.SelectField("dynamic light sphere radius").Data
-                    scenery_object.SelectField("dynamic light sphere offset").Data = obj_object.SelectField("dynamic light sphere offset").Data
-                    scenery_object.SelectField("default model variant").Data = obj_object.SelectField("default model variant").Data
-                    scenery_object.SelectField("crate object").Path = obj_object.SelectField("crate object").Path
-                    scenery_object.SelectField("creation effect").Path = obj_object.SelectField("creation effect").Path
-                    scenery_object.SelectField("material effects").Path = obj_object.SelectField("material effects").Path
-                    scenery_object.SelectField("simulation_interpolation").Path = obj_object.SelectField("material effects").Path
-                    # Copy tag blocks
-                    funcs = scenery_object.SelectField("functions")
-                    funcs.Deserialize(obj_object.SelectField("functions").Serialize())
-                    # obj_object.SelectField("functions").CopyEntireTagBlock()
-                    # funcs.PasteReplaceEntireBlock()
-                    # set all import names to zero so functions are script controlled
-                    found_ones = False
-                    found_tens = False
-                    is_weapon = tag_type == '.weapon'
-                    for e in funcs.Elements:
-                        e.SelectField("import name").SetStringData("zero")
-                        if is_weapon:
-                            if e.SelectField("export name").GetStringData() == AMMO_FUNCTIONS[0]:
-                                found_ones = True
-                            elif e.SelectField("export name").GetStringData() == AMMO_FUNCTIONS[1]:
-                                found_tens = True
-                                
-                    if is_weapon:
-                        if not found_ones:
-                            e = funcs.AddElement()
-                            e.SelectField("import name").SetStringData("zero")
-                            e.SelectField("export name").SetStringData(AMMO_FUNCTIONS[0])
-                        if not found_tens:
-                            e = funcs.AddElement()
-                            e.SelectField("import name").SetStringData("zero")
-                            e.SelectField("export name").SetStringData(AMMO_FUNCTIONS[1])
-                
-                    scenery_object.SelectField("attachments").Deserialize(obj_object.SelectField("attachments").Serialize())
-                    # obj_object.SelectField("attachments").CopyEntireTagBlock()
-                    # scenery_object.SelectField("attachments").PasteReplaceEntireBlock()
-                    scenery_object.SelectField("hull surfaces").Deserialize(obj_object.SelectField("hull surfaces").Serialize())
-                    # obj_object.SelectField("hull surfaces").CopyEntireTagBlock()
-                    # scenery_object.SelectField("hull surfaces").PasteReplaceEntireBlock()
-                    scenery_object.SelectField("jetwash").Deserialize(obj_object.SelectField("jetwash").Serialize())
-                    # obj_object.SelectField("jetwash").CopyEntireTagBlock()
-                    # scenery_object.SelectField("jetwash").PasteReplaceEntireBlock()
-                    scenery_object.SelectField("widgets").Deserialize(obj_object.SelectField("widgets").Serialize())
-                    # obj_object.SelectField("widgets").CopyEntireTagBlock()
-                    # scenery_object.SelectField("widgets").PasteReplaceEntireBlock()
-                    scenery_object.SelectField("change colors").Deserialize(obj_object.SelectField("change colors").Serialize())
-                    # obj_object.SelectField("change colors").CopyEntireTagBlock()
-                    # scenery_object.SelectField("change colors").PasteReplaceEntireBlock()
-                    scenery_object.SelectField("spawn effects").Deserialize(obj_object.SelectField("spawn effects").Serialize())
-                    # obj_object.SelectField("spawn effects").CopyEntireTagBlock()
-                    # scenery_object.SelectField("spawn effects").PasteReplaceEntireBlock()
-                    
-                    scenery.tag_has_changes = True
+                try:
+                    with ObjectTag(path=scenery_path) as scenery:
+                        scenery.copy_cinematic_object(obj, AMMO_FUNCTIONS)
+                except CinematicCopyUnsupported:
+                    from ..managed_blam.object_legacy import copy_cinematic_scenery_legacy
+                    copy_cinematic_scenery_legacy(object_path, scenery_path, AMMO_FUNCTIONS)
                             
 class ShotActor:
     def __init__(self, ob: bpy.types.Object, shot_index: int):

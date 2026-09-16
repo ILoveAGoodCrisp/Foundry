@@ -16,6 +16,8 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
   magazine/tether metadata, first-person model edits and scenery lighting references.
 - Object attachment references, marker names and scale-function names. Missing
   and unsupported attachments are filtered before opening a legacy converter.
+- Cinematic scenery conversion when the source block layouts match the target
+  schema. Incompatible layouts use the isolated legacy copy fallback.
 
 The Blender-facing classes retain their existing import locations. Their
 implementations live in this package. Reference results are detached Python
@@ -69,7 +71,7 @@ The additional camera and wrapper suites run inside Blender:
 - `tests/test_blam_camera_blender.py`
 - `tests/test_blam_wrappers_blender.py`
 
-All 23 tests pass together in Blender 5.2 with addon dependencies available.
+All 27 tests pass together in Blender 5.2 with addon dependencies available.
 Coverage includes real tag serialization, edits and aborts, stale-handle-safe
 block construction, model references/variants, native color channels,
 title-specific fields, lightmapper settings, camera keyframes, packaging, and
@@ -77,8 +79,8 @@ addon imports. Object tests cover five title profiles, inherited object fields,
 reference round trips and aborted edits, colors, weapon metadata and first-person
 block growth. Wrapper tests assert that ordinary migrated operations never
 initialize ManagedBlam. Attachment tests also cover detached records and marker
-parenting with a stubbed light converter. Object custom functions and cinematic
-block copying use `managed_blam/object_legacy.py`; attachment import opens only
+parenting with a stubbed light converter. Object custom functions and the cinematic
+layout compatibility fallback use `managed_blam/object_legacy.py`; attachment import opens only
 the referenced `LightTag` or `CheapLightTag` through the legacy converter.
 
 Read-only sampling also exercised existing tag files from all five H3+ kits:
@@ -100,7 +102,21 @@ Bitmap, render-geometry, animation and custom shader helper APIs need additional
 Python binding coverage. Keep specific title selection distinct from tag-format
 generation when migrating these systems.
 
-Cinematic object conversion needs lossless cross-tag block copying. The current
-Python field API exposes named flags but cannot transfer their raw bit masks;
-copying only visible names could discard unnamed bits. Add native block copying
-or raw flag access before replacing the legacy block serialization path.
+Cinematic object conversion now uses native `TagBlock.copy_from` and
+`TagField.copy_value_from`. These APIs were added to the local blam-tags checkout;
+rebuild the wheel from that checkout before packaging. Block copying checks nested
+layouts, preserves raw bytes and remaps layout indices before replacing the target.
+Function imports become script-controlled and weapon ammo functions are added once.
+The simulation-interpolation reference is copied independently of material effects.
+
+Tests cover five H3+ profiles, nested function bytes and colors, and rejection of
+incompatible blocks without destination changes. H3 has a change-color layout
+difference (40 versus 36 bytes in a nested function struct). Empty blocks and
+static color containers with empty functions now copy natively; initial color
+permutations still pass the native layout check. Populated incompatible functions
+use the legacy fallback. A synthetic older layout tests both cases and verifies
+that a failed conversion does not save partial edits. The fallback still needs
+editing-kit validation.
+Read-only sampling converted temporary copies of 36 H3 weapons, bipeds and
+vehicles and verified their initial color permutations after reopening. All 36
+used the native path; no original editing-kit tags were modified.
