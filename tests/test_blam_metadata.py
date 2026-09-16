@@ -17,6 +17,37 @@ lighting = importlib.import_module('foundry_native_tags.lighting')
 
 
 class MetadataTests(unittest.TestCase):
+    def test_cinematic_dynamic_lighting_metadata(self):
+        for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root:
+                args = dict(tags_root=root, game=game)
+                (Path(root) / 'lamp.light').touch()
+                with lighting.CinematicLightingDocument('test.new_cinematic_lighting', **args) as doc:
+                    if game not in {'halo4', 'halo2a'}:
+                        block = doc.block(doc.tag.root(), 'dynamic lights')
+                        for reference in ('lamp.light', 'missing.light', None):
+                            element = block[block.add()]
+                            doc.set_reference(element, 'light', reference)
+                            for field, value in [('Direction', 90.), ('Front-Back', 30.), ('Distance', 2.)]:
+                                doc.required_field(element, field).set(value)
+                            flags = doc.required_field(element, 'Flags')
+                            flags.set_flag('follow object', True)
+                            flags.set_flag('position at marker', True)
+                path = Path(root) / 'test.new_cinematic_lighting'
+                before = path.read_bytes()
+                with lighting.CinematicLightingDocument(path, **args) as doc:
+                    records = doc.dynamic_lights()
+                    self.assertFalse(doc.tag_has_changes)
+                self.assertEqual(before, path.read_bytes())
+                if game in {'halo4', 'halo2a'}:
+                    self.assertEqual(records, [])
+                else:
+                    self.assertEqual(len(records), 1)
+                    record = records[0]
+                    self.assertEqual(record.reference.RelativePathWithExtension, 'lamp.light')
+                    self.assertTrue(record.follow_object and record.use_marker)
+                    self.assertEqual((record.direction, record.front_back, record.distance), (90., 30., 2.))
+
     def test_lightmap_region_settings(self):
         for game in ('halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root:

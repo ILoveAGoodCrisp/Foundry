@@ -4,7 +4,8 @@ from mathutils import Matrix, Vector
 
 from .light import LightTag
 from .. import utils
-from . import Tag
+from ..tags.blender import BlenderTag
+from ..tags.lighting import CinematicLightingDocument
 from . import import_transform
 import bpy
 
@@ -126,66 +127,17 @@ class CinLighting:
         self.dynamic_lights: list[DynamicLight] = []
         self.cortana_lights: list[CinematicLight] = []
     
-class CinematicLightingTag(Tag):
-    tag_ext = 'new_cinematic_lighting'
-    
-    def _from_corinth(self, cin_lighting: CinLighting):
-        lights = self.tag.SelectField("Block:Authored Light Probe[0]/Block:Lights")
-        
-        if lights is not None and lights.Elements.Count > 0:
-            element = lights.Elements[0]
-            # Light 1
-            # light_1 = CinematicLight()
-            # light_1.set_color(element.SelectField("RealRgbColor:Direct color 1").Data)
-            # light_1.set_intensity(element.SelectField("Real:Direct intensity 1").Data * element.SelectField("Real:Authored Light Probe Intensity Scale").Data)
-            # if light_1.valid_color and light_1.valid_intensity:
-            #     light_1.compute_matrix(element.SelectField("Real:Direction 1").Data, element.SelectField("Real:Front-Back 1").Data)
-            #     cin_lighting.vmf_lights.append(light_1)
-            
-            # # Light 2
-            # light_2 = CinematicLight()
-            # light_2.set_color(element.SelectField("RealRgbColor:Direct color 2").Data)
-            # light_2.set_intensity(element.SelectField("Real:Direct intensity 2").Data * element.SelectField("Real:Authored Light Probe Intensity Scale").Data)
-            # if light_2.valid_color and light_2.valid_intensity:
-            #     light_2.compute_matrix(element.SelectField("Real:Direction 2").Data, element.SelectField("Real:Front-Back 2").Data)
-            #     cin_lighting.vmf_lights.append(light_2)
-    
-    def _from_reach(self, cin_lighting: CinLighting):
-        # Directional VMF Light
-        # directional_vmf_light = CinematicLight()
-        # directional_vmf_light.set_color(self.tag.SelectField("RealRgbColor:Directional Color").Data)
-        # directional_vmf_light.set_intensity(self.tag.SelectField("Real:Directional scale").Data * self.tag.SelectField("Real:vmf light scale").Data)
-        # if directional_vmf_light.valid_color and directional_vmf_light.valid_intensity:
-        #     directional_vmf_light.compute_matrix(self.tag.SelectField("Real:Direction").Data, self.tag.SelectField("Real:Front-Back").Data)
-        #     cin_lighting.vmf_lights.append(directional_vmf_light)
-        
-        # # Analytical VMF Light
-        # analytical_vmf_light = CinematicLight()
-        # analytical_vmf_light.set_color(self.tag.SelectField("RealRgbColor:Analytical color").Data)
-        # analytical_vmf_light.set_intensity(self.tag.SelectField("Real:Analytical scale").Data * self.tag.SelectField("Real:analytical light scale").Data)
-        # if analytical_vmf_light.valid_color and analytical_vmf_light.valid_intensity:
-        #     analytical_vmf_light.compute_matrix(self.tag.SelectField("Real:Direction(A)").Data, self.tag.SelectField("Real:Front-Back(A)").Data)
-        #     cin_lighting.vmf_lights.append(analytical_vmf_light)
-            
-        # Dynamic Lights
-        for element in self.tag.SelectField("dynamic lights").Elements:
-            light_tag_path = element.SelectField("light").Path
-            if not self.path_exists(light_tag_path):
-                continue
-            
-            dynamic_light = DynamicLight()
-            dynamic_light.light_tag = light_tag_path
-            flags = element.SelectField("Flags")
-            dynamic_light.follow_object = flags.TestBit("follow object")
-            dynamic_light.use_marker = flags.TestBit("position at marker")
-            dynamic_light.compute_matrix(element.SelectField("Real:Direction").Data, element.SelectField("Real:Front-Back").Data, element.SelectField("Real:Distance").Data)
-            cin_lighting.dynamic_lights.append(dynamic_light)
-    
+class CinematicLightingTag(BlenderTag, CinematicLightingDocument):
+    def __init__(self, path='', *, tag_must_exist=False, **kwargs):
+        super().__init__(path, tag_must_exist=tag_must_exist, **kwargs)
+
     def to_cinematic_lighting(self, marker, persist, shot_index) -> CinLighting:
-        cin_lighting = CinLighting(marker, persist, shot_index)
-        if self.corinth:
-            self._from_corinth(cin_lighting)
-        else:
-            self._from_reach(cin_lighting)
-            
-        return cin_lighting
+        lighting = CinLighting(marker, persist, shot_index)
+        for record in self.dynamic_lights():
+            light = DynamicLight()
+            light.light_tag = record.reference
+            light.follow_object = record.follow_object
+            light.use_marker = record.use_marker
+            light.compute_matrix(record.direction, record.front_back, record.distance)
+            lighting.dynamic_lights.append(light)
+        return lighting

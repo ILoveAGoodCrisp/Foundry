@@ -11,6 +11,7 @@ sys.path.insert(0, str(ADDONS))
 from io_scene_foundry import utils, managed_blam
 from io_scene_foundry.managed_blam.model import ModelTag
 from io_scene_foundry.managed_blam.object import ObjectTag
+from io_scene_foundry.managed_blam.cinematic_lighting import CinematicLightingTag
 from io_scene_foundry.managed_blam.globals import GlobalsTag
 from io_scene_foundry.managed_blam.render_method_option import RenderMethodOptionTag
 from io_scene_foundry.managed_blam.render_method_definition import RenderMethodDefinitionTag
@@ -88,6 +89,20 @@ class WrapperTests(unittest.TestCase):
                     with ObjectTag('cinematic.scenery') as scenery:
                         scenery.copy_cinematic_object(obj)
                         self.assertEqual(scenery.get_model_tag_path(), 'test.model')
+                (Path(root) / 'lamp.light').touch()
+                with CinematicLightingTag('test.new_cinematic_lighting') as tag:
+                    block = tag.block(tag.tag.root(), 'dynamic lights')
+                    element = block[block.add()]
+                    tag.set_reference(element, 'light', 'lamp.light')
+                    for field, value in [('Direction', 90.), ('Front-Back', 30.), ('Distance', 2.)]:
+                        tag.required_field(element, field).set(value)
+                    result = tag.to_cinematic_lighting('head', True, 3)
+                    self.assertEqual((result.marker, result.persist, result.shot_index), ('head', True, 3))
+                    light = result.dynamic_lights[0]
+                    self.assertEqual(light.light_tag.RelativePathWithExtension, 'lamp.light')
+                    self.assertAlmostEqual(light.matrix.translation.x, 0., places=4)
+                    self.assertAlmostEqual(light.matrix.translation.y, 173.20508, places=4)
+                    self.assertAlmostEqual(light.matrix.translation.z, 100., places=4)
                 for cls, method in [(GlobalsTag, 'get_global_materials'),
                                     (RenderMethodOptionTag, 'read_options'),
                                     (RenderMethodDefinitionTag, 'get_defaults')]:

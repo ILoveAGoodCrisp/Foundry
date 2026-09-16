@@ -1,5 +1,7 @@
 # blam-tags migration
 
+See [migration status](MIGRATION_STATUS.md) for the remaining work and dependency audit.
+
 ## Migrated workflows
 
 These wrappers now use native blam-tags documents and never initialize ManagedBlam:
@@ -16,6 +18,8 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
   magazine/tether metadata, first-person model edits and scenery lighting references.
 - Object attachment references, marker names and scale-function names. Missing
   and unsupported attachments are filtered before opening a legacy converter.
+- Cinematic-lighting creation and dynamic-light references, flags and placement
+  metadata. Referenced light conversion still uses the legacy light wrapper.
 - Cinematic scenery conversion when the source block layouts match the target
   schema. Incompatible layouts use the isolated legacy copy fallback.
 
@@ -71,7 +75,7 @@ The additional camera and wrapper suites run inside Blender:
 - `tests/test_blam_camera_blender.py`
 - `tests/test_blam_wrappers_blender.py`
 
-All 27 tests pass together in Blender 5.2 with addon dependencies available.
+All 28 tests pass together in Blender 5.2 with addon dependencies available.
 Coverage includes real tag serialization, edits and aborts, stale-handle-safe
 block construction, model references/variants, native color channels,
 title-specific fields, lightmapper settings, camera keyframes, packaging, and
