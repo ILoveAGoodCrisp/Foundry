@@ -207,3 +207,67 @@ In a read-only sample of 100 weapon physics tags, one contained a supported nati
 sphere body; the other 99 selected the legacy path, including six older H4 layouts.
 This sample validates native eligibility and field decoding, not execution of the
 legacy fallback or complete rigid-body mesh import.
+
+Standalone box bodies now join spheres on the native path, including material,
+half-extents, convex radius padding, translation and rotation metadata. The existing
+box rotation calculation is preserved, including its known H4/H2AMP caveat. Expanded
+tests cover all five profiles, matrix scale/translation, invalid extents and unbound
+body fallback. The same 100-tag weapon sample now reads 13 native primitives from
+seven tags; 93 still select legacy conversion, including four unbound bodies.
+
+Standalone capsules (pill shapes) now read native endpoints and radius and reuse
+the existing capsule mesh/transform convention. Tests across five H3+ profiles check
+radius scaling, both transformed capsule endpoints and bone placement. Non-finite
+endpoints are rejected; zero-length capsules select legacy conversion before any
+objects are created. The 100-tag sample now reads 14 native primitives from eight
+tags; 92 still select the legacy path. Compound shapes and Havok bodies remain the
+main rigid-body migration work. Capsule mesh construction itself is unchanged.
+
+Standalone convex polyhedra now decode packed vertex groups through blam-tags and
+reuse the existing Blender convex-hull conversion. Tests across five H3+ profiles
+cover nonzero vertex-group offsets, coordinate scaling, a real tetrahedron hull,
+bone placement and invalid group ranges. All 47 migration tests pass without
+initializing ManagedBlam. The same read-only 100-tag weapon sample now decodes 83
+native primitives from 77 tags, with 23 selecting legacy conversion and no errors
+or source changes. This sample checks metadata decoding, not complete Blender
+imports. Compound shapes, serialized Havok bodies and older/unbound body layouts
+still require the legacy path; full physics visual validation remains outstanding.
+
+Flat lists of supported primitives now decode natively. Child ranges are derived
+from list indices and packed child counts, independently of rigid-body traversal
+order. Every child is decoded before Blender allocation; nested lists and other
+unsupported child types retain the whole-tag fallback. Five-profile tests cover
+nonzero list offsets, multiple children, repeated decoding, parenting, invalid
+ranges and negative counts. All 47 migration tests pass without ManagedBlam.
+The 100-tag weapon sample now decodes 101 primitives from 84 tags; 16 still select
+legacy conversion, with no decoding errors or source changes. Complete Blender
+mesh imports and visual parity remain unverified by this read-only sample.
+
+MOPP wrappers now resolve native child geometry: H3/ODST/Reach use the stored list
+index, while H4/H2AMP use the child shape reference. Supported primitives and flat
+lists then follow the existing native path. This imports authored child geometry;
+it does not interpret MOPP acceleration bytecode or serialized Havok bodies.
+Five-profile tests cover MOPP-to-list traversal, invalid MOPP indices, H4/H2AMP
+direct primitive children and nested MOPP fallback. All 47 migration tests pass
+without initializing ManagedBlam. The weapon sample remains 84 native tags / 101
+primitives out of 100 tags. A separate 100-tag vehicle sample decodes 71 native
+tags / 371 primitives, with 29 selecting legacy conversion. Both samples report
+no decoding errors or source changes; complete Blender imports remain unverified.
+
+Nested lists and MOPP wrappers now traverse natively using an explicit stack.
+Active-path cycle detection permits shared child lists while rejecting circular
+references before Blender allocation. Expansion is bounded at 100,000 references
+per rigid-body traversal. Unsupported leaf types still select whole-tag legacy
+conversion. Expanded five-profile tests cover nested lists, shared children,
+list cycles, H4/H2AMP MOPP self-cycles and no object linking on invalid input.
+All 47 migration tests pass without initializing ManagedBlam. Serialized Havok
+bodies, unsupported leaf shapes and older/unbound body layouts still require
+migration; full Blender mesh and visual validation remains outstanding.
+
+H4/H2AMP Havok rigid-body properties now read natively when the referenced authored
+geometry is supported. The existing Blender mapping is preserved for mass and its
+override flag, center-of-mass offset, inertia scaling and linear/angular damping.
+Non-finite values are rejected; serialized Havok shapes still select the fallback.
+Tests cover both profiles and exercise the actual property assignment helper.
+All 47 migration tests pass without initializing ManagedBlam. This does not yet
+validate Havok simulation behavior or complete Blender mesh imports.

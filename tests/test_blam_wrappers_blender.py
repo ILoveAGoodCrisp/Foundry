@@ -19,11 +19,11 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
-    def test_native_physics_sphere_bodies(self):
-        from mathutils import Matrix
+    def test_native_physics_primitive_bodies(self):
+        from mathutils import Matrix, Vector
         from unittest.mock import MagicMock
         from io_scene_foundry.managed_blam.physics_model import PhysicsTag
-        from io_scene_foundry.managed_blam.connected_geometry import RigidBody, Sphere
+        from io_scene_foundry.managed_blam.connected_geometry import RigidBody, Sphere, Box, Pill, Polyhedron
         from io_scene_foundry.tags.physics import PhysicsShapesUnsupported
         from io_scene_foundry.managed_blam import import_transform
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
@@ -70,7 +70,7 @@ class WrapperTests(unittest.TestCase):
                      patch.object(RigidBody, 'to_objects', convert), \
                      patch.object(utils, 'set_region') as region_set, patch.object(utils, 'set_permutation'), \
                      patch.object(import_transform, 'object_matrix', side_effect=lambda matrix, **kw: matrix):
-                    record, = tag.sphere_bodies()
+                    record, = tag.primitive_bodies()
                     shape = Sphere.from_native(record)
                     self.assertEqual(shape.radius, 50.)
                     self.assertEqual(shape.material.name, 'metal')
@@ -80,10 +80,186 @@ class WrapperTests(unittest.TestCase):
                     self.assertEqual(tuple(objects[0].matrix_world.translation), (100., 200., 300.))
                     region_set.assert_called_once()
                     body = tag.block(tag.tag.root(), 'rigid bodies')[0]
+                    if game in {'halo4', 'halo2a'}:
+                        flags = tag.required_field(body, 'flags')
+                        for flag in ('Havok rigid body', 'explicit mass', 'absolute center of mass'):
+                            flags.set_flag(flag, True)
+                        for name, value in [('mass', 12.), ('inertia tensor scale', 2.),
+                                            ('inertia tensor scale x', 1.), ('inertia tensor scale y', 2.),
+                                            ('inertia tensor scale z', 3.), ('linear damping', .5), ('angular damping', .25)]:
+                            tag.required_field(body, name).set(value)
+                        center = tag.required_field(body, 'center off mass offset')
+                        center.set(type(center.value)(1., 2., 3.))
+                        record, = tag.primitive_bodies()
+                        native_body = RigidBody.__new__(RigidBody)
+                        native_body.havok_info = record.havok
+                        native_shape = Sphere.from_native(record)
+                        native_shape.ob = SimpleNamespace(nwo=SimpleNamespace())
+                        native_body.setup_havok_props(native_shape)
+                        props = native_shape.ob.nwo
+                        self.assertEqual(props.havok_mass, 12.)
+                        self.assertTrue(props.havok_change_mass)
+                        self.assertEqual(props.havok_center_of_mass, (1., 2., 3.))
+                        self.assertEqual(props.havok_inertia_tensor, (1., 2., 3.))
+                        self.assertEqual(props.havok_linear_damping, .5)
+                        self.assertEqual(props.rigid_body_type, 'HAVOK')
+                        tag.required_field(body, 'serialized shapes').set(0)
+                        with self.assertRaisesRegex(PhysicsShapesUnsupported, 'Serialized'):
+                            tag.primitive_bodies()
+                        tag.required_field(body, 'serialized shapes').set(-1)
+                        flags.set_flag('Havok rigid body', False)
                     reference = tag.required_field(body, 'shape reference').as_struct()
                     tag.required_field(reference, 'shape type').set(2)
+                    boxes = tag.block(tag.tag.root(), 'boxes')
+                    box = boxes[boxes.add()]
+                    base = tag.required_field(box, 'base').as_struct()
+                    tag.required_field(base, 'name').set('box')
+                    tag.required_field(base, 'material').set(0)
+                    convex = tag.required_field(box, 'box shape').as_struct()
+                    tag.required_field(convex, 'radius').set(.5)
+                    transform = tag.required_field(box, 'convex transform shape').as_struct()
+                    for name, values in [('translation', (1., 2., 3.)), ('rotation i', (1.,0.,0.)),
+                                         ('rotation j', (0.,1.,0.)), ('rotation k', (0.,0.,1.))]:
+                        field = tag.required_field(transform, name)
+                        field.set(type(field.value)(*values))
+                    extents = tag.required_field(box, 'half extents')
+                    extents.set(type(extents.value)(.25, .75, 1.25))
+                    record, = tag.primitive_bodies()
+                    converted = Box.from_native(record)
+                    self.assertEqual((converted.width, converted.length, converted.height), (150., 250., 350.))
+                    self.assertEqual(tuple(converted.matrix.to_scale()), (150., 250., 350.))
+                    objects = tag.to_blend_objects(collection, rig)
+                    self.assertEqual(tuple(objects[0].matrix_world.translation), (100., 200., 300.))
+                    extents.set(type(extents.value)(-1., .75, 1.25))
+                    with self.assertRaisesRegex(ValueError, 'box dimensions'):
+                        tag.primitive_bodies()
+                    tag.required_field(body, 'node').set(-1)
+                    with self.assertRaisesRegex(PhysicsShapesUnsupported, 'Unbound'):
+                        tag.primitive_bodies()
+                    tag.required_field(body, 'node').set(0)
+                    tag.required_field(reference, 'shape type').set(1)
+                    pills = tag.block(tag.tag.root(), 'pills')
+                    pill = pills[pills.add()]
+                    base = tag.required_field(pill, 'base').as_struct()
+                    tag.required_field(base, 'name').set('capsule')
+                    tag.required_field(base, 'material').set(0)
+                    capsule = tag.required_field(pill, 'capsule shape').as_struct()
+                    tag.required_field(capsule, 'radius').set(.5)
+                    for name, values in [('bottom', (1., 2., 3.)), ('top', (1., 2., 5.))]:
+                        field = tag.required_field(pill, name)
+                        field.set(type(field.value)(*values))
+                    record, = tag.primitive_bodies()
+                    converted = Pill.from_native(record)
+                    self.assertEqual(converted.radius, 50.)
+                    self.assertEqual(tuple(converted.matrix @ Vector((0., 0., 0.))), (100., 200., 250.))
+                    self.assertEqual(tuple(converted.matrix @ Vector((0., 0., 2.))), (100., 200., 550.))
+                    objects = tag.to_blend_objects(collection, rig)
+                    self.assertEqual(tuple(objects[0].matrix_world.translation), (100., 200., 250.))
+                    top = tag.required_field(pill, 'top')
+                    top.set(type(top.value)(1., 2., 3.))
+                    with self.assertRaisesRegex(PhysicsShapesUnsupported, 'Zero-length'):
+                        tag.primitive_bodies()
+                    tag.required_field(reference, 'shape type').set(4)
+                    polyhedra = tag.block(tag.tag.root(), 'polyhedra')
+                    for i in range(2):
+                        poly = polyhedra[polyhedra.add()]
+                        tag.required_field(poly, 'four vectors size').set(1)
+                    tag.required_field(reference, 'shape').set(1)
+                    vectors = tag.block(tag.tag.root(), 'polyhedron four vectors')
+                    vectors.add()  # First shape's vector group must not leak into the second.
+                    packed = vectors[vectors.add()]
+                    for axis, values, last in [('x', (0.,1.,0.), 0.), ('y',(0.,0.,1.),0.), ('z',(0.,0.,0.),1.)]:
+                        field = tag.required_field(packed, f'four vectors {axis}')
+                        field.set(type(field.value)(*values))
+                        tag.required_field(packed, f'havok w four vectors {axis}').set(last)
+                    record, = tag.primitive_bodies()
+                    self.assertEqual(record.offset, 1)
+                    converted = Polyhedron.from_native(record)
+                    self.assertEqual([tuple(v) for v in converted.vertices], [(0.,0.,0.),(100.,0.,0.),(0.,100.,0.),(0.,0.,100.)])
+                    import bmesh
+                    bm = bmesh.new()
+                    try:
+                        for point in converted.vertices:
+                            bm.verts.new(point)
+                        bmesh.ops.convex_hull(bm, input=list(bm.verts))
+                        self.assertEqual(len(bm.faces), 4)
+                    finally:
+                        bm.free()
+                    self.assertEqual(len(tag.to_blend_objects(collection, rig)), 1)
+                    poly = polyhedra[1]
+                    tag.required_field(poly, 'four vectors size').set(99)
+                    with self.assertRaisesRegex(ValueError, 'vector range'):
+                        tag.primitive_bodies()
+                    tag.required_field(reference, 'shape type').set(14)
+                    lists = tag.block(tag.tag.root(), 'lists')
+                    for count in (1, 2):
+                        element = lists[lists.add()]
+                        tag.required_field(element, 'child shapes size').set(count)
+                    children = tag.block(tag.tag.root(), 'list shapes')
+                    for kind in (3, 0, 0):
+                        child = children[children.add()]
+                        child_ref = tag.required_field(child, 'shape reference').as_struct()
+                        tag.required_field(child_ref, 'shape type').set(kind)
+                        tag.required_field(child_ref, 'shape').set(0)
+                    # List 1 skips the unsupported child belonging to list 0.
+                    records = tag.primitive_bodies()
+                    self.assertEqual([r.name for r in records], ['ball', 'ball'])
+                    objects = tag.to_blend_objects(collection, rig)
+                    self.assertEqual(len(objects), 2)
+                    self.assertTrue(all(ob.parent_bone == 'root' for ob in objects))
+                    mopps = tag.block(tag.tag.root(), 'mopps')
+                    mopp = mopps[mopps.add()]
+                    if game in {'halo4', 'halo2a'}:
+                        mopp_ref = tag.required_field(mopp, 'childShapePointer').as_struct()
+                        tag.required_field(mopp_ref, 'shape type').set(14)
+                        tag.required_field(mopp_ref, 'shape').set(1)
+                    else:
+                        tag.required_field(mopp, 'list').set(1)
+                    tag.required_field(reference, 'shape type').set(15)
+                    tag.required_field(reference, 'shape').set(0)
+                    self.assertEqual([r.name for r in tag.primitive_bodies()], ['ball', 'ball'])
+                    self.assertEqual(len(tag.to_blend_objects(collection, rig)), 2)
+                    tag.required_field(reference, 'shape').set(99)
+                    with self.assertRaisesRegex(ValueError, 'MOPP index'):
+                        tag.primitive_bodies()
+                    tag.required_field(reference, 'shape').set(0)
+                    if game in {'halo4', 'halo2a'}:
+                        tag.required_field(mopp_ref, 'shape type').set(0)
+                        tag.required_field(mopp_ref, 'shape').set(0)
+                        self.assertEqual(len(tag.primitive_bodies()), 1)
+                        tag.required_field(mopp_ref, 'shape type').set(15)
+                        with self.assertRaisesRegex(ValueError, 'Circular'):
+                            tag.primitive_bodies()
+                    tag.required_field(reference, 'shape type').set(14)
+                    tag.required_field(reference, 'shape').set(1)
+                    tag.required_field(lists[1], 'child shapes size').set(99)
+                    with self.assertRaisesRegex(ValueError, 'list child range'):
+                        tag.primitive_bodies()
+                    tag.required_field(lists[1], 'child shapes size').set(-1)
+                    with self.assertRaisesRegex(ValueError, 'Negative physics list'):
+                        tag.primitive_bodies()
+                    tag.required_field(lists[1], 'child shapes size').set(2)
+                    child_ref = tag.required_field(children[2], 'shape reference').as_struct()
+                    tag.required_field(child_ref, 'shape type').set(14)
+                    first_ref = tag.required_field(children[0], 'shape reference').as_struct()
+                    tag.required_field(first_ref, 'shape type').set(0)
+                    self.assertEqual([r.name for r in tag.primitive_bodies()], ['ball', 'ball'])
+                    # Reusing a list in separate branches is not a cycle.
+                    second_ref = tag.required_field(children[1], 'shape reference').as_struct()
+                    tag.required_field(second_ref, 'shape type').set(14)
+                    self.assertEqual(len(tag.to_blend_objects(collection, rig)), 2)
+                    tag.required_field(first_ref, 'shape type').set(14)
+                    tag.required_field(first_ref, 'shape').set(1)
+                    collection.objects.link.reset_mock()
+                    with self.assertRaisesRegex(ValueError, 'Circular'):
+                        tag.to_blend_objects(collection, rig)
+                    collection.objects.link.assert_not_called()
+                    tag.required_field(first_ref, 'shape type').set(3)
                     with self.assertRaises(PhysicsShapesUnsupported):
-                        tag.sphere_bodies()
+                        tag.primitive_bodies()
+                    tag.required_field(reference, 'shape type').set(3)
+                    with self.assertRaises(PhysicsShapesUnsupported):
+                        tag.primitive_bodies()
                 self.assertEqual((Path(root) / 'test.physics_model').read_bytes(), before)
 
     def test_native_physics_constraints(self):

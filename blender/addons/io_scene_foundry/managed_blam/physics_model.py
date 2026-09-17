@@ -1,7 +1,7 @@
 """Native physics constraints with a temporary legacy rigid-body shape boundary."""
 from ..tags.blender import BlenderTag
 from ..tags.physics import PhysicsDocument, PhysicsShapesUnsupported
-from .connected_geometry import Constraint, Sphere, RigidBody
+from .connected_geometry import Constraint, Sphere, Box, Pill, Polyhedron, RigidBody
 from . import import_transform
 from .. import utils
 
@@ -23,22 +23,23 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
                 raise ValueError(f'Physics constraint {constraint.name!r} requires both armature bones')
         objects = []
         try:
-            spheres = self.sphere_bodies()
+            records = self.primitive_bodies()
         except PhysicsShapesUnsupported:
-            spheres = None
-        if spheres is None:
+            records = None
+        if records is None:
             from .physics_legacy import LegacyPhysicsTag
             with LegacyPhysicsTag(path=self.tag_path, tag_must_exist=True) as legacy:
                 objects.extend(legacy.to_blend_objects(collection, armature, variant))
         else:
-            for record in spheres:
+            for record in records:
                 if armature is None or record.bone not in armature.pose.bones:
-                    raise ValueError(f'Physics sphere requires armature bone {record.bone!r}')
-            for record in spheres:
-                shape = Sphere.from_native(record)
+                    raise ValueError(f'Physics primitive requires armature bone {record.bone!r}')
+            for record in records:
+                shape = {'sphere': Sphere, 'box': Box, 'pill': Pill, 'polyhedron': Polyhedron}[record.kind].from_native(record)
                 body = RigidBody.__new__(RigidBody)
                 body.shapes = [shape]
-                body.is_havok_rigid_body = False
+                body.is_havok_rigid_body = record.havok is not None
+                body.havok_info = record.havok
                 body.to_objects()
                 ob = shape.ob
                 ob.parent, ob.parent_type, ob.parent_bone = armature, 'BONE', record.bone

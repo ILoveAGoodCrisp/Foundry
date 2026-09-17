@@ -159,9 +159,14 @@ Separate structure-BSP and Havok collision paths still need migration.
 Physics constraints read through blam-tags and use the existing Blender marker
 conversion. Rigid-body shapes remain in `physics_legacy.py`; the native wrapper
 opens that fallback when referenced shapes are unsupported. Standalone spheres
-now use native records; compound shapes, other primitives and explicit Havok bodies
+and boxes, nonzero-length capsules, convex polyhedra and flat lists of these shapes
+now use native records. Nested lists and MOPP wrappers around supported shapes
+also use native geometry, with circular-reference and expansion-limit checks;
+other primitives, unbound bodies and serialized Havok shapes
 still use the fallback. Constraint-only tags avoid ManagedBlam entirely. Physics
 schemas are ignored build assets.
+H4/H2AMP Havok bodies with supported authored geometry read mass, center-of-mass,
+inertia and damping properties natively through the existing Blender property mapping.
 Read-only sampling converted temporary copies of 36 H3 weapons, bipeds and
 vehicles and verified their initial color permutations after reopening. All 36
 used the native path; no original editing-kit tags were modified.

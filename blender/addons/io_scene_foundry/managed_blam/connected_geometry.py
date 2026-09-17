@@ -914,6 +914,20 @@ class Sphere(Shape):
         self.ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_sphere"
 
 class Pill(Shape):
+    @classmethod
+    def from_native(cls, record):
+        result = cls.__new__(cls)
+        for name in ('name', 'material', 'material_index', 'friction', 'restitution'):
+            setattr(result, name, getattr(record, name))
+        result.radius = record.radius * 100
+        result.bottom, result.top = Vector(record.bottom) * 100, Vector(record.top) * 100
+        difference = result.top - result.bottom
+        result.rotation = difference.normalized().to_track_quat('Z', 'X')
+        result.translation = result.bottom - difference.normalized() * result.radius
+        result.matrix = Matrix.LocRotScale(result.translation, result.rotation,
+            Vector((result.radius, result.radius, result.radius + difference.length / 2)))
+        return result
+
     def __init__(self, element: TagFieldBlockElement, materials):
         super().__init__(element, materials)
         radius = element.SelectField("Struct:capsule shape[0]/Real:radius").Data
@@ -943,6 +957,20 @@ class Pill(Shape):
         self.ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_pill"
 
 class Box(Shape):
+    @classmethod
+    def from_native(cls, record):
+        result = cls.__new__(cls)
+        for name in ('name', 'material', 'material_index', 'friction', 'restitution'):
+            setattr(result, name, getattr(record, name))
+        result.translation = Vector(record.translation) * 100
+        result.width, result.length, result.height = ((v + record.radius) * 200 for v in record.half_extents)
+        ii, ij, ik = record.axes[0]
+        ji, jj, jk = record.axes[1]
+        ki, kj, kk = record.axes[2]
+        rotation = cls.calculate_box_rotation(ii, ik, ij, ji, jj, jk, ki, kj, kk)
+        result.matrix = Matrix.LocRotScale(result.translation, rotation, Vector((result.width, result.length, result.height)))
+        return result
+
     def __init__(self, element: TagFieldBlockElement, materials, corinth: bool):
         super().__init__(element, materials)
         self.translation = Vector([n for n in element.SelectField("Struct:convex transform shape[0]/RealVector3d:translation").Data]) * 100
@@ -1007,6 +1035,15 @@ class PolyhedronFourVectors:
         return vectors
         
 class Polyhedron(Shape):
+    @classmethod
+    def from_native(cls, record):
+        result = cls.__new__(cls)
+        for name in ('name', 'material', 'material_index', 'friction', 'restitution', 'radius', 'offset'):
+            setattr(result, name, getattr(record, name))
+        result.vertices = [Vector(v) * 100 for v in record.vertices]
+        result.matrix = Matrix.Identity(4)
+        return result
+
     def __init__(self, element: TagFieldBlockElement, materials, vectors_block: TagFieldBlockElement, four_vectors_map: list, for_bsp=False):
         super().__init__(element, materials, for_bsp)
         if for_bsp:
