@@ -17,6 +17,18 @@ def function_blob(kind, compacts=(), flags=0, colors=()):
 
 
 class FunctionBindingTests(unittest.TestCase):
+    def test_identity_curve_without_editor_trailer(self):
+        for flags in (0, 1):
+            blob = function_blob(0, flags=flags)
+            editor = blam_tags.TagFunctionEditor(blob)
+            description = editor.describe()
+            self.assertEqual(description['master_type'], 1)
+            for graph in description['graphs']:
+                self.assertEqual(graph['segments'], [(0, False, [(0., 0.), (1., 1.)])])
+            for x in (0., .25, .5, 1.):
+                self.assertAlmostEqual(editor.evaluate_shape(x, 0.), x)
+            self.assertEqual(editor.to_bytes(), blob)
+
     def test_basic_colors_evaluation_and_invalid_data(self):
         blob = function_blob(1)
         editor = blam_tags.TagFunctionEditor(blob)

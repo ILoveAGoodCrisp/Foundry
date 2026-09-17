@@ -132,9 +132,12 @@ and Reach/H4/H2AMP cheap lights. Unsupported function shapes retain a shared leg
 editor fallback; gel bitmap decoding also still requires ManagedBlam. H3/ODST light
 falloff remains unimplemented. Static H4/H2AMP point, spot and directional light
 tags now convert, including physical/artistic energy handling and shadow settings.
-Animated parameters, area lights and linked/projected physical or directional
-lights are explicitly unsupported; most sampled real light tags still require
-broader function decoding. Light schemas
+Animated intensity is supported for artistic point/spot lights. Animated radius
+and cones, area lights and linked/projected physical or directional lights remain
+unsupported. Unconnected identity curves evaluate at their constant input and
+older Midnight layouts preserve defaults for unavailable shadow settings. The
+read-only sample now converts 57 of 60 light tags; three require animated attenuation.
+Light schemas
 are staged by the build script as ignored generated assets, not committed sources.
 Read-only sampling converted temporary copies of 36 H3 weapons, bipeds and
 vehicles and verified their initial color permutations after reopening. All 36

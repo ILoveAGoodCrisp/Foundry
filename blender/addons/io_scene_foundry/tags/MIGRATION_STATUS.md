@@ -47,7 +47,7 @@ installer's separate .NET assembly inspection in `tools/halo_launcher.py`.
 
 ## Validation so far
 
-35 regression tests pass together in Blender, including native tag serialization,
+38 regression tests pass together in Blender, including native tag serialization,
 aborted writes, wrapper checks that reject ManagedBlam initialization, camera work,
 metadata, object/cinematic copying and cinematic-lighting transforms. There is
 also a Rust regression test for preserving unnamed flags during cross-tag copying.
@@ -92,3 +92,39 @@ only two: 54 need unavailable curve-editor descriptions and four need animated
 intensity support. This probe mocked Blender allocation, node construction and
 bitmap decoding; it verified field conversion and unchanged tag bytes, not visual
 parity. Decoder coverage and animated light conversion are the next priority.
+
+Follow-up: all 54 unavailable descriptions were identity functions (type 0), which
+have no editor trailer. The Python binding now describes their exact normalized
+line, y = x, and preserves the original bytes. All 180 intensity, attenuation and
+cone mappings in the same 60-tag sample now describe successfully. Identity curves
+also produce verified Blender float-curve nodes. This resolves the decoder error;
+it does not make input-dependent lights static, so animated H4/H2AMP conversion is
+still required. Rebuild the wheel from the updated local blam-tags checkout.
+
+Animated intensity now uses native function nodes for artistic H4/H2AMP point and
+spot lights. Input, range and output-modifier dependencies reach attachments.
+Scalar curves with equal finite output limits are accepted as static radius/cone
+values; genuinely animated radius/cones and physical/directional intensity remain
+unsupported. Animated intensity requires a finite positive normalization scale.
+Basic function nodes now apply output modifiers and return the correct socket;
+normalized additive modifiers retain their original units.
+
+The same 60-tag sample now converts three lights; 57 stop at animated distance
+attenuation. The probe built actual intensity node groups but mocked light
+allocation, final Halo-light setup, bitmap decoding and UI node arrangement.
+All original tag bytes remained unchanged. Visual parity remains unverified.
+
+Follow-up on attenuation: 54 of those 57 failures were unconnected identity curves,
+not animated inputs. These now evaluate natively at the same constant input (one)
+and default range (zero) used by the Blender function graph. Their resolved output
+is used for intensity, radius and cone size, rather than taking clamp_min. Connected
+identity inputs, ranged inputs and output modifiers remain dynamic. The updated
+fixtures check that an unconnected radius curve from 2 to 8 resolves to 8, while a
+connected radius curve is rejected before light allocation.
+
+Older Midnight layouts lacking dynamic shadow quality, shadow clip/bias fields or
+cinema-object filtering now leave the corresponding Blender defaults intact. Legacy
+Shadow Edge Filter is not reinterpreted as modern shadow quality. Active barn-door
+or volume clipping remains explicitly unsupported. With these changes, 57 of the
+same 60 real tags convert in the read-only probe; three still require animated
+distance attenuation. The probe's mocked rendering/bitmap boundaries still apply.

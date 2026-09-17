@@ -1,14 +1,14 @@
 
 
 
-from math import radians
+from math import radians, isfinite
 
 from .bitmap import bitmap_to_image
 from .. import utils
 from ..tags.blender import BlenderTag
 from ..tags.backend import TagDocument
 from ..tags.metadata import enum_index
-from .light_functions import light_functions
+from .light_functions import light_functions, constant_light_value
 from . import import_transform
 import bpy
 
@@ -93,23 +93,43 @@ class LightTag(BlenderTag, TagDocument):
         for name in names:
             function = Function()
             function.from_native_light(self, self.required_field(parameters, name).as_struct())
-            if not function.is_basic_function:
-                raise NotImplementedError(f'Animated {name} in H4/H2AMP light tags is not implemented')
             functions[name] = function
 
         # Resolve all required metadata before allocating a Blender light.
         physically_correct = enum_index(value('Lighting Mode'), ('Physically Correct', 'Artistic')) == 0
+        static_values = {name: constant_light_value(function) for name, function in functions.items()}
+        for name in names[1:]:
+            if static_values[name] is None:
+                raise NotImplementedError(f'Animated {name} in H4/H2AMP light tags is not implemented')
+        intensity = functions['Intensity']
+        animated_intensity = static_values['Intensity'] is None
+        if animated_intensity and (physically_correct or light_type in {2, 4}):
+            raise NotImplementedError('Animated physical/directional H4/H2AMP light intensity is not implemented')
+        if intensity.is_color:
+            raise ValueError('Light intensity must be a scalar function')
+        if animated_intensity and not (isfinite(max(intensity.clamp_min, intensity.clamp_max))
+                                       and max(intensity.clamp_min, intensity.clamp_max) > 0):
+            raise NotImplementedError('Animated light intensity requires a finite positive normalization scale')
         projection = enum_index(value('Cone Projection Shape'), ('Cone', 'Frustum'))
-        quality = enum_index(value('Dynamic Shadow Quality'), ('Normal', 'Expensive (cinematics only)'))
+        # Older Midnight layouts predate these settings. Leave Blender's defaults
+        # for absent properties; do not reinterpret the legacy Shadow Edge Filter.
+        quality = (enum_index(value('Dynamic Shadow Quality'), ('Normal', 'Expensive (cinematics only)'))
+                   if parameters.field('Dynamic Shadow Quality') is not None else None)
+        for name in ('Barn Door Left', 'Barn Door Right', 'Barn Door Top', 'Barn Door Bottom'):
+            if parameters.field(name) is not None and value(name) != 0:
+                raise NotImplementedError('Legacy light barn-door clipping is not implemented')
+        if parameters.field('Clip Volume Shape') is not None and value('Clip Volume Shape') not in ('None', 0):
+            raise NotImplementedError('Legacy light clip volumes are not implemented')
         booleans = {name: enum_index(value(name), ('Off', 'On')) == 1 for name in (
             'Shadows', 'Screenspace Light', 'Ignore Dynamic Objects', 'Cinema Objects Only',
-            'Cinema Only', 'Cinema Exclude', 'Specular Contribution', 'Diffuse Contribution')}
+            'Cinema Only', 'Cinema Exclude', 'Specular Contribution', 'Diffuse Contribution')
+            if name != 'Cinema Objects Only' or parameters.field(name) is not None}
         color = value('Light Color')
         rgb = (color.red, color.green, color.blue)
         attenuation_start = import_transform.distance(value('Distance Attenuation Start'))
-        attenuation_end = import_transform.distance(functions['Distance Attenuation End'].clamp_min)
+        attenuation_end = import_transform.distance(static_values['Distance Attenuation End'])
         inner_cone = value('Inner Cone Angle')
-        shadow_near, shadow_far, shadow_bias = (value(name) for name in (
+        shadow_near, shadow_far, shadow_bias = (value(name) if parameters.field(name) is not None else None for name in (
             'Shadow Near Clip Plane', 'Shadow Far Clip Plane', 'Shadow Bias Offset'))
         gobo_path = self.reference(parameters, 'Gobo Tag Path')
         if (physically_correct or light_type in {2, 4}) and (primary_scale or secondary_scale or self.path_exists(gobo_path)):
@@ -122,27 +142,32 @@ class LightTag(BlenderTag, TagDocument):
         data = bpy.data.lights.new(self.tag_path.ShortName, type=kind)
         data.color = [utils.srgb_to_linear(c) for c in rgb]
         nwo = data.nwo
-        nwo.light_intensity = functions['Intensity'].clamp_min
+        nwo.light_intensity = max(intensity.clamp_min, intensity.clamp_max) if animated_intensity else static_values['Intensity']
         nwo.light_physically_correct = physically_correct
         nwo.light_far_attenuation_start = attenuation_start
         nwo.light_far_attenuation_end = attenuation_end
         if kind == 'SPOT':
-            outer_cone = functions['Outer Cone End'].clamp_min
+            outer_cone = static_values['Outer Cone End']
             data.spot_size = radians(outer_cone)
             if outer_cone > 0:
                 data.spot_blend = max(0., min(1., 1 - inner_cone / outer_cone))
         nwo.light_cone_projection_shape = '_connected_geometry_cone_projection_shape_' + ('cone', 'frustum')[projection]
-        nwo.light_shadow_near_clipplane = shadow_near
-        nwo.light_shadow_far_clipplane = shadow_far
-        nwo.light_shadow_bias_offset = shadow_bias
-        nwo.light_dynamic_shadow_quality = '_connected_geometry_dynamic_shadow_quality_' + ('normal', 'expensive')[quality]
+        if shadow_near is not None:
+            nwo.light_shadow_near_clipplane = shadow_near
+        if shadow_far is not None:
+            nwo.light_shadow_far_clipplane = shadow_far
+        if shadow_bias is not None:
+            nwo.light_shadow_bias_offset = shadow_bias
+        if quality is not None:
+            nwo.light_dynamic_shadow_quality = '_connected_geometry_dynamic_shadow_quality_' + ('normal', 'expensive')[quality]
         for prop, name in (
             ('light_shadows', 'Shadows'), ('light_screenspace', 'Screenspace Light'),
             ('light_ignore_dynamic_objects', 'Ignore Dynamic Objects'),
             ('light_cinema_objects_only', 'Cinema Objects Only'),
             ('light_specular_contribution', 'Specular Contribution'),
             ('light_diffuse_contribution', 'Diffuse Contribution')):
-            setattr(nwo, prop, booleans[name])
+            if name in booleans:
+                setattr(nwo, prop, booleans[name])
         if booleans['Cinema Only']:
             nwo.light_cinema = '_connected_geometry_lighting_cinema_only'
         if booleans['Cinema Exclude']:
@@ -152,7 +177,15 @@ class LightTag(BlenderTag, TagDocument):
         elif physically_correct:
             data.energy = nwo.light_intensity * utils.get_import_scale(bpy.context) ** 2
         else:
-            utils.make_halo_light(data, primary_scale, secondary_scale, gobo_image=gobo_image)
+            strength = intensity.to_blend_nodes(name=f'{self.tag_path.ShortName}_strength', normalize=True) if animated_intensity else None
+            utils.make_halo_light(data, primary_scale, secondary_scale, strength_node_tree=strength, gobo_image=gobo_image)
+        if attachment is not None and animated_intensity:
+            if intensity.uses_input:
+                attachment.function_names.add(intensity.input)
+            if intensity.is_ranged and intensity.range:
+                attachment.function_names.add(intensity.range)
+            if intensity.output_modifier_type.value and intensity.output_modifier:
+                attachment.function_names.add(intensity.output_modifier)
         return data
         
     def to_blender(self, primary_scale="", secondary_scale="", attachment=None):

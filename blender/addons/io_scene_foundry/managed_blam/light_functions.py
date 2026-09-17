@@ -1,6 +1,24 @@
 """Light mapping decoding; the legacy editor is used only for unsupported shapes."""
 from contextlib import contextmanager
 from .connected_material import Function
+from math import isfinite
+
+
+def constant_light_value(function):
+    """Resolve scalar mappings that do not depend on changing light inputs."""
+    if function.is_color or function.output_modifier_type.value:
+        return None
+    if function.is_basic_function and not function.is_ranged:
+        result = function.clamp_min
+    elif function.clamp_min == function.clamp_max:
+        result = function.clamp_min
+    elif (getattr(function, 'native_function_type', None) == 0
+          and not function.uses_input and not (function.is_ranged and function.range)):
+        # Match Function.to_blend_nodes: missing input is "one", missing range is zero.
+        result = function.editor.evaluate(1., 0.)
+    else:
+        return None
+    return result if isfinite(result) else None
 
 
 @contextmanager

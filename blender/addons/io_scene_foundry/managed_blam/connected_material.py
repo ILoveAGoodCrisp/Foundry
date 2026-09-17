@@ -965,6 +965,7 @@ class Function:
         if data is None:
             raise ValueError(f'{name}: missing mapping data')
         self.editor = TagFunctionEditor(data)
+        self.native_function_type = data[0]
         description = self.editor.describe()
         self.is_ranged = description['is_ranged']
         self.master_type = FunctionEditorMasterType(description['master_type'])
@@ -1177,14 +1178,13 @@ class Function:
                     tree.links.new(input=node_mix.inputs["B"], output=node_range.outputs[0])
                     tree.links.new(input=node_mix.inputs["Factor"], output=node_attribute.outputs[0])
             
+            output = (node_mix if self.is_ranged else node).outputs[0]
+            output = self._apply_output_modifier(tree, output, max_value if normalize else None)
             if return_node_group:
-                if self.is_ranged:
-                    tree.links.new(input=group_output.inputs[0], output=node_mix.outputs[0])
-                else:
-                    tree.links.new(input=group_output.inputs[0], output=node.outputs[0])
+                tree.links.new(input=group_output.inputs[0], output=output)
                 return tree
             else:
-                return node_mix.outputs[0]
+                return output
         
         function_node = tree.nodes.new('ShaderNodeGroup')
         
@@ -1270,22 +1270,32 @@ class Function:
         else:
             tree.links.new(input=first_node_input, output=outputs[0])
             
+        output = self._apply_output_modifier(tree, final_node.outputs[0], max_value if normalize else None)
+        if return_node_group:
+            tree.links.new(input=group_output.inputs[0], output=output)
+            arrange(tree)
+            return tree
+        return output
+
+    def _apply_output_modifier(self, tree, output, normalization_scale=None):
         if self.output_modifier_type != OutputModifierType.NONE:
             math_node = tree.nodes.new('ShaderNodeMath')
             math_node.operation = 'MULTIPLY' if self.output_modifier_type == OutputModifierType.TIMES else 'ADD'
-            tree.links.new(input=math_node.inputs[0], output=final_node.outputs[0])
+            tree.links.new(input=math_node.inputs[0], output=output)
             
             attribute_node = add_attribute_node(tree, self.output_modifier)
-            tree.links.new(input=math_node.inputs[1], output=attribute_node.outputs[2] if attribute_node.bl_idname == 'ShaderNodeAttribute' else attribute_node.outputs[0])
+            modifier_output = attribute_node.outputs[2] if attribute_node.bl_idname == 'ShaderNodeAttribute' else attribute_node.outputs[0]
+            if normalization_scale is not None and self.output_modifier_type == OutputModifierType.PLUS:
+                # The light applies max_value after this group, including the additive input.
+                divide = tree.nodes.new('ShaderNodeMath')
+                divide.operation = 'DIVIDE'
+                divide.inputs[1].default_value = normalization_scale
+                tree.links.new(input=divide.inputs[0], output=modifier_output)
+                modifier_output = divide.outputs[0]
+            tree.links.new(input=math_node.inputs[1], output=modifier_output)
             
-            final_node = math_node
-        
-        if return_node_group:
-            tree.links.new(input=group_output.inputs[0], output=final_node.outputs[0])
-            arrange(tree)
-            return tree
-        else:
-            return final_node.outputs[0]
+            return math_node.outputs[0]
+        return output
         
     def time_period_valid(self, force_time_period: bool):
         if not utils.get_prefs().import_shaders_with_time_period:

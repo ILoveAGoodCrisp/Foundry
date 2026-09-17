@@ -19,6 +19,35 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_normalized_light_additive_modifier_keeps_units(self):
+        import bpy
+        from io_scene_foundry.managed_blam import connected_material as material
+        function = material.Function()
+        function.clamp_min, function.clamp_max = 2., 8.
+        function.output_modifier_type = material.OutputModifierType.PLUS
+        function.output_modifier = 'boost'
+        tree = bpy.data.node_groups.new('native_light_modifier_test', 'ShaderNodeTree')
+        def attribute(tree, name):
+            node = tree.nodes.new('ShaderNodeValue')
+            node.outputs[0].default_value = 3.
+            return node
+        def evaluate(socket):
+            node = socket.node
+            if node.bl_idname == 'ShaderNodeValue':
+                return socket.default_value
+            values = [evaluate(i.links[0].from_socket) if i.is_linked else i.default_value for i in node.inputs[:2]]
+            if node.operation == 'ADD':
+                return sum(values)
+            if node.operation == 'DIVIDE':
+                return values[0] / values[1]
+            self.fail(f'Unexpected operation: {node.operation}')
+        try:
+            with patch.object(material, 'add_attribute_node', side_effect=attribute):
+                output = function.to_blend_nodes(tree=tree, normalize=True)
+            self.assertAlmostEqual(evaluate(output) * 8., 5.)  # 2 intensity + 3 boost.
+        finally:
+            bpy.data.node_groups.remove(tree)
+
     def test_native_light_conversion(self):
         import struct
         from unittest.mock import MagicMock
@@ -123,6 +152,9 @@ class WrapperTests(unittest.TestCase):
                                 blob = bytearray(32)
                                 blob[0] = 1
                                 struct.pack_into('<ff', blob, 4, number, number)
+                                if name == 'Distance Attenuation End':
+                                    blob[0] = 0  # Unconnected identity resolves at input=1, not clamp_min.
+                                    struct.pack_into('<ff', blob, 4, 2., number)
                                 tag.required_field(mapping, 'data').set(bytes(blob))
                         before = (Path(root) / 'lamp.light').read_bytes()
                         data = SimpleNamespace(nwo=SimpleNamespace())
@@ -158,6 +190,60 @@ class WrapperTests(unittest.TestCase):
                                 make.assert_called_once()
                         self.assertEqual(before, (Path(root) / 'lamp.light').read_bytes())
 
+    def test_animated_midnight_intensity(self):
+        import struct
+        from unittest.mock import MagicMock
+        from io_scene_foundry.managed_blam import light
+        from io_scene_foundry.managed_blam.connected_material import Function
+        for game in ('halo4', 'halo2a'):
+            for mode, animated_radius in ((1, False), (0, False), (1, True)):
+                with self.subTest(game=game, mode=mode, radius=animated_radius), tempfile.TemporaryDirectory() as root, \
+                     patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                     patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                     patch.object(utils, 'get_tags_path', return_value=root), \
+                     patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                    with light.LightTag('lamp.light') as tag:
+                        p = tag.required_field(tag.tag.root(), 'Midnight_Light_Parameters').as_struct()
+                        tag.required_field(p, 'Lighting Mode').set(mode)
+                        for name in ('Intensity', 'Distance Attenuation End'):
+                            element = tag.required_field(p, name).as_struct()
+                            mapping = tag.required_field(element, 'Mapping').as_struct()
+                            blob = bytearray(32)  # Identity curve; no editor trailer.
+                            limits = (2., 8.) if name == 'Intensity' or animated_radius else (8., 8.)
+                            struct.pack_into('<ff', blob, 4, *limits)
+                            if name == 'Distance Attenuation End' and animated_radius:
+                                tag.required_field(element, 'Input Variable').set('radius_control')
+                            if name == 'Intensity':
+                                blob[1] = 1  # Ranged.
+                                tag.required_field(element, 'Input Variable').set('power')
+                                tag.required_field(element, 'Range Variable').set('pulse')
+                                tag.required_field(element, 'Output Modifier Input').set('boost')
+                                tag.required_field(element, 'Output Modifier').set(2)
+                            tag.required_field(mapping, 'data').set(bytes(blob))
+                    before = (Path(root) / 'lamp.light').read_bytes()
+                    data = SimpleNamespace(nwo=SimpleNamespace())
+                    factory = MagicMock(return_value=data)
+                    fake = SimpleNamespace(data=SimpleNamespace(lights=SimpleNamespace(new=factory)))
+                    attachment = SimpleNamespace(function_names=set())
+                    strength = object()
+                    with light.LightTag('lamp.light') as tag, patch.object(light, 'bpy', fake), \
+                         patch.object(light.import_transform, 'distance', side_effect=lambda x: x * 100), \
+                         patch.object(Function, 'to_blend_nodes', return_value=strength) as nodes, \
+                         patch.object(utils, 'make_halo_light') as make:
+                        if mode == 0 or animated_radius:
+                            with self.assertRaises(NotImplementedError):
+                                tag.to_blender(attachment=attachment)
+                            factory.assert_not_called()
+                            nodes.assert_not_called()
+                        else:
+                            self.assertIs(tag.to_blender('primary', 'secondary', attachment), data)
+                            self.assertEqual(data.nwo.light_intensity, 8.)
+                            self.assertEqual(data.nwo.light_far_attenuation_end, 800.)
+                            self.assertEqual(attachment.function_names, {'power', 'pulse', 'boost'})
+                            nodes.assert_called_once_with(name='lamp_strength', normalize=True)
+                            self.assertIs(make.call_args.kwargs['strength_node_tree'], strength)
+                    self.assertEqual(before, (Path(root) / 'lamp.light').read_bytes())
+
     def test_bad_light_mapping_falls_back_before_creating_lights(self):
         from unittest.mock import MagicMock
         from io_scene_foundry.managed_blam import cheap_light
@@ -166,8 +252,10 @@ class WrapperTests(unittest.TestCase):
              patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
              patch.object(utils, 'get_project', return_value=SimpleNamespace(game='reach')), \
              patch.object(utils, 'get_tags_path', return_value=root):
-            with cheap_light.CheapLightTag('bad.cheap_light'):
-                pass
+            with cheap_light.CheapLightTag('bad.cheap_light') as tag:
+                color = tag.required_field(tag.tag.root(), 'color').as_struct()
+                mapping = tag.required_field(color, 'Mapping').as_struct()
+                tag.required_field(mapping, 'data').set(b'bad')
             with cheap_light.CheapLightTag('bad.cheap_light') as tag, \
                  patch.object(cheap_light, 'bpy', SimpleNamespace(data=SimpleNamespace(lights=SimpleNamespace(new=factory)))), \
                  patch.object(managed_blam, 'Tag', side_effect=ValueError('legacy unavailable')):
@@ -204,6 +292,32 @@ class WrapperTests(unittest.TestCase):
                     decoded = Function()
                     decoded.from_native_object(obj, element)
                     self.assertEqual(decoded.sample(0, 1, 4), [(0.25, 0.375, 'AUTO'), (0.5, 0.375, 'AUTO'), (0.75, 0.375, 'AUTO')])
+                    blob[0] = 0  # Identity has no curve-editor trailer.
+                    next(f for f in mapping.fields() if f.type_name == 'data').set(bytes(blob))
+                    identity = Function()
+                    identity.from_native_object(obj, element)
+                    tree = bpy.data.node_groups.new('native_identity_curve_test', 'ShaderNodeTree')
+                    try:
+                        identity._graph_to_nodes(tree, 0, False)
+                        curve_node = next(n for n in tree.nodes if n.bl_idname == 'ShaderNodeFloatCurve')
+                        curve = curve_node.mapping.curves[0]
+                        for x in (0., .25, .5, 1.):
+                            self.assertAlmostEqual(curve_node.mapping.evaluate(curve, x), x, places=5)
+                    finally:
+                        bpy.data.node_groups.remove(tree)
+                    blob[0] = 0  # Identity has no curve-editor trailer.
+                    next(f for f in mapping.fields() if f.type_name == 'data').set(bytes(blob))
+                    identity = Function()
+                    identity.from_native_object(obj, element)
+                    tree = bpy.data.node_groups.new('native_identity_curve_test', 'ShaderNodeTree')
+                    try:
+                        identity._graph_to_nodes(tree, 0, False)
+                        curve_node = next(n for n in tree.nodes if n.bl_idname == 'ShaderNodeFloatCurve')
+                        curve = curve_node.mapping.curves[0]
+                        for x in (0., .25, .5, 1.):
+                            self.assertAlmostEqual(curve_node.mapping.evaluate(curve, x), x, places=5)
+                    finally:
+                        bpy.data.node_groups.remove(tree)
                     unsupported = functions[functions.add()]
                     obj.required_field(unsupported, 'export name').set(name + '_unsupported')
                     mapping = obj.nested(unsupported, 'default function')
