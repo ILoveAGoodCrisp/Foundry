@@ -19,6 +19,99 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_light_conversion(self):
+        import struct
+        from unittest.mock import MagicMock
+        from io_scene_foundry.managed_blam import cheap_light, light
+        from io_scene_foundry.managed_blam.connected_material import Function, OutputModifierType
+
+        def mapping(tag, name, value, color=False):
+            element = tag.required_field(tag.tag.root(), name).as_struct()
+            data = bytearray(32)
+            data[0] = 1
+            if color:
+                data[2] = 1
+                struct.pack_into('<I', data, 4, 0xff804020)
+            else:
+                struct.pack_into('<ff', data, 4, value, value)
+            function = tag.required_field(element, 'Mapping').as_struct()
+            tag.required_field(function, 'data').set(bytes(data))
+            if name == 'intensity':
+                tag.required_field(element, 'Input Variable').set('power')
+                tag.required_field(element, 'Range Variable').set('pulse')
+                tag.required_field(element, 'Output Modifier Input').set('boost')
+                tag.required_field(element, 'Output Modifier').set(2)
+                parsed = Function()
+                parsed.from_native_light(tag, element)
+                self.assertEqual(parsed.output_modifier_type, OutputModifierType.TIMES)
+                self.assertTrue(parsed.uses_input)
+                self.assertEqual(parsed.range, 'pulse')
+
+        for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+            for module, cls in ((cheap_light, cheap_light.CheapLightTag), (light, light.LightTag)):
+                if game in {'halo3', 'halo3odst'}:
+                    continue  # No cheap_light group; regular light falloff is not supported yet.
+                with self.subTest(game=game, kind=cls.tag_ext), tempfile.TemporaryDirectory() as root, \
+                     patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                     patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                     patch.object(utils, 'get_tags_path', return_value=root), \
+                     patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                    path = 'lamp.' + cls.tag_ext
+                    unsupported = cls is light.LightTag and game in {'halo4', 'halo2a'}
+                    with cls(path) as tag:
+                        if not unsupported:
+                            mapping(tag, 'color', 0, True)
+                            mapping(tag, 'intensity', 4.)
+                            if cls is cheap_light.CheapLightTag:
+                                mapping(tag, 'Falloff End' if tag.corinth else 'radius', 8.)
+                            else:
+                                for name, value in [('type', 1), ('frustum field of view', 60.),
+                                                    ('angular hotspot', 30.), ('attenuation start distance', 2.),
+                                                    ('attenuation end distance', 8.)]:
+                                    tag.required_field(tag.tag.root(), name).set(value)
+                    before = (Path(root) / path).read_bytes()
+                    data = SimpleNamespace(nwo=SimpleNamespace())
+                    factory = MagicMock(return_value=data)
+                    fake_bpy = SimpleNamespace(data=SimpleNamespace(lights=SimpleNamespace(new=factory)))
+                    attachment = SimpleNamespace(function_names=set())
+                    with cls(path) as tag, patch.object(module, 'bpy', fake_bpy), \
+                         patch.object(module.import_transform, 'scale_factor', return_value=1.), \
+                         patch.object(module.import_transform, 'distance', side_effect=lambda x: x * 100), \
+                         patch.object(utils, 'make_halo_light') as make:
+                        result = tag.to_blender('primary', 'secondary', attachment)
+                        if unsupported:
+                            self.assertIsNone(result)
+                            factory.assert_not_called()
+                        else:
+                            self.assertIs(result, data)
+                            self.assertEqual(data.nwo.light_intensity, 4.)
+                            self.assertEqual(data.nwo.light_far_attenuation_end, 800.)
+                            self.assertEqual(data.color, [utils.srgb_to_linear(c / 255) for c in (128, 64, 32)])
+                            self.assertEqual(attachment.function_names, {'power', 'boost'})
+                            make.assert_called_once()
+                            if cls is light.LightTag:
+                                self.assertAlmostEqual(data.spot_size, 1.0471975512)
+                                self.assertEqual(data.spot_blend, .5)
+                                self.assertEqual(data.nwo.light_far_attenuation_start, 200.)
+                    self.assertEqual(before, (Path(root) / path).read_bytes())
+
+    def test_bad_light_mapping_falls_back_before_creating_lights(self):
+        from unittest.mock import MagicMock
+        from io_scene_foundry.managed_blam import cheap_light
+        factory = MagicMock()
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+             patch.object(utils, 'get_project', return_value=SimpleNamespace(game='reach')), \
+             patch.object(utils, 'get_tags_path', return_value=root):
+            with cheap_light.CheapLightTag('bad.cheap_light'):
+                pass
+            with cheap_light.CheapLightTag('bad.cheap_light') as tag, \
+                 patch.object(cheap_light, 'bpy', SimpleNamespace(data=SimpleNamespace(lights=SimpleNamespace(new=factory)))), \
+                 patch.object(managed_blam, 'Tag', side_effect=ValueError('legacy unavailable')):
+                with self.assertRaisesRegex(ValueError, 'legacy unavailable'):
+                    tag.to_blender()
+                factory.assert_not_called()
+
     def test_native_object_functions_create_blender_nodes(self):
         import bpy
         import struct

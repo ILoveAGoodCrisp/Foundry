@@ -126,6 +126,12 @@ permutations still pass the native layout check. Nonzero padding, unknown fields
 and other incompatible layouts retain the legacy fallback. Tests cover colors,
 flags, string inputs, nonzero-padding rejection and rollback after unknown fields.
 The fallback still needs editing-kit validation.
+
+Light wrappers now use native field reading and function decoding for Reach lights
+and Reach/H4/H2AMP cheap lights. Unsupported function shapes retain a shared legacy
+editor fallback; gel bitmap decoding also still requires ManagedBlam. H3/ODST light
+falloff and regular H4/H2AMP light conversion remain unimplemented. Light schemas
+are staged by the build script as ignored generated assets, not committed sources.
 Read-only sampling converted temporary copies of 36 H3 weapons, bipeds and
 vehicles and verified their initial color permutations after reopening. All 36
 used the native path; no original editing-kit tags were modified.

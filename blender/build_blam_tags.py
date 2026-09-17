@@ -22,7 +22,7 @@ SCHEMAS = ('camera_track.json', 'globals.json', 'render_method_option.json',
            'equipment.json', 'crate.json', 'creature.json', 'giant.json',
            'device_dispenser.json', 'spawner.json',
            'device_machine.json', 'device_control.json', 'device_terminal.json', 'projectile.json',
-           'sound_scenery.json', 'effect_scenery.json')
+           'sound_scenery.json', 'effect_scenery.json', 'light.json', 'cheap_light.json')
 
 
 def stage_schemas(source, addon):

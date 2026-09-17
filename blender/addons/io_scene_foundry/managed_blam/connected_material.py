@@ -924,14 +924,7 @@ class Function:
     
     def from_native_object(self, document, element):
         """Read object metadata and a detached native function editor."""
-        from blam_tags import TagFunctionEditor
-        mapping = document.nested(element, 'default function')
-        data = next((field.value for field in mapping.fields() if field.type_name == 'data'), None)
-        if data is None:
-            raise ValueError('Object function has no mapping data')
-        editor = TagFunctionEditor(data)
-        description = editor.describe()
-        self.editor = editor
+        self._read_native_mapping(document, element, 'default function')
         self.is_object_function = True
         self.input = document.value(element, 'import name')
         self.uses_input = bool(self.input)
@@ -949,6 +942,30 @@ class Function:
                 setattr(self, attribute, flags.get_flag(name))
             except KeyError:
                 setattr(self, attribute, False)
+    def from_native_light(self, document, element):
+        """Read a light mapping and its input/output modifier metadata."""
+        from ..tags.metadata import enum_index
+        self._read_native_mapping(document, element, 'Mapping')
+        self.is_light_function = True
+        self.input = document.value(element, 'Input Variable')
+        self.uses_input = bool(self.input)
+        self.input = self.input or 'one'
+        self.range = document.value(element, 'Range Variable')
+        self.output_modifier = document.value(element, 'Output Modifier Input')
+        if self.output_modifier:
+            self.output_modifier_type = OutputModifierType(enum_index(
+                document.value(element, 'Output Modifier'), (' ', 'Plus', 'Times')))
+
+    def _read_native_mapping(self, document, element, name):
+        from blam_tags import TagFunctionEditor
+        mapping = document.required_field(element, name).as_struct()
+        if mapping is None:
+            raise ValueError(f'{name}: missing mapping struct')
+        data = next((field.value for field in mapping.fields() if field.type_name == 'data'), None)
+        if data is None:
+            raise ValueError(f'{name}: missing mapping data')
+        self.editor = TagFunctionEditor(data)
+        description = self.editor.describe()
         self.is_ranged = description['is_ranged']
         self.master_type = FunctionEditorMasterType(description['master_type'])
         self.color_type = FunctionEditorColorGraphType(description['color_type'])

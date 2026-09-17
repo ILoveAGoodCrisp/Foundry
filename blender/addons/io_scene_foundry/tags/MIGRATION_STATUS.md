@@ -5,13 +5,13 @@
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
-The source audit after the cinematic-lighting migration found:
+The source audit after the light-reader migration found:
 
-- 9 migrated tag workflows: camera tracks, globals, render-method options,
+- 11 migrated tag workflows: camera tracks, globals, render-method options,
   render-method definitions, material-shader metadata, models, object metadata,
-  lightmapper globals and cinematic-lighting metadata.
-- 32 tag classes still inherit the legacy `Tag` base, directly or indirectly:
-  23 direct wrappers and 9 shader/material/decal subclasses.
+  lightmapper globals, cinematic-lighting metadata, Reach lights and cheap lights.
+- 30 tag classes still inherit the legacy `Tag` base, directly or indirectly:
+  21 direct wrappers and 9 shader/material/decal subclasses.
 - 29 modules under `managed_blam` still contain `SelectField` calls.
 
 These are code-inventory counts, not a percentage of engineering effort. Several
@@ -47,7 +47,7 @@ installer's separate .NET assembly inspection in `tools/halo_launcher.py`.
 
 ## Validation so far
 
-32 regression tests pass together in Blender, including native tag serialization,
+34 regression tests pass together in Blender, including native tag serialization,
 aborted writes, wrapper checks that reject ManagedBlam initialization, camera work,
 metadata, object/cinematic copying and cinematic-lighting transforms. There is
 also a Rust regression test for preserving unnamed flags during cross-tag copying.
@@ -58,7 +58,7 @@ temporary copies for conversions. Full editing-kit acceptance and complete
 import/export parity have not yet been established.
 
 Cinematic-lighting metadata now uses blam-tags. Converting referenced dynamic
-lights still uses `LightTag`; H4/H2AMP authored-probe conversion remains unimplemented,
+lights uses the native `LightTag` reader for Reach; H4/H2AMP authored-probe conversion remains unimplemented,
 matching the previous wrapper's behavior.
 
 The first tag-function binding is implemented: `TagFunctionEditor` decodes and
@@ -67,4 +67,17 @@ It exposes basic, periodic, exponent, transition and MultiSpline editor graphs.
 Object-function node creation now uses it. Unsupported editor shapes still fall
 back before any nodes are created. A read-only sample across 60 H3+ object tags
 decoded and round-tripped 266 functions; two unknown transition indices required
-fallback. Editing methods and shader/light consumer migration are still pending.
+fallback. Editing methods and shader consumer migration are still pending.
+
+Reach lights and Reach/H4/H2AMP cheap lights now decode mappings natively, including
+input variables, range variables and output modifiers. Unsupported mappings use a
+shared legacy editor fallback before Blender lights or nodes are allocated. Projected
+gel textures still use the legacy bitmap decoder. Regular H4/H2AMP light conversion
+remains unimplemented; H3/ODST falloff conversion is explicitly unsupported because
+its fields differ from Reach. H3/ODST have no cheap-light tag group.
+
+A read-only sample of 120 real light/cheap-light tags across Reach, H4 and H2AMP
+decoded and byte-round-tripped all 330 mappings without fallback. Regression tests
+check color, intensity, distance scaling, spotlight angles, attachment dependencies,
+unchanged source bytes and fallback before light creation. Full visual parity in
+Blender and editing-kit acceptance remain to be checked.

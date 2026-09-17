@@ -5,38 +5,38 @@ from math import radians
 
 from .bitmap import bitmap_to_image
 from .. import utils
-from .connected_material import Function
-from . import Tag
+from ..tags.blender import BlenderTag
+from ..tags.backend import TagDocument
+from ..tags.metadata import enum_index
+from .light_functions import light_functions
 from . import import_transform
 import bpy
 
-class LightTag(Tag):
+class LightTag(BlenderTag, TagDocument):
     tag_ext = 'light'
         
-    def _read_fields(self):
-        if self.corinth:
-            pass
-        else:
-            self.color_struct = self.tag.SelectField("Struct:color")
-            self.intensity_struct = self.tag.SelectField("Struct:intensity")
-            self.radius_struct = self.tag.SelectField("Struct:radius")
-            self.falloff = self.tag.SelectField("Real:falloff")
+    def __init__(self, path='', **kwargs):
+        kwargs.setdefault('tag_must_exist', False)
+        super().__init__(path, **kwargs)
         
     def _to_blender_reach(self, primary_scale, secondary_scale, attachment):
-        is_spot_light = self.tag.SelectField("ShortEnum:type").Value == 1
+        with light_functions(self, ('color', 'intensity')) as functions:
+            return self._convert(primary_scale, secondary_scale, attachment, *functions)
+
+    def _convert(self, primary_scale, secondary_scale, attachment, color_function, intensity_function):
+        root = self.tag.root()
+        is_spot_light = enum_index(self.value(root, 'type'), ('sphere', 'frustum')) == 1
         data = bpy.data.lights.new(self.tag_path.ShortName, type='SPOT' if is_spot_light else 'POINT')
         # intensity_scale = 1
         if is_spot_light:
             # intensity_scale = 100
-            hotspot_cutoff_size = self.tag.SelectField("Real:frustum field of view").Data
+            hotspot_cutoff_size = self.value(root, 'frustum field of view')
             data.spot_size = radians(hotspot_cutoff_size)
             if hotspot_cutoff_size > 0.0:
-                data.spot_blend = 1 - self.tag.SelectField("Real:angular hotspot").Data / hotspot_cutoff_size
+                data.spot_blend = 1 - self.value(root, 'angular hotspot') / hotspot_cutoff_size
                 
         data.shadow_soft_size = 0.5 * (1 / 0.03048) * import_transform.scale_factor()
         
-        color_function = Function()
-        color_function.from_element(self.color_struct.Elements[0], "Mapping")
         
         color_node = None
         color_function_name = f"{self.tag_path.ShortName}_color"
@@ -45,15 +45,13 @@ class LightTag(Tag):
         else:
             color_node = color_function.to_blend_nodes(name=color_function_name)
         
-        intensity_function = Function()
-        intensity_function.from_element(self.intensity_struct.Elements[0], "Mapping")
         
         strength_node = None
         intensity_function_name = f"{self.tag_path.ShortName}_strength"
         
-        atten_falloff = self.tag.SelectField("Real:attenuation start distance").Data
+        atten_falloff = self.value(root, 'attenuation start distance')
         data.nwo.light_far_attenuation_start = import_transform.distance(atten_falloff)
-        atten_cutoff = self.tag.SelectField("Real:attenuation end distance").Data
+        atten_cutoff = self.value(root, 'attenuation end distance')
         data.nwo.light_far_attenuation_end = import_transform.distance(atten_cutoff)
         
         if intensity_function.is_basic_function:
@@ -70,7 +68,7 @@ class LightTag(Tag):
             if intensity_function.output_modifier and intensity_function.output_modifier_type.value > 0:
                 attachment.function_names.add(intensity_function.output_modifier)
                 
-        gobo_tag_path = self.tag.SelectField("Reference:gel bitmap").Path
+        gobo_tag_path = self.reference(root, 'gel bitmap')
         gobo_image = None
         if self.path_exists(gobo_tag_path):
             gobo_info = bitmap_to_image(gobo_tag_path.Filename)
@@ -85,7 +83,8 @@ class LightTag(Tag):
         pass
         
     def to_blender(self, primary_scale="", secondary_scale="", attachment=None):
-        
+        if self.game in {'halo3', 'halo3odst'}:
+            raise NotImplementedError('Halo 3/ODST light falloff conversion is not implemented')
         if self.corinth:
             return self._to_blender_corinth(primary_scale, secondary_scale, attachment)
         else:
