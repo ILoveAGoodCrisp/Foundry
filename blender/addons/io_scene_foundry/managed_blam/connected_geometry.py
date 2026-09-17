@@ -706,6 +706,21 @@ class ConstraintType(Enum):
     powered_chain = 6
     
 class Constraint:
+    @classmethod
+    def from_native(cls, record):
+        types = {'hinge constraints': Constraint, 'limited hinge constraints': LimitedHinge,
+                 'ragdoll constraints': Ragdoll, 'stiff spring constraints': StiffSpring,
+                 'ball and socket constraints': BallAndSocket, 'prismatic constraints': Prismatic}
+        result = types[record.kind].__new__(types[record.kind])
+        for name in ('index', 'name', 'node_a_index', 'node_b_index', 'bone_parent', 'bone_child'):
+            setattr(result, name, getattr(record, name))
+        for side in ('a', 'b'):
+            forward, left, up, position = (record.axes[f'{side} {name}'] for name in ('forward', 'left', 'up', 'position'))
+            matrix = Matrix(tuple((forward[i], left[i], up[i], position[i] * 100) for i in range(3)) + ((0, 0, 0, 1),))
+            setattr(result, f'matrix_{side}', matrix)
+        result.__dict__.update(record.values)
+        return result
+
     def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
         self.constraint_body = element.SelectField("Struct:constraint bodies").Elements[0]
         self.index = element.ElementIndex
@@ -748,7 +763,7 @@ class Constraint:
         self.matrix_b = Matrix((
             (bfi, bli, bui, bpi * 100),
             (bfj, blj, buj, bpj * 100),
-            (bfk, blk, buk, apk * 100),
+            (bfk, blk, buk, bpk * 100),
             (0, 0, 0, 1),
         ))
         
@@ -822,7 +837,7 @@ class Prismatic(Constraint):
     def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
         super().__init__(element, nodes)
         self.min_limit = element.SelectField("Real:min_limit").Data
-        self.max_limit = element.SelectField("Real:min_limit").Data
+        self.max_limit = element.SelectField("Real:max_limit").Data
         self.max_friction_force = element.SelectField("Real:max_friction_force").Data
         
     def _set_constraint_props(self, nwo):
@@ -834,10 +849,6 @@ class Prismatic(Constraint):
         nwo.prismatic_limit_max = self.max_limit
         nwo.prismatic_limit_friction = self.max_friction_force
             
-class Constraint:
-    def to_object(self) -> bpy.types.Object:
-        pass
-    
 class ShapeType(Enum):
     sphere = 0
     pill = 1
@@ -874,6 +885,16 @@ class Shape:
             self.restitution = element.SelectField("Struct:base[0]/RealFraction:restitution").Data
     
 class Sphere(Shape):
+    @classmethod
+    def from_native(cls, record):
+        result = cls.__new__(cls)
+        for name in ('name', 'material', 'material_index', 'friction', 'restitution'):
+            setattr(result, name, getattr(record, name))
+        result.radius = record.radius * 100
+        result.translation = Vector(record.translation) * 100
+        result.matrix = Matrix.Translation(result.translation)
+        return result
+
     def __init__(self, element: TagFieldBlockElement, materials):
         super().__init__(element, materials)
         self.radius = element.SelectField("Struct:translate shape[0]/Struct:convex[0]/Real:radius").Data * 100

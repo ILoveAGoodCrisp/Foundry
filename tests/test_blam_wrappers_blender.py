@@ -19,6 +19,130 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_physics_sphere_bodies(self):
+        from mathutils import Matrix
+        from unittest.mock import MagicMock
+        from io_scene_foundry.managed_blam.physics_model import PhysicsTag
+        from io_scene_foundry.managed_blam.connected_geometry import RigidBody, Sphere
+        from io_scene_foundry.tags.physics import PhysicsShapesUnsupported
+        from io_scene_foundry.managed_blam import import_transform
+        for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                 patch.object(utils, 'get_tags_path', return_value=root), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                with PhysicsTag('test.physics_model') as tag:
+                    def add(parent, name):
+                        block = tag.block(parent, name)
+                        return block[block.add()]
+                    node = add(tag.tag.root(), 'nodes')
+                    tag.required_field(node, 'name').set('root')
+                    material = add(tag.tag.root(), 'materials')
+                    tag.required_field(material, 'name').set('metal')
+                    sphere = add(tag.tag.root(), 'spheres')
+                    base = tag.required_field(sphere, 'base').as_struct()
+                    tag.required_field(base, 'name').set('ball')
+                    tag.required_field(base, 'material').set(0)
+                    translate = tag.required_field(sphere, 'translate shape').as_struct()
+                    convex = tag.required_field(translate, 'convex').as_struct()
+                    tag.required_field(convex, 'radius').set(.5)
+                    field = tag.required_field(translate, 'translation')
+                    field.set(type(field.value)(1., 2., 3.))
+                    body = add(tag.tag.root(), 'rigid bodies')
+                    tag.required_field(body, 'node').set(0)
+                    if game in {'halo4', 'halo2a'}:
+                        tag.required_field(body, 'serialized shapes').set(-1)
+                    reference = tag.required_field(body, 'shape reference').as_struct()
+                    tag.required_field(reference, 'shape type').set(0)
+                    tag.required_field(reference, 'shape').set(0)
+                    region = add(tag.tag.root(), 'regions')
+                    tag.required_field(region, 'name').set('body')
+                    permutation = add(region, 'permutations')
+                    tag.required_field(permutation, 'name').set('default')
+                    tag.required_field(add(permutation, 'rigid bodies'), 'rigid body').set(0)
+                before = (Path(root) / 'test.physics_model').read_bytes()
+                rig = SimpleNamespace(pose=SimpleNamespace(bones={'root': SimpleNamespace(matrix=Matrix.Identity(4))}))
+                collection = SimpleNamespace(objects=SimpleNamespace(link=MagicMock()))
+                def convert(body):
+                    body.shapes[0].ob = SimpleNamespace()
+                with PhysicsTag('test.physics_model') as tag, \
+                     patch.object(RigidBody, 'to_objects', convert), \
+                     patch.object(utils, 'set_region') as region_set, patch.object(utils, 'set_permutation'), \
+                     patch.object(import_transform, 'object_matrix', side_effect=lambda matrix, **kw: matrix):
+                    record, = tag.sphere_bodies()
+                    shape = Sphere.from_native(record)
+                    self.assertEqual(shape.radius, 50.)
+                    self.assertEqual(shape.material.name, 'metal')
+                    objects = tag.to_blend_objects(collection, rig)
+                    self.assertEqual(len(objects), 1)
+                    self.assertEqual(objects[0].parent_bone, 'root')
+                    self.assertEqual(tuple(objects[0].matrix_world.translation), (100., 200., 300.))
+                    region_set.assert_called_once()
+                    body = tag.block(tag.tag.root(), 'rigid bodies')[0]
+                    reference = tag.required_field(body, 'shape reference').as_struct()
+                    tag.required_field(reference, 'shape type').set(2)
+                    with self.assertRaises(PhysicsShapesUnsupported):
+                        tag.sphere_bodies()
+                self.assertEqual((Path(root) / 'test.physics_model').read_bytes(), before)
+
+    def test_native_physics_constraints(self):
+        from mathutils import Matrix
+        from unittest.mock import MagicMock
+        from io_scene_foundry.managed_blam.physics_model import PhysicsTag
+        from io_scene_foundry.managed_blam import connected_geometry, import_transform
+        from io_scene_foundry.tags.physics import CONSTRAINT_FIELDS
+        for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                 patch.object(utils, 'get_tags_path', return_value=root), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                with PhysicsTag('test.physics_model') as tag:
+                    nodes = tag.block(tag.tag.root(), 'nodes')
+                    for name in ('parent', 'child'):
+                        tag.required_field(nodes[nodes.add()], 'name').set(name)
+                    for kind, fields in CONSTRAINT_FIELDS.items():
+                        block = tag.block(tag.tag.root(), kind)
+                        element = block[block.add()]
+                        body = tag.required_field(element, 'constraint bodies').as_struct()
+                        tag.required_field(body, 'name').set(kind)
+                        tag.required_field(body, 'node a').set(0)
+                        tag.required_field(body, 'node b').set(1)
+                        for side in ('a', 'b'):
+                            for name, values in [('forward', (1.,0.,0.)), ('left',(0.,1.,0.)), ('up',(0.,0.,1.)),
+                                                 ('position', (1.,2.,3. if side == 'a' else 7.))]:
+                                field = tag.required_field(body, f'{side} {name}')
+                                field.set(type(field.value)(*values))
+                        for i, name in enumerate(fields.values(), start=1):
+                            tag.required_field(element, name).set(float(i))
+                before = (Path(root) / 'test.physics_model').read_bytes()
+                factory = MagicMock(side_effect=lambda name, data: SimpleNamespace(name=name, nwo=SimpleNamespace(), empty_display_size=1.))
+                fake = SimpleNamespace(data=SimpleNamespace(objects=SimpleNamespace(new=factory)))
+                rig = SimpleNamespace(pose=SimpleNamespace(bones={name: SimpleNamespace(matrix=Matrix.Identity(4)) for name in ('parent','child')}))
+                collection = SimpleNamespace(objects=SimpleNamespace(link=MagicMock()))
+                with PhysicsTag('test.physics_model') as tag, patch.object(connected_geometry, 'bpy', fake), \
+                     patch.object(import_transform, 'scale_factor', return_value=1.), \
+                     patch.object(import_transform, 'object_matrix', side_effect=lambda matrix, **kw: matrix), \
+                     patch.object(import_transform, 'keep_marker_axis', side_effect=lambda matrix: matrix):
+                    records = tag.constraints()
+                    constraint = connected_geometry.Constraint.from_native(records[0])
+                    self.assertEqual(constraint.matrix_a.translation.z, 300.)
+                    self.assertEqual(constraint.matrix_b.translation.z, 700.)
+                    objects = tag.to_blend_objects(collection, rig)
+                    self.assertEqual(len(objects), 6)
+                    self.assertEqual(objects[0].nwo.physics_constraint_type, '_connected_geometry_marker_type_physics_hinge_constraint')
+                    self.assertAlmostEqual(objects[1].nwo.hinge_constraint_maximum, .034906585)
+                    self.assertEqual(objects[-1].nwo.prismatic_limit_min, 1.)
+                    self.assertEqual(objects[-1].nwo.prismatic_limit_max, 2.)
+                    self.assertEqual(objects[-1].nwo.prismatic_limit_friction, 3.)
+                    self.assertEqual(objects[-1].parent_bone, 'parent')
+                    factory.reset_mock()
+                    with self.assertRaisesRegex(ValueError, 'requires both armature bones'):
+                        tag.to_blend_objects(collection, SimpleNamespace(pose=SimpleNamespace(bones={})))
+                    factory.assert_not_called()
+                self.assertEqual((Path(root) / 'test.physics_model').read_bytes(), before)
+
     def test_native_collision_geometry_and_invalid_loops(self):
         from mathutils import Vector
         from io_scene_foundry.managed_blam.collision_model import CollisionTag

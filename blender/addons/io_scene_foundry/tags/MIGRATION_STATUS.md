@@ -5,7 +5,7 @@
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
-Latest validation: 45 regression tests pass without starting ManagedBlam.
+Latest validation: 47 regression tests pass without starting ManagedBlam.
 The read-only H4/H2AMP sample reaches conversion for 59 of 60 light tags. The last
 tag is a physical light with periodic, modifier-driven attenuation. Sampling mocks
 light allocation, final lighting setup and bitmap conversion; visual parity and
@@ -20,6 +20,9 @@ The source audit after the structure seam/metadata migration found:
 - 26 tag classes still inherit the legacy `Tag` base, directly or indirectly:
   17 direct wrappers and 9 shader/material/decal subclasses.
 - 25 modules under `managed_blam` still contain `SelectField` calls.
+
+Physics constraints also use native records. Rigid-body shapes remain behind a
+separate `LegacyPhysicsTag` fallback, so this does not reduce the legacy class count.
 
 These are code-inventory counts, not a percentage of engineering effort. Several
 large remaining features depend on ManagedBlam resource decoders or custom editors,
@@ -54,7 +57,7 @@ installer's separate .NET assembly inspection in `tools/halo_launcher.py`.
 
 ## Validation so far
 
-45 regression tests pass together in Blender, including native tag serialization,
+47 regression tests pass together in Blender, including native tag serialization,
 aborted writes, wrapper checks that reject ManagedBlam initialization, camera work,
 metadata, object/cinematic copying and cinematic-lighting transforms. There is
 also a Rust regression test for preserving unnamed flags during cross-tag copying.
@@ -181,3 +184,26 @@ A read-only sample decoded 50 real tags, 86 meshes, 3,631 polygons and six spher
 without errors or source changes. Full collision-mesh material/face-property and
 armature validation in complete imports remains outstanding. This does not migrate
 the separate structure-BSP or Havok collision readers.
+
+Physics constraints now read natively for hinge, limited hinge, ragdoll, stiff spring,
+ball/socket and prismatic types. Constraint-only physics tags do not start ManagedBlam;
+tags containing rigid bodies still open the isolated legacy shape converter. Native
+constraint/bone validation happens before object allocation. This fixes the duplicate
+placeholder class hiding the hinge implementation, the child transform using the
+parent Z position, and prismatic maximum limits incorrectly reading the minimum.
+Tests cover all six types across five H3+ profiles, transforms, limits and missing
+bones. Read-only sampling decoded 184 constraints (76 limited hinges and 108 ragdolls)
+from 22 real character physics tags without errors or source changes. Full rigid-body
+shape migration and complete physics import validation remain outstanding.
+
+Standalone sphere rigid bodies now read native region/permutation assignments,
+shape references, dimensions, materials and bone bindings. All referenced shapes
+are checked before Blender allocation; unsupported primitives, compound shapes,
+serialized shapes and explicit Havok bodies select the legacy shape converter for
+the whole tag. Sphere conversion reuses the existing mesh/material code. Tests
+cover five H3+ profiles, radius/translation scaling, materials, parenting and the
+unsupported-shape boundary. Rigid-body migration remains partial.
+In a read-only sample of 100 weapon physics tags, one contained a supported native
+sphere body; the other 99 selected the legacy path, including six older H4 layouts.
+This sample validates native eligibility and field decoding, not execution of the
+legacy fallback or complete rigid-body mesh import.

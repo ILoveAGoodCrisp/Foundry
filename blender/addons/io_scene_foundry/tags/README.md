@@ -155,6 +155,13 @@ and ignored alongside the other build assets.
 Collision-model import reads native geometry and pathfinding spheres, validates
 surface loops and bone bindings, then reuses the existing Blender conversion.
 Separate structure-BSP and Havok collision paths still need migration.
+
+Physics constraints read through blam-tags and use the existing Blender marker
+conversion. Rigid-body shapes remain in `physics_legacy.py`; the native wrapper
+opens that fallback when referenced shapes are unsupported. Standalone spheres
+now use native records; compound shapes, other primitives and explicit Havok bodies
+still use the fallback. Constraint-only tags avoid ManagedBlam entirely. Physics
+schemas are ignored build assets.
 Read-only sampling converted temporary copies of 36 H3 weapons, bipeds and
 vehicles and verified their initial color permutations after reopening. All 36
 used the native path; no original editing-kit tags were modified.
