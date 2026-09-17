@@ -130,7 +130,11 @@ The fallback still needs editing-kit validation.
 Light wrappers now use native field reading and function decoding for Reach lights
 and Reach/H4/H2AMP cheap lights. Unsupported function shapes retain a shared legacy
 editor fallback; gel bitmap decoding also still requires ManagedBlam. H3/ODST light
-falloff and regular H4/H2AMP light conversion remain unimplemented. Light schemas
+falloff remains unimplemented. Static H4/H2AMP point, spot and directional light
+tags now convert, including physical/artistic energy handling and shadow settings.
+Animated parameters, area lights and linked/projected physical or directional
+lights are explicitly unsupported; most sampled real light tags still require
+broader function decoding. Light schemas
 are staged by the build script as ignored generated assets, not committed sources.
 Read-only sampling converted temporary copies of 36 H3 weapons, bipeds and
 vehicles and verified their initial color permutations after reopening. All 36

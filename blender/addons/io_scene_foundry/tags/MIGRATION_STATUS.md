@@ -47,7 +47,7 @@ installer's separate .NET assembly inspection in `tools/halo_launcher.py`.
 
 ## Validation so far
 
-34 regression tests pass together in Blender, including native tag serialization,
+35 regression tests pass together in Blender, including native tag serialization,
 aborted writes, wrapper checks that reject ManagedBlam initialization, camera work,
 metadata, object/cinematic copying and cinematic-lighting transforms. There is
 also a Rust regression test for preserving unnamed flags during cross-tag copying.
@@ -72,8 +72,8 @@ fallback. Editing methods and shader consumer migration are still pending.
 Reach lights and Reach/H4/H2AMP cheap lights now decode mappings natively, including
 input variables, range variables and output modifiers. Unsupported mappings use a
 shared legacy editor fallback before Blender lights or nodes are allocated. Projected
-gel textures still use the legacy bitmap decoder. Regular H4/H2AMP light conversion
-remains unimplemented; H3/ODST falloff conversion is explicitly unsupported because
+gel textures still use the legacy bitmap decoder. Static H4/H2AMP point, spot and
+directional light tags now convert natively; H3/ODST falloff conversion is explicitly unsupported because
 its fields differ from Reach. H3/ODST have no cheap-light tag group.
 
 A read-only sample of 120 real light/cheap-light tags across Reach, H4 and H2AMP
@@ -81,3 +81,14 @@ decoded and byte-round-tripped all 330 mappings without fallback. Regression tes
 check color, intensity, distance scaling, spotlight angles, attachment dependencies,
 unchanged source bytes and fallback before light creation. Full visual parity in
 Blender and editing-kit acceptance remain to be checked.
+
+The static H4/H2AMP converter follows the existing scenario-lighting mapping for
+color, intensity, physical energy scaling, attenuation, cones and shadow/cinema
+properties. Animated intensity/radius/cones, area lights and linked/projected
+physical or directional lights are explicitly unsupported before allocation.
+Artistic point/spot lights retain the existing Halo light node setup and bitmap
+decoder boundary. A read-only sample of 60 real light tags reached conversion for
+only two: 54 need unavailable curve-editor descriptions and four need animated
+intensity support. This probe mocked Blender allocation, node construction and
+bitmap decoding; it verified field conversion and unchanged tag bytes, not visual
+parity. Decoder coverage and animated light conversion are the next priority.

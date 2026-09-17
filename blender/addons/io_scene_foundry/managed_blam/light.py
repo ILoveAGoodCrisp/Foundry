@@ -80,7 +80,80 @@ class LightTag(BlenderTag, TagDocument):
         return data
     
     def _to_blender_corinth(self, primary_scale, secondary_scale, attachment):
-        pass
+        from .connected_material import Function
+        parameters = self.required_field(self.tag.root(), 'Midnight_Light_Parameters').as_struct()
+        value = lambda name: self.value(parameters, name)
+        light_type = enum_index(value('Light Type'), ('Point', 'Spot', 'Directional', 'Area', 'Sun'))
+        if light_type == 3:
+            raise NotImplementedError('Area light-tag conversion is not implemented')
+        names = ['Intensity', 'Distance Attenuation End']
+        if light_type == 1:
+            names.append('Outer Cone End')
+        functions = {}
+        for name in names:
+            function = Function()
+            function.from_native_light(self, self.required_field(parameters, name).as_struct())
+            if not function.is_basic_function:
+                raise NotImplementedError(f'Animated {name} in H4/H2AMP light tags is not implemented')
+            functions[name] = function
+
+        # Resolve all required metadata before allocating a Blender light.
+        physically_correct = enum_index(value('Lighting Mode'), ('Physically Correct', 'Artistic')) == 0
+        projection = enum_index(value('Cone Projection Shape'), ('Cone', 'Frustum'))
+        quality = enum_index(value('Dynamic Shadow Quality'), ('Normal', 'Expensive (cinematics only)'))
+        booleans = {name: enum_index(value(name), ('Off', 'On')) == 1 for name in (
+            'Shadows', 'Screenspace Light', 'Ignore Dynamic Objects', 'Cinema Objects Only',
+            'Cinema Only', 'Cinema Exclude', 'Specular Contribution', 'Diffuse Contribution')}
+        color = value('Light Color')
+        rgb = (color.red, color.green, color.blue)
+        attenuation_start = import_transform.distance(value('Distance Attenuation Start'))
+        attenuation_end = import_transform.distance(functions['Distance Attenuation End'].clamp_min)
+        inner_cone = value('Inner Cone Angle')
+        shadow_near, shadow_far, shadow_bias = (value(name) for name in (
+            'Shadow Near Clip Plane', 'Shadow Far Clip Plane', 'Shadow Bias Offset'))
+        gobo_path = self.reference(parameters, 'Gobo Tag Path')
+        if (physically_correct or light_type in {2, 4}) and (primary_scale or secondary_scale or self.path_exists(gobo_path)):
+            raise NotImplementedError('Linked or projected physical/directional H4/H2AMP lights are not implemented')
+        gobo_image = None
+        if self.path_exists(gobo_path):
+            gobo_image = bitmap_to_image(gobo_path.Filename).image
+
+        kind = ('POINT', 'SPOT', 'SUN', 'AREA', 'SUN')[light_type]
+        data = bpy.data.lights.new(self.tag_path.ShortName, type=kind)
+        data.color = [utils.srgb_to_linear(c) for c in rgb]
+        nwo = data.nwo
+        nwo.light_intensity = functions['Intensity'].clamp_min
+        nwo.light_physically_correct = physically_correct
+        nwo.light_far_attenuation_start = attenuation_start
+        nwo.light_far_attenuation_end = attenuation_end
+        if kind == 'SPOT':
+            outer_cone = functions['Outer Cone End'].clamp_min
+            data.spot_size = radians(outer_cone)
+            if outer_cone > 0:
+                data.spot_blend = max(0., min(1., 1 - inner_cone / outer_cone))
+        nwo.light_cone_projection_shape = '_connected_geometry_cone_projection_shape_' + ('cone', 'frustum')[projection]
+        nwo.light_shadow_near_clipplane = shadow_near
+        nwo.light_shadow_far_clipplane = shadow_far
+        nwo.light_shadow_bias_offset = shadow_bias
+        nwo.light_dynamic_shadow_quality = '_connected_geometry_dynamic_shadow_quality_' + ('normal', 'expensive')[quality]
+        for prop, name in (
+            ('light_shadows', 'Shadows'), ('light_screenspace', 'Screenspace Light'),
+            ('light_ignore_dynamic_objects', 'Ignore Dynamic Objects'),
+            ('light_cinema_objects_only', 'Cinema Objects Only'),
+            ('light_specular_contribution', 'Specular Contribution'),
+            ('light_diffuse_contribution', 'Diffuse Contribution')):
+            setattr(nwo, prop, booleans[name])
+        if booleans['Cinema Only']:
+            nwo.light_cinema = '_connected_geometry_lighting_cinema_only'
+        if booleans['Cinema Exclude']:
+            nwo.light_cinema = '_connected_geometry_lighting_cinema_exclude'
+        if kind == 'SUN':
+            data.energy = nwo.light_intensity
+        elif physically_correct:
+            data.energy = nwo.light_intensity * utils.get_import_scale(bpy.context) ** 2
+        else:
+            utils.make_halo_light(data, primary_scale, secondary_scale, gobo_image=gobo_image)
+        return data
         
     def to_blender(self, primary_scale="", secondary_scale="", attachment=None):
         if self.game in {'halo3', 'halo3odst'}:

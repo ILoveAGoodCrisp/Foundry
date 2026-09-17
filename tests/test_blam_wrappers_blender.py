@@ -51,6 +51,8 @@ class WrapperTests(unittest.TestCase):
             for module, cls in ((cheap_light, cheap_light.CheapLightTag), (light, light.LightTag)):
                 if game in {'halo3', 'halo3odst'}:
                     continue  # No cheap_light group; regular light falloff is not supported yet.
+                if cls is light.LightTag and game in {'halo4', 'halo2a'}:
+                    continue  # Covered by the separate Midnight parameter-layout test.
                 with self.subTest(game=game, kind=cls.tag_ext), tempfile.TemporaryDirectory() as root, \
                      patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
                      patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
@@ -94,6 +96,67 @@ class WrapperTests(unittest.TestCase):
                                 self.assertEqual(data.spot_blend, .5)
                                 self.assertEqual(data.nwo.light_far_attenuation_start, 200.)
                     self.assertEqual(before, (Path(root) / path).read_bytes())
+
+    def test_native_midnight_lights(self):
+        import struct
+        from unittest.mock import MagicMock
+        from io_scene_foundry.managed_blam import light
+        for game in ('halo4', 'halo2a'):
+            for kind in (0, 1, 2, 3, 4):
+                for mode in (0, 1):
+                    with self.subTest(game=game, kind=kind, mode=mode), tempfile.TemporaryDirectory() as root, \
+                         patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                         patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                         patch.object(utils, 'get_tags_path', return_value=root), \
+                         patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                        with light.LightTag('lamp.light') as tag:
+                            parameters = tag.required_field(tag.tag.root(), 'Midnight_Light_Parameters').as_struct()
+                            for name, value in [('Light Type', kind), ('Lighting Mode', mode),
+                                                ('Inner Cone Angle', 30.), ('Distance Attenuation Start', 2.),
+                                                ('Shadows', 1), ('Cinema Only', 1), ('Specular Contribution', 1)]:
+                                tag.required_field(parameters, name).set(value)
+                            color = tag.required_field(parameters, 'Light Color')
+                            color.set(type(color.value)(.5, .25, .125))
+                            for name, number in [('Intensity', 4.), ('Distance Attenuation End', 8.), ('Outer Cone End', 60.)]:
+                                element = tag.required_field(parameters, name).as_struct()
+                                mapping = tag.required_field(element, 'Mapping').as_struct()
+                                blob = bytearray(32)
+                                blob[0] = 1
+                                struct.pack_into('<ff', blob, 4, number, number)
+                                tag.required_field(mapping, 'data').set(bytes(blob))
+                        before = (Path(root) / 'lamp.light').read_bytes()
+                        data = SimpleNamespace(nwo=SimpleNamespace())
+                        factory = MagicMock(return_value=data)
+                        fake_bpy = SimpleNamespace(context=object(), data=SimpleNamespace(lights=SimpleNamespace(new=factory)))
+                        with light.LightTag('lamp.light') as tag, patch.object(light, 'bpy', fake_bpy), \
+                             patch.object(light.import_transform, 'distance', side_effect=lambda x: x * 100), \
+                             patch.object(utils, 'get_import_scale', return_value=10.), \
+                             patch.object(utils, 'make_halo_light') as make:
+                            if kind == 3:
+                                with self.assertRaisesRegex(NotImplementedError, 'Area'):
+                                    tag.to_blender()
+                                factory.assert_not_called()
+                                continue
+                            self.assertIs(tag.to_blender(), data)
+                            self.assertEqual(factory.call_args.kwargs['type'], ('POINT', 'SPOT', 'SUN', 'AREA', 'SUN')[kind])
+                            self.assertEqual(data.nwo.light_intensity, 4.)
+                            self.assertEqual(data.nwo.light_far_attenuation_start, 200.)
+                            self.assertEqual(data.nwo.light_far_attenuation_end, 800.)
+                            self.assertEqual(data.color, [utils.srgb_to_linear(c) for c in (.5, .25, .125)])
+                            self.assertTrue(data.nwo.light_shadows)
+                            self.assertEqual(data.nwo.light_cinema, '_connected_geometry_lighting_cinema_only')
+                            if kind == 1:
+                                self.assertAlmostEqual(data.spot_size, 1.0471975512)
+                                self.assertEqual(data.spot_blend, .5)
+                            if kind in {2, 4}:
+                                self.assertEqual(data.energy, 4.)
+                                make.assert_not_called()
+                            elif mode == 0:
+                                self.assertEqual(data.energy, 400.)
+                                make.assert_not_called()
+                            else:
+                                make.assert_called_once()
+                        self.assertEqual(before, (Path(root) / 'lamp.light').read_bytes())
 
     def test_bad_light_mapping_falls_back_before_creating_lights(self):
         from unittest.mock import MagicMock
