@@ -136,7 +136,9 @@ Animated intensity is supported for artistic point/spot lights. Animated radius
 and cones, area lights and linked/projected physical or directional lights remain
 unsupported. Unconnected identity curves evaluate at their constant input and
 older Midnight layouts preserve defaults for unavailable shadow settings. The
-read-only sample now converts 57 of 60 light tags; three require animated attenuation.
+read-only sample now converts 59 of 60 light tags. Unconnected deterministic curves
+resolve through native evaluation; periodic or modifier-driven attenuation still
+requires animation support. The remaining sampled tag is a physical light.
 Light schemas
 are staged by the build script as ignored generated assets, not committed sources.
 Read-only sampling converted temporary copies of 36 H3 weapons, bipeds and

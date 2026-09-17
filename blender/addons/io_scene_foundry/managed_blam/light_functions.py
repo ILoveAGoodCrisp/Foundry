@@ -12,9 +12,11 @@ def constant_light_value(function):
         result = function.clamp_min
     elif function.clamp_min == function.clamp_max:
         result = function.clamp_min
-    elif (getattr(function, 'native_function_type', None) == 0
+    elif (getattr(function, 'native_function_type', None) in {0, 1, 2, 8, 9}
           and not function.uses_input and not (function.is_ranged and function.range)):
         # Match Function.to_blend_nodes: missing input is "one", missing range is zero.
+        # Identity, constant, transition, MultiSpline and exponent are deterministic.
+        # Periodic functions can include noise and are deliberately excluded.
         result = function.editor.evaluate(1., 0.)
     else:
         return None

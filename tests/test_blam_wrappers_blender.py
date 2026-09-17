@@ -19,6 +19,32 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_unconnected_native_curves_resolve_constant_light_values(self):
+        import struct
+        from blam_tags import TagFunctionEditor
+        from io_scene_foundry.managed_blam.connected_material import Function, OutputModifierType
+        from io_scene_foundry.managed_blam.light_functions import constant_light_value
+        from test_blam_functions import function_blob
+        # A nonlinear exponent curve whose endpoint differs from both clamp bounds.
+        blob = function_blob(9, (struct.pack('<fff', 2., 6., 2.),))
+        function = Function()
+        function.native_function_type = 9
+        function.editor = TagFunctionEditor(blob)
+        function.clamp_min, function.clamp_max = .25, .75
+        self.assertAlmostEqual(constant_light_value(function), 3.25)
+        function.uses_input = True
+        self.assertIsNone(constant_light_value(function))
+        function.uses_input = False
+        function.is_ranged, function.range = True, 'radius_range'
+        self.assertIsNone(constant_light_value(function))
+        function.range = ''
+        self.assertAlmostEqual(constant_light_value(function), 3.25)
+        function.output_modifier_type = OutputModifierType.TIMES
+        self.assertIsNone(constant_light_value(function))
+        function.output_modifier_type = OutputModifierType.NONE
+        function.native_function_type = 3  # Periodic/noise must not be frozen.
+        self.assertIsNone(constant_light_value(function))
+
     def test_normalized_light_additive_modifier_keeps_units(self):
         import bpy
         from io_scene_foundry.managed_blam import connected_material as material

@@ -5,6 +5,12 @@
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
+Latest light validation: 39 regression tests pass without starting ManagedBlam.
+The read-only H4/H2AMP sample reaches conversion for 59 of 60 light tags. The last
+tag is a physical light with periodic, modifier-driven attenuation. Sampling mocks
+light allocation, final lighting setup and bitmap conversion; visual parity and
+complete import/export acceptance are still outstanding.
+
 The source audit after the light-reader migration found:
 
 - 11 migrated tag workflows: camera tracks, globals, render-method options,
@@ -47,7 +53,7 @@ installer's separate .NET assembly inspection in `tools/halo_launcher.py`.
 
 ## Validation so far
 
-38 regression tests pass together in Blender, including native tag serialization,
+39 regression tests pass together in Blender, including native tag serialization,
 aborted writes, wrapper checks that reject ManagedBlam initialization, camera work,
 metadata, object/cinematic copying and cinematic-lighting transforms. There is
 also a Rust regression test for preserving unnamed flags during cross-tag copying.
@@ -128,3 +134,11 @@ Shadow Edge Filter is not reinterpreted as modern shadow quality. Active barn-do
 or volume clipping remains explicitly unsupported. With these changes, 57 of the
 same 60 real tags convert in the read-only probe; three still require animated
 distance attenuation. The probe's mocked rendering/bitmap boundaries still apply.
+
+Unconnected deterministic transition, MultiSpline and exponent curves now resolve
+through the native evaluator too. This recovers two additional H4 lights and brings
+the current sample to 59/60. Tests verify evaluated values beyond the stored clamp
+bounds and ensure connected inputs, ranged inputs, output modifiers and periodic
+functions are not incorrectly classified as constants. The remaining H2AMP tag,
+`objects/weapons/h2a_oddball_ricochet/fx/ca_oddball_01a_red.light`, uses physically
+correct lighting with periodic, modifier-driven attenuation and remains unsupported.
