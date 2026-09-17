@@ -17,6 +17,43 @@ lighting = importlib.import_module('foundry_native_tags.lighting')
 
 
 class MetadataTests(unittest.TestCase):
+    def test_native_pca_render_metadata_and_coefficients(self):
+        import struct
+        pca = importlib.import_module('foundry_native_tags.pca')
+        for game in ('halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root:
+                args = dict(tags_root=root, game=game)
+                with backend.TagDocument('test.render_model', **args) as render:
+                    geometry = render.required_field(render.tag.root(), 'render geometry').as_struct()
+                    meshes = render.block(geometry, 'per mesh temporary')
+                    mesh = meshes[meshes.add()]
+                    vertices = render.block(mesh, 'raw vertices')
+                    vertices.add()
+                    vertices.add()
+                    indices = render.block(geometry, 'PCA Mesh Indices')
+                    for i in (0, -1, 99):
+                        render.required_field(indices[indices.add()], 'mesh index').set(i)
+                    compression = render.block(geometry, 'compression info')
+                    bounds = compression[compression.add()]
+                    for name, values in [('position bounds 0', (0., 1., 2.)), ('position bounds 1', (3., 4., 5.))]:
+                        field = render.required_field(bounds, name)
+                        field.set(type(field.value)(*values))
+                with pca.PCAAnimationDocument('test.pca_animation', **args) as doc:
+                    doc.set_reference(doc.tag.root(), 'RenderModel', 'test.render_model')
+                    block = doc.block(doc.tag.root(), 'frame data')
+                    for row in ((0., .25), (1., .75)):
+                        doc.required_field(block[block.add()], 'Coefficients').set(struct.pack('<ff', *row))
+                before = (Path(root) / 'test.pca_animation').read_bytes()
+                with pca.PCAAnimationDocument('test.pca_animation', **args) as doc:
+                    counts, bounds = doc.render_mesh_info()
+                    self.assertEqual(counts, {2: 0})
+                    self.assertEqual((bounds.x0, bounds.x1, bounds.y0, bounds.y1, bounds.z0, bounds.z1), (0, 100, 200, 300, 400, 500))
+                    self.assertEqual(doc.coefficient_rows(), [(0., .25), (1., .75)])
+                    doc.required_field(doc.block(doc.tag.root(), 'frame data')[0], 'Coefficients').set(b'bad')
+                    with self.assertRaisesRegex(ValueError, 'incomplete float'):
+                        doc.coefficient_rows()
+                self.assertEqual((Path(root) / 'test.pca_animation').read_bytes(), before)
+
     def test_native_structure_seam_geometry(self):
         seams = importlib.import_module('foundry_native_tags.seams')
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):

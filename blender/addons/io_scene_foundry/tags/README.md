@@ -139,8 +139,22 @@ older Midnight layouts preserve defaults for unavailable shadow settings. The
 read-only sample now converts 59 of 60 light tags. Unconnected deterministic curves
 resolve through native evaluation; periodic or modifier-driven attenuation still
 requires animation support. The remaining sampled tag is a physical light.
-Light schemas
-are staged by the build script as ignored generated assets, not committed sources.
+Light and structure seam/metadata schemas are staged by the build script as
+ignored generated assets, not committed sources.
+
+Structure seam import reads native final points and triangle indices, validates
+geometry before allocation and preserves Blender normal/orientation handling.
+Structure metadata imports effects, airprobes, light cones and object placements
+without ManagedBlam. The wrappers retain their existing import paths.
+
+Authored PCA animation also reads native blocks and linked render-model metadata,
+then creates Blender shape keys and actions through the existing workflow. This
+does not add runtime resource-only animation decoding. PCA schemas remain generated
+and ignored alongside the other build assets.
+
+Collision-model import reads native geometry and pathfinding spheres, validates
+surface loops and bone bindings, then reuses the existing Blender conversion.
+Separate structure-BSP and Havok collision paths still need migration.
 Read-only sampling converted temporary copies of 36 H3 weapons, bipeds and
 vehicles and verified their initial color permutations after reopening. All 36
 used the native path; no original editing-kit tags were modified.

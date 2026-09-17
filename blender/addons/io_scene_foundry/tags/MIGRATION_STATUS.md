@@ -5,20 +5,21 @@
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
-Latest light validation: 39 regression tests pass without starting ManagedBlam.
+Latest validation: 45 regression tests pass without starting ManagedBlam.
 The read-only H4/H2AMP sample reaches conversion for 59 of 60 light tags. The last
 tag is a physical light with periodic, modifier-driven attenuation. Sampling mocks
 light allocation, final lighting setup and bitmap conversion; visual parity and
 complete import/export acceptance are still outstanding.
 
-The source audit after the light-reader migration found:
+The source audit after the structure seam/metadata migration found:
 
-- 11 migrated tag workflows: camera tracks, globals, render-method options,
+- 15 migrated tag workflows: camera tracks, globals, render-method options,
   render-method definitions, material-shader metadata, models, object metadata,
-  lightmapper globals, cinematic-lighting metadata, Reach lights and cheap lights.
-- 30 tag classes still inherit the legacy `Tag` base, directly or indirectly:
-  21 direct wrappers and 9 shader/material/decal subclasses.
-- 29 modules under `managed_blam` still contain `SelectField` calls.
+  lightmapper globals, cinematic-lighting metadata, light tags, cheap lights,
+  structure seams, structure metadata, authored PCA animation and collision models.
+- 26 tag classes still inherit the legacy `Tag` base, directly or indirectly:
+  17 direct wrappers and 9 shader/material/decal subclasses.
+- 25 modules under `managed_blam` still contain `SelectField` calls.
 
 These are code-inventory counts, not a percentage of engineering effort. Several
 large remaining features depend on ManagedBlam resource decoders or custom editors,
@@ -53,7 +54,7 @@ installer's separate .NET assembly inspection in `tools/halo_launcher.py`.
 
 ## Validation so far
 
-39 regression tests pass together in Blender, including native tag serialization,
+45 regression tests pass together in Blender, including native tag serialization,
 aborted writes, wrapper checks that reject ManagedBlam initialization, camera work,
 metadata, object/cinematic copying and cinematic-lighting transforms. There is
 also a Rust regression test for preserving unnamed flags during cross-tag copying.
@@ -142,3 +143,41 @@ bounds and ensure connected inputs, ranged inputs, output modifiers and periodic
 functions are not incorrectly classified as constants. The remaining H2AMP tag,
 `objects/weapons/h2a_oddball_ricochet/fx/ca_oddball_01a_red.light`, uses physically
 correct lighting with periodic, modifier-driven attenuation and remains unsupported.
+
+Structure seams now read native final-point geometry and validate triangle indices
+before Blender allocation. Triangles reference final points, correcting the old
+reader's use of original vertices. Final edges are not required to build triangle
+faces. Tests cover five H3+ schemas, rejected invalid indices, metadata count checks,
+actual Blender mesh construction, BSP assignments and normal orientation. A read-only
+sample of 25 real tags across five games read 102 seams and 1,220 triangles without
+errors or source changes.
+
+H4/H2AMP structure metadata now imports effects, airprobes, light cones and object
+placements through native named fields. Tests cover quaternion/position/scale,
+palette references, variants, script flags, collection names and objects-only mode.
+The light-cone curve path now uses its string property instead of overwriting the
+numeric intensity. Generated schemas remain ignored; full in-game acceptance of
+both workflows is still outstanding.
+
+Authored PCA animation now reads blendshape vertices, frame coefficients, animation
+ranges and render-model mesh/compression metadata through blam-tags. The wrapper
+no longer opens the legacy RenderModelTag for metadata. Tests cover both H4/H2AMP
+schemas and create actual Blender shape keys and linear keyframes, checking vertex
+deltas, weights and rejection of invalid frame ranges before allocation. In a
+read-only sample, five PCA tags yielded 5,724 frame rows and 642,496 blendshape
+vertices with no errors or source changes. All five lacked usable linked render
+metadata, so this sample does not validate complete real-asset animation import.
+Runtime resource-only PCA decoding and the existing vertex-count-based mesh
+matching limitations remain separate work.
+
+Collision models now read materials, regions/permutations, surfaces, vertices,
+edges, node bindings and pathfinding spheres through native fields. Detached records
+feed the existing Blender conversion, preserving surface-property handling. Surface
+loops are validated with bounded traversal before allocation; missing armature bones
+also fail before creating objects. H3/ODST plane orientation and H4/H2AMP unsigned
+indices are handled explicitly. Tests cover five H3+ schemas, flags, materials,
+pathfinding spheres, malformed loops, missing bones and a Blender BVH raycast.
+A read-only sample decoded 50 real tags, 86 meshes, 3,631 polygons and six spheres
+without errors or source changes. Full collision-mesh material/face-property and
+armature validation in complete imports remains outstanding. This does not migrate
+the separate structure-BSP or Havok collision readers.

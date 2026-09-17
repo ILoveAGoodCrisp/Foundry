@@ -1489,6 +1489,26 @@ class BSP:
         return ob
     
 class ModelCollision(BSP):
+    @classmethod
+    def from_native(cls, record):
+        from types import SimpleNamespace
+        result = cls.__new__(cls)
+        result.name = record.name
+        result.node_index, result.bone = record.node_index, record.bone
+        result.vertices = [SimpleNamespace(position=Vector(v) * 100) for v in record.vertices]
+        result.surfaces = record.surfaces
+        result.native_polygons = record.polygons
+        result.uses_materials = False
+        result.sphere_collision_only = all(s.invisible for s in record.surfaces)
+        result.some_sphere_collision = any(s.invisible for s in record.surfaces)
+        result.sky_index = -1
+        return result
+
+    def get_surface_vertex_indices(self, surface):
+        if hasattr(self, 'native_polygons'):
+            return self.native_polygons[surface.index]
+        return super().get_surface_vertex_indices(surface)
+
     def __init__(self, element: TagFieldBlockElement, name, collision_materials: list[CollisionMaterial], nodes: list[str] = None):
         super().__init__(element.SelectField("Struct:bsp").Elements[0], name, collision_materials)
         self.node_index = element.Fields[0].Data
@@ -2166,6 +2186,12 @@ class HavokCollision:
         return ob
 
 class PathfindingSphere:
+    @classmethod
+    def from_native(cls, record):
+        result = cls.__new__(cls)
+        result.__dict__.update(vars(record))
+        return result
+
     def __init__(self, element: TagFieldBlockElement, nodes: list[str] = None):
         self.index = element.ElementIndex
         self.node_index = element.Fields[0].Value

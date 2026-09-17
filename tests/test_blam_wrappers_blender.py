@@ -19,6 +19,121 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_collision_geometry_and_invalid_loops(self):
+        from mathutils import Vector
+        from io_scene_foundry.managed_blam.collision_model import CollisionTag
+        from io_scene_foundry.managed_blam.connected_geometry import ModelCollision
+        for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                 patch.object(utils, 'get_tags_path', return_value=root), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                with CollisionTag('test.collision_model') as tag:
+                    def add(parent, name):
+                        block = tag.block(parent, name)
+                        return block[block.add()]
+                    node = add(tag.tag.root(), 'nodes')
+                    tag.required_field(node, 'name').set('root')
+                    material = add(tag.tag.root(), 'materials')
+                    tag.required_field(material, 'name').set('metal')
+                    region = add(tag.tag.root(), 'regions')
+                    tag.required_field(region, 'name').set('body')
+                    permutation = add(region, 'permutations')
+                    tag.required_field(permutation, 'name').set('default')
+                    record = add(permutation, 'bsps')
+                    tag.required_field(record, 'node index').set(0)
+                    bsp = tag.required_field(record, 'bsp').as_struct()
+                    for point in ((0., 0., 0.), (1., 0., 0.), (0., 1., 0.)):
+                        vertex = add(bsp, 'vertices')
+                        field = tag.required_field(vertex, 'point')
+                        field.set(type(field.value)(*point))
+                    for i in range(3):
+                        edge = add(bsp, 'edges')
+                        for name, value in [('start vertex', i), ('end vertex', (i+1)%3),
+                                            ('forward edge', (i+1)%3), ('reverse edge', -1),
+                                            ('left surface', 0), ('right surface', -1)]:
+                            tag.required_field(edge, name).set(65535 if value == -1 and game in {'halo4', 'halo2a'} else value)
+                    surface = add(bsp, 'surfaces')
+                    tag.required_field(surface, 'first edge').set(0)
+                    tag.required_field(surface, 'material').set(0)
+                    tag.required_field(surface, 'flags').set_flag('climbable', True)
+                    if game in {'halo3', 'halo3odst'}:
+                        tag.required_field(surface, 'plane').set(-32768)
+                    else:
+                        tag.required_field(surface, 'flags').set_flag('plane negated', True)
+                    sphere = add(tag.tag.root(), 'pathfinding spheres')
+                    tag.required_field(sphere, 'node').set(0)
+                    tag.required_field(sphere, 'radius').set(.5)
+                    tag.required_field(sphere, 'flags').set_flag('vehicle only', True)
+                before = (Path(root) / 'test.collision_model').read_bytes()
+                with CollisionTag('test.collision_model') as tag:
+                    meshes, spheres = tag.read_collision()
+                    self.assertEqual(meshes[0].polygons, [[0, 1, 2]])
+                    self.assertEqual(meshes[0].bone, 'root')
+                    self.assertTrue(meshes[0].surfaces[0].ladder)
+                    self.assertTrue(meshes[0].surfaces[0].negated)
+                    self.assertEqual(meshes[0].surfaces[0].material.name, 'metal')
+                    self.assertTrue(spheres[0].vehicle)
+                    collision = ModelCollision.from_native(meshes[0])
+                    hit, normal, index, distance = collision.to_bvh().ray_cast(Vector((25, 25, 100)), Vector((0, 0, -1)))
+                    self.assertAlmostEqual(hit.z, 0.)
+                    self.assertAlmostEqual(distance, 100.)
+                    with self.assertRaisesRegex(ValueError, 'missing from the armature'):
+                        tag.to_blend_objects(None, SimpleNamespace(pose=SimpleNamespace(bones={})))
+                    region = tag.block(tag.tag.root(), 'regions')[0]
+                    perm = tag.block(region, 'permutations')[0]
+                    bsp = tag.required_field(tag.block(perm, 'bsps')[0], 'bsp').as_struct()
+                    tag.required_field(tag.block(bsp, 'edges')[1], 'forward edge').set(1)
+                    with self.assertRaisesRegex(ValueError, 'invalid edge loop'):
+                        tag.read_collision()
+                self.assertEqual((Path(root) / 'test.collision_model').read_bytes(), before)
+
+    def test_native_pca_creates_shape_keys_and_animation(self):
+        import bpy
+        import struct
+        from io_scene_foundry.managed_blam.pca_animation import PCAAnimationTag
+        for game in ('halo4', 'halo2a'):
+            mesh = bpy.data.meshes.new('native_pca_test')
+            mesh.from_pydata([(0., 0., 0.), (1., 1., 0.)], [], [])
+            ob = bpy.data.objects.new('native_pca_test', mesh)
+            action = None
+            try:
+                with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                     patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                     patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                     patch.object(utils, 'get_tags_path', return_value=root), \
+                     patch.object(utils, 'halo_scale', return_value=1.), \
+                     patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                    with PCAAnimationTag('test.pca_animation') as tag:
+                        meshes = tag.mesh_data()
+                        item = meshes[meshes.add()]
+                        tag.required_field(item, 'vertices per shape').set(2)
+                        vertices = tag.block(item, 'raw blendshape verts')
+                        for vector in ((1., 0., 0.), (0., 1., 0.)):
+                            field = tag.required_field(vertices[vertices.add()], 'position')
+                            field.set(type(field.value)(*vector))
+                        frames = tag.block(tag.tag.root(), 'frame data')
+                        for weight in (0., 1.):
+                            tag.required_field(frames[frames.add()], 'Coefficients').set(struct.pack('<f', weight))
+                    with PCAAnimationTag('test.pca_animation') as tag:
+                        bounds = SimpleNamespace(x0=0., x1=10., y0=0., y1=10., z0=0., z1=10.)
+                        animation = SimpleNamespace(action_tracks=SimpleNamespace(add=lambda: SimpleNamespace()))
+                        with self.assertRaisesRegex(ValueError, 'frame range'):
+                            tag.import_animation(ob, 0, bounds, 5, 1, 1, 0, 'bad', animation, 'pca', {})
+                        self.assertIsNone(mesh.shape_keys)
+                        keys, action, slot = tag.import_animation(ob, 0, bounds, 0, 2, 1, 0, 'test', animation, 'pca', {})
+                        self.assertEqual(tuple(keys.key_blocks['pca_1'].data[0].co), (1., 0., 0.))
+                        self.assertEqual(tuple(keys.key_blocks['pca_1'].data[1].co), (1., 2., 0.))
+                        fcurve, = utils.get_fcurves(action, slot)
+                        self.assertEqual([tuple(k.co) for k in fcurve.keyframe_points], [(1., 0.), (2., 1.)])
+                        self.assertTrue(all(k.interpolation == 'LINEAR' for k in fcurve.keyframe_points))
+            finally:
+                bpy.data.objects.remove(ob, do_unlink=True)
+                bpy.data.meshes.remove(mesh)
+                if action is not None:
+                    bpy.data.actions.remove(action)
+
     def test_native_structure_metadata_markers(self):
         from unittest.mock import MagicMock
         from io_scene_foundry.managed_blam import structure_meta

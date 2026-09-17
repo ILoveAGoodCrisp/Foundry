@@ -1,52 +1,45 @@
 import numpy as np
 import bpy
-import struct
 from typing import cast
-from mathutils import Vector
 
 from .. import utils
 
-from .render_model import RenderModelTag
+from ..tags.pca import PCAAnimationDocument
+from ..tags.blender import BlenderTag
 
-from .connected_geometry import CompressionBounds
-from ..managed_blam import Tag
-
-class PCAAnimationTag(Tag):
+class PCAAnimationTag(BlenderTag, PCAAnimationDocument):
     tag_ext = "pca_animation"
 
-    def _read_fields(self):
-        self.block_mesh_data = self.tag.SelectField("Block:mesh data")
-        self.block_frame_data = self.tag.SelectField("Block:frame data")
+    def __init__(self, path='', **kwargs):
+        kwargs.setdefault('tag_must_exist', False)
+        super().__init__(path, **kwargs)
 
     def _raw_verts(self, mesh_data):
-        block = mesh_data.SelectField("Block:raw blendshape verts")
-        verts = [Vector((*e.Fields[0].Data,)) for e in block.Elements]
-        return np.asarray([v[:] for v in verts], dtype=np.single)
+        return np.asarray(self.raw_vertices(mesh_data), dtype=np.single).reshape(-1, 3)
     
-    def _decompress_verts(self, raw_verts: np.ndarray, bounds: CompressionBounds) -> np.ndarray:
+    def _decompress_verts(self, raw_verts: np.ndarray, bounds) -> np.ndarray:
         scale = np.array([bounds.x1 - bounds.x0, bounds.y1 - bounds.y0, bounds.z1 - bounds.z0])
         scale /= 10 # Maya scale
         scale *= utils.halo_scale(1)
         return raw_verts * scale
 
     # ------------------------------------------------------------ #
-    def import_animation(self, ob: bpy.types.Object, mesh_data_index: int, bounds: CompressionBounds, offset, count, shape_count, shape_offset, name, blender_animation, group_name, kb_pca_min_max):
+    def import_animation(self, ob: bpy.types.Object, mesh_data_index: int, bounds, offset, count, shape_count, shape_offset, name, blender_animation, group_name, kb_pca_min_max):
         print(f"--- Adding PCA animation for {name} to {ob.name}")
-        mesh_data = self.block_mesh_data.Elements[mesh_data_index]
-        vertices_per_shape = int(mesh_data.Fields[1].Data)
+        mesh_data = self.mesh_data()[mesh_data_index]
+        vertices_per_shape = self.value(mesh_data, 'vertices per shape')
+        if vertices_per_shape <= 0 or vertices_per_shape != len(ob.data.vertices):
+            raise ValueError('PCA vertices per shape must match the target mesh')
         
-        shape_keys = set()
-
         compressed_vertices_array = self._raw_verts(mesh_data)
         vertices_array = self._decompress_verts(compressed_vertices_array, bounds)
         all_shape_vertices = vertices_array.reshape(-1, vertices_per_shape, 3)
         shape_vertices = all_shape_vertices[shape_offset : shape_offset + shape_count]
         K = shape_vertices.shape[0]
 
-        rows = []
-        for elem in self.block_frame_data.Elements:
-            buffer = bytes(elem.Fields[0].GetData())
-            rows.append(struct.unpack('<'+'f'*(len(buffer)//4), buffer))
+        if shape_offset < 0 or shape_count <= 0 or K != shape_count:
+            raise ValueError('PCA shape range is outside the available blendshapes')
+        rows = self.coefficient_rows()
 
         row_length = len(rows)
         coefficient = np.zeros((row_length, K), np.float32)
@@ -55,6 +48,8 @@ class PCAAnimationTag(Tag):
 
         if count is None:
             count = row_length - offset
+        if offset < 0 or count <= 0 or offset + count > row_length:
+            raise ValueError('PCA frame range is outside the available coefficients')
             
         coefficient = coefficient[offset:offset+count]
 
@@ -128,30 +123,16 @@ class PCAAnimationTag(Tag):
                 
     def to_blender(self, animations: dict, groups: dict, objects: list):
         # Animations is a dict with keys of graph animation names and values of blender animations
-        render_model_path = self.tag.SelectField("Reference:RenderModel").Path
         shape_key_actions = {}
         
-        if not self.path_exists(render_model_path):
+        render_info = self.render_mesh_info()
+        if render_info is None:
             return
         
-        pca_mesh_vert_counts = {}
-        pca_mesh_indices = []
         pca_objects = {}
-        processed_groups = set()
         kb_pca_min_max = {}
         
-        with RenderModelTag(path=render_model_path) as render_model:
-            mesh_count = render_model.block_per_mesh_temporary.Elements.Count
-            pca_mesh_indices = [element.Fields[0].Value for element in render_model.tag.SelectField("Struct:render geometry[0]/Block:PCA Mesh Indices").Elements if element.Fields[0].Value > -1 and element.Fields[0].Value < mesh_count]
-            
-            if not pca_mesh_indices:
-                return
-            
-            for idx in pca_mesh_indices:
-                mesh_element = render_model.block_per_mesh_temporary.Elements[idx]
-                pca_mesh_vert_counts[mesh_element.Fields[0].Elements.Count] = idx
-                
-            compression_bounds = CompressionBounds(render_model.block_compression_info.Elements[0])
+        pca_mesh_vert_counts, compression_bounds = render_info
         
         for ob in objects:
             pca_index = pca_mesh_vert_counts.get(len(ob.data.vertices))
@@ -163,23 +144,23 @@ class PCAAnimationTag(Tag):
             if blender_animation is None:
                 continue
             
-            for element in self.block_mesh_data.Elements:
-                mesh_index = element.Fields[0].Data
+            for element_index, element in enumerate(self.mesh_data()):
+                mesh_index = self.value(element, 'render mesh index')
                 ob = pca_objects.get(mesh_index)
                 if ob is None:
                     continue
-                for anim_element in element.SelectField("Block:animations").Elements:
-                    if anim_element.Fields[0].GetStringData() != name:
+                for anim_element in self.block(element, 'animations'):
+                    if self.value(anim_element, 'Name') != name:
                         continue
 
-                    offset = anim_element.Fields[1].Data
-                    count = anim_element.Fields[2].Data
-                    shape_offset = anim_element.Fields[3].Data
-                    coefficient_count = anim_element.Fields[4].Data
+                    offset = self.value(anim_element, 'Offset')
+                    count = self.value(anim_element, 'Count')
+                    shape_offset = self.value(anim_element, 'PCA Shape Offset')
+                    coefficient_count = self.value(anim_element, 'PCA coefficient Count')
                     
                     group_name = groups[shape_offset]
 
-                    shape_key, action, slot = self.import_animation(ob, element.ElementIndex, compression_bounds, offset, count, coefficient_count, shape_offset, name, blender_animation, group_name, kb_pca_min_max)
+                    shape_key, action, slot = self.import_animation(ob, element_index, compression_bounds, offset, count, coefficient_count, shape_offset, name, blender_animation, group_name, kb_pca_min_max)
                     shape_key_actions[(action, slot)] = shape_key
                     
         return shape_key_actions
