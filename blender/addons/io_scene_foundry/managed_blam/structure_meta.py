@@ -5,27 +5,33 @@ from typing import cast
 import bpy
 from mathutils import Euler, Matrix, Vector
 
-from ..managed_blam import Tag
+from ..tags.backend import TagDocument
+from ..tags.blender import BlenderTag
+from ..tags.metadata import rgba
 from .. import utils
 from . import import_transform
 
-class StructureMetaTag(Tag):
+class StructureMetaTag(BlenderTag, TagDocument):
     tag_ext = 'structure_meta'
     
-    def _read_fields(self):
-        self.effects = self.tag.SelectField("Block:Effects markers")
-        self.airprobes = self.tag.SelectField("Block:Airprobes")
-        self.light_cones = self.tag.SelectField("Block:Light Cones")
-        self.object_palette = self.tag.SelectField("Block:Object Palette")
-        self.objects = self.tag.SelectField("Block:Objects")
+    def __init__(self, path='', **kwargs):
+        kwargs.setdefault('tag_must_exist', False)
+        super().__init__(path, **kwargs)
+
+    def _reference_path(self, element, name):
+        reference = self.reference(element, name)
+        return reference.RelativePathWithExtension if reference else ''
+
+    def _rotation(self, element):
+        return utils.ijkw_to_wxyz(self.value(element, 'rotation').to_array())
         
     def _import_effects(self, parent_collection: bpy.types.Collection = None):
         objects = []
-        for element in self.effects.Elements:
-            name = element.Fields[0].GetStringData()
-            rotation = utils.ijkw_to_wxyz((*element.Fields[1].Data,))
-            position = Vector((*element.Fields[2].Data,)) * 100
-            effect = self.get_path_str(element.Fields[3].Path)
+        for element in self.block(self.tag.root(), 'Effects markers'):
+            name = self.value(element, 'marker name')
+            rotation = self._rotation(element)
+            position = Vector(self.value(element, 'position').to_array()) * 100
+            effect = self._reference_path(element, 'optional attached effect')
             
             if not effect:
                 continue
@@ -52,9 +58,9 @@ class StructureMetaTag(Tag):
     
     def _import_airprobes(self, parent_collection: bpy.types.Collection = None):
         objects = []
-        for element in self.airprobes.Elements:
-            position = Vector((*element.Fields[0].Data,)) * 100
-            name = element.Fields[1].GetStringData()
+        for element in self.block(self.tag.root(), 'Airprobes'):
+            position = Vector(self.value(element, 'airprobe position').to_array()) * 100
+            name = self.value(element, 'airprobe name')
             
             if not name:
                 continue
@@ -80,17 +86,16 @@ class StructureMetaTag(Tag):
     
     def _import_light_cones(self, parent_collection: bpy.types.Collection = None):
         objects = []
-        for element in self.light_cones.Elements:
-            name = element.Fields[0].GetStringData()
-            rotation = utils.ijkw_to_wxyz((*element.Fields[1].Data,))
-            position = Vector((*element.Fields[2].Data,)) * 100
-            length = element.Fields[3].Data
-            width = element.Fields[4].Data
-            intensity = element.Fields[5].Data
-            light_color = (*element.Fields[6].Data,)
-            light_color = light_color[1], light_color[2], light_color[3], light_color[0]
-            light_cone_tag = self.get_path_str(element.Fields[7].Path)
-            intensity_curve = self.get_path_str(element.Fields[8].Path)
+        for element in self.block(self.tag.root(), 'Light Cones'):
+            name = self.value(element, 'marker name')
+            rotation = self._rotation(element)
+            position = Vector(self.value(element, 'position').to_array()) * 100
+            length = self.value(element, 'length')
+            width = self.value(element, 'width')
+            intensity = self.value(element, 'intensity')
+            light_color = rgba(self.value(element, 'light color'))
+            light_cone_tag = self._reference_path(element, 'light cone tag')
+            intensity_curve = self._reference_path(element, 'intensity curve')
             
             if not light_cone_tag:
                 continue
@@ -105,11 +110,11 @@ class StructureMetaTag(Tag):
             ob.nwo.marker_light_cone_intensity = intensity
             ob.nwo.marker_light_cone_color = light_color
             ob.nwo.marker_light_cone_tag = light_cone_tag
-            ob.nwo.marker_light_cone_intensity = intensity_curve
+            ob.nwo.marker_light_cone_curve = intensity_curve
             objects.append(ob)
         
         if objects:
-            collection = cast(bpy.types.Collection, bpy.data.collections.new(f"{self.tag_path.ShortName}_airprobes"))
+            collection = cast(bpy.types.Collection, bpy.data.collections.new(f"{self.tag_path.ShortName}_light_cones"))
             if parent_collection is None:
                 bpy.context.scene.collection.children.link(collection)
             else:
@@ -122,15 +127,15 @@ class StructureMetaTag(Tag):
     
     def _import_objects(self, parent_collection: bpy.types.Collection = None):
         
-        palette = [self.get_path_str(element.Fields[0].Path) for element in self.object_palette.Elements]
+        palette = [self._reference_path(element, 'definition') for element in self.block(self.tag.root(), 'Object Palette')]
         
         objects = []
-        for element in self.objects.Elements:
-            name = element.Fields[0].GetStringData()
-            rotation = utils.ijkw_to_wxyz((*element.Fields[1].Data,))
-            translation = Vector((*element.Fields[2].Data,)) * 100
-            scale = element.Fields[3].Data
-            palette_index = element.Fields[4].Value
+        for element in self.block(self.tag.root(), 'Objects'):
+            name = self.value(element, 'name')
+            rotation = self._rotation(element)
+            translation = Vector(self.value(element, 'translation').to_array()) * 100
+            scale = self.value(element, 'scale')
+            palette_index = self.value(element, 'palette_index')
             if palette_index > -1 and palette_index < len(palette):
                 object_path = palette[palette_index]
                 if not object_path:
@@ -138,8 +143,8 @@ class StructureMetaTag(Tag):
             else:
                 continue
             
-            run_scripts = element.Fields[5].TestBit("scripts always run")
-            variant = element.Fields[9].GetStringData()
+            run_scripts = self.required_field(element, 'flags').get_flag('scripts always run')
+            variant = self.value(element, 'variant name')
             
             if not name:
                 continue
@@ -155,7 +160,7 @@ class StructureMetaTag(Tag):
             objects.append(ob)
         
         if objects:
-            collection = cast(bpy.types.Collection, bpy.data.collections.new(f"{self.tag_path.ShortName}_airprobes"))
+            collection = cast(bpy.types.Collection, bpy.data.collections.new(f"{self.tag_path.ShortName}_objects"))
             if parent_collection is None:
                 bpy.context.scene.collection.children.link(collection)
             else:

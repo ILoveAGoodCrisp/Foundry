@@ -17,6 +17,41 @@ lighting = importlib.import_module('foundry_native_tags.lighting')
 
 
 class MetadataTests(unittest.TestCase):
+    def test_native_structure_seam_geometry(self):
+        seams = importlib.import_module('foundry_native_tags.seams')
+        for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root:
+                args = dict(tags_root=root, game=game)
+                with seams.StructureSeamsDocument('test.structure_seams', **args) as doc:
+                    block = doc.block(doc.tag.root(), 'seams')
+                    element = block[block.add()]
+                    final = doc.required_field(element, 'final').as_struct()
+                    points = doc.block(final, 'points')
+                    for coords in ((1., 0., 0.), (0., 1., 0.), (0., 0., 1.)):
+                        p = points[points.add()]
+                        field = doc.required_field(p, 'final point')
+                        field.set(type(field.value)(*coords))
+                    triangles = doc.block(final, 'triangles')
+                    triangle = triangles[triangles.add()]
+                    for i, value in enumerate((2, 0, 1)):
+                        doc.required_field(triangle, f'final point{i}').set(value)
+                    # Original vertices and final edges intentionally empty: triangles index final points.
+                path = Path(root) / 'test.structure_seams'
+                before = path.read_bytes()
+                with seams.StructureSeamsDocument(path, **args) as doc:
+                    record, = doc.read_geometry()
+                    self.assertEqual(record.vertices, ((1., 0., 0.), (0., 1., 0.), (0., 0., 1.)))
+                    self.assertEqual(record.triangles, ((2, 0, 1),))
+                    final = doc.required_field(doc.block(doc.tag.root(), 'seams')[0], 'final').as_struct()
+                    triangle = doc.block(final, 'triangles')[0]
+                    doc.required_field(triangle, 'final point0').set(-1)
+                    with self.assertRaisesRegex(ValueError, 'invalid triangle'):
+                        doc.read_geometry()
+                    doc.required_field(triangle, 'final point0').set(0)
+                    with self.assertRaisesRegex(ValueError, 'degenerate triangle'):
+                        doc.read_geometry()
+                self.assertEqual(path.read_bytes(), before)
+
     def test_cinematic_dynamic_lighting_metadata(self):
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root:

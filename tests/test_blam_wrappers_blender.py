@@ -19,6 +19,132 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_structure_metadata_markers(self):
+        from unittest.mock import MagicMock
+        from io_scene_foundry.managed_blam import structure_meta
+        for game in ('halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                 patch.object(utils, 'get_tags_path', return_value=root), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                with structure_meta.StructureMetaTag('test.structure_meta') as tag:
+                    def add(name):
+                        block = tag.block(tag.tag.root(), name)
+                        return block[block.add()]
+                    def vector(element, name, values):
+                        field = tag.required_field(element, name)
+                        field.set(type(field.value)(*values))
+                    effect = add('Effects markers')
+                    tag.required_field(effect, 'marker name').set('fx')
+                    vector(effect, 'rotation', (0., 0., 0., 1.))
+                    vector(effect, 'position', (1., 2., 3.))
+                    tag.set_reference(effect, 'optional attached effect', 'test.effect')
+                    air = add('Airprobes')
+                    tag.required_field(air, 'airprobe name').set('air')
+                    vector(air, 'airprobe position', (4., 5., 6.))
+                    cone = add('Light Cones')
+                    tag.required_field(cone, 'marker name').set('cone')
+                    vector(cone, 'rotation', (0., 0., 0., 1.))
+                    for name, number in (('length', 2.), ('width', 3.), ('intensity', 4.)):
+                        tag.required_field(cone, name).set(number)
+                    vector(cone, 'light color', (1., .2, .4, .6))
+                    tag.set_reference(cone, 'light cone tag', 'test.light_cone')
+                    tag.set_reference(cone, 'intensity curve', 'test.curve_scalar')
+                    palette = add('Object Palette')
+                    tag.set_reference(palette, 'definition', 'test.scenery')
+                    obj = add('Objects')
+                    tag.required_field(obj, 'name').set('instance')
+                    vector(obj, 'rotation', (0., 0., 0., 1.))
+                    vector(obj, 'translation', (7., 8., 9.))
+                    tag.required_field(obj, 'scale').set(2.)
+                    tag.required_field(obj, 'palette_index').set(0)
+                    tag.required_field(obj, 'variant name').set('variant')
+                    tag.required_field(obj, 'flags').set_flag('scripts always run', True)
+                before = (Path(root) / 'test.structure_meta').read_bytes()
+                collections = []
+                def collection(name):
+                    result = SimpleNamespace(name=name, objects=SimpleNamespace(link=MagicMock()))
+                    collections.append(result)
+                    return result
+                fake = SimpleNamespace(types=SimpleNamespace(Collection=object), data=SimpleNamespace(
+                    collections=SimpleNamespace(new=collection), objects=SimpleNamespace(
+                        new=lambda name, data: SimpleNamespace(name=name, nwo=SimpleNamespace(), empty_display_size=1.))))
+                parent = SimpleNamespace(children=SimpleNamespace(link=MagicMock()))
+                with structure_meta.StructureMetaTag('test.structure_meta') as tag, \
+                     patch.object(structure_meta, 'bpy', fake), \
+                     patch.object(structure_meta.import_transform, 'scale_factor', return_value=1.), \
+                     patch.object(structure_meta.import_transform, 'marker_matrix', side_effect=lambda m: m):
+                    markers, instances = tag.to_blender(parent)
+                    self.assertEqual([o.name for o in markers], ['fx', 'air', 'cone'])
+                    self.assertEqual(tuple(markers[0].matrix_world.translation), (100., 200., 300.))
+                    self.assertAlmostEqual(markers[0].matrix_world.to_quaternion().w, 1.)
+                    self.assertEqual(markers[2].nwo.marker_light_cone_intensity, 4.)
+                    self.assertEqual(markers[2].nwo.marker_light_cone_curve, 'test.curve_scalar')
+                    self.assertAlmostEqual(markers[2].nwo.marker_light_cone_color[0], .2)
+                    self.assertEqual(instances[0].nwo.marker_game_instance_tag_name, 'test.scenery')
+                    self.assertTrue(instances[0].nwo.marker_always_run_scripts)
+                    self.assertEqual(instances[0].nwo.marker_game_instance_tag_variant_name, 'variant')
+                    self.assertEqual(tuple(instances[0].matrix_world.to_scale()), (2., 2., 2.))
+                    self.assertEqual([c.name for c in collections], ['test_effects', 'test_airprobes', 'test_light_cones', 'test_objects'])
+                    self.assertEqual(tag.to_blender(parent, objects_only=True)[0], [])
+                self.assertEqual((Path(root) / 'test.structure_meta').read_bytes(), before)
+
+    def test_native_structure_seam_blender_mesh(self):
+        import bpy
+        from mathutils import Matrix, Vector
+        from io_scene_foundry.managed_blam import structure_seams
+        class SeamTestProperties(bpy.types.PropertyGroup):
+            mesh_type: bpy.props.StringProperty()
+            region_name: bpy.props.StringProperty()
+            seam_back: bpy.props.StringProperty()
+        bpy.utils.register_class(SeamTestProperties)
+        bpy.types.Mesh.nwo = bpy.props.PointerProperty(type=SeamTestProperties)
+        bpy.types.Object.nwo = bpy.props.PointerProperty(type=SeamTestProperties)
+        collection = bpy.data.collections.new('native_seam_test')
+        objects = []
+        try:
+            with tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game='reach')), \
+                 patch.object(utils, 'get_tags_path', return_value=root), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                with structure_seams.StructureSeamsTag('test.structure_seams') as tag:
+                    block = tag.block(tag.tag.root(), 'seams')
+                    element = block[block.add()]
+                    final = tag.required_field(element, 'final').as_struct()
+                    points = tag.block(final, 'points')
+                    for coords in ((0., 0., 0.), (0., 1., 0.), (1., 0., 0.)):
+                        point = points[points.add()]
+                        field = tag.required_field(point, 'final point')
+                        field.set(type(field.value)(*coords))
+                    triangles = tag.block(final, 'triangles')
+                    triangle = triangles[triangles.add()]
+                    for i in range(3):
+                        tag.required_field(triangle, f'final point{i}').set(i)
+                    with patch.object(structure_seams, 'apply_props_material'), \
+                         patch.object(structure_seams.import_transform, 'mesh_matrix', return_value=Matrix.Identity(4)), \
+                         patch.object(structure_seams.import_transform, 'rotation_matrix', return_value=Matrix.Identity(4)):
+                        with self.assertRaisesRegex(ValueError, 'metadata'):
+                            tag.to_blend_objects([], collection)
+                        self.assertEqual(len(collection.objects), 0)
+                        objects = tag.to_blend_objects([SimpleNamespace(bsps=['front', 'back'], origin=Vector((0, 0, 100)))], collection)
+                        ob, = objects
+                        self.assertEqual(ob.nwo.region_name, 'front')
+                        self.assertEqual(ob.nwo.seam_back, 'back')
+                        self.assertEqual(len(ob.data.polygons), 1)
+                        self.assertAlmostEqual(max(v.co.x for v in ob.data.vertices), 100.)
+                        self.assertGreater(ob.data.polygons[0].normal.z, .99)
+        finally:
+            for ob in list(collection.objects):
+                mesh = ob.data
+                bpy.data.objects.remove(ob, do_unlink=True)
+                bpy.data.meshes.remove(mesh)
+            bpy.data.collections.remove(collection)
+            del bpy.types.Mesh.nwo
+            del bpy.types.Object.nwo
+            bpy.utils.unregister_class(SeamTestProperties)
+
     def test_unconnected_native_curves_resolve_constant_light_values(self):
         import struct
         from blam_tags import TagFunctionEditor
