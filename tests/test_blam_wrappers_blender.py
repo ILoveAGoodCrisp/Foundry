@@ -19,8 +19,139 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_cinematic_shot_arrays(self):
+        from io_scene_foundry.tags.cinematic import CinematicCameraDocument
+        for game in ('halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root:
+                path = Path(root, 'test.cinematic_scene_data')
+                with CinematicCameraDocument(path, tags_root=root, game=game) as doc:
+                    shots = doc.block(doc.tag.root(), 'shots')
+                    for _ in range(34):
+                        shots.add()
+                    objects = doc.block(doc.tag.root(), 'objects')
+                    element = objects[objects.add()]
+                    flags = doc.required_field(element, 'shots active flags')
+                    chunks = flags.as_array()
+                    self.assertGreaterEqual(len(chunks), 2)
+                    doc.required_field(chunks[0], 'shot flag data').set(0x80000001)
+                    doc.required_field(chunks[1], 'shot flag data').set(7)
+                    self.assertEqual(doc.object_records()[0].active_shots, [0,31,32,33])
+                    self.assertIsNone(doc.required_field(element, 'name').as_array())
+                    stale = chunks[0]
+                    objects.add()
+                    with self.assertRaises(doc.api.StaleHandleError):
+                        doc.value(stale, 'shot flag data')
+                with CinematicCameraDocument(path, tags_root=root, game=game) as doc:
+                    self.assertEqual(doc.object_records()[0].active_shots, [0,31,32,33])
+
+    def test_native_cinematic_music(self):
+        from io_scene_foundry.tags.cinematic import CinematicCameraDocument
+        from io_scene_foundry.managed_blam.cinematic_scene import CinematicMusic
+        from io_scene_foundry.managed_blam.cinematic_scene import CinematicObjectFunctionKeyframe
+        for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                path = Path(root, 'test.cinematic_scene')
+                with CinematicCameraDocument(path, tags_root=root, game=game) as doc:
+                    shots = doc.block(doc.tag.root(), 'shots')
+                    music = doc.block(shots[shots.add()], 'music')
+                    doc.required_field(doc.tag.root(), 'anchor').set('cinematic_anchor')
+                    if game in {'halo4','halo2a'}:
+                        lights = doc.block(doc.tag.root(), 'lights')
+                        doc.set_reference(lights[lights.add()], 'structure lighting info', 'lighting/test.scenario_structure_lighting_info')
+                    for stop in (False, True):
+                        element = music[music.add()]
+                        doc.set_reference(element, r'music\foley', 'sound/music.sound_looping')
+                        doc.required_field(element, 'frame').set(15)
+                        doc.required_field(element, 'flags').set_flag('Stop Music At Frame (rather than starting it)', stop)
+                    music.add()
+                    if game != 'halo3':
+                        screens = doc.block(shots[0], 'screen effects')
+                        screen = screens[screens.add()]
+                        doc.set_reference(screen, 'screen effect', 'effects/test.area_screen_effect')
+                        doc.required_field(screen, 'frame').set(5)
+                        doc.required_field(screen, 'stop frame').set(25)
+                        if game in {'halo4','halo2a'}:
+                            doc.required_field(screen, 'flags').set_flag('Persist Entire Shot', True)
+                        screens.add()
+                        constraints = doc.block(shots[0], 'user input constraints')
+                        constraint = constraints[constraints.add()]
+                        field = doc.required_field(constraint, 'maximum look angles')
+                        field.set(type(field.value)(10, -20, -30, 40))
+                        doc.required_field(constraint, 'frame').set(7)
+                        doc.required_field(constraint, 'ticks').set(60)
+                        doc.required_field(constraint, 'frictional force').set(.5)
+                    objects = doc.block(doc.tag.root(), 'objects')
+                    doc.required_field(objects[objects.add()], 'name').set('chief')
+                    doc.required_field(objects[0], 'variant name').set('default')
+                    if game in {'halo3', 'halo3odst', 'reach'}:
+                        doc.required_field(objects[0], 'shots active flags').set(3)
+                    lights = doc.block(shots[0], 'lighting')
+                    for subject in (0, -1, 99):
+                        light = lights[lights.add()]
+                        doc.set_reference(light, 'lighting', 'lighting/test.new_cinematic_lighting')
+                        doc.required_field(light, 'subject').set(subject)
+                        doc.required_field(light, 'marker').set('head')
+                        if light.field('flags') is not None:
+                            doc.required_field(light, 'flags').set_flag('persists across shots', True)
+                    lights.add()
+                    functions = doc.block(shots[0], 'object functions')
+                    function = functions[functions.add()]
+                    doc.required_field(function, 'object').set(0)
+                    doc.required_field(function, 'function name').set('shield')
+                    keys = doc.block(function, 'keyframes')
+                    for value in (.25, .75):
+                        key = keys[keys.add()]
+                        doc.required_field(key, 'frame').set(15)
+                        doc.required_field(key, 'value').set(value)
+                        doc.required_field(key, 'interpolation time').set(30)
+                        doc.required_field(key, 'flags').set_flag('clear function (Value and Interpolation time are unused)', True)
+                before = path.read_bytes()
+                with CinematicCameraDocument(path, tags_root=root, game=game) as doc:
+                    records, = doc.music_shots()
+                    metadata = doc.scene_metadata()
+                    self.assertEqual(metadata.anchor, 'cinematic_anchor')
+                    self.assertEqual(len(metadata.lights), 1 if game in {'halo4','halo2a'} else 0)
+                    object_record, = doc.object_records()
+                    self.assertEqual((object_record.index, object_record.name, object_record.variant), (0,'chief','default'))
+                    self.assertEqual(object_record.active_shots, [0] if game in {'halo3','halo3odst','reach'} else None)
+                    light, = doc.lighting_shots()[0]
+                    self.assertEqual((light.subject, light.marker), (0, 'head'))
+                    self.assertEqual(light.lighting.RelativePathWithExtension, 'lighting\\test.new_cinematic_lighting')
+                    if game != 'halo3':
+                        screen, = doc.screen_effect_shots()[0]
+                        self.assertEqual(screen.screen_effect.RelativePathWithExtension, 'effects\\test.area_screen_effect')
+                        self.assertEqual((screen.frame, screen.stop_frame), (5,25))
+                        self.assertEqual(screen.persist_entire_shot, game in {'halo4','halo2a'})
+                        constraint, = doc.user_constraint_shots()[0]
+                        self.assertEqual(constraint.maximum_look_angles, (10,-20,-30,40))
+                        self.assertEqual((constraint.frame, constraint.ticks, constraint.frictional_force), (7,60,.5))
+                    else:
+                        self.assertEqual(doc.user_constraint_shots(), [[]])
+                    function_record, = doc.object_function_shots()[0]
+                    self.assertEqual(function_record.object, 'chief')
+                    event = SimpleNamespace()
+                    with patch.object(utils, 'blender_frame', side_effect=lambda frame: frame):
+                        CinematicObjectFunctionKeyframe.from_native(function_record).to_event(
+                            SimpleNamespace(cinematic_events=SimpleNamespace(add=lambda: event)), game in {'halo4','halo2a'})
+                    self.assertEqual(event.value, .75)
+                    self.assertEqual(event.interpolation_time, 1.)
+                    self.assertEqual(event.function_name, 'shield')
+                    self.assertTrue(event.clear_function)
+                self.assertEqual(len(records), 2)
+                for record, stop in zip(records, (False, True)):
+                    event = SimpleNamespace()
+                    nwo = SimpleNamespace(cinematic_events=SimpleNamespace(add=lambda: event))
+                    with patch.object(utils, 'blender_frame', side_effect=lambda frame: frame):
+                        CinematicMusic.from_native(record).to_event(nwo, game in {'halo4','halo2a'})
+                    self.assertEqual(event.music, 'sound\\music.sound_looping')
+                    self.assertEqual(event.stop, stop)
+                    self.assertEqual(event.frame, 15 if game in {'halo4','halo2a'} else 16)
+                self.assertEqual(before, path.read_bytes())
+
     def test_native_cinematic_camera_frames(self):
         from io_scene_foundry.tags.cinematic import CinematicCameraDocument
+        from io_scene_foundry.managed_blam.cinematic_scene import CinematicDialogue, CinematicEffect, CinematicCustomScript
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
                  patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
@@ -29,6 +160,7 @@ class WrapperTests(unittest.TestCase):
                 with CinematicCameraDocument(path, tags_root=root, game=game) as doc:
                     shots = doc.block(doc.tag.root(), 'shots')
                     frames = doc.block(shots[shots.add()], 'frame data')
+                    doc.required_field(shots[0], 'frame count').set(24)
                     camera = doc.required_field(frames[frames.add()], 'camera frame').as_struct()
                     dynamic = camera.field('dynamic data')
                     constant = camera.field('constant data')
@@ -38,11 +170,65 @@ class WrapperTests(unittest.TestCase):
                         field = doc.required_field(dynamic, name)
                         field.set(type(field.value)(*values))
                     doc.required_field(constant, 'focal length').set(35.)
+                    dialogue = doc.block(shots[0], 'dialogue')
+                    element = dialogue[dialogue.add()]
+                    doc.set_reference(element, 'dialogue', 'sound/test.sound')
+                    doc.required_field(element, 'frame').set(10)
+                    doc.required_field(element, 'scale').set(.5)
+                    doc.required_field(element, 'lipsync actor').set('chief')
+                    doc.required_field(element, 'subtitle').set('hello')
+                    objects = doc.block(doc.tag.root(), 'objects')
+                    doc.required_field(objects[objects.add()], 'name').set('chief')
+                    effects = doc.block(shots[0], 'effects')
+                    element = effects[effects.add()]
+                    doc.set_reference(element, 'effect', 'effects/test.effect')
+                    doc.required_field(element, 'marker parent').set(0)
+                    doc.required_field(element, 'frame').set(20)
+                    if game in {'halo4', 'halo2a'}:
+                        doc.required_field(element, 'state').set(2)
+                        doc.required_field(element, 'flags').set_flag('looping', True)
+                    effects.add()  # Empty effect references must not create events.
+                    doc.set_reference(objects[0], 'model animation graph', 'objects/chief.model_animation_graph')
+                    doc.set_reference(objects[0], 'object type', 'objects/chief.biped')
+                    scripts = doc.block(shots[0], 'custom script')
+                    element = scripts[scripts.add()]
+                    doc.required_field(element, 'frame').set(12)
+                    script = doc.required_field(element, 'script').as_struct()
+                    doc.required_field(script, 'script').set(b'(print "hello")\r\n\x00')
                 before = path.read_bytes()
                 with CinematicCameraDocument(path, tags_root=root, game=game) as doc:
                     records = doc.camera_shots()
+                    self.assertEqual(doc.shot_frame_counts(), [24])
                     self.assertEqual(records[0][0].position, (1.,2.,3.))
                     self.assertEqual(records[0][0].lens, 35.)
+                    dialogue_record = doc.dialogue_shots()[0][0]
+                    dialogue = CinematicDialogue.from_native(dialogue_record)
+                    event = SimpleNamespace()
+                    nwo = SimpleNamespace(cinematic_events=SimpleNamespace(add=lambda: event))
+                    with patch.object(utils, 'blender_frame', side_effect=lambda frame: frame):
+                        dialogue.to_event(nwo, game in {'halo4', 'halo2a'})
+                    self.assertEqual(event.sound_tag, 'sound\\test.sound')
+                    self.assertEqual(event.frame, 10 if game in {'halo4','halo2a'} else 11)
+                    self.assertEqual(event.sound_scale, .5)
+                    self.assertEqual(event.subtitle, 'hello')
+                    self.assertEqual(dialogue.actor, 'chief')
+                    object_record, = doc.object_records()
+                    self.assertEqual(object_record.graph.RelativePathWithExtension, 'objects\\chief.model_animation_graph')
+                    self.assertEqual(object_record.object_type.RelativePathWithExtension, 'objects\\chief.biped')
+                    effect_record, = doc.effect_shots()[0]
+                    effect = CinematicEffect.from_native(effect_record)
+                    with patch.object(utils, 'blender_frame', side_effect=lambda frame: frame):
+                        effect.to_event(nwo, game in {'halo4', 'halo2a'})
+                    self.assertEqual(effect.marker_parent, 'chief')
+                    self.assertEqual(event.effect, 'effects\\test.effect')
+                    self.assertEqual(event.effect_state, '2' if game in {'halo4','halo2a'} else '0')
+                    self.assertEqual(event.frame, 20 if game in {'halo4','halo2a'} else 21)
+                    script_record, = doc.script_shots()[0]
+                    self.assertEqual(script_record.frame, 12)
+                    CinematicCustomScript.from_native(script_record).to_event(nwo)
+                    self.assertEqual(event.type, 'SCRIPT')
+                    self.assertEqual(event.script_type, 'CUSTOM')
+                    self.assertEqual(event.script, '(print "hello")\r\n')
                     frames = doc.block(doc.block(doc.tag.root(), 'shots')[0], 'frame data')
                     frames.clear()
                     with self.assertRaisesRegex(ValueError, 'no camera frames'):

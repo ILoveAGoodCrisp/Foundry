@@ -82,6 +82,13 @@ class CinematicClip:
                 subject_block.AddElement().Fields[0].Value = subject_index
         
 class CinematicDialogue:
+    @classmethod
+    def from_native(cls, record):
+        result = cls()
+        for name, value in vars(record).items():
+            setattr(result, name, value)
+        return result
+
     def __init__(self):
         self.dialogue: TagPath = None
         self.female_dialogue: TagPath = None
@@ -151,6 +158,14 @@ class CinematicDialogue:
         self.character = event.subtitle_character
 
 class CinematicMusic:
+    @classmethod
+    def from_native(cls, record):
+        result = cls()
+        result.music = record.music
+        result.frame = record.frame
+        result.stops_music_at_frame = record.stops_music_at_frame
+        return result
+
     def __init__(self):
         self.stops_music_at_frame = False
         self.music: TagPath = None
@@ -180,6 +195,13 @@ class CinematicMusic:
         self.music = tag_path_from_string(event.music)
         
 class CinematicEffect:
+    @classmethod
+    def from_native(cls, record):
+        result = cls()
+        for name, value in vars(record).items():
+            setattr(result, name, value)
+        return result
+
     def __init__(self):
         self.use_maya_value = False
         self.looping = False
@@ -263,6 +285,13 @@ class CinematicEffect:
             
         
 class CinematicObjectFunctionKeyframe:
+    @classmethod
+    def from_native(cls, record):
+        result = cls()
+        for name, value in vars(record).items():
+            setattr(result, name, value)
+        return result
+
     def __init__(self, ob: str = "", func: str = ""):
         self.clear_function = False
         self.frame = 0
@@ -362,6 +391,13 @@ class CinematicScreenEffect:
                 self.stop_frame = shot_frame_count
         
 class CinematicCustomScript:
+    @classmethod
+    def from_native(cls, record):
+        result = cls()
+        for name, value in vars(record).items():
+            setattr(result, name, value)
+        return result
+
     def __init__(self):
         self.use_maya_value = False
         self.frame = 0
@@ -568,6 +604,34 @@ class CinematicSceneTag(Tag):
         with CinematicCameraDocument(data.tag_path.Filename, tags_root=utils.get_tags_path(),
                                      game=utils.get_project().game, must_exist=True) as native:
             camera_shots = native.camera_shots()
+            frame_counts = native.shot_frame_counts()
+            scene_metadata = native.scene_metadata() if not self.corinth else None
+            dialogue_shots = native.dialogue_shots()
+            effect_shots = native.effect_shots()
+            script_shots = native.script_shots()
+            native_data_objects = native.object_records()
+            native_scene_objects = native_data_objects if not self.corinth else None
+            music_shots = native.music_shots() if not self.corinth else None
+            function_shots = native.object_function_shots() if not self.corinth else None
+            screen_effect_shots = native.screen_effect_shots() if not self.corinth else None
+            user_constraint_shots = native.user_constraint_shots() if not self.corinth else None
+            lighting_shots = native.lighting_shots() if not self.corinth else None
+        if self.corinth:
+            with CinematicCameraDocument(self.tag_path.Filename, tags_root=utils.get_tags_path(),
+                                         game=utils.get_project().game, must_exist=True) as native_scene:
+                music_shots = native_scene.music_shots()
+                function_shots = native_scene.object_function_shots()
+                screen_effect_shots = native_scene.screen_effect_shots()
+                user_constraint_shots = native_scene.user_constraint_shots()
+                lighting_shots = native_scene.lighting_shots()
+                native_scene_objects = native_scene.object_records()
+                scene_metadata = native_scene.scene_metadata()
+        if len(music_shots) != len(camera_shots):
+            raise ValueError('Cinematic scene and camera-data shot counts differ')
+        if len(native_scene_objects) != len(native_data_objects):
+            raise ValueError('Cinematic scene and data object counts differ')
+        if any(record.active_shots is None for record in native_data_objects):
+            raise ValueError('Unsupported cinematic shot-visibility layout')
         camera_objects = []
         object_animations = []
         frame = 1
@@ -590,79 +654,64 @@ class CinematicSceneTag(Tag):
         
         utils.print_tag(f"Importing cinematic scene: {self.tag_path.ShortName}")
         
-        scene_shots = self.tag.SelectField("shots")
-        data_shots = data.tag.SelectField("shots")
-        scene_objects = self.tag.SelectField("Block:objects")
-        data_objects = data.tag.SelectField("Block:objects")
-        
-        object_count = scene_objects.Elements.Count
+        object_count = len(native_scene_objects)
         
         object_lighting = defaultdict(list)
         object_events = defaultdict(list) # object name: event
         camera_events = defaultdict(list) # shot index: class instance
         
-        for scene_element, data_element in zip(scene_shots.Elements, data_shots.Elements):
-            utils.print_step(f"Importing cinematic events for shot: {scene_element.ElementIndex + 1}")
+        for shot_index in range(len(camera_shots)):
+            utils.print_step(f"Importing cinematic events for shot: {shot_index + 1}")
             main_screen_effect = None
             main_user_constraint = None
             
-            for dialogue_element in data_element.SelectField("dialogue").Elements:
-                dialogue = CinematicDialogue()
-                dialogue.from_element(dialogue_element)
+            for dialogue_record in dialogue_shots[shot_index]:
+                dialogue = CinematicDialogue.from_native(dialogue_record)
                 dialogue.to_event(cin_scene_nwo, self.corinth)
                 object_events[dialogue.actor].append(len(cin_scene_nwo.cinematic_events) - 1)
                 
-            for music_element in scene_element.SelectField("music").Elements:
-                music = CinematicMusic()
-                music.from_element(music_element)
+            for music_record in music_shots[shot_index]:
+                music = CinematicMusic.from_native(music_record)
                 music.to_event(cin_scene_nwo, self.corinth)
                 
-            for effect_element in data_element.SelectField("effects").Elements:
-                effect = CinematicEffect()
-                effect.from_element(effect_element, data_objects, self.corinth)
+            for effect_record in effect_shots[shot_index]:
+                effect = CinematicEffect.from_native(effect_record)
                 effect.to_event(cin_scene_nwo, self.corinth)
                 object_events[effect.marker_parent].append(len(cin_scene_nwo.cinematic_events) - 1)
                 
-            for object_functions_element in scene_element.SelectField("object functions").Elements:
-                object_function = CinematicObjectFunction()
-                object_function.from_element(object_functions_element, scene_objects)
-                for keyframe in object_function.keyframes.values():
-                    keyframe.to_event(cin_scene_nwo, self.corinth)
-                    object_events[object_function.object].append(len(cin_scene_nwo.cinematic_events) - 1)
+            for function_record in function_shots[shot_index]:
+                keyframe = CinematicObjectFunctionKeyframe.from_native(function_record)
+                keyframe.to_event(cin_scene_nwo, self.corinth)
+                object_events[keyframe.object].append(len(cin_scene_nwo.cinematic_events) - 1)
                 
-            for screen_effects_element in scene_element.SelectField("screen effects").Elements:
-                screen_effect = CinematicScreenEffect()
-                screen_effect.from_element(screen_effects_element, self.corinth)
+            for screen_effect in screen_effect_shots[shot_index]:
                 main_screen_effect = screen_effect
                 
-            for script_element in data_element.SelectField("custom script").Elements:
-                script = CinematicCustomScript()
-                script.from_element(script_element)
+            for script_record in script_shots[shot_index]:
+                script = CinematicCustomScript.from_native(script_record)
                 script.to_event(cin_scene_nwo)
                 
-            for user_element in data_element.SelectField("user input constraints").Elements:
-                user = CinematicUserInputConstraints()
-                user.from_element(user_element)
+            for user in user_constraint_shots[shot_index]:
                 main_user_constraint = user
             
-            utils.print_step(f"Importing cinematic lighting for shot: {scene_element.ElementIndex + 1}")
-            for light_element in scene_element.SelectField("Block:lighting").Elements:
-                cin_lighting_path = light_element.SelectField("Reference:lighting").Path
+            utils.print_step(f"Importing cinematic lighting for shot: {shot_index + 1}")
+            for assignment in lighting_shots[shot_index]:
+                cin_lighting_path = assignment.lighting
                 if not self.path_exists(cin_lighting_path):
                     continue
                 
-                subject = light_element.SelectField("subject").Value
+                subject = assignment.subject
                 
                 if subject < 0 or subject >= object_count:
                     continue
                 
-                marker = light_element.SelectField("marker").GetStringData()
-                persist = light_element.SelectField("flags").TestBit("persists across shots")
+                marker = assignment.marker
+                persist = assignment.persist
                 with CinematicLightingTag(path=cin_lighting_path) as lighting_tag:
-                    object_lighting[subject].append(lighting_tag.to_cinematic_lighting(marker, persist, data_element.ElementIndex))
+                    object_lighting[subject].append(lighting_tag.to_cinematic_lighting(marker, persist, shot_index))
             
-            utils.print_step(f"Creating camera data for shot: {data_element.ElementIndex + 1}")
-            shot_camera_name = f"{self.tag_path.ShortName}_shot{data_element.ElementIndex + 1}"
+            utils.print_step(f"Creating camera data for shot: {shot_index + 1}")
+            shot_camera_name = f"{self.tag_path.ShortName}_shot{shot_index + 1}"
             shot_camera_data = bpy.data.cameras.new(shot_camera_name)
             shot_camera = bpy.data.objects.new(shot_camera_name, shot_camera_data)
             shot_camera_data.display_size *= (1 / 0.03048) * import_transform.scale_factor()
@@ -684,7 +733,7 @@ class CinematicSceneTag(Tag):
             timeline_marker = blender_scene.timeline_markers.new(shot_camera.name, frame=frame)
             timeline_marker.camera = shot_camera
             
-            for camera_frame in camera_shots[data_element.ElementIndex]:
+            for camera_frame in camera_shots[shot_index]:
                 cam_position = Vector(camera_frame.position) * 100
                 cam_forward = Vector(camera_frame.forward).normalized()
                 cam_up = Vector(camera_frame.up).normalized()
@@ -756,21 +805,16 @@ class CinematicSceneTag(Tag):
                     shot_frame += 1
 
             shot_frames.append(frame)
-            frame += data_element.SelectField("frame count").Data
+            frame += frame_counts[shot_index]
             
         blender_scene.frame_start = 1
         blender_scene.frame_end = frame
         
         utils.print_tag("Cinematic Objects")
         
-        scene_objects = self.tag.SelectField("Block:objects")
-        data_objects = data.tag.SelectField("Block:objects")
-        
-        for scene_element, data_element in zip(scene_objects.Elements, data_objects.Elements):
-            name = scene_element.SelectField("name").GetStringData()
-            variant = scene_element.SelectField("variant name").GetStringData()
-            graph = data_element.SelectField("model animation graph").Path
-            obj = data_element.SelectField("object type").Path
+        for scene_record, data_record in zip(native_scene_objects, native_data_objects):
+            name, variant = scene_record.name, scene_record.variant
+            graph, obj = data_record.graph, data_record.object_type
             
             if self.path_exists(obj) and self.path_exists(graph):
                 cin_object = CinObject()
@@ -778,30 +822,16 @@ class CinematicSceneTag(Tag):
                 cin_object.variant = variant
                 cin_object.graph_path = graph.Filename
                 cin_object.object_path = obj.Filename
-                cin_object.cinematic_lighting = object_lighting.get(scene_element.ElementIndex)
+                cin_object.cinematic_lighting = object_lighting.get(scene_record.index)
                 cin_object.events = object_events.get(name, [])
                 object_animations.append(cin_object)
-                flags = data_element.SelectField("shots active flags")
                 shots = []
-                if self.corinth:
-                    flags.RefreshShots()
-                    for idx in range(flags.ShotCount):
-                        if flags.GetShotChecked(idx):
-                            shots.append(idx + 1)
-                            cin_object.cameras[idx] = camera_objects[idx]
-                else:
-                    for idx, item in enumerate(flags.Items):
-                        if item.IsSet:
-                            shots.append(idx + 1)
-                            cin_object.cameras[idx] = camera_objects[idx]
+                for idx in data_record.active_shots:
+                    shots.append(idx + 1)
+                    cin_object.cameras[idx] = camera_objects[idx]
                         
                 utils.print_step(f"{name} is present in shots {shots}")
         
-        light_tags = []
-        if self.corinth:
-            for element in self.tag.SelectField("Block:lights").Elements:
-                info_path = element.Fields[0].Path
-                if self.path_exists(info_path):
-                    light_tags.append(info_path.Filename)
+        light_tags = [path.Filename for path in scene_metadata.lights if self.path_exists(path)]
             
-        return self.tag_path.ShortName, blender_scene, camera_objects, object_animations, self.tag.SelectField("anchor").GetStringData(), actions, shot_frames, light_tags
+        return self.tag_path.ShortName, blender_scene, camera_objects, object_animations, scene_metadata.anchor, actions, shot_frames, light_tags

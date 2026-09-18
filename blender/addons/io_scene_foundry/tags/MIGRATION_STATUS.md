@@ -1,11 +1,15 @@
 # ManagedBlam removal status
 
+Track confirmed native read/binding gaps in
+[BLAM_TAGS_LIMITATIONS.md](BLAM_TAGS_LIMITATIONS.md). Update that ledger whenever
+a new unreadable tag/field is encountered or a recorded limitation is resolved.
+
 ## Current position
 
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
-Latest validation: 52 regression tests pass without starting ManagedBlam.
+Latest validation: 54 regression tests pass without starting ManagedBlam.
 The read-only H4/H2AMP sample reaches conversion for 59 of 60 light tags. The last
 tag is a physical light with periodic, modifier-driven attenuation. Sampling mocks
 light allocation, final lighting setup and bitmap conversion; visual parity and
@@ -33,6 +37,96 @@ large remaining features depend on ManagedBlam resource decoders or custom edito
 and migrated wrappers can still hand specialized operations to legacy converters.
 
 ## Remaining work
+
+Cinematic import now reads shot lengths, anchor and structure-lighting references
+natively and iterates detached shot/object records. There are no direct SelectField
+calls remaining in CinematicSceneTag.to_blender. The wrapper still inherits legacy
+Tag and initializes its playback helper; this is not yet a ManagedBlam-free entry
+point. Five-profile metadata fixtures pass with the rest of the 54-test suite.
+Next: isolate native import construction from legacy playback/export callers, then
+validate complete imports through that entry point.
+
+READ-001 is resolved in the local binding: TagField.as_array returns fixed-array
+struct handles with lifetime checks. H4/H2AMP shot visibility now reads native
+32-bit chunks, and the ManagedBlam visibility fallback is removed. Unknown layouts
+fail before object allocation. Tests cover cross-chunk bits, editing, save/reopen
+and stale handles. Foundry's wheel has been rebuilt; older installed wheels need
+updating to use the new accessor.
+
+Cinematic object shot visibility now reads native 32-bit block flags for H3, ODST
+and Reach. Enabled bits are bounded to the actual shot count before camera lookup.
+H4/H2AMP use a fixed-array field that the current Python TagField binding does not
+expose; these retain the existing custom-field fallback. Tests cover native masks,
+out-of-shot bits and the later-layout fallback. All 53 tests pass. Exposing fixed
+arrays is the next binding requirement for removing this particular fallback.
+
+Cinematic object metadata now reads natively: scene names/variants and data-side
+animation-graph/object references feed existing import logic. H4/H2AMP split tag
+layouts are covered alongside older combined layouts. Scene/data object-count
+mismatches are rejected before Blender allocation. All 53 regression tests pass.
+Shot-active flags still use the legacy custom-field reader, and animation/resource
+import remains legacy; this is not a complete cinematic object migration.
+
+Cinematic custom-script records now read natively from the camera/event source tag
+and feed the existing SCRIPT event conversion. UTF-8 text, optional BOM and trailing
+NUL terminators are handled without changing line endings; undecodable text raises
+before Blender allocation. Frame/flag/identifier metadata is retained, including
+defaults for fields absent in older layouts. Tests cover all five H3+ profiles and
+event text. Read-only sampling decoded 76 scripts from 20 tags / 196 shots without
+errors or source changes. All 53 tests pass. Existing event timing behavior and
+script writing/language conversion are unchanged; full cinematic parity remains.
+
+Cinematic lighting assignments now read natively: lighting-tag references, target
+object indices, marker names and persistence flags feed the existing native
+cinematic-lighting reader. Invalid subjects and empty references are skipped;
+missing lighting files retain the existing import skip. Five-profile tests cover
+references and invalid subjects. Read-only sampling decoded 757 assignments across
+196 shots in 20 tags without errors or source changes. All 53 tests pass. This does
+not establish full lighting visual parity or migrate assignment writing.
+
+Cinematic user-input constraints now read natively from the scene tag, correcting
+the H4/H2AMP import's previous scene-data lookup. Native records retain signed
+top/left/bottom/right limits, frame, ticks and friction. Missing H3 blocks are empty;
+camera application retains the existing last-record selection and absolute limits.
+Five-profile tests cover layout differences and rectangle ordering. Real-tag
+sampling decoded two constraints from 20 tags / 196 shots without errors or source
+changes. All 53 tests pass; constraint writing and full camera behavior validation
+remain outstanding.
+
+Cinematic object-function keyframes and screen-effect records now read natively.
+Function import preserves repeated-frame replacement, clear flags and interpolation
+timing; the real-tag sample decoded 273 keyframes. Screen-effect import preserves
+the existing last-valid-reference camera selection; H3's absent block is empty.
+The same 20-tag / 196-shot sample decoded 64 screen effects without errors or source
+changes. Timing/persistence metadata is read but camera application remains as
+before. All 53 regression tests pass. Writers and complete cinematic validation
+still require further migration work.
+
+Cinematic music cues now read natively from cinematic_scene, including H4/H2AMP
+where camera/dialogue/effect data lives in a separate cinematic_scene_data tag.
+Start/stop flags, references and frame offsets pass five-profile event-mapping
+tests. Empty references are skipped, and mismatched scene/data shot counts are
+rejected before Blender allocation. A read-only sample decoded 15 music cues from
+20 tags / 196 shots without errors or source changes. All 53 tests pass. Music
+writing, remaining cinematic events and full cinematic import validation remain.
+
+Cinematic effect import now uses native references, frame timing, marker-parent
+names, flags and H4/H2AMP state/function metadata. Empty references are skipped
+before event creation; missing H3/ODST fields receive the legacy class defaults.
+Five-profile fixtures exercise event conversion and title-specific frame offsets.
+Read-only sampling decoded 266 effects across 196 shots in 20 real tags without
+errors or source changes. All 52 regression tests pass. Effect writing and other
+cinematic event/resource workflows still use legacy code; full visual parity is
+not established.
+
+Cinematic dialogue import now consumes native detached records for sound references,
+timing, scale, actor and subtitle metadata. H3/ODST layouts omit female dialogue,
+female subtitle and character fields; these receive empty defaults. Existing event
+creation and title-specific frame offsets are preserved. Five-profile regression
+tests exercise native records through the Blender event mapping. A read-only sample
+decoded 123 dialogue entries across 196 shots in 20 tags without errors or source
+changes. All 52 tests pass. Dialogue writing, effects and object animation remain
+legacy; this does not establish complete cinematic import parity.
 
 Cinematic camera-frame decoding now uses native records for position, forward/up
 axes and focal length. The existing cinematic import consumes these detached
