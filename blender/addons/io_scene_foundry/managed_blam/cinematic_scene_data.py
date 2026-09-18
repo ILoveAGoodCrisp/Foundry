@@ -1,4 +1,5 @@
-from . import Tag
+from ..tags.blender import BlenderTag
+from ..tags.cinematic import CinematicCameraDocument
     
-class CinematicSceneDataTag(Tag):
+class CinematicSceneDataTag(BlenderTag, CinematicCameraDocument):
     tag_ext = 'cinematic_scene_data'

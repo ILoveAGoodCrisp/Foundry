@@ -19,7 +19,7 @@ import numpy as np
 from ..managed_blam import connected_geometry
 from ..managed_blam import import_transform
 
-from ..managed_blam.cinematic import CinematicTag
+from ..managed_blam.cinematic import NativeCinematicTag
 
 from ..managed_blam.decorator_set import DecoratorSetTag
 
@@ -31,7 +31,8 @@ from ..managed_blam.structure_design import StructureDesignTag
 
 from ..managed_blam.globals import FPARMS, GlobalsTag
 
-from ..managed_blam import Tag, start_mb_for_import
+from ..managed_blam import Tag, start_mb_for_import, switch_project_from_filepath
+from ..tags.backend import TagDocument
 
 from .animation.generate_frames import FrameGenerator
 
@@ -1243,7 +1244,10 @@ class NWO_Import(bpy.types.Operator):
                 # Start MB if the file is a tag and switch project as needed.
                 # Only checking the last file for speed (last file is always self.filepath if there was one).
                 # If another file is a tag, too bad, we won't try to switch project for it
-                start_mb_for_import(filepaths[-1])
+                if Path(filepaths[-1]).suffix.lower() == '.cinematic':
+                    switch_project_from_filepath(context, Path(filepaths[-1]))
+                else:
+                    start_mb_for_import(filepaths[-1])
 
                 scope_list = []
                 if self.scope:
@@ -3909,7 +3913,7 @@ class NWOImporter:
         filename = Path(file).with_suffix("").name
         utils.print_section(f"Importing Cinematic: {filename}")
         with utils.TagImportMover(self.tags_dir, file) as mover:
-            with CinematicTag(path=mover.tag_path) as cinematic:
+            with NativeCinematicTag(path=mover.tag_path) as cinematic:
                 scene_datas, scenario_path, zone_set = cinematic.to_blender(film_aperture, self.tag_cinematic_import_scenario, specific_scene=self.tag_cinematic_scene)
                 
         if self.setup_as_asset:
@@ -4623,21 +4627,20 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                             
             elif self.import_type == 'cinematic':
                 global cinematic_scene_items
-                with CinematicTag(path=self.filepath) as cinematic:
+                with NativeCinematicTag(path=self.filepath) as cinematic:
                     cinematic_scene_items = []
-                    scenario_path = cinematic.scenario.Path
-                    for element in cinematic.tag.SelectField("scenes").Elements:
-                        cin_scene_path = element.SelectField("scene").Path
+                    scenario_path, _ = cinematic.scenario_reference()
+                    for cin_scene_path, _ in cinematic.scene_references():
                         if cinematic.path_exists(cin_scene_path):
                             cinematic_scene_items.append(cin_scene_path.RelativePathWithExtension)
                     
                     if cinematic.path_exists(scenario_path):
-                        with ScenarioTag(path=scenario_path) as scenario:
+                        with TagDocument(scenario_path.Filename, tags_root=cinematic.tags_root,
+                                         game=cinematic.game, must_exist=True) as scenario:
                             sky_items = []
-                            for element in scenario.tag.SelectField("skies").Elements:
-                                sky = element.SelectField("Reference:sky").Path
-                                sky_path = scenario.get_path_str(sky, True)
-                                if sky_path and Path(sky_path).exists():
+                            for element in scenario.block(scenario.tag.root(), 'skies'):
+                                sky = scenario.reference(element, 'sky')
+                                if sky and Path(sky.Filename).exists():
                                     sky_items.append(sky.RelativePathWithExtension)
                         
             elif self.import_type == 'decorator_set':

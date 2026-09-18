@@ -19,6 +19,49 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_cinematic_entry_points(self):
+        from io_scene_foundry.managed_blam.cinematic import NativeCinematicTag, SceneData
+        from io_scene_foundry.managed_blam.cinematic_scene import NativeCinematicSceneTag
+        from io_scene_foundry.managed_blam.cinematic_scene_data import CinematicSceneDataTag
+        from io_scene_foundry.tags.backend import TagDocument
+        for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                 patch.object(utils, 'get_tags_path', return_value=Path(root)), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                later = game in {'halo4', 'halo2a'}
+                with NativeCinematicSceneTag('scene.cinematic_scene', tag_must_exist=False):
+                    pass
+                if later:
+                    with CinematicSceneDataTag('scene.cinematic_scene_data', tag_must_exist=False):
+                        pass
+                with NativeCinematicTag('test.cinematic', tag_must_exist=False) as doc:
+                    scenes = doc.block(doc.tag.root(), 'scenes')
+                    element = scenes[scenes.add()]
+                    doc.set_reference(element, 'scene', 'scene.cinematic_scene')
+                    if later:
+                        doc.set_reference(element, 'data', 'scene.cinematic_scene_data')
+                    settings = doc.required_field(doc.tag.root(), 'scenario and zone set').as_struct()
+                    doc.required_field(settings, 'zone set').set(-1)
+                path = Path(root, 'test.cinematic')
+                before = path.read_bytes()
+                # Exercise native scene/data constructors through the real dispatch, while
+                # keeping camera allocation outside this discovery regression.
+                result = ('scene', None, [], [], '', [], [], [])
+                with NativeCinematicTag(path) as doc, \
+                     patch.object(NativeCinematicSceneTag, 'to_blender', return_value=result) as convert:
+                    self.assertIsInstance(doc, TagDocument)
+                    self.assertEqual(doc.scenario_reference()[1], -1)
+                    imported, scenario, zone = doc.to_blender(36)
+                    self.assertEqual(len(imported), 1)
+                    self.assertEqual(imported[0].name, 'scene')
+                    self.assertIsNone(scenario)
+                    self.assertEqual(zone, '')
+                    self.assertEqual(convert.call_count, 1)
+                    self.assertEqual(doc.to_blender(36, specific_scene='missing')[0], [])
+                self.assertEqual(path.read_bytes(), before)
+
     def test_native_cinematic_shot_arrays(self):
         from io_scene_foundry.tags.cinematic import CinematicCameraDocument
         for game in ('halo4', 'halo2a'):
@@ -367,9 +410,10 @@ class WrapperTests(unittest.TestCase):
                     with patch.object(HavokCollision, 'from_serialized_shape', return_value=None), \
                          patch.object(RigidBody, 'to_objects') as convert, \
                          patch('io_scene_foundry.managed_blam.physics_legacy.LegacyPhysicsTag') as legacy:
-                        legacy.return_value.__enter__.return_value.to_blend_objects.return_value = []
-                        self.assertEqual(tag.to_blend_objects(collection, rig), [])
-                        legacy.assert_called_once()
+                        from io_scene_foundry.tags.physics import PhysicsShapesUnsupported
+                        with self.assertRaisesRegex(PhysicsShapesUnsupported, 'Unsupported serialized'):
+                            tag.to_blend_objects(collection, rig)
+                        legacy.assert_not_called()
                         convert.assert_not_called()
                         collection.objects.link.assert_not_called()
                 self.assertEqual(record.data, b'\x00\x01\xfe\xff')
@@ -1326,20 +1370,20 @@ class WrapperTests(unittest.TestCase):
                     next(f for f in mapping.fields() if f.type_name == 'data').set(b'bad')
                     with patch('io_scene_foundry.managed_blam.object_legacy.LegacyObjectTag') as legacy, \
                          patch.object(Function, 'make_node_group') as create_nodes:
-                        legacy.return_value.__enter__.return_value.functions_to_blender.return_value = {'legacy': []}
-                        self.assertEqual(obj.functions_to_blender(), {'legacy': []})
+                        with self.assertRaisesRegex(ValueError, 'Cannot decode native object functions'):
+                            obj.functions_to_blender()
                         create_nodes.assert_not_called()
-                        legacy.assert_called_once()
+                        legacy.assert_not_called()
                     unsupported = functions[functions.add()]
                     obj.required_field(unsupported, 'export name').set(name + '_unsupported')
                     mapping = obj.nested(unsupported, 'default function')
                     next(f for f in mapping.fields() if f.type_name == 'data').set(b'bad')
                     with patch('io_scene_foundry.managed_blam.object_legacy.LegacyObjectTag') as legacy, \
                          patch.object(Function, 'make_node_group') as create_nodes:
-                        legacy.return_value.__enter__.return_value.functions_to_blender.return_value = {'legacy': []}
-                        self.assertEqual(obj.functions_to_blender(), {'legacy': []})
+                        with self.assertRaisesRegex(ValueError, 'Cannot decode native object functions'):
+                            obj.functions_to_blender()
                         create_nodes.assert_not_called()
-                        legacy.assert_called_once()
+                        legacy.assert_not_called()
         finally:
             group = bpy.data.node_groups.get(group_name)
             if group is not None:

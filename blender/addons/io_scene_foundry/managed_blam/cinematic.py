@@ -5,7 +5,9 @@ from .lisp_to_corinth import script_from_text
 
 from .cinematic_scene_data import CinematicSceneDataTag
 
-from .cinematic_scene import CinematicSceneTag
+from .cinematic_scene import NativeCinematicSceneTag
+from ..tags.backend import TagDocument
+from ..tags.blender import BlenderTag
 
 from .. import utils
 
@@ -250,6 +252,44 @@ class CinematicTag(Tag):
         
         return scene_datas, scenario_path, zone_set
     
+class NativeCinematicTag(BlenderTag, TagDocument):
+    """Native cinematic scene discovery and import, without playback initialization."""
+    tag_ext = 'cinematic'
+
+    def scene_references(self):
+        return [(self.reference(element, 'scene'),
+                 self.reference(element, 'data') if self.corinth else None)
+                for element in self.block(self.tag.root(), 'scenes')]
+
+    def scenario_reference(self):
+        settings = self.required_field(self.tag.root(), 'scenario and zone set').as_struct()
+        return self.reference(settings, 'scenario'), self.value(settings, 'zone set')
+
+    def to_blender(self, film_aperture, import_scenario=False, specific_scene=''):
+        scenario_path, zone_set = None, ''
+        if import_scenario:
+            reference, index = self.scenario_reference()
+            if self.path_exists(reference):
+                scenario_path = reference.Filename
+                with TagDocument(scenario_path, tags_root=self.tags_root, game=self.game, must_exist=True) as scenario:
+                    zones = scenario.block(scenario.tag.root(), 'zone sets')
+                    if 0 <= index < len(zones):
+                        zone_set = scenario.value(zones[index], 'name')
+        scenes = []
+        for scene, data in self.scene_references():
+            if not self.path_exists(scene) or (self.corinth and not self.path_exists(data)):
+                continue
+            if specific_scene and scene.RelativePathWithExtension != specific_scene:
+                continue
+            result = SceneData(film_aperture, self.tag_path.ShortName)
+            if self.corinth:
+                result.from_scene_corinth(scene, data)
+            else:
+                result.from_scene(scene)
+            scenes.append(result)
+        return scenes, scenario_path, zone_set
+
+
 class SceneData:
     def __init__(self, film_aperture, cinematic_name):
         self.name = ""
@@ -265,10 +305,10 @@ class SceneData:
         self.cinematic_name = cinematic_name
         
     def from_scene(self, scene_tagpath):
-        with CinematicSceneTag(path=scene_tagpath) as scene:
+        with NativeCinematicSceneTag(path=scene_tagpath) as scene:
             self.name, self.blender_scene, self.camera_objects, self.object_animations, self.anchor_name, self.actions, self.shot_frames, self.lighting_infos = scene.to_blender(self.film_aperture, self.cinematic_name, scene)
     
     def from_scene_corinth(self, scene_tagpath, scene_data_tagpath):
-        with CinematicSceneTag(path=scene_tagpath) as scene:
+        with NativeCinematicSceneTag(path=scene_tagpath) as scene:
             with CinematicSceneDataTag(path=scene_data_tagpath) as data:
                 self.name, self.blender_scene, self.camera_objects, self.object_animations, self.anchor_name, self.actions, self.shot_frames, self.lighting_infos = scene.to_blender(self.film_aperture, self.cinematic_name, data)

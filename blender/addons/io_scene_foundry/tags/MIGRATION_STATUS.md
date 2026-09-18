@@ -6,10 +6,21 @@ a new unreadable tag/field is encountered or a recorded limitation is resolved.
 
 ## Current position
 
+Migration policy: remove ManagedBlam entirely. Unsupported native operations must
+raise explicit errors rather than fall back to ManagedBlam. Temporary breakage on
+this branch is accepted; record gaps for investigation instead of preserving .NET
+compatibility. Unported readers and writers still need replacement.
+
+Latest integration: cinematic import now uses native root, scene and scene-data
+entry points, including scene discovery, scenario zone-set lookup and sky metadata.
+Legacy playback/export wrappers remain separate and still need migration. Camera
+allocation and complete referenced-asset import are not covered by the new entry-point
+test. Physics and object-function imports no longer call their legacy fallback wrappers.
+
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
-Latest validation: 54 regression tests pass without starting ManagedBlam.
+Latest validation: 55 regression tests pass without starting ManagedBlam.
 The read-only H4/H2AMP sample reaches conversion for 59 of 60 light tags. The last
 tag is a physical light with periodic, modifier-driven attenuation. Sampling mocks
 light allocation, final lighting setup and bitmap conversion; visual parity and
@@ -21,16 +32,17 @@ The source audit on 2026-09-18 found:
   render-method definitions, material-shader metadata, models, object metadata,
   lightmapper globals, cinematic-lighting metadata, light tags, cheap lights,
   structure seams, structure metadata, authored PCA animation and collision models.
-- 24 tag classes still inherit the legacy `Tag` base, directly or indirectly:
-  15 direct wrappers and 9 shader/material/decal subclasses.
+- 23 tag classes still inherit the legacy `Tag` base, directly or indirectly:
+  14 direct wrappers and 9 shader/material/decal subclasses.
 - 23 modules under `managed_blam` still contain `SelectField` calls.
 
 Physics also uses native records for constraints, spheres, capsules, boxes, convex
 polyhedra, nested lists/MOPPs, H4/H2AMP body properties and supported serialized
 Havok geometry. Native decoding covers 90/100 sampled weapon tags and 74/100
-sampled vehicle tags. The remaining vehicle fallbacks have unbound bodies.
-`LegacyPhysicsTag` remains for unsupported cases, so the legacy class count is
-unchanged. These sample rates are not overall migration percentages.
+sampled vehicle tags. The remaining sampled vehicle cases have unbound bodies
+and now raise an explicit unsupported error. The old `LegacyPhysicsTag` source
+remains pending cleanup but is no longer a fallback from the native importer.
+These sample rates are not overall migration percentages.
 
 These are code-inventory counts, not a percentage of engineering effort. Several
 large remaining features depend on ManagedBlam resource decoders or custom editors,

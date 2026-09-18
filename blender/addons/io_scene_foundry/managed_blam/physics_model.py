@@ -1,4 +1,4 @@
-"""Native physics constraints with a temporary legacy rigid-body shape boundary."""
+"""Native physics import; unsupported shapes fail before object allocation."""
 from ..tags.blender import BlenderTag
 from ..tags.physics import PhysicsDocument, PhysicsShapesUnsupported
 from .connected_geometry import Constraint, Sphere, Box, Pill, Polyhedron, RigidBody, HavokCollision
@@ -37,12 +37,8 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
                 else:
                     shape = {'sphere': Sphere, 'box': Box, 'pill': Pill, 'polyhedron': Polyhedron}[record.kind].from_native(record)
                 shapes.append(shape)
-        except PhysicsShapesUnsupported:
-            records = None
-        if records is None:
-            from .physics_legacy import LegacyPhysicsTag
-            with LegacyPhysicsTag(path=self.tag_path, tag_must_exist=True) as legacy:
-                objects.extend(legacy.to_blend_objects(collection, armature, variant))
+        except PhysicsShapesUnsupported as exc:
+            raise PhysicsShapesUnsupported(f'Cannot import native physics in {self.system_path}: {exc}') from exc
         else:
             for record in records:
                 if armature is None or record.bone not in armature.pose.bones:

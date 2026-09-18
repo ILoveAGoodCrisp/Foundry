@@ -22,12 +22,8 @@ class ObjectTag(BlenderTag, ObjectDocument):
                 function = Function()
                 function.from_native_object(self, element)
                 decoded[self.value(element, 'export name')] = function
-        except ValueError:
-            # Retain compatibility for editor shapes the native decoder cannot describe.
-            # Decode every function before creating Blender nodes so fallback never duplicates them.
-            from .object_legacy import LegacyObjectTag
-            with LegacyObjectTag(path=self.system_path, tag_must_exist=True) as legacy:
-                return legacy.functions_to_blender()
+        except ValueError as exc:
+            raise ValueError(f'Cannot decode native object functions in {self.system_path}: {exc}') from exc
         for name, function in decoded.items():
             function.make_node_group(name)
         dependencies = defaultdict(list)
@@ -65,7 +61,6 @@ class ObjectTag(BlenderTag, ObjectDocument):
             attachment = SimpleNamespace(
                 function_names={name for name in (record.primary_scale, record.secondary_scale) if name},
                 objects=[], armature=armature)
-            # Only the referenced light still needs a legacy custom function editor.
             cls = LightTag if record.reference.Extension == 'light' else CheapLightTag
             with cls(path=record.reference, tag_must_exist=True) as light:
                 data = light.to_blender(record.primary_scale, record.secondary_scale, attachment)

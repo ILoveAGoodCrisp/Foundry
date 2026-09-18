@@ -9,6 +9,7 @@ from .lisp_to_corinth import script_from_text
 
 from .cinematic_scene_data import CinematicSceneDataTag
 from ..tags.cinematic import CinematicCameraDocument
+from ..tags.blender import BlenderTag
 from .. import utils
 from ..props.scene import NWO_CinematicEvent
 from . import Tag, tag_path_from_string
@@ -835,3 +836,9 @@ class CinematicSceneTag(Tag):
         light_tags = [path.Filename for path in scene_metadata.lights if self.path_exists(path)]
             
         return self.tag_path.ShortName, blender_scene, camera_objects, object_animations, scene_metadata.anchor, actions, shot_frames, light_tags
+
+
+class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
+    """Read-only import entry point; playback/export retain their legacy wrapper."""
+    tag_ext = 'cinematic_scene'
+    to_blender = CinematicSceneTag.to_blender
