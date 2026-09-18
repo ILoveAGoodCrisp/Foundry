@@ -19,6 +19,37 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_cinematic_camera_frames(self):
+        from io_scene_foundry.tags.cinematic import CinematicCameraDocument
+        for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                extension = 'cinematic_scene_data' if game in {'halo4', 'halo2a'} else 'cinematic_scene'
+                path = Path(root, 'test.' + extension)
+                with CinematicCameraDocument(path, tags_root=root, game=game) as doc:
+                    shots = doc.block(doc.tag.root(), 'shots')
+                    frames = doc.block(shots[shots.add()], 'frame data')
+                    camera = doc.required_field(frames[frames.add()], 'camera frame').as_struct()
+                    dynamic = camera.field('dynamic data')
+                    constant = camera.field('constant data')
+                    dynamic = dynamic.as_struct() if dynamic is not None else camera
+                    constant = constant.as_struct() if constant is not None else camera
+                    for name, values in [('camera position',(1.,2.,3.)), ('camera forward',(1.,0.,0.)), ('camera up',(0.,0.,1.))]:
+                        field = doc.required_field(dynamic, name)
+                        field.set(type(field.value)(*values))
+                    doc.required_field(constant, 'focal length').set(35.)
+                before = path.read_bytes()
+                with CinematicCameraDocument(path, tags_root=root, game=game) as doc:
+                    records = doc.camera_shots()
+                    self.assertEqual(records[0][0].position, (1.,2.,3.))
+                    self.assertEqual(records[0][0].lens, 35.)
+                    frames = doc.block(doc.block(doc.tag.root(), 'shots')[0], 'frame data')
+                    frames.clear()
+                    with self.assertRaisesRegex(ValueError, 'no camera frames'):
+                        doc.camera_shots()
+                self.assertEqual(records[0][0].forward, (1.,0.,0.))
+                self.assertEqual(before, path.read_bytes())
+
     def test_native_polyart_roundtrip_and_mesh(self):
         import bpy
         from mathutils import Matrix

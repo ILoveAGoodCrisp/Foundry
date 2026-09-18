@@ -5,7 +5,7 @@
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
-Latest validation: 51 regression tests pass without starting ManagedBlam.
+Latest validation: 52 regression tests pass without starting ManagedBlam.
 The read-only H4/H2AMP sample reaches conversion for 59 of 60 light tags. The last
 tag is a physical light with periodic, modifier-driven attenuation. Sampling mocks
 light allocation, final lighting setup and bitmap conversion; visual parity and
@@ -33,6 +33,14 @@ large remaining features depend on ManagedBlam resource decoders or custom edito
 and migrated wrappers can still hand specialized operations to legacy converters.
 
 ## Remaining work
+
+Cinematic camera-frame decoding now uses native records for position, forward/up
+axes and focal length. The existing cinematic import consumes these detached
+records; dialogue, effects, object animation and scene editing remain legacy.
+Five-profile tests cover both camera layouts, save/reopen, detached record lifetime
+and empty-shot rejection. A read-only sample decoded 196 shots / 27,495 camera frames
+from 20 real cinematic tags without errors or source changes. This validates camera
+data decoding, not complete cinematic import or visual parity. All 52 tests pass.
 
 Polyart tag import/export now uses native vertex, index and placement blocks.
 H4/H2AMP regression tests save/reopen fixture tags and create real Blender meshes,

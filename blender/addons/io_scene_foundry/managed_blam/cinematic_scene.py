@@ -8,6 +8,7 @@ from .cinematic_lighting import CinematicLightingTag
 from .lisp_to_corinth import script_from_text
 
 from .cinematic_scene_data import CinematicSceneDataTag
+from ..tags.cinematic import CinematicCameraDocument
 from .. import utils
 from ..props.scene import NWO_CinematicEvent
 from . import Tag, tag_path_from_string
@@ -564,6 +565,9 @@ class CinematicSceneTag(Tag):
         return self.scene_playback.GetLoopText()
     
     def to_blender(self, film_aperture: float, cinematic_name: str, data: CinematicSceneDataTag):
+        with CinematicCameraDocument(data.tag_path.Filename, tags_root=utils.get_tags_path(),
+                                     game=utils.get_project().game, must_exist=True) as native:
+            camera_shots = native.camera_shots()
         camera_objects = []
         object_animations = []
         frame = 1
@@ -680,11 +684,11 @@ class CinematicSceneTag(Tag):
             timeline_marker = blender_scene.timeline_markers.new(shot_camera.name, frame=frame)
             timeline_marker.camera = shot_camera
             
-            for frame_element in data_element.SelectField("Block:frame data").Elements:
-                cam_position = Vector([n for n in frame_element.SelectField(self.cam_position_path).Data]) * 100
-                cam_forward = Vector([n for n in frame_element.SelectField(self.cam_forward_path).Data]).normalized()
-                cam_up = Vector([n for n in frame_element.SelectField(self.cam_up_path).Data]).normalized()
-                focal_length = frame_element.SelectField(self.cam_focal_length_path).Data
+            for camera_frame in camera_shots[data_element.ElementIndex]:
+                cam_position = Vector(camera_frame.position) * 100
+                cam_forward = Vector(camera_frame.forward).normalized()
+                cam_up = Vector(camera_frame.up).normalized()
+                focal_length = camera_frame.lens
                 
                 cam_left = cam_up.cross(cam_forward).normalized()
                 
