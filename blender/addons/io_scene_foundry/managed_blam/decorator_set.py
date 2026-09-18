@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import cast
+from types import SimpleNamespace
 import bpy
 
 from .bitmap import bitmap_to_image
@@ -9,7 +10,8 @@ from .. import utils
 
 from .render_model import RenderModelTag
 
-from ..managed_blam import Tag
+from ..tags.backend import TagDocument, ReferenceField
+from ..tags.blender import BlenderTag
 
 class DecoratorType:
     def __init__(self):
@@ -17,29 +19,34 @@ class DecoratorType:
         self.decorator_type_index = -1
         self.decorator_type_name = ""
 
-class DecoratorSetTag(Tag):
+class DecoratorSetTag(BlenderTag, TagDocument):
     tag_ext = 'decorator_set'
     
-    def _read_fields(self):
-        self.reference_base = self.tag.SelectField("Reference:Base")
-        self.reference_lod2 = self.tag.SelectField("Reference:Lod2")
-        self.reference_lod3 = self.tag.SelectField("Reference:Lod3")
-        self.reference_lod4 = self.tag.SelectField("Reference:Lod4")
-        self.reference_texture = self.tag.SelectField("Reference:texture")
-        self.decorator_types = self.tag.SelectField("Block:decorator types")
-        self.model_instances = self.tag.SelectField("Block:render model instance names")
+    def __init__(self, path='', **kwargs):
+        super().__init__(path, **kwargs)
+        for attribute, field in [('base', 'Base'), ('lod2', 'Lod2'), ('lod3', 'Lod3'),
+                                 ('lod4', 'Lod4'), ('texture', 'texture')]:
+            if attribute == 'base' and self.tag.root().field(field) is None:
+                field = 'render model'
+            reference = ReferenceField(self, field) if self.tag.root().field(field) is not None else SimpleNamespace(Path=None)
+            setattr(self, 'reference_' + attribute, reference)
+
+    @staticmethod
+    def get_path_str(reference, full=False):
+        return (reference.Filename if full else reference.RelativePathWithExtension) if reference else ''
         
     def get_decorator_types(self) -> list[DecoratorType]:
         decorator_types = []
-        instance_count = self.model_instances.Elements.Count
-        for element in self.decorator_types.Elements:
-            value = element.SelectField("LongBlockIndex:mesh").Value
+        instances = self.block(self.tag.root(), 'render model instance names')
+        instance_count = len(instances)
+        for index, element in enumerate(self.block(self.tag.root(), 'decorator types')):
+            value = self.value(element, 'mesh')
             if value > -1 and value < instance_count:
-                name = self.model_instances.Elements[value].Fields[0].GetStringData()
+                name = self.value(instances[value], 'name')
                 if name:
                     dec_type = DecoratorType()
                     dec_type.render_model_instance_index = value
-                    dec_type.decorator_type_index = element.ElementIndex
+                    dec_type.decorator_type_index = index
                     dec_type.decorator_type_name = name
                     decorator_types.append(dec_type)
                     
@@ -175,8 +182,8 @@ class DecoratorSetTag(Tag):
                     tree.links.new(input=node_group.inputs[1], output=node_image.outputs[1])
                     node_output = tree.nodes.new(type='ShaderNodeOutputMaterial')
                     tree.links.new(input=node_output.inputs[0], output=node_group.outputs[0])
-                    render_shader = self.tag.SelectField("CharEnum:render shader").Value
-                    if render_shader < 2:
+                    render_shader = self.value(self.tag.root(), 'render shader')
+                    if render_shader in (0, 1, 'wind + dynamic lights', 'still + dynamic lights'):
                         mat.surface_render_method = 'BLENDED'
             
             for ob in all_obs:

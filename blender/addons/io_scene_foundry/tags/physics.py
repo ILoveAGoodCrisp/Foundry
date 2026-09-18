@@ -22,7 +22,7 @@ class PhysicsShapesUnsupported(NotImplementedError):
 class PhysicsDocument(TagDocument):
     tag_ext = 'physics_model'
 
-    def primitive_bodies(self):
+    def primitive_bodies(self, *, include_serialized=False):
         root = self.tag.root()
         bodies = self.block(root, 'rigid bodies')
         nodes = [self.value(e, 'name') for e in self.block(root, 'nodes')]
@@ -35,13 +35,31 @@ class PhysicsDocument(TagDocument):
                     if not 0 <= index < len(bodies):
                         continue  # Preserve unassigned region entries.
                     body = bodies[index]
+                    serialized_records = []
                     if self.game in {'halo4', 'halo2a'}:
-                        if body.field('serialized shapes') is None:
-                            raise PhysicsShapesUnsupported('Older rigid-body layouts require legacy conversion')
-                        if self.value(body, 'serialized shapes') >= 0:
-                            raise PhysicsShapesUnsupported('Serialized Havok shapes require legacy conversion')
+                        serialized = body.field('serialized shapes')
+                        if serialized is not None and serialized.value >= 0:
+                            if not include_serialized:
+                                raise PhysicsShapesUnsupported('Serialized Havok shapes require legacy conversion')
+                            serialized_records = self.serialized_shapes(serialized.value)
+                            if not serialized_records:
+                                raise PhysicsShapesUnsupported('Empty serialized physics shape group')
                     havok = self._havok_properties(body)
+                    if serialized_records:
+                        node_index = self.value(body, 'node')
+                        if node_index == -1:
+                            raise PhysicsShapesUnsupported('Unbound rigid bodies require legacy conversion')
+                        if not 0 <= node_index < len(nodes):
+                            raise ValueError('Serialized physics node index is out of range')
+                        for record in serialized_records:
+                            record.kind, record.index = 'serialized', index
+                            record.node_index, record.bone = node_index, nodes[node_index]
+                            record.region, record.permutation = self.value(region, 'name'), self.value(permutation, 'name')
+                            record.havok = havok
+                            result.append(record)
                     reference = self.required_field(body, 'shape reference').as_struct()
+                    if serialized_records and self.value(reference, 'shape') == -1:
+                        continue
                     for reference in self._primitive_references(reference):
                         kind = self.value(reference, 'shape type')
                         if kind in ('sphere', 0):
@@ -63,6 +81,9 @@ class PhysicsDocument(TagDocument):
                             raise ValueError('Physics primitive shape or node index is out of range')
                         sphere = shapes[shape_index]
                         base = self.required_field(sphere, 'base').as_struct()
+                        friction, restitution = self.value(base, 'friction'), self.value(base, 'restitution')
+                        if not all(isfinite(v) for v in (friction, restitution)):
+                            raise ValueError('Non-finite physics friction or restitution')
                         geometry = {}
                         if kind == 'polyhedron':
                             convex = self.required_field(sphere, 'polyhedron shape').as_struct()
@@ -111,14 +132,21 @@ class PhysicsDocument(TagDocument):
                             region=self.value(region, 'name'), permutation=self.value(permutation, 'name'),
                             name=self.value(base, 'name'), material=materials[material] if 0 <= material < len(materials) else None,
                             kind=kind, material_index=material, radius=radius, translation=translation, havok=havok,
-                            friction=self.value(base, 'friction'), restitution=self.value(base, 'restitution'), **geometry))
+                            friction=friction, restitution=restitution, **geometry))
         return result
 
     def _havok_properties(self, body):
         if self.game not in {'halo4', 'halo2a'}:
             return None
         flags = self.required_field(body, 'flags')
-        if not flags.get_flag('Havok rigid body'):
+        try:
+            is_havok = flags.get_flag('Havok rigid body')
+        except KeyError:
+            # Older self-describing layouts predate this flag and serialized shapes.
+            if body.field('serialized shapes') is not None:
+                raise
+            return None
+        if not is_havok:
             return None
         mass = self.value(body, 'mass')
         center = tuple(self.value(body, 'center off mass offset').to_array())
@@ -133,6 +161,29 @@ class PhysicsDocument(TagDocument):
             inertia_tensor_scale=scale, scale_inertia_tensor=scale != 1.0,
             linear_damping=linear, change_linear_damping=linear != 0.0,
             angular_damping=angular, change_angular_damping=angular != 0.0)
+
+    def serialized_shapes(self, index):
+        """Detach serialized geometry and its material metadata for the Havok decoder."""
+        groups = self.block(self.tag.root(), 'RigidBody Serialized Shapes')
+        if not 0 <= index < len(groups):
+            raise ValueError('Serialized physics shape index is out of range')
+        materials = [SimpleNamespace(index=i, name=self.value(e, 'name'))
+                     for i, e in enumerate(self.block(self.tag.root(), 'materials'))]
+        result = []
+        for element in self.block(groups[index], 'Mopp Serialized Havok Data'):
+            base = self.required_field(element, 'base').as_struct()
+            material_index = self.value(base, 'material')
+            friction, restitution = self.value(base, 'friction'), self.value(base, 'restitution')
+            volume_field = base.field('volume')
+            volume = volume_field.value if volume_field is not None else 0.0
+            if not all(isfinite(v) for v in (friction, restitution, volume)):
+                raise ValueError('Non-finite serialized physics shape property')
+            result.append(SimpleNamespace(name=self.value(base, 'name'),
+                data=bytes(self.value(element, 'Serialized Havok Data')),
+                material_index=material_index,
+                material=materials[material_index] if 0 <= material_index < len(materials) else None,
+                materials=materials, friction=friction, restitution=restitution, volume=volume))
+        return result
 
     def _primitive_references(self, reference):
         """Flatten compound geometry without recursion or circular references."""
@@ -170,8 +221,9 @@ class PhysicsDocument(TagDocument):
                 if not 0 <= index < len(mopps):
                     raise ValueError('Physics MOPP index is out of range')
                 mopp = mopps[index]
-                if self.game in {'halo4', 'halo2a'}:
-                    pending.append(('reference', self.required_field(mopp, 'childShapePointer').as_struct()))
+                child = mopp.field('childShapePointer')
+                if child is not None:
+                    pending.append(('reference', child.as_struct()))
                 else:
                     pending.append(('list', self.value(mopp, 'list')))
         return result

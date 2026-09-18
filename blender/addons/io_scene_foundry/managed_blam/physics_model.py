@@ -1,7 +1,8 @@
 """Native physics constraints with a temporary legacy rigid-body shape boundary."""
 from ..tags.blender import BlenderTag
 from ..tags.physics import PhysicsDocument, PhysicsShapesUnsupported
-from .connected_geometry import Constraint, Sphere, Box, Pill, Polyhedron, RigidBody
+from .connected_geometry import Constraint, Sphere, Box, Pill, Polyhedron, RigidBody, HavokCollision
+from mathutils import Matrix
 from . import import_transform
 from .. import utils
 
@@ -23,7 +24,19 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
                 raise ValueError(f'Physics constraint {constraint.name!r} requires both armature bones')
         objects = []
         try:
-            records = self.primitive_bodies()
+            records = self.primitive_bodies(include_serialized=True)
+            shapes = []
+            for record in records:
+                if record.kind == 'serialized':
+                    shape = HavokCollision.from_serialized_shape(record.data, record.name, record.materials)
+                    if shape is None:
+                        raise PhysicsShapesUnsupported('Unsupported serialized Havok geometry')
+                    shape.matrix = Matrix.Identity(4)
+                    for name in ('material', 'material_index', 'friction', 'restitution', 'volume'):
+                        setattr(shape, name, getattr(record, name))
+                else:
+                    shape = {'sphere': Sphere, 'box': Box, 'pill': Pill, 'polyhedron': Polyhedron}[record.kind].from_native(record)
+                shapes.append(shape)
         except PhysicsShapesUnsupported:
             records = None
         if records is None:
@@ -34,8 +47,7 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
             for record in records:
                 if armature is None or record.bone not in armature.pose.bones:
                     raise ValueError(f'Physics primitive requires armature bone {record.bone!r}')
-            for record in records:
-                shape = {'sphere': Sphere, 'box': Box, 'pill': Pill, 'polyhedron': Polyhedron}[record.kind].from_native(record)
+            for record, shape in zip(records, shapes):
                 body = RigidBody.__new__(RigidBody)
                 body.shapes = [shape]
                 body.is_havok_rigid_body = record.havok is not None

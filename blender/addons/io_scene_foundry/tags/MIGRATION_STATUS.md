@@ -5,30 +5,48 @@
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
-Latest validation: 47 regression tests pass without starting ManagedBlam.
+Latest validation: 51 regression tests pass without starting ManagedBlam.
 The read-only H4/H2AMP sample reaches conversion for 59 of 60 light tags. The last
 tag is a physical light with periodic, modifier-driven attenuation. Sampling mocks
 light allocation, final lighting setup and bitmap conversion; visual parity and
 complete import/export acceptance are still outstanding.
 
-The source audit after the structure seam/metadata migration found:
+The source audit on 2026-09-18 found:
 
 - 15 migrated tag workflows: camera tracks, globals, render-method options,
   render-method definitions, material-shader metadata, models, object metadata,
   lightmapper globals, cinematic-lighting metadata, light tags, cheap lights,
   structure seams, structure metadata, authored PCA animation and collision models.
-- 26 tag classes still inherit the legacy `Tag` base, directly or indirectly:
-  17 direct wrappers and 9 shader/material/decal subclasses.
-- 25 modules under `managed_blam` still contain `SelectField` calls.
+- 24 tag classes still inherit the legacy `Tag` base, directly or indirectly:
+  15 direct wrappers and 9 shader/material/decal subclasses.
+- 23 modules under `managed_blam` still contain `SelectField` calls.
 
-Physics constraints also use native records. Rigid-body shapes remain behind a
-separate `LegacyPhysicsTag` fallback, so this does not reduce the legacy class count.
+Physics also uses native records for constraints, spheres, capsules, boxes, convex
+polyhedra, nested lists/MOPPs, H4/H2AMP body properties and supported serialized
+Havok geometry. Native decoding covers 90/100 sampled weapon tags and 74/100
+sampled vehicle tags. The remaining vehicle fallbacks have unbound bodies.
+`LegacyPhysicsTag` remains for unsupported cases, so the legacy class count is
+unchanged. These sample rates are not overall migration percentages.
 
 These are code-inventory counts, not a percentage of engineering effort. Several
 large remaining features depend on ManagedBlam resource decoders or custom editors,
 and migrated wrappers can still hand specialized operations to legacy converters.
 
 ## Remaining work
+
+Polyart tag import/export now uses native vertex, index and placement blocks.
+H4/H2AMP regression tests save/reopen fixture tags and create real Blender meshes,
+checking position scaling, UVs, half-float alpha and invalid-index rejection before
+mutation. Existing placement blocks are preserved. Camera creation retains the
+previous fixed placement behavior; editing-kit acceptance and real-asset visual
+parity remain unverified. Generated polyart schemas are ignored build assets.
+
+Decorator-set metadata now reads natively, including H3/ODST single-model layouts
+and later LOD references, instance names and decorator mesh indices. Render-model
+geometry and bitmap conversion still use legacy readers. Tests cover five H3+
+profiles, invalid indices, reference selection and unchanged source bytes.
+The standalone `blender/example_edit_tag.py` demonstrates native read/edit/save;
+its mass update was verified by reopening a temporary physics tag.
 
 | Area | Work needed before removal |
 | --- | --- |
@@ -57,7 +75,7 @@ installer's separate .NET assembly inspection in `tools/halo_launcher.py`.
 
 ## Validation so far
 
-47 regression tests pass together in Blender, including native tag serialization,
+49 regression tests pass together in Blender, including native tag serialization,
 aborted writes, wrapper checks that reject ManagedBlam initialization, camera work,
 metadata, object/cinematic copying and cinematic-lighting transforms. There is
 also a Rust regression test for preserving unnamed flags during cross-tag copying.
@@ -271,3 +289,52 @@ Non-finite values are rejected; serialized Havok shapes still select the fallbac
 Tests cover both profiles and exercise the actual property assignment helper.
 All 47 migration tests pass without initializing ManagedBlam. This does not yet
 validate Havok simulation behavior or complete Blender mesh imports.
+
+Older self-describing H4 physics layouts now use native authored geometry when
+the serialized-shapes field is absent. Missing Havok flags are accepted only for
+these older layouts, and MOPP traversal chooses the stored child-reference or list
+field from the actual layout. A regression fixture exercises the older layout in
+an H4 game context. All 47 migration tests pass without initializing ManagedBlam.
+Read-only sampling now decodes 90/100 weapon tags (107 primitives) and 72/100 vehicle
+tags (376 primitives), with no errors or source changes. The remaining vehicle
+fallbacks are 26 tags with unbound bodies and two with serialized Havok shapes.
+Unbound-body placement remains unresolved; complete Blender import validation is
+still outstanding.
+
+Serialized Havok payloads and per-shape material, friction, restitution and volume
+metadata can now be detached through PhysicsDocument.serialized_shapes. Tests
+cover H4/H2AMP byte-exact save/reopen, detached record lifetime and invalid indices.
+All 49 migration tests pass without initializing ManagedBlam. A read-only scan of
+40 H4/H2AMP vehicle tags extracted two serialized records (214,435 bytes); the
+existing Python Havok decoder decoded both without errors or source changes.
+This is preparation for native serialized-body import: the live import path still
+uses its legacy fallback for these bodies, and Blender placement is not validated.
+
+Serialized bodies are now connected to native PhysicsTag import. Native payloads
+feed the existing Havok decoder; supported serialized shapes carry their material
+and rigid-body properties into the existing mesh conversion. Authored primitives
+on the same body are retained, and an absent primitive reference is accepted when
+serialized geometry exists. All shapes decode before object allocation, with
+whole-tag fallback for unsupported payloads and preflight checks for missing bones.
+All 49 migration tests pass; H4/H2AMP wrapper tests cover serialized-only bodies,
+parenting, property transfer and no object linking when a bone is missing. These
+wrapper tests mock Havok decoding and object creation; real mesh import validation
+for serialized bodies is covered separately below.
+
+Native physics verification now also constructs real Blender meshes for spheres,
+boxes, capsules and tetrahedral convex polyhedra through RigidBody.to_objects,
+checking polygon creation, physics mesh classification and material assignment.
+This uses fixture records and temporary property definitions, not full real-asset
+imports. Non-finite friction/restitution values are rejected before object linking.
+All 48 migration tests pass without initializing ManagedBlam. Unbound-body
+placement remains unresolved and still uses the legacy fallback.
+
+Real H4 Mammoth and Pelican physics tags pass native Blender mesh import in a
+headless probe: 33 meshes / 5,228 faces and eight meshes / 584 faces respectively.
+The probe uses real tag/Havok decoding, mesh creation, physics properties and bone
+parenting, with synthetic skeletons, identity import transforms, temporary property
+definitions and mocked region/permutation assignment. Source tags remain unchanged
+and ManagedBlam is never initialized. Alignment to actual model skeletons and
+visual/game parity remain unverified. Regression tests also exercise Havok mesh
+triangle-mapping attributes and verify decoder failure selects legacy fallback
+before native object creation. The complete suite contains 49 passing tests.

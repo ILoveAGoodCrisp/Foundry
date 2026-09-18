@@ -9,7 +9,8 @@ import numpy as np
 
 from ..constants import VALID_MESHES
 
-from ..managed_blam import Tag
+from ..tags.backend import TagDocument
+from ..tags.blender import BlenderTag
 from .. import utils
 from . import import_transform
 
@@ -279,14 +280,16 @@ def export_polyart(context: bpy.types.Context, asset_path: str | Path):
 
 
 
-class PolyArtTag(Tag):
+class PolyArtTag(BlenderTag, TagDocument):
     tag_ext = 'polyart_asset'
     
-    def _read_fields(self):
-        self.block_vertices = self.tag.SelectField('Block:vertices')
-        self.block_indices = self.tag.SelectField('Block:indices')
-        self.placement_data = self.tag.SelectField('Block:placement data')
-        
+    def __init__(self, path='', **kwargs):
+        kwargs.setdefault('tag_must_exist', False)
+        super().__init__(path, **kwargs)
+        self.block_vertices = self.block(self.tag.root(), 'vertices')
+        self.block_indices = self.block(self.tag.root(), 'indices')
+        self.placement_data = self.block(self.tag.root(), 'placement data')
+
     def from_blender(self, vertices, triangles):
         indices = encode_triangle_strip(triangles)
         if len(vertices) > POLYART_MAX_VERTEX_INDEX + 1:
@@ -300,24 +303,25 @@ class PolyArtTag(Tag):
             if index < 0 or index >= len(vertices) or index > POLYART_MAX_VERTEX_INDEX:
                 raise RuntimeError(f"Polyart index {index} is outside the vertex block")
 
-        self.block_vertices.RemoveAllElements()
+        self.block_vertices.clear()
         for vertex in vertices:
-            element = self.block_vertices.AddElement()
-            for field, value in zip(element.Fields, vertex):
-                field.Data = int(value)
+            element = self.block_vertices[self.block_vertices.add()]
+            for name, value in zip(('half x', 'half y', 'half z', 'half alpha', 'half u', 'half v'), vertex):
+                self.required_field(element, name).set(int(value))
 
-        self.block_indices.RemoveAllElements()
+        self.block_indices.clear()
         for index in indices:
-            self.block_indices.AddElement().Fields[0].Data = int(index)
+            self.required_field(self.block_indices[self.block_indices.add()], 'index').set(int(index))
 
-        if not self.placement_data.Elements.Count:
+        if not len(self.placement_data):
             horizontal_fov, vertical_fov, near, far, camera_position = POLYART_DEFAULT_PLACEMENT
-            element = self.placement_data.AddElement()
-            element.Fields[0].Data = horizontal_fov
-            element.Fields[1].Data = vertical_fov
-            element.Fields[2].Data = near
-            element.Fields[3].Data = far
-            element.Fields[4].Data = camera_position
+            element = self.placement_data[self.placement_data.add()]
+            self.required_field(element, 'horizontal fov').set(horizontal_fov)
+            self.required_field(element, 'vertical fov').set(vertical_fov)
+            self.required_field(element, 'near z plane distance').set(near)
+            self.required_field(element, 'far z plane distance').set(far)
+            field = self.required_field(element, 'camera position')
+            field.set(type(field.value)(*camera_position))
 
         self.tag_has_changes = True
     
@@ -328,20 +332,20 @@ class PolyArtTag(Tag):
         uvs = []
         objects = []
         
-        for element in self.block_vertices.Elements:
-            vert_int16 = np.array([element.Fields[0].Data, element.Fields[1].Data, element.Fields[2].Data], dtype=np.int16)
+        for element in self.block_vertices:
+            vert_int16 = np.array([self.value(element, 'half x'), self.value(element, 'half y'), self.value(element, 'half z')], dtype=np.int16)
             vert_uint16 = vert_int16.view(np.uint16)
             verts.append(vert_uint16.view(np.float16).astype(np.float32) * POLYART_POSITION_SCALE)
             
-            alpha_int16 = np.array([element.Fields[3].Data])
+            alpha_int16 = np.array([self.value(element, 'half alpha')], dtype=np.int16)
             alpha_uint16 = alpha_int16.view(np.uint16)
             alphas.append(alpha_uint16.view(np.float16)[0])
             
-            uv_int16 = np.array([element.Fields[4].Data, element.Fields[5].Data], dtype=np.int16)
+            uv_int16 = np.array([self.value(element, 'half u'), self.value(element, 'half v')], dtype=np.int16)
             uv_uint16 = uv_int16.view(np.uint16)
             uvs.append(uv_uint16.view(np.float16))
             
-        indices = decode_triangle_strip([element.Fields[0].Data for element in self.block_indices.Elements])
+        indices = decode_triangle_strip([self.value(element, 'index') for element in self.block_indices])
             
         mesh = bpy.data.meshes.new(self.tag_path.ShortName)
         
@@ -385,7 +389,7 @@ class PolyArtTag(Tag):
         camera_ob = bpy.data.objects.get("polyart_camera")
         
         if camera_ob is None:
-            for element in self.placement_data.Elements:
+            for element in self.placement_data:
                 camera = bpy.data.cameras.new("polyart_camera")
                 camera.lens_unit = 'FOV'
                 camera.angle = radians(45)

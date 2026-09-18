@@ -19,6 +19,207 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_polyart_roundtrip_and_mesh(self):
+        import bpy
+        from mathutils import Matrix
+        from io_scene_foundry.managed_blam.polyart import PolyArtTag, _float_to_short
+        from io_scene_foundry.managed_blam import import_transform
+        packed = [tuple(_float_to_short(v, 'test') for v in row) for row in
+                  [(0.,0.,0.,.5,0.,0.), (10.,0.,0.,1.,1.,0.), (0.,10.,0.,.25,0.,1.)]]
+        for game in ('halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                 patch.object(utils, 'get_tags_path', return_value=root), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')), \
+                 patch.object(import_transform, 'mesh_matrix', return_value=Matrix.Identity(4)), \
+                 patch.object(import_transform, 'rotation_matrix', return_value=Matrix.Identity(4)), \
+                 patch.object(import_transform, 'object_matrix', side_effect=lambda m: m), \
+                 patch.object(import_transform, 'scale_factor', return_value=1.):
+                with PolyArtTag('test.polyart_asset') as tag:
+                    tag.from_blender(packed, [(0,1,2)])
+                before = Path(root, 'test.polyart_asset').read_bytes()
+                old_objects, old_meshes, old_cameras, old_materials = map(set, (bpy.data.objects, bpy.data.meshes, bpy.data.cameras, bpy.data.materials))
+                try:
+                    with PolyArtTag('test.polyart_asset') as tag:
+                        self.assertEqual(len(tag.block_vertices), 3)
+                        self.assertEqual(len(tag.placement_data), 1)
+                        objects = tag.to_blender()
+                        mesh = next(ob.data for ob in objects if ob.type == 'MESH')
+                        self.assertEqual(len(mesh.polygons), 1)
+                        self.assertAlmostEqual(mesh.vertices[1].co.x, 1.)
+                        self.assertAlmostEqual(mesh.color_attributes['Color'].data[0].color[3], .5)
+                        self.assertEqual(tuple(mesh.uv_layers[0].data[1].uv), (1.,0.))
+                        with self.assertRaisesRegex(RuntimeError, 'outside the vertex block'):
+                            tag.from_blender(packed, [(0,1,99)])
+                    self.assertEqual(before, Path(root, 'test.polyart_asset').read_bytes())
+                finally:
+                    for ob in set(bpy.data.objects) - old_objects:
+                        bpy.data.objects.remove(ob, do_unlink=True)
+                    for data, previous in ((bpy.data.meshes, old_meshes), (bpy.data.cameras, old_cameras), (bpy.data.materials, old_materials)):
+                        for item in set(data) - previous:
+                            data.remove(item)
+
+    def test_native_decorator_metadata(self):
+        from io_scene_foundry.managed_blam.decorator_set import DecoratorSetTag
+        for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                 patch.object(utils, 'get_tags_path', return_value=root), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                with DecoratorSetTag('test.decorator_set', tag_must_exist=False) as tag:
+                    instances = tag.block(tag.tag.root(), 'render model instance names')
+                    tag.required_field(instances[instances.add()], 'name').set('grass')
+                    types = tag.block(tag.tag.root(), 'decorator types')
+                    for index in (-1, 0, 99):
+                        tag.required_field(types[types.add()], 'mesh').set(index)
+                    if game in {'halo3', 'halo3odst'}:
+                        tag.reference_base.Path = 'grass.render_model'
+                    else:
+                        tag.reference_lod2.Path = 'grass.render_model'
+                Path(root, 'grass.render_model').touch()
+                before = Path(root, 'test.decorator_set').read_bytes()
+                with DecoratorSetTag('test.decorator_set') as tag:
+                    item, = tag.get_decorator_types()
+                    self.assertEqual((item.decorator_type_name, item.decorator_type_index, item.render_model_instance_index), ('grass', 1, 0))
+                    self.assertEqual(tag.get_first_valid_render_model().RelativePathWithExtension, 'grass.render_model')
+                self.assertEqual(before, Path(root, 'test.decorator_set').read_bytes())
+
+    def test_native_serialized_physics_records(self):
+        from io_scene_foundry.managed_blam.physics_model import PhysicsTag
+        from io_scene_foundry.managed_blam.connected_geometry import HavokCollision, RigidBody
+        from io_scene_foundry.managed_blam import import_transform
+        from mathutils import Matrix
+        from unittest.mock import MagicMock
+        for game in ('halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                 patch.object(utils, 'get_tags_path', return_value=root), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                with PhysicsTag('serialized.physics_model') as tag:
+                    groups = tag.block(tag.tag.root(), 'RigidBody Serialized Shapes')
+                    group = groups[groups.add()]
+                    shapes = tag.block(group, 'Mopp Serialized Havok Data')
+                    element = shapes[shapes.add()]
+                    base = tag.required_field(element, 'base').as_struct()
+                    tag.required_field(base, 'name').set('serialized_body')
+                    tag.required_field(base, 'material').set(-1)
+                    tag.required_field(base, 'friction').set(.5)
+                    tag.required_field(element, 'Serialized Havok Data').set(b'\x00\x01\xfe\xff')
+                    def add(parent, name):
+                        block = tag.block(parent, name)
+                        return block[block.add()]
+                    tag.required_field(add(tag.tag.root(), 'nodes'), 'name').set('root')
+                    body = add(tag.tag.root(), 'rigid bodies')
+                    tag.required_field(body, 'node').set(0)
+                    tag.required_field(body, 'serialized shapes').set(0)
+                    reference = tag.required_field(body, 'shape reference').as_struct()
+                    tag.required_field(reference, 'shape').set(-1)
+                    region = add(tag.tag.root(), 'regions')
+                    permutation = add(region, 'permutations')
+                    tag.required_field(add(permutation, 'rigid bodies'), 'rigid body').set(0)
+                before = (Path(root) / 'serialized.physics_model').read_bytes()
+                with PhysicsTag('serialized.physics_model') as tag:
+                    record, = tag.serialized_shapes(0)
+                    with self.assertRaisesRegex(ValueError, 'index'):
+                        tag.serialized_shapes(-1)
+                    with self.assertRaisesRegex(ValueError, 'index'):
+                        tag.serialized_shapes(1)
+                    native_record, = tag.primitive_bodies(include_serialized=True)
+                    self.assertEqual(native_record.kind, 'serialized')
+                    rig = SimpleNamespace(pose=SimpleNamespace(bones={'root': SimpleNamespace(matrix=Matrix.Identity(4))}))
+                    collection = SimpleNamespace(objects=SimpleNamespace(link=MagicMock()))
+                    decoded = SimpleNamespace()
+                    def convert(body):
+                        body.shapes[0].ob = SimpleNamespace()
+                    with patch.object(HavokCollision, 'from_serialized_shape', return_value=decoded) as decoder, \
+                         patch.object(RigidBody, 'to_objects', convert), \
+                         patch.object(utils, 'set_region'), patch.object(utils, 'set_permutation'), \
+                         patch.object(import_transform, 'object_matrix', side_effect=lambda matrix, **kw: matrix):
+                        objects = tag.to_blend_objects(collection, rig)
+                        self.assertEqual(len(objects), 1)
+                        self.assertEqual(objects[0].parent_bone, 'root')
+                        self.assertEqual(decoded.friction, .5)
+                        decoder.assert_called_once()
+                        collection.objects.link.reset_mock()
+                        with self.assertRaisesRegex(ValueError, 'armature bone'):
+                            tag.to_blend_objects(collection, SimpleNamespace(pose=SimpleNamespace(bones={})))
+                        collection.objects.link.assert_not_called()
+                    with patch.object(HavokCollision, 'from_serialized_shape', return_value=None), \
+                         patch.object(RigidBody, 'to_objects') as convert, \
+                         patch('io_scene_foundry.managed_blam.physics_legacy.LegacyPhysicsTag') as legacy:
+                        legacy.return_value.__enter__.return_value.to_blend_objects.return_value = []
+                        self.assertEqual(tag.to_blend_objects(collection, rig), [])
+                        legacy.assert_called_once()
+                        convert.assert_not_called()
+                        collection.objects.link.assert_not_called()
+                self.assertEqual(record.data, b'\x00\x01\xfe\xff')
+                self.assertEqual(record.name, 'serialized_body')
+                self.assertEqual(record.friction, .5)
+                self.assertIsNone(record.material)
+                self.assertEqual((Path(root) / 'serialized.physics_model').read_bytes(), before)
+
+    def test_native_physics_mesh_creation(self):
+        import bpy
+        from mathutils import Matrix
+        from io_scene_foundry.managed_blam.connected_geometry import Sphere, Box, Pill, Polyhedron, RigidBody, HavokCollision
+        from io_scene_foundry.managed_blam import import_transform
+
+        class PhysicsTestProperties(bpy.types.PropertyGroup):
+            mesh_type: bpy.props.StringProperty()
+            mesh_primitive_type: bpy.props.StringProperty()
+            global_material: bpy.props.StringProperty()
+
+        bpy.utils.register_class(PhysicsTestProperties)
+        bpy.types.Mesh.nwo = bpy.props.PointerProperty(type=PhysicsTestProperties)
+        bpy.types.Object.nwo = bpy.props.PointerProperty(type=PhysicsTestProperties)
+        existing_objects, existing_meshes = set(bpy.data.objects), set(bpy.data.meshes)
+        existing_materials = set(bpy.data.materials)
+        try:
+            with patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')), \
+                 patch.object(import_transform, 'mesh_matrix', return_value=Matrix.Identity(4)), \
+                 patch.object(import_transform, 'rotation_matrix', return_value=Matrix.Identity(4)):
+                record = SimpleNamespace(name='native_physics_mesh', material=SimpleNamespace(name='metal'),
+                    material_index=0, friction=.5, restitution=.25, radius=.5, translation=(1.,2.,3.),
+                    half_extents=(1.,2.,3.), axes=((1.,0.,0.),(0.,1.,0.),(0.,0.,1.)),
+                    bottom=(0.,0.,0.), top=(0.,0.,2.), offset=0,
+                    vertices=[(0.,0.,0.),(1.,0.,0.),(0.,1.,0.),(0.,0.,1.)])
+                for cls in (Sphere, Box, Pill, Polyhedron, HavokCollision):
+                    with self.subTest(shape=cls.__name__):
+                        if cls is HavokCollision:
+                            shape = HavokCollision(record.name, [(0.,0.,0.),(100.,0.,0.),(0.,100.,0.)],
+                                [(0,1,2)], [0], [record.material], [(7,8)])
+                            shape.material = record.material
+                        else:
+                            shape = cls.from_native(record)
+                        body = RigidBody.__new__(RigidBody)
+                        body.shapes, body.is_havok_rigid_body = [shape], False
+                        body.to_objects()
+                        self.assertGreater(len(shape.ob.data.polygons), 0)
+                        self.assertEqual(shape.ob.nwo.global_material, 'metal')
+                        self.assertEqual(shape.ob.data.nwo.mesh_type, '_connected_geometry_mesh_type_physics')
+                        self.assertEqual(shape.ob.data.materials[0].name, 'Physics')
+                        if cls is Box:
+                            self.assertEqual(len(shape.ob.data.polygons), 6)
+                        elif cls is Polyhedron:
+                            self.assertEqual(len(shape.ob.data.polygons), 4)
+                        elif cls is HavokCollision:
+                            self.assertEqual(len(shape.ob.data.polygons), 1)
+                            self.assertEqual(shape.ob.data.attributes['foundry_havok_render_triangle_index'].data[0].value, 7)
+                            self.assertEqual(shape.ob.data.attributes['foundry_havok_render_triangle_count'].data[0].value, 2)
+        finally:
+            for ob in set(bpy.data.objects) - existing_objects:
+                bpy.data.objects.remove(ob, do_unlink=True)
+            for mesh in set(bpy.data.meshes) - existing_meshes:
+                bpy.data.meshes.remove(mesh)
+            for material in set(bpy.data.materials) - existing_materials:
+                bpy.data.materials.remove(material)
+            del bpy.types.Object.nwo
+            del bpy.types.Mesh.nwo
+            bpy.utils.unregister_class(PhysicsTestProperties)
+
     def test_native_physics_primitive_bodies(self):
         from mathutils import Matrix, Vector
         from unittest.mock import MagicMock
@@ -79,6 +280,15 @@ class WrapperTests(unittest.TestCase):
                     self.assertEqual(objects[0].parent_bone, 'root')
                     self.assertEqual(tuple(objects[0].matrix_world.translation), (100., 200., 300.))
                     region_set.assert_called_once()
+                    base = tag.required_field(tag.block(tag.tag.root(), 'spheres')[0], 'base').as_struct()
+                    friction = tag.required_field(base, 'friction')
+                    saved_friction = friction.value
+                    friction.set(float('nan'))
+                    collection.objects.link.reset_mock()
+                    with self.assertRaisesRegex(ValueError, 'friction or restitution'):
+                        tag.to_blend_objects(collection, rig)
+                    collection.objects.link.assert_not_called()
+                    friction.set(saved_friction)
                     body = tag.block(tag.tag.root(), 'rigid bodies')[0]
                     if game in {'halo4', 'halo2a'}:
                         flags = tag.required_field(body, 'flags')
@@ -219,6 +429,14 @@ class WrapperTests(unittest.TestCase):
                     tag.required_field(reference, 'shape').set(0)
                     self.assertEqual([r.name for r in tag.primitive_bodies()], ['ball', 'ball'])
                     self.assertEqual(len(tag.to_blend_objects(collection, rig)), 2)
+                    if game == 'halo3':
+                        # Older H4 tags retain the pre-serialized-body/MOPP layout.
+                        tag.game = 'halo4'
+                        try:
+                            self.assertEqual([r.name for r in tag.primitive_bodies()], ['ball', 'ball'])
+                            self.assertEqual(len(tag.to_blend_objects(collection, rig)), 2)
+                        finally:
+                            tag.game = game
                     tag.required_field(reference, 'shape').set(99)
                     with self.assertRaisesRegex(ValueError, 'MOPP index'):
                         tag.primitive_bodies()
