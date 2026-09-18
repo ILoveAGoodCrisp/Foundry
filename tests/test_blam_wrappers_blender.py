@@ -19,6 +19,146 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_structure_design_rejects_incomplete_data(self):
+        from io_scene_foundry.tags.structure_design import StructureDesignDocument
+        for game in ('halo3', 'reach'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root:
+                path = Path(root, 'bad.structure_design')
+                with StructureDesignDocument(path, tags_root=root, game=game) as doc:
+                    physics = doc.required_field(doc.tag.root(), 'physics').as_struct()
+                    groups = doc.block(physics, 'water groups block')
+                    groups.add()
+                    waters = doc.block(physics, 'water instances block')
+                    water = waters[waters.add()]
+                    doc.required_field(water, 'group').set(0)
+                    doc.block(water, 'water debug triangles block').add()
+                before = path.read_bytes()
+                with StructureDesignDocument(path, tags_root=root, game=game) as doc:
+                    physics = doc.required_field(doc.tag.root(), 'physics').as_struct()
+                    water = doc.block(physics, 'water instances block')[0]
+                    if game == 'halo3':
+                        with self.assertRaisesRegex(NotImplementedError, 'direction/angle'):
+                            doc.surfaces()
+                    else:
+                        doc.required_field(water, 'fog murkiness').set(float('nan'))
+                        with self.assertRaisesRegex(ValueError, 'non-finite fog murkiness'):
+                            doc.surfaces()
+                        doc.required_field(water, 'fog murkiness').set(0.)
+                    doc.required_field(water, 'group').set(12)
+                    with self.assertRaisesRegex(ValueError, 'invalid water group index'):
+                        doc.surfaces()
+                    if game == 'reach':
+                        doc.required_field(water, 'group').set(0)
+                        fogs = doc.block(doc.required_field(doc.tag.root(), 'planar fog set').as_struct(), 'planar fogs')
+                        fog = fogs[fogs.add()]
+                        doc.block(fog, 'vertices').add()
+                        with self.assertRaisesRegex(ValueError, 'complete triangles'):
+                            doc.surfaces()
+                self.assertEqual(path.read_bytes(), before)
+
+    def test_native_structure_design_surfaces(self):
+        import bpy
+        from mathutils import Matrix
+        from io_scene_foundry.managed_blam.structure_design import StructureDesignTag
+        from io_scene_foundry.managed_blam import structure_design as module
+        from io_scene_foundry.tags.structure_design import StructureDesignDocument
+
+        class SurfaceProperties(bpy.types.PropertyGroup):
+            mesh_type: bpy.props.StringProperty()
+            boundary_surface_type: bpy.props.StringProperty()
+            fog_appearance_tag: bpy.props.StringProperty()
+            fog_volume_depth: bpy.props.FloatProperty()
+            water_type: bpy.props.StringProperty()
+            water_volume_depth: bpy.props.FloatProperty()
+            water_volume_flow_direction: bpy.props.FloatProperty()
+            water_volume_flow_velocity: bpy.props.FloatProperty()
+            water_volume_fog_color: bpy.props.FloatVectorProperty(size=4)
+            water_volume_fog_murkiness: bpy.props.FloatProperty()
+
+        bpy.utils.register_class(SurfaceProperties)
+        bpy.types.Mesh.nwo = bpy.props.PointerProperty(type=SurfaceProperties)
+        bpy.types.Object.nwo = bpy.props.PointerProperty(type=SurfaceProperties)
+        original_objects, original_meshes = set(bpy.data.objects), set(bpy.data.meshes)
+        water_material = bpy.data.materials.get('WaterDirection')
+        created_material = water_material is None
+        if created_material:
+            water_material = bpy.data.materials.new('WaterDirection')
+        collection = bpy.data.collections.new('native_structure_test')
+        try:
+            for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+                with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                     patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test', forward_direction='x')), \
+                     patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                     patch.object(utils, 'get_tags_path', return_value=Path(root)), \
+                     patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')), \
+                     patch.object(module.import_transform, 'mesh_matrix', return_value=Matrix.Identity(4)), \
+                     patch.object(module.import_transform, 'rotation_matrix', return_value=Matrix.Identity(4)), \
+                     patch.object(module, 'apply_props_material'):
+                    path = Path(root, 'test.structure_design')
+                    def add(doc, parent, name):
+                        block = doc.block(parent, name)
+                        return block[block.add()]
+                    def vector(doc, parent, name, values):
+                        field = doc.required_field(parent, name)
+                        field.set(type(field.value)(*values))
+                    points = ((0.,0.,2.), (1.,0.,2.), (0.,1.,2.))
+                    later = game not in {'halo3', 'halo3odst'}
+                    with StructureDesignDocument(path, tags_root=root, game=game) as doc:
+                        physics = doc.required_field(doc.tag.root(), 'physics').as_struct()
+                        for kind in range(3):
+                            ceiling = add(doc, physics, 'soft ceilings block')
+                            doc.required_field(ceiling, 'type').set(kind)
+                            triangle = add(doc, ceiling, 'soft ceiling triangles')
+                            for i, point in enumerate(points):
+                                vector(doc, triangle, f'vertex{i}', point)
+                        if later:
+                            fogs = doc.required_field(doc.tag.root(), 'planar fog set').as_struct()
+                            fog = add(doc, fogs, 'planar fogs')
+                            doc.required_field(fog, 'name').set('fog')
+                            doc.required_field(fog, 'depth').set(3.)
+                            for point in points:
+                                vector(doc, add(doc, fog, 'vertices'), 'position', point)
+                            doc.required_field(add(doc, physics, 'water groups block'), 'name').set('water')
+                            water = add(doc, physics, 'water instances block')
+                            doc.required_field(water, 'group').set(0)
+                            vector(doc, water, 'flow velocity', (2.,0.,0.))
+                            vector(doc, water, 'fog color', (1.,.5,.25,0.))
+                            doc.required_field(water, 'fog murkiness').set(.75)
+                            for z in (0.,2.):
+                                triangle = add(doc, water, 'water debug triangles block')
+                                for i, point in enumerate(points):
+                                    vector(doc, triangle, f'point{i}', (*point[:2],z))
+                    before = path.read_bytes()
+                    with StructureDesignTag(path) as doc:
+                        objects = doc.to_blender(collection)
+                        self.assertEqual(len(objects), 5 if later else 3)
+                        self.assertEqual([ob.data.nwo.boundary_surface_type for ob in objects[:3]],
+                                         ['SOFT_CEILING','SOFT_KILL','SLIP_SURFACE'])
+                        self.assertEqual(tuple(objects[0].data.vertices[0].co), (0.,0.,200.))
+                        self.assertTrue(all(len(ob.data.polygons) == 1 for ob in objects))
+                        if later:
+                            self.assertEqual(objects[3].nwo.fog_volume_depth, 3.)
+                            self.assertEqual(objects[4].nwo.water_volume_flow_velocity, 2.)
+                            self.assertAlmostEqual(objects[4].nwo.water_volume_depth, 2 / module.WU_SCALAR, places=4)
+                            # Unsupported rain must fail before any object is allocated.
+                            add(doc, doc.tag.root(), 'instanced geometries definitions')
+                            count = len(bpy.data.objects)
+                            with self.assertRaisesRegex(NotImplementedError, 'rain-blocker'):
+                                doc.to_blender(collection)
+                            self.assertEqual(len(bpy.data.objects), count)
+                    self.assertEqual(path.read_bytes(), before)
+        finally:
+            for ob in set(bpy.data.objects) - original_objects:
+                bpy.data.objects.remove(ob, do_unlink=True)
+            for mesh in set(bpy.data.meshes) - original_meshes:
+                bpy.data.meshes.remove(mesh)
+            bpy.data.collections.remove(collection)
+            if created_material:
+                bpy.data.materials.remove(water_material)
+            del bpy.types.Mesh.nwo
+            del bpy.types.Object.nwo
+            bpy.utils.unregister_class(SurfaceProperties)
+
     def test_native_cinematic_entry_points(self):
         from io_scene_foundry.managed_blam.cinematic import NativeCinematicTag, SceneData
         from io_scene_foundry.managed_blam.cinematic_scene import NativeCinematicSceneTag
@@ -409,11 +549,10 @@ class WrapperTests(unittest.TestCase):
                         collection.objects.link.assert_not_called()
                     with patch.object(HavokCollision, 'from_serialized_shape', return_value=None), \
                          patch.object(RigidBody, 'to_objects') as convert, \
-                         patch('io_scene_foundry.managed_blam.physics_legacy.LegacyPhysicsTag') as legacy:
+                         patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
                         from io_scene_foundry.tags.physics import PhysicsShapesUnsupported
                         with self.assertRaisesRegex(PhysicsShapesUnsupported, 'Unsupported serialized'):
                             tag.to_blend_objects(collection, rig)
-                        legacy.assert_not_called()
                         convert.assert_not_called()
                         collection.objects.link.assert_not_called()
                 self.assertEqual(record.data, b'\x00\x01\xfe\xff')
@@ -1368,22 +1507,20 @@ class WrapperTests(unittest.TestCase):
                     obj.required_field(unsupported, 'export name').set(name + '_unsupported')
                     mapping = obj.nested(unsupported, 'default function')
                     next(f for f in mapping.fields() if f.type_name == 'data').set(b'bad')
-                    with patch('io_scene_foundry.managed_blam.object_legacy.LegacyObjectTag') as legacy, \
+                    with patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')), \
                          patch.object(Function, 'make_node_group') as create_nodes:
                         with self.assertRaisesRegex(ValueError, 'Cannot decode native object functions'):
                             obj.functions_to_blender()
                         create_nodes.assert_not_called()
-                        legacy.assert_not_called()
                     unsupported = functions[functions.add()]
                     obj.required_field(unsupported, 'export name').set(name + '_unsupported')
                     mapping = obj.nested(unsupported, 'default function')
                     next(f for f in mapping.fields() if f.type_name == 'data').set(b'bad')
-                    with patch('io_scene_foundry.managed_blam.object_legacy.LegacyObjectTag') as legacy, \
+                    with patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')), \
                          patch.object(Function, 'make_node_group') as create_nodes:
                         with self.assertRaisesRegex(ValueError, 'Cannot decode native object functions'):
                             obj.functions_to_blender()
                         create_nodes.assert_not_called()
-                        legacy.assert_not_called()
         finally:
             group = bpy.data.node_groups.get(group_name)
             if group is not None:
@@ -1497,30 +1634,6 @@ class WrapperTests(unittest.TestCase):
             file, path = tag._get_tag_and_path(True)
         self.assertEqual(file, 'file')
         self.assertEqual(path, ('textures/test', 'bitmap'))
-
-    def test_failed_legacy_object_conversion_does_not_save(self):
-        from unittest.mock import MagicMock
-        from io_scene_foundry.managed_blam.object_legacy import LegacyObjectTag
-        document = object.__new__(LegacyObjectTag)
-        document.tag = MagicMock()
-        document.tag_has_changes = True
-        document.always_save = True
-        document.hide_prints = False
-        document.__exit__(RuntimeError, RuntimeError('copy failed'), None)
-        document.tag.Save.assert_not_called()
-        document.tag.Dispose.assert_called_once()
-
-    def test_failed_legacy_object_conversion_does_not_save(self):
-        from unittest.mock import MagicMock
-        from io_scene_foundry.managed_blam.object_legacy import LegacyObjectTag
-        document = object.__new__(LegacyObjectTag)
-        document.tag = MagicMock()
-        document.tag_has_changes = True
-        document.always_save = True
-        document.hide_prints = False
-        document.__exit__(RuntimeError, RuntimeError('copy failed'), None)
-        document.tag.Save.assert_not_called()
-        document.tag.Dispose.assert_called_once()
 
 
 if __name__ == '__main__':

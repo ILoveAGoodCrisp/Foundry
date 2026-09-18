@@ -20,7 +20,15 @@ test. Physics and object-function imports no longer call their legacy fallback w
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
-Latest validation: 55 regression tests pass without starting ManagedBlam.
+Latest validation: 56 regression tests pass without starting ManagedBlam.
+Structure-design boundaries now use native records across H3 through H2AMP;
+Reach/H4/H2AMP water and fog are also native. Tests create actual Blender meshes,
+check properties and reject malformed data before allocation. Material assignment
+and transforms are stubbed in these tests; visual acceptance remains outstanding.
+Read-only sampling decoded 38/50 real tags. Ten H3/ODST water cases and two Reach
+rain cases report explicit conversion gaps, with all source bytes unchanged.
+The importer no longer eagerly starts ManagedBlam. Unported tag wrappers can
+still initialize it and must be replaced.
 The read-only H4/H2AMP sample reaches conversion for 59 of 60 light tags. The last
 tag is a physical light with periodic, modifier-driven attenuation. Sampling mocks
 light allocation, final lighting setup and bitmap conversion; visual parity and
@@ -32,16 +40,17 @@ The source audit on 2026-09-18 found:
   render-method definitions, material-shader metadata, models, object metadata,
   lightmapper globals, cinematic-lighting metadata, light tags, cheap lights,
   structure seams, structure metadata, authored PCA animation and collision models.
-- 23 tag classes still inherit the legacy `Tag` base, directly or indirectly:
-  14 direct wrappers and 9 shader/material/decal subclasses.
-- 23 modules under `managed_blam` still contain `SelectField` calls.
+- 20 tag classes still inherit the legacy `Tag` base, directly or indirectly:
+  11 direct wrappers and 9 shader/material/decal subclasses.
+- 20 modules under `managed_blam` still contain `SelectField` calls.
 
 Physics also uses native records for constraints, spheres, capsules, boxes, convex
 polyhedra, nested lists/MOPPs, H4/H2AMP body properties and supported serialized
 Havok geometry. Native decoding covers 90/100 sampled weapon tags and 74/100
 sampled vehicle tags. The remaining sampled vehicle cases have unbound bodies
-and now raise an explicit unsupported error. The old `LegacyPhysicsTag` source
-remains pending cleanup but is no longer a fallback from the native importer.
+and now raise an explicit unsupported error. The obsolete physics and object
+legacy wrappers have been deleted. Cinematic scenery copying now propagates
+native layout errors without reopening either tag through ManagedBlam.
 These sample rates are not overall migration percentages.
 
 These are code-inventory counts, not a percentage of engineering effort. Several
@@ -52,11 +61,10 @@ and migrated wrappers can still hand specialized operations to legacy converters
 
 Cinematic import now reads shot lengths, anchor and structure-lighting references
 natively and iterates detached shot/object records. There are no direct SelectField
-calls remaining in CinematicSceneTag.to_blender. The wrapper still inherits legacy
-Tag and initializes its playback helper; this is not yet a ManagedBlam-free entry
-point. Five-profile metadata fixtures pass with the rest of the 54-test suite.
-Next: isolate native import construction from legacy playback/export callers, then
-validate complete imports through that entry point.
+calls remaining in CinematicSceneTag.to_blender. NativeCinematicSceneTag now exposes
+that conversion through a native constructor. The separate legacy wrapper remains
+for playback/export. Next: validate complete imports and replace the remaining
+referenced asset readers and playback/export helpers.
 
 READ-001 is resolved in the local binding: TagField.as_array returns fixed-array
 struct handles with lifetime checks. H4/H2AMP shot visibility now reads native

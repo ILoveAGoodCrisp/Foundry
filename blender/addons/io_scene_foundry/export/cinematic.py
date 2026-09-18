@@ -9,7 +9,6 @@ from ..managed_blam.cinematic_lighting import CinematicLightingTag
 from ..managed_blam.lisp_to_corinth import script_from_text
 
 from ..managed_blam.object import ObjectTag
-from ..tags.object import CinematicCopyUnsupported
 from ..managed_blam.model import ModelTag
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.cinematic_scene import CinematicClip, CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicLighting, CinematicMusic, CinematicObjectFunction, CinematicObjectFunctionKeyframe, CinematicScreenEffect, CinematicTextureMovie, CinematicUserInputConstraints
@@ -302,12 +301,8 @@ class Actor:
             scenery_path = object_path.with_suffix(".scenery")
             if not scenery_path.exists():
                 # No scenery? lets create it
-                try:
-                    with ObjectTag(path=scenery_path) as scenery:
-                        scenery.copy_cinematic_object(obj, AMMO_FUNCTIONS)
-                except CinematicCopyUnsupported:
-                    from ..managed_blam.object_legacy import copy_cinematic_scenery_legacy
-                    copy_cinematic_scenery_legacy(object_path, scenery_path, AMMO_FUNCTIONS)
+                with ObjectTag(path=scenery_path) as scenery:
+                    scenery.copy_cinematic_object(obj, AMMO_FUNCTIONS)
                             
 class ShotActor:
     def __init__(self, ob: bpy.types.Object, shot_index: int):

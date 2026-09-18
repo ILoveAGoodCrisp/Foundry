@@ -86,9 +86,10 @@ addon imports. Object tests cover five title profiles, inherited object fields,
 reference round trips and aborted edits, colors, weapon metadata and first-person
 block growth. Wrapper tests assert that ordinary migrated operations never
 initialize ManagedBlam. Attachment tests also cover detached records and marker
-parenting with a stubbed light converter. Object custom functions and the cinematic
-layout compatibility fallback use `managed_blam/object_legacy.py`; attachment import opens only
-the referenced `LightTag` or `CheapLightTag` through the legacy converter.
+parenting with a stubbed light converter. Object custom functions and cinematic
+scenery copying now use native operations exclusively; unsupported data raises
+an error. Attachment import opens the referenced native light wrapper, though
+projected textures still depend on the unported bitmap converter.
 
 Read-only sampling also exercised existing tag files from all five H3+ kits:
 global/material metadata, 15 model tags with their render-model references,
@@ -157,13 +158,12 @@ surface loops and bone bindings, then reuses the existing Blender conversion.
 Separate structure-BSP and Havok collision paths still need migration.
 
 Physics constraints read through blam-tags and use the existing Blender marker
-conversion. Rigid-body shapes remain in `physics_legacy.py`; the native wrapper
-opens that fallback when referenced shapes are unsupported. Standalone spheres
+conversion. The obsolete legacy physics wrapper has been removed. Standalone spheres
 and boxes, nonzero-length capsules, convex polyhedra and flat lists of these shapes
 now use native records. Nested lists and MOPP wrappers around supported shapes
 also use native geometry, with circular-reference and expansion-limit checks;
 other primitives, unbound bodies and unsupported serialized Havok payloads
-still use the fallback. Constraint-only tags avoid ManagedBlam entirely. Physics
+raise explicit unsupported errors. Constraint-only tags avoid ManagedBlam entirely. Physics
 schemas are ignored build assets.
 H4/H2AMP Havok bodies with supported authored geometry read mass, center-of-mass,
 inertia and damping properties natively through the existing Blender property mapping.
@@ -171,7 +171,7 @@ Older H4 layouts without serialized-shape fields also read natively, including
 MOPPs that retain a list index instead of a child-shape reference.
 Serialized Havok bodies now use native payload extraction and the existing Python
 geometry decoder. All shapes decode before Blender allocation; an unsupported
-payload selects whole-tag legacy conversion. Required bone bindings are checked.
+payload raises an error without ManagedBlam fallback. Required bone bindings are checked.
 Read-only sampling converted temporary copies of 36 H3 weapons, bipeds and
 vehicles and verified their initial color permutations after reopening. All 36
 used the native path; no original editing-kit tags were modified.

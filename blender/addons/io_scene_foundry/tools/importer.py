@@ -31,7 +31,7 @@ from ..managed_blam.structure_design import StructureDesignTag
 
 from ..managed_blam.globals import FPARMS, GlobalsTag
 
-from ..managed_blam import Tag, start_mb_for_import, switch_project_from_filepath
+from ..managed_blam import Tag, switch_project_from_filepath
 from ..tags.backend import TagDocument
 
 from .animation.generate_frames import FrameGenerator
@@ -1244,10 +1244,7 @@ class NWO_Import(bpy.types.Operator):
                 # Start MB if the file is a tag and switch project as needed.
                 # Only checking the last file for speed (last file is always self.filepath if there was one).
                 # If another file is a tag, too bad, we won't try to switch project for it
-                if Path(filepaths[-1]).suffix.lower() == '.cinematic':
-                    switch_project_from_filepath(context, Path(filepaths[-1]))
-                else:
-                    start_mb_for_import(filepaths[-1])
+                switch_project_from_filepath(context, Path(filepaths[-1]))
 
                 scope_list = []
                 if self.scope:
