@@ -1,4 +1,3 @@
-from enum import Enum
 from pathlib import Path
 
 from .lisp_to_corinth import script_from_text
@@ -11,111 +10,200 @@ from ..tags.blender import BlenderTag
 
 from .. import utils
 
-from .scenario import ScenarioTag
-from . import Tag
-
 # TODO Handle resources
 CINEMATIC_TAG_NAME_MAX_LENGTH = 25
 
 
-class ShotType(Enum):
-    ALL = 0
-    TAG = 1
-    SCENE = 2
-    CURRENT = 3
+class CinematicScenarioDocument(TagDocument):
+    """The scenario fields changed as part of a cinematic export."""
 
-class CinematicTag(Tag):
-    tag_ext = 'cinematic'
-    
-    def _read_fields(self):
-        self.cinematic_playback = self.tag.SelectField('Custom:custom playback')
-        self.scenario = self.tag.SelectField("Struct:scenario and zone set[0]/Reference:scenario")
-        self.zone_set = self.tag.SelectField("Struct:scenario and zone set[0]/LongInteger:zone set")
-        self.name = self.tag.SelectField("StringId:name")
-        self.channel_type = self.tag.SelectField("ShortEnum:channel type")
-        self.flags = self.tag.SelectField("Flags:flags")
-        self.scenes = self.tag.SelectField("Block:scenes")
-    
-    def get_play_text(self, loop: bool, shot_type: ShotType) -> str:
-        if self.corinth:
-            return f'(cinematic_debug_play "{utils.get_asset_name()}" "" 0 {self.tag.SelectField("Struct:cinematic playback[0]/LongInteger:bsp zone flags").Data})'
-        match shot_type:
-            case ShotType.ALL:
-                if self.corinth:
-                    return f'(cinematic_debug_play "{utils.get_asset_name()}" "" 0 {self.cinematic_playback.Elements[0].SelectField("bsp zone flags").Data})'
-                return self.cinematic_playback.GetPlayCinematicText(loop)
-            case ShotType.TAG:
-                return self.cinematic_playback.GetPlayCheckedText(loop)
-            case ShotType.SCENE:
-                playback_scenes = self.cinematic_playback.Elements[0].SelectField("scenes")
-                return self.cinematic_playback.GetPlayCinematicText(loop)
-            case ShotType.CURRENT:
-                current_shot_index = utils.get_current_shot_index(self.context)
-                # TODO set all shots unchecked apart from current in blender
-                
+    def _set_value(self, element, name, value):
+        self.required_field(element, name).set(value)
         self.tag_has_changes = True
-    
-    def get_stop_text(self, loop) -> str:
-        return self.cinematic_playback.GetStopCinematicText(loop)
-    
-    def get_pause_text(self) -> str:
-        return self.cinematic_playback.GetPauseCinematicText()
+
+    def _set_indexed_flag(self, element, name, index, enabled=True):
+        field = self.required_field(element, name)
+        if not 0 <= index < 32:
+            raise IndexError(f'{self.path}: {name!r} cannot represent bit {index}')
+        value = int(field.value)
+        field.set(value | (1 << index) if enabled else value & ~(1 << index))
+        self.tag_has_changes = True
+
+    def _enable_all_flags(self, element, name, count):
+        if not 0 <= count <= 32:
+            raise ValueError(f'{self.path}: {name!r} cannot represent {count} entries')
+        field = self.required_field(element, name)
+        field.set((1 << count) - 1)
+        self.tag_has_changes = True
+
+    def link_cinematic(self, cinematic, zone_set):
+        root = self.tag.root()
+        cinematics = self.block(root, 'cinematics')
+        cinematic_index = None
+        target = cinematic.RelativePathWithExtension.casefold()
+        for index in range(len(cinematics)):
+            reference = self.reference(cinematics[index], 'name')
+            if reference is not None and reference.RelativePathWithExtension.casefold() == target:
+                cinematic_index = index
+                break
+        if cinematic_index is None:
+            cinematic_index = cinematics.add()
+            cinematics = self.block(root, 'cinematics')
+            self.set_reference(cinematics[cinematic_index], 'name', cinematic)
+
+        if not zone_set:
+            return
+        zone_sets = self.block(root, 'zone sets')
+        zone_set_index = None
+        for index in range(len(zone_sets)):
+            if self.value(zone_sets[index], 'name') == zone_set:
+                zone_set_index = index
+                break
+        if zone_set_index is None:
+            zone_set_index = zone_sets.add()
+            zone_sets = self.block(root, 'zone sets')
+            element = zone_sets[zone_set_index]
+            self._set_value(element, 'name', zone_set)
+            self._enable_all_flags(element, 'bsp zone flags', len(self.block(root, 'structure bsps')))
+            self._enable_all_flags(element, 'structure design zone flags', len(self.block(root, 'structure designs')))
+        self._set_indexed_flag(zone_sets[zone_set_index], 'cinematic zones', cinematic_index)
+        return zone_set_index
+
+    def update_anchors(self, cinematic_scenes, corinth):
+        root = self.tag.root()
+        flags = self.block(root, 'cutscene flags')
+        by_name = {scene.anchor_name: scene for scene in cinematic_scenes}
+        indices = {}
+        for index in range(len(flags)):
+            name = self.value(flags[index], 'name')
+            if name in by_name:
+                indices[name] = index
+        for name, scene in by_name.items():
+            index = indices.get(name)
+            if index is None:
+                index = flags.add()
+                flags = self.block(root, 'cutscene flags')
+            element = flags[index]
+            self._set_value(element, 'name', name)
+            position = self.required_field(element, 'position')
+            position.set(type(position.value)(*scene.anchor_location))
+            facing = self.required_field(element, 'facing')
+            angles = scene.anchor_ypr if corinth else scene.anchor_ypr[:2]
+            facing.set(type(facing.value)(*angles))
+            self.tag_has_changes = True
+
+    def remove_generated_script(self):
+        root = self.tag.root()
+        source_files = self.block(root, 'source files')
+        for index in range(len(source_files)):
+            if self.value(source_files[index], 'name') == 'auto_generated_cinematic_script':
+                source_files.delete(index)
+                self.tag_has_changes = True
+                return
+
+    def update_cinematic_resource(self):
+        root = self.tag.root()
+        resources = self.block(root, 'scenario resources')
+        if not len(resources):
+            return
+        split_resources = self.block(resources[0], 'new split resources')
+        if not len(split_resources):
+            return
+        reference = self.reference(split_resources[0], 'cutscene data resource')
+        if not self.path_exists(reference):
+            return
+        with TagDocument(reference, tags_root=self.tags_root, game=self.game,
+                         must_exist=True) as resource:
+            destination = resource.tag.root()
+            resource.block(destination, 'cinematics').copy_from(self.block(root, 'cinematics'))
+            resource.block(destination, 'flags').copy_from(self.block(root, 'cutscene flags'))
+            resource.tag_has_changes = True
+
+    def scenario_type(self):
+        return self.value(self.tag.root(), 'type')
+
+
+class CinematicTag(BlenderTag, TagDocument):
+    tag_ext = 'cinematic'
+
+    def __init__(self, path='', **kwargs):
+        kwargs.setdefault('tag_must_exist', False)
+        super().__init__(path, **kwargs)
+
+    def _set_value(self, element, name, value):
+        self.required_field(element, name).set(value)
+        self.tag_has_changes = True
+
+    def _set_script(self, root, name, text):
+        script_struct = self.required_field(root, name).as_struct()
+        if script_struct is None:
+            raise ValueError(f'{self.path}: {name!r} is not a structure')
+        self._set_value(script_struct, 'script', text.encode('utf-8'))
     
     def create(self, name: str, cinematic_scenes, scenario_path: Path | None = None, zone_set: str = "cinematic", scene_nwo=None):
         scene_nwo = scene_nwo or self.scene_nwo
-        self.tag_has_changes = True
-        self.name.SetStringData(name[:CINEMATIC_TAG_NAME_MAX_LENGTH])
+        root = self.tag.root()
+        settings = self.required_field(root, 'scenario and zone set').as_struct()
+        if settings is None:
+            raise ValueError(f'{self.path}: scenario and zone set is not a structure')
+        self._set_value(root, 'name', name[:CINEMATIC_TAG_NAME_MAX_LENGTH])
         
         # Add Cinematic Settings
         channel_type_value = int(scene_nwo.cinematic_channel_type)
         if not self.corinth:
             channel_type_value = min(4, channel_type_value)
-            
-        self.channel_type.Value = channel_type_value
-        self.tag.SelectField("easing in time").Data = scene_nwo.cinematic_easing_in_time
-        self.tag.SelectField("easing out time").Data = scene_nwo.cinematic_easing_out_time
+        self._set_value(root, 'channel type', channel_type_value)
+        self._set_value(root, 'easing in time', scene_nwo.cinematic_easing_in_time)
+        self._set_value(root, 'easing out time', scene_nwo.cinematic_easing_out_time)
         if scene_nwo.cinematic_transition_settings.strip():
             transition = Path(utils.relative_path(scene_nwo.cinematic_transition_settings)).with_suffix(".cinematic_transition")
         else:
             transition = Path(self.tag_path.RelativePath).with_suffix(".cinematic_transition")
-        with Tag(path=transition) as trans:
-            self.tag.SelectField("Reference:transition settings").Path = trans.tag_path
+        with TagDocument(transition, tags_root=self.tags_dir, game=self.game,
+                         extension='cinematic_transition', must_exist=False) as trans:
+            transition_reference = trans.reference_from_path(trans.path)
+            self.set_reference(root, 'transition settings', transition_reference)
             if not scene_nwo.cinematic_transition_settings.strip():
-                scene_nwo.cinematic_transition_settings = trans.tag_path.RelativePathWithExtension
+                scene_nwo.cinematic_transition_settings = transition_reference.RelativePathWithExtension
             
         if scene_nwo.cinematic_bink_movie.strip():
             b_path = Path(utils.relative_path(scene_nwo.cinematic_bink_movie)).with_suffix(".bink")
-            self.tag.SelectField("Reference:bink movie").Path = self._TagPath_from_string(b_path)
+            self.set_reference(root, 'bink movie', b_path)
             
-        self.flags.SetBit("Outro", scene_nwo.cinematic_outro)
+        flags = self.required_field(root, 'flags')
+        flags.set_flag("Outro", scene_nwo.cinematic_outro)
         if self.corinth:
-            self.flags.SetBit("Extra Memory Bink", scene_nwo.cinematic_extra_memory_bink)
-            self.flags.SetBit("Opaque Bink", scene_nwo.cinematic_opaque_bink)
-            self.flags.SetBit("Don't Stretch Bink", scene_nwo.cinematic_dont_stretch_bink)
-            self.flags.SetBit("Don't Force Hologram Render", scene_nwo.cinematic_dont_force_hologram_render)
-            
-            self.tag.SelectField("bink movie on disc").SetStringData(scene_nwo.cinematic_bink_movie_on_disc)
-        
-        self.tag.SelectField("Struct:header").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, scene_nwo.cinematic_header, scene_nwo.cinematic_header_text, scene_nwo.cinematic_header_use_text)
-        self.tag.SelectField("Struct:footer").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, scene_nwo.cinematic_footer, scene_nwo.cinematic_footer_text, scene_nwo.cinematic_footer_use_text)
-        self.tag.SelectField("Struct:early exit").Elements[0].Fields[0].DataAsText = script_from_text(self.corinth, scene_nwo.cinematic_skip_footer, scene_nwo.cinematic_skip_footer_text, scene_nwo.cinematic_skip_footer_use_text)
+            flags.set_flag("Extra Memory Bink", scene_nwo.cinematic_extra_memory_bink)
+            flags.set_flag("Opaque Bink", scene_nwo.cinematic_opaque_bink)
+            flags.set_flag("Don't Stretch Bink", scene_nwo.cinematic_dont_stretch_bink)
+            flags.set_flag("Don't Force Hologram Render", scene_nwo.cinematic_dont_force_hologram_render)
+            self._set_value(root, 'bink movie on disc', scene_nwo.cinematic_bink_movie_on_disc)
+
+        self._set_script(root, 'header', script_from_text(
+            self.corinth, scene_nwo.cinematic_header, scene_nwo.cinematic_header_text,
+            scene_nwo.cinematic_header_use_text))
+        self._set_script(root, 'footer', script_from_text(
+            self.corinth, scene_nwo.cinematic_footer, scene_nwo.cinematic_footer_text,
+            scene_nwo.cinematic_footer_use_text))
+        self._set_script(root, 'early exit', script_from_text(
+            self.corinth, scene_nwo.cinematic_skip_footer, scene_nwo.cinematic_skip_footer_text,
+            scene_nwo.cinematic_skip_footer_use_text))
 
         # Add scenes to cinematic
         scene_paths = [cs.name for cs in cinematic_scenes]
         if scene_paths:
-            if self.scenes.Elements.Count > 0:
-                self.scenes.RemoveAllElements()
-            
+            scenes = self.block(root, 'scenes')
+            scenes.clear()
             for sp in scene_paths:
-                element = self.scenes.AddElement()
+                element = scenes[scenes.add()]
                 scene_path = Path(Path(self.tag_path.RelativePath).parent, sp)
-                element.Fields[0].Path = self._TagPath_from_string(scene_path.with_suffix(".cinematic_scene"))
+                self.set_reference(element, 'scene', scene_path.with_suffix(".cinematic_scene"))
                 if self.corinth:
-                    element.Fields[1].Path = self._TagPath_from_string(scene_path.with_suffix(".cinematic_scene_data"))
+                    self.set_reference(element, 'data', scene_path.with_suffix(".cinematic_scene_data"))
         
         needs_cinematic_scenario_update = True
         if scenario_path is None:
-            tag_path = self.scenario.Path
+            tag_path = self.reference(settings, 'scenario')
             if tag_path is not None:
                 path = Path(tag_path.Filename)
                 if path.exists():
@@ -123,138 +211,31 @@ class CinematicTag(Tag):
                     needs_cinematic_scenario_update = False
         
         if scenario_path is not None:
-            with ScenarioTag(path=scenario_path) as scenario:
-                scenario.tag_has_changes = True
+            with CinematicScenarioDocument(scenario_path, tags_root=self.tags_dir,
+                                           game=self.game, must_exist=True) as scenario:
                 # Set link to scenario in cinematic tag
                 if needs_cinematic_scenario_update:
-                    self.scenario.Path = scenario.tag_path
-                    # Add cinematic to scenario tag, first checking to see if the reference exists
-                    block_cinematics = scenario.tag.SelectField("Block:cinematics")
-                    for element in scenario.tag.SelectField("Block:cinematics").Elements:
-                        if element.Fields[1].Path == self.tag_path:
-                            scenario_cinematic_index = element.ElementIndex
-                            break
-                    else:
-                        element = block_cinematics.AddElement()
-                        element.Fields[1].Path = self.tag_path
-                        scenario_cinematic_index = element.ElementIndex
-                
-                    if zone_set:
-                        zone_set_index = -1
-                        # Add to given zone set name if this exists
-                        for element in scenario.block_zone_sets.Elements:
-                            if element.Fields[0].GetStringData() == zone_set:
-                                zone_set_index = element.ElementIndex
-                                for item in element.SelectField("BlockFlags:cinematic zones").Items:
-                                    if item.FlagBit == scenario_cinematic_index:
-                                        item.IsSet = True
-                                        break
-                                break
-                        else:
-                            # Create a new zone set if needed
-                            element = scenario.block_zone_sets.AddElement()
-                            element.Fields[0].SetStringData(zone_set)
-                            zone_set_index = element.ElementIndex
-                                
-                            for item in element.SelectField("BlockFlags:cinematic zones").Items:
-                                if item.FlagBit == scenario_cinematic_index:
-                                    item.IsSet = True
-                                break
-                            
-                            # Enable all zone bsp and design tags for this 
-                            for item in element.SelectField("bsp zone flags").Items:
-                                item.IsSet = True
-                                    
-                            for item in element.SelectField("structure design zone flags").Items:
-                                item.IsSet = True
-                    
-                    
-                        self.zone_set.Data = zone_set_index
-                        
-                # Add cinematic anchor object to scenario
-                cutscene_flags = scenario.tag.SelectField("Block:cutscene flags")
-                anchor_names = {cs.anchor_name for cs in cinematic_scenes}
-                for element in cutscene_flags.Elements:
-                    for cin_scene in cinematic_scenes:
-                        if cin_scene.anchor_name == element.Fields[0].GetStringData():
-                            element.Fields[1].Data = cin_scene.anchor_location
-                            if self.corinth:
-                                element.Fields[2].Data = cin_scene.anchor_ypr
-                            else:
-                                # Reach only uses yaw and pitch for cutscene flags
-                                element.Fields[2].Data = cin_scene.anchor_ypr[:2]
-                            anchor_names.remove(cin_scene.anchor_name)
-                            break
-                    if not anchor_names:
-                        break
-                            
-                else:
-                    remaining_cin_scenes = {cs for cs in cinematic_scenes if cs.anchor_name in anchor_names}
-                    for cin_scene in remaining_cin_scenes:
-                        if cin_scene.anchor_name not in anchor_names:
-                            continue
-                        element = cutscene_flags.AddElement()
-                        element.Fields[0].SetStringData(cin_scene.anchor_name)
-                        element.Fields[1].Data = cin_scene.anchor_location
-                        element.Fields[2].Data = cin_scene.anchor_ypr
-                        anchor_names.remove(cin_scene.anchor_name)
-                        
+                    self.set_reference(settings, 'scenario', scenario.path)
+                    zone_set_index = scenario.link_cinematic(self.tag_path, zone_set)
+                    if zone_set_index is not None:
+                        self._set_value(settings, 'zone set', zone_set_index)
+
+                scenario.update_anchors(cinematic_scenes, self.corinth)
                 if not self.corinth:
                     scenario.update_cinematic_resource()
-                
-                    # Delete the autogenerated cinematic script to force a recompile
-                    source_files = scenario.tag.SelectField("Block:source files")
-                    for element in scenario.tag.SelectField("Block:source files").Elements:
-                        if element.Fields[0].GetStringData() == "auto_generated_cinematic_script":
-                            source_files.RemoveElement(element.ElementIndex)
-                            break
-                        
-                if scenario.read_scenario_type() == 1:
-                    utils.print_warning(f"{scenario.tag_path.RelativePathWithExtension} is set to Multiplayer. Cinematics will crash if you attempt to run them\nSwitch the scenario type to Solo before playing cinematic")
-    
-    def to_blender(self, film_aperture: float, import_scenario=False, specific_scene=""):
-        scenario_path = None
-        zone_set = ""
-        
-        scene_datas = []
-        if import_scenario:
-            scenario_tagpath = self.scenario.Path
-            if self.path_exists(scenario_tagpath):
-                scenario_path = scenario_tagpath.Filename
-                zone_set_index = self.zone_set.Data
-                
-                with ScenarioTag(path=scenario_path) as scenario:
-                    if zone_set_index > -1 and zone_set_index < scenario.block_zone_sets.Elements.Count:
-                        zone_set = scenario.block_zone_sets.Elements[zone_set_index].Fields[0].GetStringData()
-        
-        for element in self.scenes.Elements:
-            if self.corinth:
-                pass
-            
-            scene_tagpath = element.SelectField("Reference:scene").Path
-            if self.corinth:
-                scene_data_tagpath = element.SelectField("Reference:data").Path
-                if self.path_exists(scene_tagpath) and self.path_exists(scene_data_tagpath):
-                    if specific_scene and scene_tagpath.RelativePathWithExtension != specific_scene:
-                        continue
-                    
-                    scene_data = SceneData(film_aperture, self.tag_path.ShortName)
-                    scene_data.from_scene_corinth(scene_tagpath, scene_data_tagpath)
-                    scene_datas.append(scene_data)
-            else:
-                if self.path_exists(scene_tagpath):
-                    if specific_scene and scene_tagpath.RelativePathWithExtension != specific_scene:
-                        continue
-                    
-                    scene_data = SceneData(film_aperture, self.tag_path.ShortName)
-                    scene_data.from_scene(scene_tagpath)
-                    scene_datas.append(scene_data)
-        
-        return scene_datas, scenario_path, zone_set
-    
-class NativeCinematicTag(BlenderTag, TagDocument):
+                    scenario.remove_generated_script()
+
+                if scenario.scenario_type() == 1:
+                    utils.print_warning(f"{scenario.path} is set to Multiplayer. Cinematics will crash if you attempt to run them\nSwitch the scenario type to Solo before playing cinematic")
+
+
+class NativeCinematicTag(CinematicTag):
     """Native cinematic scene discovery and import, without playback initialization."""
     tag_ext = 'cinematic'
+
+    def __init__(self, path='', **kwargs):
+        kwargs.setdefault('tag_must_exist', True)
+        super().__init__(path, **kwargs)
 
     def scene_references(self):
         return [(self.reference(element, 'scene'),

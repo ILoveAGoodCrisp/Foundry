@@ -15,7 +15,11 @@ import zipfile
 
 PROFILES = ('haloce_mcc', 'halo2_mcc', 'halo3_mcc', 'halo3odst_mcc',
             'haloreach_mcc', 'halo4_mcc', 'halo2amp_mcc')
-SCHEMAS = ('scenario_structure_lighting_info.json', 'frame_event_list.json', 'structure_design.json', 'cinematic.json', 'cinematic_scene.json', 'cinematic_scene_data.json', 'polyart_asset.json', 'decorator_set.json', 'camera_track.json', 'bitmap.json', 'globals.json', 'render_method_option.json',
+SCHEMAS = ('scenario.json', 'scenario_cinematics_resource.json',
+           'scenario_structure_lighting_info.json', 'frame_event_list.json',
+           'structure_design.json', 'cinematic.json', 'cinematic_transition.json',
+           'cinematic_scene.json', 'cinematic_scene_data.json', 'polyart_asset.json',
+           'decorator_set.json', 'camera_track.json', 'bitmap.json', 'globals.json', 'render_method_option.json',
            'render_method_definition.json', 'material_shader.json', 'model.json',
            'render_model.json', 'lightmapper_globals.json', 'new_cinematic_lighting.json', '_meta.json',
            'object.json', 'item.json', 'unit.json', 'device.json',

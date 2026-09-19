@@ -11,11 +11,13 @@ raise explicit errors rather than fall back to ManagedBlam. Temporary breakage o
 this branch is accepted; record gaps for investigation instead of preserving .NET
 compatibility. Unported readers and writers still need replacement.
 
-Latest integration: cinematic import now uses native root, scene and scene-data
-entry points, including scene discovery, scenario zone-set lookup and sky metadata.
-Legacy playback/export wrappers remain separate and still need migration. Camera
-allocation and complete referenced-asset import are not covered by the new entry-point
-test. Physics and object-function imports no longer call their legacy fallback wrappers.
+Latest integration: cinematic import and the top-level cinematic writer now use
+native root, scene and scene-data entry points. Cinematic export writes settings,
+scripts, scene/data references and transition tags through blam-tags. Its scenario
+update also uses native blocks for the cinematic link, zone-set flags, anchors,
+generated-script removal and Reach cinematic-resource synchronization. Camera
+allocation and complete referenced-asset import remain to be validated. Physics
+and object-function imports no longer call their legacy fallback wrappers.
 
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
@@ -26,6 +28,17 @@ preview data now use blam-tags plus Foundry's existing Python bitmap decoders.
 The external Tool extraction fallback was removed. This bitmap batch has only
 received static validation; full format and editing-kit review is intentionally
 deferred until the broader migration review.
+The obsolete ManagedBlam cinematic-scene wrapper has been removed; cinematic
+scene import now lives directly on `NativeCinematicSceneTag`. Cinematic debug-menu
+scene lookup and BSP-zone flags are also native. Common render-model metadata
+queries (nodes, regions, permutations and marker groups) now use a native wrapper
+in UI and export setup paths, while full render geometry remains legacy.
+The old `CinematicTag(Tag)` wrapper and its duplicate import path are gone. The
+replacement creates and updates `.cinematic`, `.cinematic_transition`, `.scenario`
+and Reach `.scenario_cinematics_resource` records without ManagedBlam. Generated
+schemas remain ignored build assets sourced from blam-tags rather than committed
+per-tag definitions. A focused in-memory schema check covered Reach, H4 and H2AMP;
+complete editing-kit export acceptance is deferred to the final migration review.
 Particle-model import now calls the native blam-tags geometry decoder directly;
 the legacy render-model bridge and eager `_GameRenderModel` allocation are gone.
 Foundry validates every detached mesh before creating Blender data, then imports
@@ -78,9 +91,9 @@ The source audit updated on 2026-09-19 found:
   render-method definitions, material-shader metadata, models, object metadata,
   lightmapper globals, cinematic-lighting metadata, light tags, cheap lights,
   structure seams, structure metadata, authored PCA animation and collision models.
-- 16 tag classes still inherit the legacy `Tag` base, directly or indirectly:
-  7 direct wrappers and 9 shader/material/decal subclasses.
-- 15 modules under `managed_blam` still contain `SelectField` calls (excluding
+- 14 tag classes still inherit the legacy `Tag` base, directly or indirectly:
+  5 direct wrappers and 9 shader/material/decal subclasses.
+- 14 modules under `managed_blam` still contain `SelectField` calls (excluding
   the legacy base and generated type declarations).
 
 Physics also uses native records for constraints, spheres, capsules, boxes, convex
@@ -215,7 +228,7 @@ its mass update was verified by reopening a temporary physics tag.
 | Geometry and resources | Port render models and the remaining collision, physics, decorator and polyart resource paths, including Blender mesh/skeleton construction. Particle-model import is native. |
 | Animation | Expose animation decoding and port graph edits, frame events, PCA and animation import. |
 | Bitmaps | Review the native/Python extraction path across formats, mipmaps, cubemaps and material texture use; complete any resource layouts not represented by processed pixel data. |
-| Scenarios and cinematics | Port scenario/BSP/structure editors, lighting-info export, cinematic scenes/data/playback helpers and remaining layout fallbacks. |
+| Scenarios and cinematics | Port the remaining general scenario/BSP/structure editors, lighting-info export, cinematic scene/data writers and remaining referenced-resource workflows. The top-level cinematic writer and its scenario bookkeeping are native. |
 | Dependency removal and acceptance | Remove startup validation and DLL initialization, revise packaging/UI, and run representative complete imports and exports with ManagedBlam unavailable. |
 
 The Rust library already contains functionality in several of these areas, but
