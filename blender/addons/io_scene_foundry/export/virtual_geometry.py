@@ -1016,6 +1016,9 @@ class VirtualMaterial:
         
         # Create a granny texture builder instance
         width, height, stride, rgba = bitmap_data
+        if isinstance(rgba, (bytes, bytearray)):
+            rgba_buffer = (c_ubyte * len(rgba)).from_buffer_copy(rgba)
+            rgba = cast(rgba_buffer, c_void_p)
         builder = scene.granny.begin_texture_builder(width, height)
         scene.granny.encode_image(builder, width, height, stride, 1, rgba)
         texture = scene.granny.end_texture(builder)

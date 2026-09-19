@@ -265,6 +265,12 @@ class NativeCinematicTag(BlenderTag, TagDocument):
         settings = self.required_field(self.tag.root(), 'scenario and zone set').as_struct()
         return self.reference(settings, 'scenario'), self.value(settings, 'zone set')
 
+    def playback_bsp_zone_flags(self):
+        playback = self.required_field(self.tag.root(), 'cinematic playback').as_struct()
+        if playback is None:
+            raise ValueError(f'{self.path}: cinematic playback is not a structure')
+        return self.value(playback, 'bsp zone flags')
+
     def to_blender(self, film_aperture, import_scenario=False, specific_scene=''):
         scenario_path, zone_set = None, ''
         if import_scenario:

@@ -1,11 +1,9 @@
 from pathlib import Path
 import bpy
 
-from ..managed_blam.cinematic_scene import CinematicSceneTag
-
 from .. import utils
 
-from ..managed_blam.cinematic import CinematicTag
+from ..managed_blam.cinematic import NativeCinematicTag
 
 REACH_LOOP_IT_WORKS = False
 
@@ -17,18 +15,17 @@ def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, 
     menu_commands = []
     cin_name = cinematic_path.with_suffix("").name
     scene_index = -1
-    with CinematicTag(path=cinematic_path) as cinematic:
-        for element in cinematic.scenes.Elements:
-            path = element.Fields[0].Path
-            if path is not None and scene_name == path.ShortName:
-                scene_index = element.ElementIndex
+    with NativeCinematicTag(path=cinematic_path) as cinematic:
+        for index, (scene, _) in enumerate(cinematic.scene_references()):
+            if scene is not None and scene_name == scene.ShortName:
+                scene_index = index
                 break
                 
         if scene_index == -1:
             return False
 
         if corinth:
-            bsp_zone_flags = cinematic.tag.SelectField("Struct:cinematic playback[0]/LongInteger:bsp zone flags").Data
+            bsp_zone_flags = cinematic.playback_bsp_zone_flags()
         # LOOP
         if corinth or REACH_LOOP_IT_WORKS:
             loop_command = '<item type = global name = "Foundry: Loop" variable = "cache_file_builder_unshare_unique_map_locations">\n'

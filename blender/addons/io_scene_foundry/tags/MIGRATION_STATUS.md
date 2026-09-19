@@ -21,6 +21,11 @@ The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
 Latest validation: 60 regression tests pass without starting ManagedBlam.
+Bitmap field access, creation settings, processed-pixel extraction and Granny
+preview data now use blam-tags plus Foundry's existing Python bitmap decoders.
+The external Tool extraction fallback was removed. This bitmap batch has only
+received static validation; full format and editing-kit review is intentionally
+deferred until the broader migration review.
 Particle-model import now calls the native blam-tags geometry decoder directly;
 the legacy render-model bridge and eager `_GameRenderModel` allocation are gone.
 Foundry validates every detached mesh before creating Blender data, then imports
@@ -73,9 +78,9 @@ The source audit updated on 2026-09-19 found:
   render-method definitions, material-shader metadata, models, object metadata,
   lightmapper globals, cinematic-lighting metadata, light tags, cheap lights,
   structure seams, structure metadata, authored PCA animation and collision models.
-- 17 tag classes still inherit the legacy `Tag` base, directly or indirectly:
-  8 direct wrappers and 9 shader/material/decal subclasses.
-- 16 modules under `managed_blam` still contain `SelectField` calls (excluding
+- 16 tag classes still inherit the legacy `Tag` base, directly or indirectly:
+  7 direct wrappers and 9 shader/material/decal subclasses.
+- 15 modules under `managed_blam` still contain `SelectField` calls (excluding
   the legacy base and generated type declarations).
 
 Physics also uses native records for constraints, spheres, capsules, boxes, convex
@@ -209,7 +214,7 @@ its mass update was verified by reopening a temporary physics tag.
 | Functions, shaders and lights | Extend the new function-decoding binding to editing operations; port materials, shader variants, decals and light converters. Remove unsupported object-function fallbacks. |
 | Geometry and resources | Port render models and the remaining collision, physics, decorator and polyart resource paths, including Blender mesh/skeleton construction. Particle-model import is native. |
 | Animation | Expose animation decoding and port graph edits, frame events, PCA and animation import. |
-| Bitmaps | Replace .NET bitmap extraction/conversion with native decoding; validate formats, mipmaps, cubemaps and texture use by materials. |
+| Bitmaps | Review the native/Python extraction path across formats, mipmaps, cubemaps and material texture use; complete any resource layouts not represented by processed pixel data. |
 | Scenarios and cinematics | Port scenario/BSP/structure editors, lighting-info export, cinematic scenes/data/playback helpers and remaining layout fallbacks. |
 | Dependency removal and acceptance | Remove startup validation and DLL initialization, revise packaging/UI, and run representative complete imports and exports with ManagedBlam unavailable. |
 

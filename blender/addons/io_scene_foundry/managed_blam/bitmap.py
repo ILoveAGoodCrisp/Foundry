@@ -5,13 +5,12 @@ import math
 import os
 import struct
 import sys
-import traceback
 from pathlib import Path
-import ctypes
 import numpy as np
 
 from ..constants import NormalType
-from ..managed_blam import Tag
+from ..tags.backend import TagDocument
+from ..tags.blender import BlenderTag
 from .. import utils
 import bpy
 
@@ -329,71 +328,25 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
     system_tiff_path = Path(utils.get_data_path(), rel_path).with_suffix('.tiff')
     alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
     
-    try:
-        with BitmapTag(path=rel_path) as bitmap:
-            if not bitmap.has_bitmap_data(): return info
-            if bitmap.is_cubemap:
-                info.cubemap = True
-                rel_path = f"{bitmap.tag_path.RelativePath}_equirectangular"
-                system_tiff_path = Path(data_dir, rel_path).with_suffix('.tiff')
-                alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
-            
-            info.curve = bitmap.tag.SelectField("Block:bitmaps[0]/CharEnum:curve").Value
-            info.for_normal = bitmap.used_as_normal_map()
-            info.shader_type = bitmap.get_shader_type()
-            if always_extract_bitmaps:
-                info.image_path = bitmap.save_to_tiff(info.for_normal)
-            else:
-                if system_tiff_path.exists():
-                    info.image_path = str(system_tiff_path)
-                elif alt_system_tiff_path.exists():
-                    info.image_path = str(alt_system_tiff_path)
-                else:
-                    info.image_path = bitmap.save_to_tiff(info.for_normal)
-    except BitmapExtractionError as e:
-        utils.print_error(str(e))
-    except Exception as e:
-        # Tool is still useful when ManagedBlam cannot read the tag at all. Extraction failures
-        # should raise BitmapExtractionError above so they stay visible.
-        utils.print_error(traceback.format_exception_only(e)[0])
-        utils.print_warning(f"Failed to read bitmap {rel_path} with ManagedBlam. Using Tool instead\n")
-        system_tga_path = Path(system_tiff_path.parent, system_tiff_path.with_suffix("").name, system_tiff_path.with_suffix("").name).with_suffix(".tga")
-        system_tga_path_array_processed = system_tga_path.with_name(f'{system_tga_path.with_suffix("").name}_00001.tga')
-        system_tga_path_suffix = system_tga_path.with_name(f'{system_tga_path.with_suffix("").name}_00_00.tga')
-        system_tga_path_array = system_tga_path.with_name(f'{system_tga_path.with_suffix("").name}_00_01.tga')
+    with BitmapTag(path=rel_path) as bitmap:
+        if not bitmap.has_bitmap_data(): return info
+        if bitmap.is_cubemap:
+            info.cubemap = True
+            rel_path = f"{bitmap.tag_path.RelativePath}_equirectangular"
+            system_tiff_path = Path(data_dir, rel_path).with_suffix('.tiff')
+            alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
 
-        suffix_less = str(Path(rel_path).with_suffix(""))
-
+        info.curve = bitmap._enum_index(bitmap.block_bitmaps[0], 'curve')
+        info.for_normal = bitmap.used_as_normal_map()
+        info.shader_type = bitmap.get_shader_type()
         if always_extract_bitmaps:
-            if not system_tga_path.parent.exists():
-                system_tga_path.parent.mkdir(parents=True)
-            utils.run_tool(["export-bitmap-tga", suffix_less, str(system_tga_path_suffix.parent) + os.sep + os.sep])
-        elif not system_tga_path_suffix.exists() and not system_tga_path_array_processed.exists():
-            if not system_tga_path.parent.exists():
-                system_tga_path.parent.mkdir(parents=True)
-            utils.run_tool(["export-bitmap-tga", suffix_less, str(system_tga_path_suffix.parent) + os.sep + os.sep])
-
-        if system_tga_path_array_processed.exists():
-            info.image_path = str(system_tga_path.parent)
-        elif system_tga_path_suffix.exists():
-            if system_tga_path_array.exists():
-                info.image_path = str(system_tga_path.parent)
-                files = sorted(system_tga_path.parent.iterdir(), reverse=True)
-                for f in files:
-                    if f.is_file():
-                        name, _, stem = f.stem.rpartition("_")
-                        suffix = f.suffix
-                        print(stem, stem.isdigit())
-                        if stem.isdigit():
-                            new_number = int(stem) + 1
-                            new_stem = f"{new_number:05d}"
-                            new_name = f"{name.rpartition('_')[0]}_{new_stem}{suffix}"
-                            f.rename(system_tga_path.parent / new_name)
-            else:
-                info.image_path = str(system_tga_path_suffix)
-
+            info.image_path = bitmap.save_to_tiff(info.for_normal)
+        elif system_tiff_path.exists():
+            info.image_path = str(system_tiff_path)
+        elif alt_system_tiff_path.exists():
+            info.image_path = str(alt_system_tiff_path)
         else:
-            utils.print_warning("Failed to extract bitmap using Tool")
+            info.image_path = bitmap.save_to_tiff(info.for_normal)
             
     if not info.image_path:
         return info
@@ -424,15 +377,36 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
             
     return info
 
-class BitmapTag(Tag):
+class BitmapTag(BlenderTag, TagDocument):
     tag_ext = 'bitmap'
+
+    def __init__(self, path='', **kwargs):
+        kwargs.setdefault('tag_must_exist', False)
+        self.data_dir = utils.get_data_path()
+        super().__init__(path, **kwargs)
+        if self.valid:
+            self._read_fields()
     
     def _read_fields(self):
-        self.longenum_usage = self.tag.SelectField('LongEnum:Usage')
-        self.charenum_usage = self.tag.SelectField('CharEnum:curve mode')
-        self.block_usage_override = self.tag.SelectField("Block:usage override")
-        self.block_bitmaps = self.tag.SelectField("Block:bitmaps")
-        self.is_cubemap = self.block_bitmaps.Elements.Count > 0 and self.block_bitmaps.Elements[0].SelectField("CharEnum:type").Value == 2
+        root = self.tag.root()
+        self.longenum_usage = self.required_field(root, 'Usage')
+        self.charenum_usage = self.required_field(root, 'curve mode')
+        self.block_usage_override = self.block(root, 'usage override')
+        self.block_bitmaps = self.block(root, 'bitmaps')
+        self.is_cubemap = bool(len(self.block_bitmaps) and
+                               self._enum_index(self.block_bitmaps[0], 'type') == 2)
+
+    def _enum_index(self, element, name):
+        field = self.required_field(element, name)
+        options = field.options()
+        if options is None or options.current is None:
+            raise ValueError(f'{self.path}: {name!r} is not a known enum value')
+        return options.current
+
+    def _set_enum(self, element, name, value):
+        field = self.required_field(element, name)
+        field.set(value)
+        self.tag_has_changes = True
         
     def new_bitmap(self, bitmap_name, bitmap_type, color_space):
         def get_type_from_name(bitmap_name):
@@ -495,86 +469,69 @@ class BitmapTag(Tag):
             "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)",
         )
 
-        self.longenum_usage.SetValue(bitmap_type)
-        self.charenum_usage.SetValue('force PRETTY')
-        if not self.block_usage_override.Elements.Count:
-             self.block_usage_override.AddElement()
-        override = self.block_usage_override.Elements[0]
-        # Running this command sets up needed default values for the bitmap type
-        override.SelectField("reset usage override").RunCommand()
-        source_gamma = override.SelectField('source gamma')
+        self.longenum_usage.set(bitmap_type)
+        self.charenum_usage.set('force PRETTY')
+        if not len(self.block_usage_override):
+            self.block_usage_override.add()
+        override = self.block_usage_override[0]
+        source_gamma = self.required_field(override, 'source gamma')
         if bitmap_type in normal_bitmap_types:
             source_gamma_value = 1.0
         else:
             source_gamma_value = self._source_gamma_from_color_space(color_space)
-        source_gamma.Data = source_gamma_value
-        bitmap_curve = override.SelectField("bitmap curve")
+        source_gamma.set(source_gamma_value)
         if source_gamma_value > 2.0:
-            bitmap_curve.SetValue("sRGB (gamma 2.2)")
+            self._set_enum(override, 'bitmap curve', "sRGB (gamma 2.2)")
         elif source_gamma_value > 1:
-            bitmap_curve.SetValue("xRGB (gamma about 2.0)")
+            self._set_enum(override, 'bitmap curve', "xRGB (gamma about 2.0)")
         else:
-            bitmap_curve.SetValue("linear")
+            self._set_enum(override, 'bitmap curve', "linear")
             
-        flags = override.SelectField("flags")
-        flags.SetBit("Ignore Curve Override", True)
-        bitmap_format = override.SelectField('bitmap format')
+        self.required_field(override, 'flags').set_flag("Ignore Curve Override", True)
         if bitmap_type in ("Material Map", "Diffuse Map", "Blend Map (linear for terrains)", "Self-Illum Map", "Cube Map (Reflection Map)", "Detail Map"):
-            bitmap_format.SetValue('DXT5 (Compressed Color + Compressed 8-bit Alpha)')
-            # bitmap_format.SetValue('Best Uncompressed Color Format')
+            self._set_enum(override, 'bitmap format', 'DXT5 (Compressed Color + Compressed 8-bit Alpha)')
             if bitmap_type == 'Material Map':
-                override.SelectField('mipmap limit').Data = -1
+                self.required_field(override, 'mipmap limit').set(-1)
         elif bitmap_type in normal_bitmap_types:
-            bitmap_format.SetValue('DXN Compressed Normals (better)')
+            self._set_enum(override, 'bitmap format', 'DXN Compressed Normals (better)')
             
         self.tag_has_changes = True
         
     def get_granny_data(self, fill_alpha: bool, calc_blue_channel: bool) -> object | None:
-        from System import Array, Byte # type: ignore
-        from System.Runtime.InteropServices import Marshal # type: ignore
-        from System.Drawing import Rectangle # type: ignore
-        from System.Drawing.Imaging import ImageLockMode, PixelFormat # type: ignore
-        from System.Runtime.InteropServices import GCHandle, GCHandleType # type: ignore
-        game_bitmap = self._GameBitmap()
-        bitmap = game_bitmap.GetBitmap()
-        game_bitmap.Dispose()
-        
-        if bitmap.PixelFormat != PixelFormat.Format32bppArgb:
+        if not len(self.block_bitmaps):
             return None
-        
-        gamma = self.get_gamma_name()
-        
-        width = bitmap.Width
-        height = bitmap.Height
-
-        bitmap_data = bitmap.LockBits(Rectangle(0, 0, width, height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
-        stride = bitmap_data.Stride
-        total_bytes = abs(stride) * height
-        bgra_array = Array.CreateInstance(Byte, total_bytes)
-        Marshal.Copy(bitmap_data.Scan0, bgra_array, 0, total_bytes)
-        bitmap.UnlockBits(bitmap_data)
-        
+        bitmap = self.block_bitmaps[0]
+        width = self._select_int(bitmap, 'width')
+        height = self._select_int(bitmap, 'height')
+        bitmap_type = self._select_int(bitmap, 'type')
+        bitmap_format = self._select_int(bitmap, 'format', -1)
+        pixels_offset = self._select_int(bitmap, 'pixels offset', -1)
+        pixels_size = self._select_int(bitmap, 'pixels size', -1)
+        if bitmap_type != 0 or width <= 0 or height <= 0:
+            return None
+        processed_data = bytes(self.required_field(self.tag.root(), 'processed pixel data').value)
+        end = pixels_offset + pixels_size
+        if pixels_offset < 0 or pixels_size <= 0 or end > len(processed_data):
+            raise BitmapExtractionError(f'Invalid pixel-data range in {self.path}')
+        rgba = self._decode_bitmap_rgba(
+            width, height, bitmap_format, processed_data[pixels_offset:end])
+        if rgba is None:
+            raise BitmapExtractionError(
+                f'Unsupported bitmap format {bitmap_format} in {self.path}')
+        pixels = np.frombuffer(rgba, dtype=np.uint8).copy().reshape(-1, 4)
         if calc_blue_channel:
-            rgba_array = self.bgra_to_rgba_with_calculated_blue(total_bytes, bgra_array, gamma, self.normal_type() == NormalType.OPENGL)
-        elif fill_alpha:
-            rgba_array = self.bgra_to_rgba_solid_alpha(total_bytes, bgra_array, gamma)
-        else:
-            rgba_array = self.bgra_to_rgba(total_bytes, bgra_array, gamma)
-        
-        handle = GCHandle.Alloc(rgba_array, GCHandleType.Pinned)
-        rgba_ptr = None
-        try:
-            rgba_ptr = ctypes.c_void_p(handle.AddrOfPinnedObject().ToInt64())
-        finally:
-            if handle.IsAllocated:
-                handle.Free()
-        
-        bitmap.Dispose()
-        
-        if rgba_ptr is None:
-            return None
-        
-        return width, height, stride, rgba_ptr
+            red = NORMAL_DEBUG_GAMMA_LOOKUP_NP[pixels[:, 0]] / 255.0
+            green_source = 255 - pixels[:, 1] if self.normal_type() == NormalType.OPENGL else pixels[:, 1]
+            green = NORMAL_DEBUG_GAMMA_LOOKUP_NP[green_source] / 255.0
+            pixels[:, 0] = np.clip(red * 255 + 0.5, 0, 255).astype(np.uint8)
+            pixels[:, 1] = np.clip(green * 255 + 0.5, 0, 255).astype(np.uint8)
+            pixels[:, 2] = np.clip(
+                (np.sqrt(np.maximum(0.0, 1.0 - (red * 2 - 1) ** 2 -
+                                    (green * 2 - 1) ** 2)) * 0.5 + 0.5) * 255 + 0.5,
+                0, 255).astype(np.uint8)
+        if fill_alpha:
+            pixels[:, 3] = 255
+        return width, height, width * 4, pixels.tobytes()
     
     @staticmethod
     def bgra_to_rgba_solid_alpha(total_bytes, bgra_array, gamma):
@@ -969,19 +926,16 @@ class BitmapTag(Tag):
 
     @staticmethod
     def _select_int(element, field_path: str, default=0) -> int:
-        try:
-            field = element.SelectField(field_path)
-        except Exception:
+        name = field_path.rpartition(':')[2]
+        field = element.field(name)
+        if field is None:
             return default
-        for attr in ("Data", "Value"):
-            if hasattr(field, attr):
-                try:
-                    return int(getattr(field, attr))
-                except Exception:
-                    pass
+        options = field.options()
+        if options is not None and options.current is not None:
+            return options.current
         try:
-            return int(field.GetStringData())
-        except Exception:
+            return int(field.value)
+        except (TypeError, ValueError):
             return default
 
     @staticmethod
@@ -1763,7 +1717,7 @@ class BitmapTag(Tag):
     def _bitmap_type_name(self, bitmap_type: int) -> str:
         return BITMAP_TYPE_NAMES.get(bitmap_type, f"unknown type {bitmap_type}")
 
-    def _bitmap_extraction_details(self, bitmap_element) -> str:
+    def _bitmap_extraction_details(self, bitmap_element, frame_index: int) -> str:
         width = self._select_int(bitmap_element, "ShortInteger:width")
         height = self._select_int(bitmap_element, "ShortInteger:height")
         bitmap_type = self._select_int(bitmap_element, "CharEnum:type")
@@ -1771,18 +1725,18 @@ class BitmapTag(Tag):
         pixels_offset = self._select_int(bitmap_element, "LongInteger:pixels offset", -1)
         pixels_size = self._select_int(bitmap_element, "LongInteger:pixels size", -1)
         return (
-            f"path={self.tag_path.RelativePath}, frame={bitmap_element.ElementIndex}, "
+            f"path={self.tag_path.RelativePath}, frame={frame_index}, "
             f"type={bitmap_type} ({self._bitmap_type_name(bitmap_type)}), "
             f"format={bitmap_format} ({self._bitmap_format_name(bitmap_format)}), "
             f"size={width}x{height}, pixels offset={pixels_offset}, pixels size={pixels_size}"
         )
 
     def _save_single_raw_tiff(self, frame_index: int, suffix: str, convert_color_space: bool) -> str:
-        bitmap_elements = self.block_bitmaps.Elements
-        if frame_index < 0 or frame_index >= bitmap_elements.Count:
+        bitmap_elements = self.block_bitmaps
+        if frame_index < 0 or frame_index >= len(bitmap_elements):
             raise BitmapExtractionError(
                 f"Bitmap extraction failed for {self.tag_path.RelativePath}: frame {frame_index} is out of range "
-                f"for {bitmap_elements.Count} bitmap frame(s)"
+                f"for {len(bitmap_elements)} bitmap frame(s)"
             )
 
         bitmap_element = bitmap_elements[frame_index]
@@ -1792,7 +1746,7 @@ class BitmapTag(Tag):
         bitmap_format = self._select_int(bitmap_element, "ShortEnum:format", -1)
         pixels_offset = self._select_int(bitmap_element, "LongInteger:pixels offset", -1)
         pixels_size = self._select_int(bitmap_element, "LongInteger:pixels size", -1)
-        details = self._bitmap_extraction_details(bitmap_element)
+        details = self._bitmap_extraction_details(bitmap_element, frame_index)
 
         if bitmap_type not in {0, 2}:
             raise BitmapExtractionError(f"Unsupported bitmap type for new extraction: {details}")
@@ -1803,8 +1757,7 @@ class BitmapTag(Tag):
         if pixels_offset < 0 or pixels_size <= 0:
             raise BitmapExtractionError(f"Invalid bitmap pixel data range for new extraction: {details}")
 
-        processed_data_field = self.tag.SelectField("Data:processed pixel data")
-        processed_data = self._dotnet_bytes_to_bytes(processed_data_field.GetData())
+        processed_data = bytes(self.required_field(self.tag.root(), 'processed pixel data').value)
         end = pixels_offset + pixels_size
         if end > len(processed_data):
             raise BitmapExtractionError(
@@ -1852,18 +1805,13 @@ class BitmapTag(Tag):
             return expected_tif_path
         
         
-        if self.block_bitmaps.Elements.Count <= 0:
+        if not len(self.block_bitmaps):
             return
-        gamma = self.get_gamma_value()
-        self.curve = self.block_bitmaps.Elements[0].SelectField("CharEnum:curve")
-        # if not blue_channel_fix and self.curve.Value != 3: #dxt5
-        #     self.curve.Value = 5
-        bitmap_elements = self.block_bitmaps.Elements
-        if bitmap_elements.Count > 1:
-            # array_length = bitmap_elements.Count
-            for element in bitmap_elements:
-                temp_path = self._save_single(blue_channel_fix, format, element.ElementIndex, f"_{element.ElementIndex + 1:05}")
-                if element.ElementIndex == 0:
+        bitmap_elements = self.block_bitmaps
+        if len(bitmap_elements) > 1:
+            for index in range(len(bitmap_elements)):
+                temp_path = self._save_single(blue_channel_fix, format, index, f"_{index + 1:05}")
+                if index == 0:
                     tiff_path = temp_path
             
             
@@ -1879,24 +1827,22 @@ class BitmapTag(Tag):
         return tiff_path
     
     def normal_type(self):
-        return NormalType.OPENGL if self.longenum_usage.Value == 36 else NormalType.DIRECTX
+        return NormalType.OPENGL if self._enum_index(self.tag.root(), 'Usage') == 36 else NormalType.DIRECTX
     
     def has_bitmap_data(self):
-        return self.block_bitmaps.Elements.Count
+        return len(self.block_bitmaps)
     
     def is_linear(self):
-        bm = self.block_bitmaps.Elements[0]
-        return bm.SelectField('curve').Value == 3
+        return self._enum_index(self.block_bitmaps[0], 'curve') == 3
     
     def used_as_normal_map(self):
-        return self.longenum_usage.Value in {2, 3, 18, 19, 20, 21, 36, 38}
+        return self._enum_index(self.tag.root(), 'Usage') in {2, 3, 18, 19, 20, 21, 36, 38}
     
     def uses_srgb(self):
-        return self.longenum_usage.Value in {0, 5, 7}
+        return self._enum_index(self.tag.root(), 'Usage') in {0, 5, 7}
     
     def get_gamma_name(self) -> str:
-        bm = self.block_bitmaps.Elements[0]
-        match bm.SelectField('curve').Value:
+        match self._enum_index(self.block_bitmaps[0], 'curve'):
             case 3:
                 return 'linear'
             case 5:
@@ -1905,8 +1851,7 @@ class BitmapTag(Tag):
                 return 'xrgb'
             
     def get_gamma_value(self) -> str:
-        bm = self.block_bitmaps.Elements[0]
-        match bm.SelectField('curve').Value:
+        match self._enum_index(self.block_bitmaps[0], 'curve'):
             case 0:
                 return 1.95
             case 1:
@@ -1928,8 +1873,10 @@ class BitmapTag(Tag):
         return 1.0 # NOTE keeping this 1.0 as 0.96 seems dangerous and needs further testing. 0.96 produces more accurate colors than 1.0
     
     def get_shader_type(self):
-        items = [i.DisplayName for i in self.longenum_usage.Items]
-        return items[self.longenum_usage.Value]
+        options = self.longenum_usage.options()
+        if options is None or options.current is None:
+            raise ValueError(f'{self.path}: bitmap Usage has an unknown enum value')
+        return options.names[options.current]
             
 def lerp(p1: float, p2: float, fraction: float) -> float:
     return (p1 * (1 - fraction)) + (p2 * fraction)
