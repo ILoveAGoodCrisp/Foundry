@@ -5344,7 +5344,7 @@ class AnimationTag(Tag):
             print(self.tag_path.RelativePathWithExtension)
             event_list_tag_ref = self.tag.SelectField("Struct:definitions[0]/Reference:imported events")
             if event_list_tag_ref.Path is None or event_list_tag_ref.Path.RelativePathWithExtension != events.tag_path.RelativePathWithExtension:
-                event_list_tag_ref.Path = events.tag_path
+                event_list_tag_ref.Path = self._TagPath_from_string(events.tag_path.RelativePathWithExtension)
                 self.tag_has_changes = True
         
     def events_to_blender(self, imported_animations) -> int:

@@ -20,7 +20,33 @@ test. Physics and object-function imports no longer call their legacy fallback w
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
-Latest validation: 56 regression tests pass without starting ManagedBlam.
+Latest validation: 59 regression tests pass without starting ManagedBlam.
+Structure-lighting info now uses native reads and writes for Reach/H4/H2AMP,
+including constant light functions, definition/instance indices, cinematic shot
+flags and Reach lightmap-region geometry. Tests create real Blender point/spot/sun
+lights and region meshes, reopen saved tags, replace definitions and check failed
+writes leave saved bytes unchanged. Updating populated cinematic light links during
+export is an explicit unsupported operation; clearing lights clears those links too.
+Sampling 60 real tags (870 definitions, 1,652 instances) imported 334 light objects
+from 50 tags. The other ten stop at documented texture/function/layout gaps.
+The sampling uses identity transforms and stubs final light-node setup/energy
+conversion; visual parity and editing-kit acceptance still need verification.
+All sampled source bytes were unchanged. No ManagedBlam fallback was used.
+Frame-event lists now read and write natively for Reach/H4/H2AMP. Partial exports
+preserve other animations and shared reference indices; repeated exports reuse
+references. Ranges, detached sound/effect/dialogue events, clearing and aborted
+writes are covered by save/reopen tests. Populated script events have no Blender
+mapping and raise explicitly for affected animations. The containing animation
+graph is still legacy, so this does not complete animation import/export migration.
+Read-only sampling of 60 real frame-event lists decoded 4,696 animation entries
+and 3,623 event records with no errors or source-byte changes. Editing-kit
+acceptance of newly written event lists remains unverified.
+
+The local blam-tags API update had stashed Foundry's earlier function-editor and
+lossless copy bindings. Those additions were restored alongside the new anchored
+API without consuming the stash, and the wheel was rebuilt. The build now checks
+required APIs before staging a replacement wheel. These source changes also live
+in the separate blam-tags checkout and must accompany a reproducible build.
 Structure-design boundaries now use native records across H3 through H2AMP;
 Reach/H4/H2AMP water and fog are also native. Tests create actual Blender meshes,
 check properties and reject malformed data before allocation. Material assignment
@@ -40,9 +66,9 @@ The source audit on 2026-09-18 found:
   render-method definitions, material-shader metadata, models, object metadata,
   lightmapper globals, cinematic-lighting metadata, light tags, cheap lights,
   structure seams, structure metadata, authored PCA animation and collision models.
-- 20 tag classes still inherit the legacy `Tag` base, directly or indirectly:
-  11 direct wrappers and 9 shader/material/decal subclasses.
-- 20 modules under `managed_blam` still contain `SelectField` calls.
+- 18 tag classes still inherit the legacy `Tag` base, directly or indirectly:
+  9 direct wrappers and 9 shader/material/decal subclasses.
+- 19 modules under `managed_blam` still contain `SelectField` calls.
 
 Physics also uses native records for constraints, spheres, capsules, boxes, convex
 polyhedra, nested lists/MOPPs, H4/H2AMP body properties and supported serialized

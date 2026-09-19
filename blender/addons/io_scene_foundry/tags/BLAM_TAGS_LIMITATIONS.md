@@ -1,6 +1,6 @@
 # blam-tags reading limitations
 
-Last updated: 2026-09-18.
+Last updated: 2026-09-19.
 
 This is the ongoing issue record for limitations encountered while migrating
 Foundry. Scope is the local blam-tags checkout and Python wheel used by Foundry,
@@ -38,6 +38,11 @@ unfinished migration work, not the intended workaround.
 
 | Area | What remains |
 | --- | --- |
+| Structure-lighting projected textures | Native bitmap conversion is not implemented. Import refuses existing gobo/gel references before allocating lights. Seven of 60 sampled tags hit this gap, including Reach `foundry/scenarios/a50/default.scenario_structure_lighting_info`, H4 `cinematics/cin_m031_didact/lights/cin_m031_didact_020/cin_m031_didact_020_lighting_segment.scenario_structure_lighting_info`, and H2AMP `levels/sway/ca_ascension/ca_ascension_bsp01.scenario_structure_lighting_info`. The references themselves read correctly. |
+| Structure-lighting animated functions | The current converter supports constant scalar functions. Two sampled H4 tags contain other function shapes: `cinematics/cin_m020_crater/lights/cin_m020_crater_000/cin_m020_crater_000_lighting.scenario_structure_lighting_info` and `cinematics/cin_m021_tower/lights/cin_m021_tower_010/lighting_segment.scenario_structure_lighting_info`. Their native function descriptions are readable; Blender conversion raises explicitly. |
+| Older structure-lighting instance layout | Reach kit `_temp/s3d_avalanche.scenario_structure_lighting_info` contains only definition index, origin, forward and up in each instance; it lacks later fields including gel reference. Its definition uses `hotspot falloff size` instead of the current cutoff name. Native parsing succeeds; the older-layout converter is unimplemented. |
+| Structure-lighting cinematic link export | Reading shot arrays and light-instance links is native. Rebuilding a tag with populated cinematic links raises explicitly until export can preserve/rebuild link indices and IDs correctly. `clear_lights` explicitly clears the links with the lights. Covered by generated fixtures. |
+| Frame-event list script events | H4/H2AMP schemas expose readable `script events`, but Foundry has no corresponding animation-event property mapping. Native import/export raises for affected animations instead of dropping the scripts; scripts belonging to untouched animations survive partial exports. Confirmed with generated fixtures; no populated script block appeared in the 60-tag real-file acceptance sample. |
 | Structure-design rain geometry | Native fields are readable, but the rain-blocker/sheet render-resource converter is unported. Native import raises before Blender allocation. Reproduced on Reach `foundry/scenarios/cache_build_full_test/default.structure_design` and `foundry/test_scenarios/rain_sheet/default.structure_design`. |
 | H3/ODST structure-design water | Older water records expose `direction` and `angle`, without the later flow/fog fields. Mapping to Foundry water properties is unimplemented, so import raises explicitly. Reproduced on H3 `levels/dlc/descent/descent_design.structure_design` and ODST `levels/atlas/h100/h100_design_000.structure_design` (10 of 50 sampled tags). This is a conversion gap, not a byte-reading failure. |
 | Render geometry, bitmaps and animation resources | Foundry still has legacy decoder consumers. Audit Python exposure and test concrete payloads before logging individual library failures. |

@@ -11,10 +11,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 
 PROFILES = ('haloce_mcc', 'halo2_mcc', 'halo3_mcc', 'halo3odst_mcc',
             'haloreach_mcc', 'halo4_mcc', 'halo2amp_mcc')
-SCHEMAS = ('structure_design.json', 'cinematic.json', 'cinematic_scene.json', 'cinematic_scene_data.json', 'polyart_asset.json', 'decorator_set.json', 'camera_track.json', 'globals.json', 'render_method_option.json',
+SCHEMAS = ('scenario_structure_lighting_info.json', 'frame_event_list.json', 'structure_design.json', 'cinematic.json', 'cinematic_scene.json', 'cinematic_scene_data.json', 'polyart_asset.json', 'decorator_set.json', 'camera_track.json', 'globals.json', 'render_method_option.json',
            'render_method_definition.json', 'material_shader.json', 'model.json',
            'render_model.json', 'lightmapper_globals.json', 'new_cinematic_lighting.json', '_meta.json',
            'object.json', 'item.json', 'unit.json', 'device.json',
@@ -40,6 +41,30 @@ def stage_schemas(source, addon):
             shutil.copy2(schema, destination / name)
             hashes[f'{profile}/{name}'] = hashlib.sha256(schema.read_bytes()).hexdigest()
     return hashes
+
+
+def validate_wheel(wheel):
+    """Fail before staging when a checkout lacks APIs used by migrated workflows."""
+    with tempfile.TemporaryDirectory(prefix='foundry-blam-check-') as folder:
+        with zipfile.ZipFile(wheel) as archive:
+            archive.extractall(folder)
+        script = """
+import sys
+sys.path.insert(0, sys.argv[1])
+import blam_tags as api
+required = {
+    'TagFile': ('read', 'new', 'write_atomic'),
+    'TagField': ('options', 'as_array', 'copy_value_from'),
+    'TagBlock': ('copy_from',),
+    'TagStruct': ('raw_bytes',),
+    'TagFunctionEditor': ('describe', 'evaluate', 'evaluate_shape'),
+}
+missing = [f'{cls}.{method}' for cls, methods in required.items()
+           for method in methods if not hasattr(getattr(api, cls, None), method)]
+if missing:
+    raise RuntimeError('blam-tags build lacks required Foundry APIs: ' + ', '.join(missing))
+"""
+        subprocess.run([sys.executable, '-c', script, folder], check=True)
 
 
 def main():
@@ -73,6 +98,7 @@ def main():
         if len(wheels) != 1:
             raise RuntimeError(f'Expected one wheel, got {wheels}')
         wheel = wheels[0]
+        validate_wheel(wheel)
         (addon / 'wheels').mkdir(exist_ok=True)
         shutil.copy2(wheel, addon / 'wheels' / wheel.name)
         hashes = stage_schemas(source, addon)

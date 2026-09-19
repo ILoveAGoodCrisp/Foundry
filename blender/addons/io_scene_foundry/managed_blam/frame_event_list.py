@@ -9,7 +9,9 @@ import bpy
 from .Tags import TagFieldBlockElement, TagPath
 
 from .render_model import RenderModelTag
-from . import Tag, tag_path_from_string
+from . import tag_path_from_string
+from ..tags.blender import BlenderTag
+from ..tags.backend import TagDocument
 from .. import utils
 
 import json
@@ -337,19 +339,85 @@ class AnimationEvent:
         
         
 
-class FrameEventListTag(Tag):
+class FrameEventListTag(BlenderTag, TagDocument):
+    """Native event-list reads and edits; shared graph readers remain separate."""
     tag_ext = 'frame_event_list'
+    reference_flags = (
+        ('allow_on_player', 'allow on player'), ('left_arm_only', 'left arm only'),
+        ('right_arm_only', 'right arm only'), ('first_person_only', 'first-person only'),
+        ('third_person_only', 'third-person only'), ('forward_only', 'forward only'),
+        ('reverse_only', 'reverse only'), ('fp_no_aged_weapons', 'fp no aged weapons'),
+    )
 
-    def _read_fields(self):
-        self.block_sound_references = self.tag.SelectField("Block:sound references")
-        self.block_effect_references = self.tag.SelectField("Block:effect references")
-        self.block_frame_events = self.tag.SelectField("Block:frame events")
-        
+    def __init__(self, path='', **kwargs):
+        kwargs.setdefault('tag_must_exist', False)
+        super().__init__(path, **kwargs)
+
+    def _root_block(self, name):
+        return self.block(self.tag.root(), name)
+
     def clear(self):
-        self.block_frame_events.RemoveAllElements()
-        self.block_sound_references.RemoveAllElements()
-        self.block_effect_references.RemoveAllElements()
-            
+        for name in ('frame events', 'sound references', 'effect references'):
+            self._root_block(name).clear()
+        self.tag_has_changes = True
+
+    @staticmethod
+    def _enum_label(value):
+        return value.partition('{')[0].strip()
+
+    def _enum(self, element, name):
+        value = self.value(element, name)
+        if not isinstance(value, str):
+            raise ValueError(f'{self.path}: unknown {name} enum value {value!r}')
+        return self._enum_label(value)
+
+    def _set_enum(self, element, name, value):
+        field = self.required_field(element, name)
+        matches = [i for i, label in enumerate(field.options().names)
+                   if self._enum_label(label) == value]
+        if len(matches) != 1:
+            raise ValueError(f'{self.path}: unsupported {name}: {value!r}')
+        field.set(matches[0])
+
+    def _read_reference(self, element, kind):
+        reference = Reference()
+        path = self.reference(element, kind)
+        reference.tag = path.RelativePathWithExtension if path else ''
+        flags = self.required_field(element, 'flags')
+        for attr, bit in self.reference_flags:
+            setattr(reference, attr, flags.get_flag(bit))
+        if self.corinth:
+            path = self.reference(element, 'model')
+            reference.model_tag = path.RelativePathWithExtension if path else ''
+            reference.variant = self.value(element, 'variant')
+        return reference
+
+    def _reference_key(self, reference):
+        values = [reference.tag.replace('/', '\\').lower()]
+        values.extend(getattr(reference, attr) for attr, _ in self.reference_flags)
+        if self.corinth:
+            values.extend((reference.model_tag.replace('/', '\\').lower(), reference.variant))
+        return tuple(values)
+
+    def _write_references(self, kind, references):
+        block = self._root_block(kind + ' references')
+        existing = [self._reference_key(self._read_reference(e, kind)) for e in block]
+        for reference in sorted(references.values(), key=self._reference_key):
+            key = self._reference_key(reference)
+            if key in existing:
+                reference.index = existing.index(key)
+                continue
+            reference.index = block.add()
+            element = block[reference.index]
+            self.set_reference(element, kind, reference.tag or None)
+            flags = self.required_field(element, 'flags')
+            for attr, bit in self.reference_flags:
+                flags.set_flag(bit, getattr(reference, attr))
+            if self.corinth:
+                self.set_reference(element, 'model', reference.model_tag or None)
+                self.required_field(element, 'variant').set(reference.variant)
+            existing.append(key)
+
     def from_blender(self, animations: list, blender_animations=None):
         # Child blends only own a subset of the graph. Keep other animations and
         # their reference indices intact when updating this blend's events.
@@ -371,7 +439,7 @@ class FrameEventListTag(Tag):
                     b_animation.animation_events.remove(i)
                 
                 gr2_path = utils.relative_path(b_animation.gr2_path)
-                json_path = Path(self.data_dir, gr2_path).with_suffix(".json")
+                json_path = Path(utils.get_data_path(), gr2_path).with_suffix(".json")
                 if json_path.exists():
                     import_frame_animation_events(b_animation.animation_events, json_path)
                 
@@ -418,216 +486,148 @@ class FrameEventListTag(Tag):
             effect.variant = u[10]
             unique_effects[u] = effect
             
-        def write_references(block, references):
-            existing = []
-            for element in block.Elements:
-                reference = Reference()
-                reference.from_element(element, self.corinth)
-                existing.append(reference)
 
-            for reference in sorted(references.values(), key=lambda x: Path(x.tag).with_suffix("").name):
-                # Compare before assigning the index; all loaded references have
-                # the default index. Reuse entries so repeated exports don't grow
-                # the shared reference tables.
-                index = next((i for i, old in enumerate(existing)
-                              if old.__dict__ == reference.__dict__), None)
-                if index is None:
-                    index = len(existing)
-                    reference.to_element(block.AddElement(), self.corinth)
-                    stored = Reference()
-                    stored.__dict__.update(reference.__dict__)
-                    existing.append(stored)
-                reference.index = index
-
-        write_references(self.block_sound_references, unique_sounds)
-        write_references(self.block_effect_references, unique_effects)
-
+        owned = []
         for animation in animations:
             blender_animation = blender_animations.get(animation.name.data_name)
             if blender_animation is None:
                 blender_animation = blender_animations.get(animation.name.tag_name)
-            if blender_animation is None:
+            if blender_animation is not None:
+                owned.append((animation, blender_animation))
+        owned_names = {animation.name.tag_name for animation, _ in owned}
+        rows = self._root_block('frame events')
+        existing = {}
+        # Refuse unrepresented script events before changing any tag data.
+        for index, row in enumerate(rows):
+            name = self.value(row, 'animation name')
+            if name not in owned_names:
                 continue
-
-            # Replace only this animation, including when its events were deleted.
-            for index in reversed(range(self.block_frame_events.Elements.Count)):
-                element = self.block_frame_events.Elements[index]
-                if element.Fields[0].GetStringData() == animation.name.tag_name:
-                    self.block_frame_events.RemoveElement(index)
-
-            frame_event = self.block_frame_events.AddElement()
-            frame_event.Fields[0].SetStringData(animation.name.tag_name)
-            frame_event.Fields[1].Data = animation.frame_count
-
+            if name in existing:
+                raise ValueError(f'{self.path}: duplicate animation row {name!r}')
+            self._check_scripts(row)
+            existing[name] = index
+        self._write_references('sound', unique_sounds)
+        self._write_references('effect', unique_effects)
+        for animation, blender_animation in owned:
+            index = existing.get(animation.name.tag_name)
+            if index is None:
+                index = rows.add()
+                existing[animation.name.tag_name] = index
+            row = rows[index]
+            self.required_field(row, 'animation name').set(animation.name.tag_name)
+            self.required_field(row, 'animation frame count').set(animation.frame_count)
+            for name in ('animation events', 'sound events', 'effect events', 'dialogue events'):
+                self.block(row, name).clear()
             for blender_event in blender_animation.animation_events:
                 if blender_event.event_type != FRAME_EVENT_TYPE:
                     continue
-                animation_event = AnimationEvent()
-                animation_event.from_blender(blender_animation, blender_event, unique_sounds, unique_effects)
-                
-                data_only_event = animation_event.type == "none"
-                
-                if not data_only_event:
-                    event = frame_event.Fields[2].AddElement()
-                    event.Fields[0].SetStringData(animation_event.name)
-                    event.Fields[1].SetStringData(animation.name.tag_name)
-                    event.Fields[2].Data = animation_event.frame
-                    for idx, item in enumerate(event.Fields[4].Items):
-                        if item.DisplayName == animation_event.type:
-                            event.Fields[4].Value = idx
-                            break
-                        
-                    event.Fields[5].Data = animation_event.unique_id
-                            
-                for sound in animation_event.sound_events:
-                    sound_event = frame_event.Fields[3].AddElement()
-                    if not data_only_event:
-                        sound_event.Fields[0].Value = event.ElementIndex
-                        sound_event.Fields[2].Data = sound.frame_offset
-                    else:
-                        sound_event.Fields[2].Data = sound.frame_offset + animation_event.frame
-                        
-                    sound_event.Fields[1].Value = sound.sound_reference.index
-                    sound_event.Fields[4].SetStringData(sound.marker_name)
-                    
-                for effect in animation_event.effect_events:
-                    effect_event = frame_event.Fields[4].AddElement()
-                    if not data_only_event:
-                        effect_event.Fields[0].Value = event.ElementIndex
-                        effect_event.Fields[2].Data = effect.frame_offset
-                    else:
-                        effect_event.Fields[2].Data = effect.frame_offset + animation_event.frame
-                        
-                    effect_event.Fields[1].Value = effect.effect_reference.index
-                    effect_event.Fields[4].SetStringData(effect.marker_name)
-                    for idx, item in enumerate(effect_event.Fields[5].Items):
-                        if item.DisplayName == effect.damage_effect_reporting_type:
-                            effect_event.Fields[5].Value = idx
-                            break
-                        
-                for dialogue in animation_event.dialogue_events:
-                    dialogue_event = frame_event.Fields[5].AddElement()
-                    if not data_only_event:
-                        dialogue_event.Fields[0].Value = event.ElementIndex
-                        dialogue_event.Fields[2].Data = dialogue.frame_offset
-                    else:
-                        dialogue_event.Fields[2].Data = dialogue.frame_offset + animation_event.frame
-                        
-                    for idx, item in enumerate(dialogue_event.Fields[1].Items):
-                        if item.DisplayName == dialogue.dialogue_type:
-                            dialogue_event.Fields[1].Value = idx
-                            break
-
-        self.tag_has_changes = True
-            
-    def collect_events(self):
-        
-        unique_sounds = []
-        for element in self.block_sound_references.Elements:
-            ref = Reference()
-            ref.from_element(element, self.corinth)
-            unique_sounds.append(ref)
-            
-        unique_effects = []
-        for element in self.block_effect_references.Elements:
-            ref = Reference()
-            ref.from_element(element, self.corinth)
-            unique_effects.append(ref)
-        
-        blender_animations = self.scene_nwo.animations
-        
-        animation_name_events = {}
-        
-        for frame_event in self.block_frame_events.Elements:
-            name = frame_event.SelectField("StringId:animation name").GetStringData()
-            name_with_spaces = name.replace(":", " ")
-            blender_animation = blender_animations.get(name_with_spaces)
-            if blender_animation is None:
-                blender_animation = blender_animations.get(name)
-                if not blender_animation:
-                    # utils.print_warning(f"--- Frame Events List contains animation {name_with_spaces} but Blender does not")
-                    continue
-                
-            print(f"--- Getting events for {blender_animation.name}")
-            
-            animation_events: list[AnimationEvent] = []
-            
-            for element in frame_event.SelectField("Block:animation events").Elements:
                 event = AnimationEvent()
-                event.from_element(element)
-                animation_events.append(event)
-                
-            none_event = None
-            
-            def make_none_event():
-                none_event = AnimationEvent()
-                animation_events.append(none_event)
-                return none_event
-            
-            for element in frame_event.SelectField("Block:sound events").Elements:
-                if element.SelectField("ShortBlockIndex:sound").Value > -1:
-                    sound_event = SoundEvent()
-                    sound_event.from_element(element, unique_sounds)
-                    
-                    if sound_event.sound_reference is None:
-                        continue
-                    
-                    if sound_event.animation_event_index > -1 and sound_event.animation_event_index < len(animation_events):
-                        animation_events[sound_event.animation_event_index].sound_events.append(sound_event)
-                    elif none_event is not None:
-                        none_event.sound_events.append(sound_event)
+                event.from_blender(blender_animation, blender_event, unique_sounds, unique_effects)
+                event_index = -1
+                if event.type != 'none':
+                    block = self.block(row, 'animation events')
+                    end = event.end_frame if blender_event.multi_frame == 'range' else event.frame
+                    if end < event.frame:
+                        raise ValueError(f'{self.path}: event range ends before it starts')
+                    for frame in range(event.frame, end + 1):
+                        index = block.add()
+                        if event_index == -1:
+                            event_index = index
+                        element = block[index]
+                        for name, value in (('event name', event.name), ('animation name', animation.name.tag_name),
+                                            ('frame', frame), ('frame offset', 0), ('unique ID', event.unique_id)):
+                            self.required_field(element, name).set(value)
+                        self._set_enum(element, 'type', event.type)
+                for kind, records in (('sound', event.sound_events), ('effect', event.effect_events),
+                                      ('dialogue', event.dialogue_events)):
+                    for record in records:
+                        block = self.block(row, kind + ' events')
+                        element = block[block.add()]
+                        self.required_field(element, 'frame event').set(event_index)
+                        offset = record.frame_offset + (event.frame if event_index == -1 else 0)
+                        self.required_field(element, 'frame offset').set(offset)
+                        if kind == 'dialogue':
+                            self._set_enum(element, 'dialogue event', record.dialogue_type)
+                        else:
+                            reference = getattr(record, kind + '_reference')
+                            self.required_field(element, kind).set(reference.index)
+                            self.required_field(element, 'marker name').set(record.marker_name)
+                            if kind == 'effect':
+                                self._set_enum(element, 'damage effect reporting type', record.damage_effect_reporting_type)
+        self.tag_has_changes = True
+
+    def _check_scripts(self, row):
+        scripts = row.field('script events')
+        if scripts is not None and len(scripts.as_block()):
+            name = self.value(row, 'animation name')
+            raise NotImplementedError(f'{self.path}: script events for {name!r} have no Blender mapping')
+
+    def collect_events(self):
+        references = {kind: [self._read_reference(e, kind) for e in self._root_block(kind + ' references')]
+                      for kind in ('sound', 'effect')}
+        result = {}
+        for row in self._root_block('frame events'):
+            name = self.value(row, 'animation name')
+            animation = self.scene_nwo.animations.get(name.replace(':', ' '))
+            if animation is None:
+                animation = self.scene_nwo.animations.get(name)
+            if animation is None:
+                continue
+            self._check_scripts(row)
+            events = []
+            for element in self.block(row, 'animation events'):
+                event = AnimationEvent()
+                event.frame = utils.blender_frame(self.value(element, 'frame') + self.value(element, 'frame offset'))
+                event.end_frame = event.frame
+                event.name = self.value(element, 'event name')
+                identifier = self.value(element, 'unique ID')
+                if identifier:
+                    event.unique_id = identifier
+                event.type = self._enum(element, 'type')
+                if event.type in {'jetpack closed', 'jetpack open', 'sound event', 'effect event'}:
+                    event.type = 'none'
+                events.append(event)
+            event_count = len(events)
+            unbound = None
+            for kind, cls in (('sound', SoundEvent), ('effect', EffectEvent), ('dialogue', DialogueEvent)):
+                for element in self.block(row, kind + ' events'):
+                    record = cls()
+                    record.animation_event_index = self.value(element, 'frame event')
+                    record.frame_offset = self.value(element, 'frame offset')
+                    if kind == 'dialogue':
+                        record.dialogue_type = self._enum(element, 'dialogue event')
                     else:
-                        none_event = make_none_event()
-                        none_event.sound_events.append(sound_event)
-                    
-            for element in frame_event.SelectField("Block:effect events").Elements:
-                if element.SelectField("ShortBlockIndex:effect").Value > -1:
-                    effect_event = EffectEvent()
-                    effect_event.from_element(element, unique_effects)
-                    
-                    if effect_event.effect_reference is None:
-                        continue
-                    
-                    if effect_event.animation_event_index > -1 and effect_event.animation_event_index < len(animation_events):
-                        animation_events[effect_event.animation_event_index].effect_events.append(effect_event)
-                    elif none_event is not None:
-                        none_event.effect_events.append(effect_event)
-                    else:
-                        none_event = make_none_event()
-                        none_event.effect_events.append(effect_event)
-                        
-            for element in frame_event.SelectField("Block:dialogue events").Elements:
-                dialogue_event = DialogueEvent()
-                dialogue_event.from_element(element)
-                if dialogue_event.animation_event_index > -1 and dialogue_event.animation_event_index < len(animation_events):
-                    animation_events[dialogue_event.animation_event_index].dialogue_events.append(dialogue_event)
-                elif none_event is not None:
-                    none_event.dialogue_events.append(dialogue_event)
-                else:
-                    none_event = make_none_event()
-                    none_event.dialogue_events.append(dialogue_event)
-                    
-            # See if we can make any ranged frame events
-            def collapse_events(aes):
-                aes.sort(key=lambda x: x.frame, reverse=True)
-                result = []
-                group_end_frame = aes[0].frame
-                
-                for curr, next in zip(aes, aes[1:] + [None]):
-                    if next:
-                        if next.frame == curr.frame - 1 and curr.type == next.type and not (curr.sound_events or curr.effect_events or curr.dialogue_events):
+                        reference_index = self.value(element, kind)
+                        if reference_index == -1:
                             continue
-
-                    # Finalize current group
-                    curr.end_frame = group_end_frame
-                    group_end_frame = next.frame if next else 0
-                    result.append(curr)
-                        
-                return result
-
-            if len(animation_events) > 1:
-                animation_events = collapse_events(animation_events)
-            
-            animation_name_events[name] = animation_events
-            
-        return animation_name_events
+                        if not 0 <= reference_index < len(references[kind]):
+                            raise ValueError(f'{self.path}: invalid {kind} reference index {reference_index}')
+                        setattr(record, kind + '_reference', references[kind][reference_index])
+                        record.marker_name = self.value(element, 'marker name')
+                        if kind == 'effect':
+                            record.damage_effect_reporting_type = self._enum(element, 'damage effect reporting type')
+                    index = record.animation_event_index
+                    if index == -1:
+                        if unbound is None:
+                            unbound = AnimationEvent()
+                            events.append(unbound)
+                        target = unbound
+                    elif 0 <= index < event_count:
+                        target = events[index]
+                    else:
+                        raise ValueError(f'{self.path}: invalid frame event index {index}')
+                    getattr(target, kind + '_events').append(record)
+            ordered = sorted(events, key=lambda event: event.frame, reverse=True)
+            collapsed = []
+            end = ordered[0].frame if ordered else 0
+            for i, current in enumerate(ordered):
+                following = ordered[i + 1] if i + 1 < len(ordered) else None
+                if (following is not None and following.frame == current.frame - 1 and
+                        current.type == following.type and
+                        not (current.sound_events or current.effect_events or current.dialogue_events)):
+                    continue
+                current.end_frame = end
+                collapsed.append(current)
+                end = following.frame if following is not None else 0
+            result[name] = collapsed
+        return result

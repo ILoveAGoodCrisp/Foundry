@@ -19,6 +19,298 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_lightmap_region_geometry(self):
+        import bpy
+        from mathutils import Matrix
+        from io_scene_foundry.managed_blam import scenario_structure_lighting_info as module
+        class RegionProps(bpy.types.PropertyGroup):
+            mesh_type: bpy.props.StringProperty()
+        bpy.utils.register_class(RegionProps)
+        bpy.types.Mesh.nwo = bpy.props.PointerProperty(type=RegionProps)
+        objects_before, meshes_before = set(bpy.data.objects), set(bpy.data.meshes)
+        collections_before = set(bpy.data.collections)
+        try:
+            mesh = bpy.data.meshes.new('source_region')
+            mesh.from_pydata([(0,0,0),(100,0,0),(100,100,0),(0,100,0)],[],[(0,1,2,3)])
+            source = bpy.data.objects.new('source_region', mesh)
+            empty = bpy.data.objects.new('empty_region', bpy.data.meshes.new('empty_region'))
+            with tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game='reach')), \
+                 patch.object(utils, 'get_tags_path', return_value=Path(root)), \
+                 patch.object(utils, 'halo_transforms', return_value=Matrix.Scale(.01,4)), \
+                 patch.object(module.import_transform, 'mesh_matrix', return_value=Matrix.Identity(4)), \
+                 patch.object(module.import_transform, 'rotation_matrix', return_value=Matrix.Identity(4)), \
+                 patch.object(module, 'apply_props_material'), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                path = Path(root, 'regions.scenario_structure_lighting_info')
+                with module.ScenarioStructureLightingInfoTag(path) as doc:
+                    doc.lightmap_regions_from_blender([SimpleNamespace(ob=empty,name='Empty'),
+                                                      SimpleNamespace(ob=source,name='Test Region')])
+                before = path.read_bytes()
+                with module.ScenarioStructureLightingInfoTag(path) as doc:
+                    regions = doc.block(doc.tag.root(), 'regions')
+                    self.assertEqual(len(regions),1)
+                    self.assertEqual(doc.value(regions[0], 'name'), 'test region')
+                    imported, = doc.lightmap_regions_to_blender()
+                    self.assertEqual(len(imported.data.polygons), 2)
+                    self.assertEqual(imported.data.nwo.mesh_type, '_connected_geometry_mesh_type_lightmap_region')
+                    self.assertEqual({tuple(v.co) for v in imported.data.vertices}, {tuple(v.co) for v in mesh.vertices})
+                self.assertEqual(path.read_bytes(), before)
+                with module.ScenarioStructureLightingInfoTag(path) as doc:
+                    doc.lightmap_regions_from_blender([])
+                with module.ScenarioStructureLightingInfoTag(path) as doc:
+                    self.assertEqual(doc.lightmap_regions_to_blender(), [])
+        finally:
+            for ob in set(bpy.data.objects) - objects_before:
+                bpy.data.objects.remove(ob, do_unlink=True)
+            for mesh in set(bpy.data.meshes) - meshes_before:
+                bpy.data.meshes.remove(mesh)
+            for collection in set(bpy.data.collections) - collections_before:
+                bpy.data.collections.remove(collection)
+            del bpy.types.Mesh.nwo
+            bpy.utils.unregister_class(RegionProps)
+
+    def test_native_structure_lighting_roundtrip(self):
+        import bpy
+        from mathutils import Matrix, Color
+        from io_scene_foundry.managed_blam import scenario_structure_lighting_info as module
+        cls = module.ScenarioStructureLightingInfoTag
+        string_props = ('light_shape light_cone_projection_shape light_dynamic_shadow_quality light_cinema '
+                        'light_jitter_quality light_mode light_game_type light_tag_override light_shader_reference '
+                        'light_gel_reference light_lens_flare_reference mesh_type').split()
+        bool_props = ('light_physically_correct light_shadows light_screenspace light_ignore_dynamic_objects '
+                      'light_cinema_objects_only light_specular_contribution light_diffuse_contribution '
+                      'is_sun light_indirect_only light_static_analytic is_cinematic_light light_screenspace_has_specular').split()
+        float_props = ('light_intensity light_far_attenuation_start light_far_attenuation_end light_shadow_near_clipplane '
+                       'light_shadow_far_clipplane light_shadow_bias_offset light_amplification_factor light_jitter_angle '
+                       'light_bounce_ratio light_volume_distance light_volume_intensity light_fade_end_distance '
+                       'light_fade_start_distance light_aspect').split()
+        props = type('NativeLightingTestProps', (bpy.types.PropertyGroup,), {'__annotations__': {
+            **{n: bpy.props.StringProperty() for n in string_props},
+            **{n: bpy.props.BoolProperty() for n in bool_props},
+            **{n: bpy.props.FloatProperty() for n in float_props}}})
+        bpy.utils.register_class(props)
+        bpy.types.Light.nwo = bpy.props.PointerProperty(type=props)
+        bpy.types.Object.nwo = bpy.props.PointerProperty(type=props)
+        original_objects, original_lights = set(bpy.data.objects), set(bpy.data.lights)
+        original_collections = set(bpy.data.collections)
+        try:
+            for game in ('reach','halo4','halo2a'):
+                with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                     patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                     patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                     patch.object(utils, 'get_tags_path', return_value=Path(root)), \
+                     patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')), \
+                     patch.object(utils, 'make_halo_light'), patch.object(utils, 'get_import_scale', return_value=1.), \
+                     patch.object(utils, 'calc_light_energy', return_value=4.), \
+                     patch.object(module.import_transform, 'scale_factor', return_value=1.), \
+                     patch.object(module.import_transform, 'distance', side_effect=lambda v: v * 100), \
+                     patch.object(module.import_transform, 'transform_matrix', side_effect=lambda m: m):
+                    definitions = []
+                    for kind in range(3):
+                        name = f'light_{kind}'
+                        definitions.append(SimpleNamespace(data_name=name, id=utils.id_from_string(name), type=kind,
+                            shape=1, color=Color((.5,.25,.125)), intensity=4., hotspot_size=30., hotspot_cutoff=60.,
+                            hotspot_falloff=1., near_attenuation_start=.1, near_attenuation_end=.2,
+                            far_attenuation_start=2., far_attenuation_end=8., inverse_squared_falloff=True,
+                            aspect=1., lighting_mode=0, cone_shape=0, is_sun=kind == 2,
+                            shadow_near_clip=.1, shadow_far_clip=10., shadow_bias=.01, shadow_quality=1,
+                            shadows=1, screen_space=0, ignore_dynamic_objects=0, cinema_objects_only=0,
+                            cinema_only=0, cinema_exclude=0, specular_contribution=1, diffuse_contribution=1,
+                            indirect_amp=1., jitter_sphere=.2, jitter_angle=10., jitter_quality=2,
+                            indirect_only=0, static_analytic=1))
+                    instances = [SimpleNamespace(data_name=d.data_name, origin=(1.,2.,3.), forward=(1.,0.,0.),
+                        up=(0.,0.,1.), light_mode=1, game_type=2, screen_space_specular=True, bounce_ratio=.5,
+                        volume_distance=2., volume_intensity=3., fade_out_distance=8., fade_start_distance=6.,
+                        light_tag='', shader='', gel='', lens_flare='') for d in reversed(definitions)]
+                    path = Path(root, 'test.scenario_structure_lighting_info')
+                    with cls(path) as doc:
+                        doc.build_tag(instances, definitions)
+                    # Repeated writes update existing definitions, then removal/addition remaps indices.
+                    with cls(path) as doc:
+                        doc.build_tag(instances, definitions)
+                        self.assertEqual(len(doc.block_generic_light_definitions), 3)
+                        self.assertEqual(len(doc.block_generic_light_instances), 3)
+                    with cls(path) as doc:
+                        doc.build_tag(instances[:2], definitions[1:])
+                    with cls(path) as doc:
+                        self.assertEqual(len(doc.block_generic_light_definitions), 2)
+                        key = 'Light Definition Index' if game != 'reach' else 'definition index'
+                        self.assertEqual([doc.value(e, key) for e in doc.block_generic_light_instances], [1,0])
+                        doc.build_tag(instances, definitions)
+                    before = path.read_bytes()
+                    with cls(path) as doc:
+                        objects = doc.to_blender()
+                        self.assertEqual([o.data.type for o in objects], ['SUN','SPOT','POINT'])
+                        self.assertEqual(tuple(objects[0].matrix_world.translation), (100.,200.,300.))
+                        self.assertEqual(objects[1].data.nwo.light_intensity, 4.)
+                        self.assertAlmostEqual(objects[1].data.spot_size, 1.04719755)
+                        self.assertAlmostEqual(objects[1].data.spot_blend, .5)
+                        self.assertAlmostEqual(objects[2].data.color[0], utils.srgb_to_linear(.5))
+                    self.assertEqual(path.read_bytes(), before)
+                    with cls(path) as doc:
+                        instance = doc.block_generic_light_instances[0]
+                        doc._set(instance, 'Light Definition Index' if game != 'reach' else 'definition index', 99)
+                        count = len(bpy.data.objects)
+                        with self.assertRaisesRegex(ValueError, 'invalid light definition index'):
+                            doc.to_blender()
+                        self.assertEqual(len(bpy.data.objects), count)
+                    definitions[0].intensity = float('nan')
+                    with self.assertRaisesRegex(ValueError, 'non-finite'):
+                        with cls(path) as doc:
+                            doc.build_tag(instances, definitions)
+                    self.assertEqual(path.read_bytes(), before)
+                    definitions[0].intensity = 4.
+                    if game != 'reach':
+                        with cls(path) as doc:
+                            block = doc.block(doc.tag.root(), 'cinematic light instances')
+                            entry = block[block.add()]
+                            doc._set(entry, 'Light Instance Index', 1)
+                            chunks = doc.required_field(entry, 'Active Shots').as_array()
+                            doc._set(chunks[0], 'shot flag data', 0x80000000)
+                            doc._set(chunks[1], 'shot flag data', 2)
+                            doc.tag_has_changes = True
+                        with cls(path) as doc:
+                            objects = doc.to_blender(cinematic_cameras=list(range(34)))
+                            self.assertEqual(doc.camera_lights[31], {objects[1]})
+                            self.assertEqual(doc.camera_lights[33], {objects[1]})
+                            self.assertEqual(doc.camera_lights[0], set())
+                            with self.assertRaisesRegex(NotImplementedError, 'cinematic light links'):
+                                doc.build_tag(instances, definitions)
+                    with cls(path) as doc:
+                        doc.clear_lights()
+                    with cls(path) as doc:
+                        self.assertEqual(doc.to_blender(), [])
+        finally:
+            for ob in set(bpy.data.objects) - original_objects:
+                bpy.data.objects.remove(ob, do_unlink=True)
+            for light in set(bpy.data.lights) - original_lights:
+                bpy.data.lights.remove(light)
+            for collection in set(bpy.data.collections) - original_collections:
+                bpy.data.collections.remove(collection)
+            del bpy.types.Light.nwo
+            del bpy.types.Object.nwo
+            bpy.utils.unregister_class(props)
+
+    def test_native_frame_event_list_roundtrip_and_partial_export(self):
+        from io_scene_foundry.managed_blam.frame_event_list import FrameEventListTag, FRAME_EVENT_TYPE
+        for game in ('reach', 'halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                 patch.object(utils, 'get_tags_path', return_value=Path(root)), \
+                 patch.object(utils, 'game_frame', side_effect=lambda frame: frame), \
+                 patch.object(utils, 'blender_frame', side_effect=lambda frame: frame), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                def data(kind, offset=2):
+                    result = SimpleNamespace(data_type=kind, frame_offset=offset, marker_name='muzzle', marker=None,
+                        event_sound_tag='sound/test.sound', event_effect_tag='effects/test.effect',
+                        event_model='objects/test.model', variant='default',
+                        damage_effect_reporting_type='unknown', dialogue_event='bump')
+                    for attr, _ in FrameEventListTag.reference_flags:
+                        setattr(result, 'flag_' + attr, attr == 'allow_on_player')
+                    return result
+                def animation(name, frame_type='primary keyframe'):
+                    event = SimpleNamespace(event_type=FRAME_EVENT_TYPE, frame_frame=14, frame_name=frame_type,
+                        event_id=1234, multi_frame='single', event_data=[data('SOUND'), data('EFFECT'), data('DIALOGUE')])
+                    return SimpleNamespace(name=name, frame_start=10, export_this=True, animation_events=[event])
+                def exported(name):
+                    return SimpleNamespace(name=SimpleNamespace(data_name=name, tag_name=name), frame_count=30)
+                first, other = animation('owned'), animation('untouched')
+                nwo = SimpleNamespace(scene_project='test', animations={'owned': first, 'untouched': other})
+                path = Path(root, 'test.frame_event_list')
+                with patch.object(utils, 'get_scene_props', return_value=nwo):
+                    with FrameEventListTag(path) as doc:
+                        doc.from_blender([exported('owned'), exported('untouched')], nwo.animations)
+                    with FrameEventListTag(path) as doc:
+                        events = doc.collect_events()
+                        self.assertEqual(set(events), {'owned','untouched'})
+                        event, = events['owned']
+                        self.assertEqual((event.frame, event.type, event.unique_id), (4, 'primary keyframe', 1234))
+                        self.assertEqual(event.sound_events[0].sound_reference.tag, 'sound\\test.sound')
+                        self.assertTrue(event.sound_events[0].sound_reference.allow_on_player)
+                        self.assertEqual(event.sound_events[0].frame_offset, 2)
+                        self.assertEqual(event.effect_events[0].damage_effect_reporting_type, 'unknown')
+                        self.assertEqual(event.dialogue_events[0].dialogue_type, 'bump')
+                        if game != 'reach':
+                            self.assertEqual(event.sound_events[0].sound_reference.variant, 'default')
+                            self.assertEqual(event.sound_events[0].sound_reference.model_tag, 'objects\\test.model')
+                            # Scripts owned by another blend must survive a partial export.
+                            row = doc._root_block('frame events')[1]
+                            scripts = doc.block(row, 'script events')
+                            script = scripts[scripts.add()]
+                            doc.required_field(script, 'frame event').set(-1)
+                            doc.required_field(script, 'script name').set('keep_me')
+                            doc.tag_has_changes = True
+                    first.animation_events[0].frame_name = 'none'
+                    first.animation_events[0].event_data.append(data('SOUND', offset=3))
+                    for _ in range(2):
+                        with FrameEventListTag(path) as doc:
+                            doc.from_blender([exported('owned')], {'owned': first})
+                            self.assertEqual(len(doc._root_block('sound references')), 1)
+                            self.assertEqual(len(doc._root_block('effect references')), 1)
+                            self.assertEqual(len(doc._root_block('frame events')), 2)
+                    with FrameEventListTag(path) as doc:
+                        nwo.animations = {'owned': first}
+                        event, = doc.collect_events()['owned']
+                        self.assertEqual(event.type, 'none')
+                        self.assertEqual([e.frame_offset for e in event.sound_events], [6,7])
+                        self.assertTrue(all(e.animation_event_index == -1 for e in event.sound_events))
+                        other_row = doc._root_block('frame events')[1]
+                        self.assertEqual(doc.value(doc.block(other_row, 'animation events')[0], 'unique ID'), 1234)
+                        if game != 'reach':
+                            self.assertEqual(doc.value(doc.block(other_row, 'script events')[0], 'script name'), 'keep_me')
+                    before = path.read_bytes()
+                    # A failed write after changing references must not overwrite the saved tag.
+                    first.animation_events[0].frame_name = 'unsupported event'
+                    first.animation_events[0].event_data[0].event_sound_tag = 'sound/new.sound'
+                    with self.assertRaisesRegex(ValueError, 'unsupported type'):
+                        with FrameEventListTag(path) as doc:
+                            doc.from_blender([exported('owned')], {'owned': first})
+                    self.assertEqual(path.read_bytes(), before)
+                    if game != 'reach':
+                        with self.assertRaisesRegex(NotImplementedError, 'script events'):
+                            with FrameEventListTag(path) as doc:
+                                doc.from_blender([exported('untouched')], {'untouched': other})
+                        self.assertEqual(path.read_bytes(), before)
+                        with FrameEventListTag(path) as doc:
+                            nwo.animations = {'untouched': other}
+                            with self.assertRaisesRegex(NotImplementedError, 'script events'):
+                                doc.collect_events()
+                            nwo.animations = {'owned': first}
+                    with FrameEventListTag(path) as doc:
+                        sound = doc.block(doc._root_block('frame events')[0], 'sound events')[0]
+                        doc.required_field(sound, 'sound').set(99)
+                        with self.assertRaisesRegex(ValueError, 'invalid sound reference index'):
+                            doc.collect_events()
+                        doc.required_field(sound, 'sound').set(0)
+                        doc.required_field(sound, 'frame event').set(99)
+                        with self.assertRaisesRegex(ValueError, 'invalid frame event index'):
+                            doc.collect_events()
+                    self.assertEqual(path.read_bytes(), before)
+                    first.animation_events.clear()
+                    ranged = animation('owned').animation_events[0]
+                    ranged.multi_frame = 'range'
+                    ranged.frame_range = 17
+                    first.animation_events.append(ranged)
+                    with FrameEventListTag(path) as doc:
+                        doc.from_blender([exported('owned')], {'owned': first})
+                    with FrameEventListTag(path) as doc:
+                        event, = doc.collect_events()['owned']
+                        self.assertEqual((event.frame, event.end_frame), (4,7))
+                        self.assertEqual(len(event.sound_events), 1)
+                        self.assertEqual(len(doc.block(doc._root_block('frame events')[0], 'animation events')), 4)
+                    first.animation_events.clear()
+                    with FrameEventListTag(path) as doc:
+                        doc.from_blender([exported('owned')], {'owned': first})
+                    with FrameEventListTag(path) as doc:
+                        self.assertEqual(doc.collect_events()['owned'], [])
+                        self.assertEqual(len(doc.block(doc._root_block('frame events')[1], 'animation events')), 1)
+                        doc.clear()
+                    with FrameEventListTag(path) as doc:
+                        self.assertTrue(all(len(doc._root_block(n)) == 0 for n in
+                            ('frame events','sound references','effect references')))
+
     def test_native_structure_design_rejects_incomplete_data(self):
         from io_scene_foundry.tags.structure_design import StructureDesignDocument
         for game in ('halo3', 'reach'):
