@@ -46,7 +46,7 @@ from ..tools.airprobe_exporter import export_airprobes
 from ..managed_blam import Tag
 from ..managed_blam.scenario import ScenarioTag
 
-from ..managed_blam.render_model import RenderModelTag
+from ..managed_blam.render_model import RenderModelMetadataTag, RenderModelTag
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.model import ModelTag
 from .import_sidecar import SidecarImport
@@ -1693,10 +1693,10 @@ class ExportScene:
                 with AnimationTag(path=self.scene_settings.template_model_animation_graph) as animation:
                     nodes = animation.get_nodes()
             elif self.scene_settings.template_render_model and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_render_model)).exists():
-                with RenderModelTag(path=self.scene_settings.template_render_model) as render_model:
+                with RenderModelMetadataTag(path=self.scene_settings.template_render_model) as render_model:
                     nodes = render_model.get_nodes()
             elif self.main_armature and self.main_armature.nwo.node_order_source.strip() and Path(self.tags_dir, utils.relative_path(self.main_armature.nwo.node_order_source)).exists():
-                with RenderModelTag(path=self.main_armature.nwo.node_order_source) as render_model:
+                with RenderModelMetadataTag(path=self.main_armature.nwo.node_order_source) as render_model:
                     nodes = render_model.get_nodes()
                 
         elif self.asset_type == AssetType.CINEMATIC:
@@ -1720,7 +1720,7 @@ class ExportScene:
                             if not Path(render_path.Filename).exists():
                                 self.warnings.append(f"{render_path.RelativePathWithExtension} does not exist")
                                 continue
-                            with RenderModelTag(path=render_path.RelativePathWithExtension) as render_model:
+                            with RenderModelMetadataTag(path=render_path.RelativePathWithExtension) as render_model:
                                 actor.render_model = render_model.tag_path.RelativePath
                                 cin_nodes = render_model.get_nodes()
                                 if cin_nodes:
@@ -1729,7 +1729,7 @@ class ExportScene:
                     self.warnings.append(f"Tag path for cinematic actor [{actor.name}] cannot be found: {path}")
                         
         elif self.asset_type in {AssetType.SKY, AssetType.ANIMATION} and self.main_armature and self.main_armature.nwo.node_order_source.strip() and Path(self.tags_dir, utils.relative_path(self.main_armature.nwo.node_order_source)).exists():
-            with RenderModelTag(path=self.main_armature.nwo.node_order_source) as render_model:
+            with RenderModelMetadataTag(path=self.main_armature.nwo.node_order_source) as render_model:
                 nodes = render_model.get_nodes()
                     
         if nodes:

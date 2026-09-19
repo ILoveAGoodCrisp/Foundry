@@ -11,7 +11,7 @@ from ..constants import VALID_MESHES
 from ..icons import get_icon_id
 from ..managed_blam.model import ModelTag
 from ..managed_blam.object import ObjectTag
-from ..managed_blam.render_model import RenderModelTag
+from ..managed_blam.render_model import RenderModelMetadataTag
 from ..managed_blam.scenario import ScenarioTag
 from ..tools.collection_manager import get_full_name
 
@@ -145,7 +145,7 @@ def _update_model_variant_selection(self, context):
 
 def _get_render_model_region_data(render_model_path):
     region_permutations = {}
-    with RenderModelTag(path=render_model_path) as render:
+    with RenderModelMetadataTag(path=render_model_path) as render:
         for region in render.get_regions():
             permutations = render.get_permutations(region)
             region_permutations[region] = permutations or ["default"]

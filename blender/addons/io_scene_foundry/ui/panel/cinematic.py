@@ -6,7 +6,7 @@ import bpy
 from mathutils import Euler, Matrix, Vector
 
 from ...managed_blam.scenario import ScenarioTag
-from ...managed_blam.render_model import RenderModelTag
+from ...managed_blam.render_model import RenderModelMetadataTag
 from ...managed_blam.model import ModelTag
 from ...managed_blam.object import ObjectTag
 from ...managed_blam.cinematic_lighting import CinematicLightingTag
@@ -1422,7 +1422,7 @@ class GetCinematicBase(bpy.types.Operator):
                         items.append((v, v, ""))
                 else:
                     render_path = model.get_model_paths()[0]
-                    with RenderModelTag(path=render_path) as render:
+                    with RenderModelMetadataTag(path=render_path) as render:
                         if self.get_type == 'script_region':
                             for r in render.get_regions():
                                 items.append((r, r, ""))

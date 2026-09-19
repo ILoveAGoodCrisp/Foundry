@@ -12,7 +12,7 @@ from ..tags.cinematic import CinematicCameraDocument
 from ..tags.blender import BlenderTag
 from .. import utils
 from ..props.scene import NWO_CinematicEvent
-from . import Tag, tag_path_from_string
+from . import tag_path_from_string
 from . import import_transform
 from .Tags import TagFieldBlock, TagFieldBlockElement, TagPath
 import bpy
@@ -588,18 +588,9 @@ class CinObject():
         self.cinematic_lighting: CinematicLighting = None
         self.events = []
     
-class CinematicSceneTag(Tag):
+class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
+    """Native cinematic-scene import entry point."""
     tag_ext = 'cinematic_scene'
-    
-    def _read_fields(self):
-        self.scene_playback = self.tag.SelectField("Custom:loop now")
-        self.cam_position_path = "Struct:camera frame[0]/Struct:dynamic data[0]/RealPoint3d:camera position" if self.corinth else "Struct:camera frame[0]/RealPoint3d:camera position"
-        self.cam_forward_path = "Struct:camera frame[0]/Struct:dynamic data[0]/RealVector3d:camera forward" if self.corinth else "Struct:camera frame[0]/RealVector3d:camera forward"
-        self.cam_up_path = "Struct:camera frame[0]/Struct:dynamic data[0]/RealVector3d:camera up" if self.corinth else "Struct:camera frame[0]/RealVector3d:camera up"
-        self.cam_focal_length_path = "Struct:camera frame[0]/Struct:constant data[0]/Real:focal length" if self.corinth else "Struct:camera frame[0]/Real:focal length"
-    
-    def get_loop_text(self) -> str:
-        return self.scene_playback.GetLoopText()
     
     def to_blender(self, film_aperture: float, cinematic_name: str, data: CinematicSceneDataTag):
         with CinematicCameraDocument(data.tag_path.Filename, tags_root=utils.get_tags_path(),
@@ -836,9 +827,3 @@ class CinematicSceneTag(Tag):
         light_tags = [path.Filename for path in scene_metadata.lights if self.path_exists(path)]
             
         return self.tag_path.ShortName, blender_scene, camera_objects, object_animations, scene_metadata.anchor, actions, shot_frames, light_tags
-
-
-class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
-    """Read-only import entry point; playback/export retain their legacy wrapper."""
-    tag_ext = 'cinematic_scene'
-    to_blender = CinematicSceneTag.to_blender

@@ -19,7 +19,7 @@ from ... import utils
 from ...managed_blam.globals import GlobalsTag
 from ...managed_blam.model import ModelTag
 from ...managed_blam.object import ObjectTag
-from ...managed_blam.render_model import RenderModelTag
+from ...managed_blam.render_model import RenderModelMetadataTag
 
 int_highlight = 0
 
@@ -1548,7 +1548,7 @@ def _actor_attachment_marker_items_from_tag_path(tag_path):
             render_tag = model.get_render_model()
         if not render_tag or not Path(utils.get_tags_path(), render_tag).exists():
             return [("", "None", "")]
-        with RenderModelTag(path=render_tag) as render:
+        with RenderModelMetadataTag(path=render_tag) as render:
             markers = render.get_markers()
     except (AttributeError, TypeError, ValueError, RuntimeError, FileNotFoundError):
         return [("", "None", "")]

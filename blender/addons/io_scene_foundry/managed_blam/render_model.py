@@ -15,7 +15,45 @@ from . import import_transform
 
 from .. import utils
 from ..managed_blam import Tag
+from ..tags.backend import TagDocument
+from ..tags.blender import BlenderTag
 import bpy
+
+
+class RenderModelMetadataTag(BlenderTag, TagDocument):
+    """Native render-model metadata used by UI and export setup."""
+    tag_ext = 'render_model'
+
+    def get_nodes(self):
+        return [self.value(element, 'name')
+                for element in self.block(self.tag.root(), 'nodes')]
+
+    def get_regions(self):
+        return [self.value(element, 'name')
+                for element in self.block(self.tag.root(), 'regions')]
+
+    def get_permutations(self, region=''):
+        regions = self.block(self.tag.root(), 'regions')
+        names = []
+        for element in regions:
+            if region and self.value(element, 'name') != region:
+                continue
+            names.extend(self.value(permutation, 'name')
+                         for permutation in self.block(element, 'permutations'))
+            if region:
+                break
+        return list(dict.fromkeys(names))
+
+    def get_markers(self):
+        return [self.value(element, 'name')
+                for element in self.block(self.tag.root(), 'marker groups')]
+
+    def set_structure_meta_ref(self, meta_path):
+        if not self.corinth:
+            raise ValueError('Structure metadata references only exist in H4/H2AMP render models')
+        if not self.path_exists(self.reference_from_path(meta_path)):
+            raise FileNotFoundError(meta_path)
+        self.set_reference(self.tag.root(), 'structure meta data', meta_path)
     
 class RenderModelTag(Tag):
     tag_ext = 'render_model'

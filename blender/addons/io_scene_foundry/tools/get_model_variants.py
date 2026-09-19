@@ -2,7 +2,7 @@
 from pathlib import Path
 import bpy
 
-from ..managed_blam.render_model import RenderModelTag
+from ..managed_blam.render_model import RenderModelMetadataTag
 from ..managed_blam.model import ModelTag
 from ..managed_blam.object import ObjectTag
 
@@ -40,7 +40,7 @@ class NWO_OT_GetModelMarkersForEvent(bpy.types.Operator):
             render_tag = model.get_render_model()
         if not render_tag or not Path(get_tags_path(), render_tag).exists():
             return [("", "None", "")]
-        with RenderModelTag(path=render_tag) as render:
+        with RenderModelMetadataTag(path=render_tag) as render:
             markers = render.get_markers()
         if not markers:
             return [("", "None", "")]
@@ -89,7 +89,7 @@ class NWO_OT_GetModelMarkers(bpy.types.Operator):
             render_tag = model.get_render_model()
         if not render_tag or not Path(get_tags_path(), render_tag).exists():
             return [("", "None", "")]
-        with RenderModelTag(path=render_tag) as render:
+        with RenderModelMetadataTag(path=render_tag) as render:
             markers = render.get_markers()
         if not markers:
             return [("", "None", "")]
