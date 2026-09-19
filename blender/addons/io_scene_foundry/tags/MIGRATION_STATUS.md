@@ -20,7 +20,14 @@ test. Physics and object-function imports no longer call their legacy fallback w
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
-Latest validation: 59 regression tests pass without starting ManagedBlam.
+Latest validation: 60 regression tests pass without starting ManagedBlam.
+Particle-model import now calls the native blam-tags geometry decoder directly;
+the legacy render-model bridge and eager `_GameRenderModel` allocation are gone.
+Foundry validates every detached mesh before creating Blender data, then imports
+positions, normals, primary UVs and variant-separated triangles. Read-only native
+and Blender-allocation checks passed representative H3, ODST, Reach, H4 and H2AMP
+tags (15 objects / 1,158 triangles) without changing source bytes. Gen3 object
+names remain synthesized and material data is absent from that tag format.
 Structure-lighting info now uses native reads and writes for Reach/H4/H2AMP,
 including constant light functions, definition/instance indices, cinematic shot
 flags and Reach lightmap-region geometry. Tests create real Blender point/spot/sun
@@ -60,15 +67,16 @@ tag is a physical light with periodic, modifier-driven attenuation. Sampling moc
 light allocation, final lighting setup and bitmap conversion; visual parity and
 complete import/export acceptance are still outstanding.
 
-The source audit on 2026-09-18 found:
+The source audit updated on 2026-09-19 found:
 
 - 15 migrated tag workflows: camera tracks, globals, render-method options,
   render-method definitions, material-shader metadata, models, object metadata,
   lightmapper globals, cinematic-lighting metadata, light tags, cheap lights,
   structure seams, structure metadata, authored PCA animation and collision models.
-- 18 tag classes still inherit the legacy `Tag` base, directly or indirectly:
-  9 direct wrappers and 9 shader/material/decal subclasses.
-- 19 modules under `managed_blam` still contain `SelectField` calls.
+- 17 tag classes still inherit the legacy `Tag` base, directly or indirectly:
+  8 direct wrappers and 9 shader/material/decal subclasses.
+- 16 modules under `managed_blam` still contain `SelectField` calls (excluding
+  the legacy base and generated type declarations).
 
 Physics also uses native records for constraints, spheres, capsules, boxes, convex
 polyhedra, nested lists/MOPPs, H4/H2AMP body properties and supported serialized
@@ -199,7 +207,7 @@ its mass update was verified by reopening a temporary physics tag.
 | Area | Work needed before removal |
 | --- | --- |
 | Functions, shaders and lights | Extend the new function-decoding binding to editing operations; port materials, shader variants, decals and light converters. Remove unsupported object-function fallbacks. |
-| Geometry and resources | Port render models, collision, physics, particles, decorators and polyart, including resource extraction and Blender mesh/skeleton construction. |
+| Geometry and resources | Port render models and the remaining collision, physics, decorator and polyart resource paths, including Blender mesh/skeleton construction. Particle-model import is native. |
 | Animation | Expose animation decoding and port graph edits, frame events, PCA and animation import. |
 | Bitmaps | Replace .NET bitmap extraction/conversion with native decoding; validate formats, mipmaps, cubemaps and texture use by materials. |
 | Scenarios and cinematics | Port scenario/BSP/structure editors, lighting-info export, cinematic scenes/data/playback helpers and remaining layout fallbacks. |

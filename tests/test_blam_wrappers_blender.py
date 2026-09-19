@@ -19,6 +19,55 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_native_particle_model_geometry(self):
+        import bpy
+        from mathutils import Matrix
+        from io_scene_foundry.managed_blam import particle_model as module
+
+        class NativeTag:
+            def particle_meshes(self, stem):
+                self.stem = stem
+                return [{
+                    'name': 'particle_piece',
+                    'positions': [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    'normals': [(0.0, 0.0, 1.0)] * 3,
+                    'texcoords': [(0.0, 0.25), (1.0, 0.25), (0.0, 0.75)],
+                    'indices': [0, 1, 2],
+                    'material': None,
+                }]
+
+        objects_before, meshes_before = set(bpy.data.objects), set(bpy.data.meshes)
+        collection = bpy.data.collections.new('particle_test')
+        try:
+            document = object.__new__(module.ParticleModelTag)
+            document.tag = NativeTag()
+            document.path = 'particles/test.particle_model'
+            with patch.object(module.import_transform, 'mesh_matrix', return_value=Matrix.Identity(4)), \
+                 patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
+                imported, = document.to_blend_objects(collection, 'requested_name')
+            self.assertEqual(document.tag.stem, 'requested_name')
+            self.assertEqual(imported.name, 'particle_piece')
+            self.assertEqual([tuple(vertex.co) for vertex in imported.data.vertices],
+                             [(0.0, 0.0, 0.0), (100.0, 0.0, 0.0), (0.0, 100.0, 0.0)])
+            self.assertEqual(tuple(imported.data.polygons[0].vertices), (0, 1, 2))
+            uv = imported.data.uv_layers['UVMap0'].data
+            self.assertEqual([tuple(item.uv) for item in uv],
+                             [(0.0, 0.75), (1.0, 0.75), (0.0, 0.25)])
+
+            document.tag.particle_meshes = lambda stem: [{
+                'name': 'bad', 'positions': [(0, 0, 0)], 'normals': [(0, 0, 1)],
+                'texcoords': [(0, 0)], 'indices': [0, 1, 0]}]
+            count = len(bpy.data.meshes)
+            with self.assertRaisesRegex(ValueError, 'invalid vertex index'):
+                document.to_blend_objects(collection, 'bad')
+            self.assertEqual(len(bpy.data.meshes), count)
+        finally:
+            for ob in set(bpy.data.objects) - objects_before:
+                bpy.data.objects.remove(ob, do_unlink=True)
+            for mesh in set(bpy.data.meshes) - meshes_before:
+                bpy.data.meshes.remove(mesh)
+            bpy.data.collections.remove(collection)
+
     def test_native_lightmap_region_geometry(self):
         import bpy
         from mathutils import Matrix
