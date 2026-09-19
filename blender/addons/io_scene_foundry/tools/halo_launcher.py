@@ -5,7 +5,7 @@ from pathlib import Path
 import bpy
 import xml.etree.ElementTree as ET
 from ..ui.bar import draw_game_launcher_pruning, draw_game_launcher_settings
-from ..managed_blam.scenario import ScenarioTag
+from ..tags.scenario import ScenarioMetadataTag
 from ..utils import (
     ProjectXML,
     get_asset_path_full,
@@ -678,13 +678,13 @@ class NWO_MaterialGirl(bpy.types.Operator):
         return {'FINISHED'}
 
 def scenario_is_multiplayer(scenario_path):
-    with ScenarioTag(path=scenario_path) as scenario:
+    with ScenarioMetadataTag(path=scenario_path) as scenario:
         scenario_type = scenario.read_scenario_type()
         
     return scenario_type == 1
 
 def scenario_is_firefight(scenario_path):
-    with ScenarioTag(path=scenario_path) as scenario:
+    with ScenarioMetadataTag(path=scenario_path) as scenario:
         return scenario.survival_mode()
     
 class NWO_HaloLauncher_Foundation(bpy.types.Operator):

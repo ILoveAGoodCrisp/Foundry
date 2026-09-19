@@ -15,7 +15,7 @@ from ..patches import ToolPatcher
 
 from .scenario.lightmap import run_lightmapper
 
-from ..managed_blam.scenario import ScenarioTag
+from ..tags.scenario import ScenarioMetadataTag
 from .. import utils
 
 mcc_reach_sounds = {
@@ -94,7 +94,7 @@ class CacheBuilder:
         else:
             self.sound_dir = Path(self.project_dir, "sound", "pc")
         
-        with ScenarioTag(path=scenario_path) as tag:
+        with ScenarioMetadataTag(path=scenario_path) as tag:
             if tag.survival_mode():
                 self.scenario_type = ScenarioType.FIREFIGHT
             elif tag.read_scenario_type() == 1:

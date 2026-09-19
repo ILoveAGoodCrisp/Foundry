@@ -18,6 +18,12 @@ update also uses native blocks for the cinematic link, zone-set flags, anchors,
 generated-script removal and Reach cinematic-resource synchronization. Camera
 allocation and complete referenced-asset import remain to be validated. Physics
 and object-function imports no longer call their legacy fallback wrappers.
+Common scenario metadata and lightweight edits now use `ScenarioMetadataTag`:
+scenario type/firefight detection, BSP/design/sky discovery, zone sets, lightmap
+settings, sky assignment, cutscene titles and anchors, scenario copies, debug zone
+sets and airprobe export. Launcher, cache builder, lightmapper, cinematic UI and
+scenario import setup callers use this native path. The remaining legacy scenario
+wrapper is retained for large object/decorator/cubemap imports and export setup.
 
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
@@ -39,6 +45,10 @@ and Reach `.scenario_cinematics_resource` records without ManagedBlam. Generated
 schemas remain ignored build assets sourced from blam-tags rather than committed
 per-tag definitions. A focused in-memory schema check covered Reach, H4 and H2AMP;
 complete editing-kit export acceptance is deferred to the final migration review.
+Focused schema checks exercised scenario BSP, sky, zone-set and lightmap fields for
+H3, ODST, Reach, H4 and H2AMP. Block flags are edited through their native integer
+value because blam-tags intentionally does not expose block-reference names as
+ordinary flag options. No ManagedBlam fallback is used.
 Particle-model import now calls the native blam-tags geometry decoder directly;
 the legacy render-model bridge and eager `_GameRenderModel` allocation are gone.
 Foundry validates every detached mesh before creating Blender data, then imports
@@ -87,10 +97,11 @@ complete import/export acceptance are still outstanding.
 
 The source audit updated on 2026-09-19 found:
 
-- 15 migrated tag workflows: camera tracks, globals, render-method options,
+- 17 migrated tag workflows: camera tracks, globals, render-method options,
   render-method definitions, material-shader metadata, models, object metadata,
   lightmapper globals, cinematic-lighting metadata, light tags, cheap lights,
-  structure seams, structure metadata, authored PCA animation and collision models.
+  structure seams, structure metadata, authored PCA animation, collision models,
+  scenario metadata/editing and scenario airprobes.
 - 14 tag classes still inherit the legacy `Tag` base, directly or indirectly:
   5 direct wrappers and 9 shader/material/decal subclasses.
 - 14 modules under `managed_blam` still contain `SelectField` calls (excluding
@@ -113,10 +124,10 @@ and migrated wrappers can still hand specialized operations to legacy converters
 
 Cinematic import now reads shot lengths, anchor and structure-lighting references
 natively and iterates detached shot/object records. There are no direct SelectField
-calls remaining in CinematicSceneTag.to_blender. NativeCinematicSceneTag now exposes
-that conversion through a native constructor. The separate legacy wrapper remains
-for playback/export. Next: validate complete imports and replace the remaining
-referenced asset readers and playback/export helpers.
+calls remaining in CinematicSceneTag.to_blender. NativeCinematicSceneTag exposes
+that conversion through a native constructor, and top-level cinematic export is
+native. Next: validate complete imports and replace the remaining scene/data writers
+and referenced asset/resource readers.
 
 READ-001 is resolved in the local binding: TagField.as_array returns fixed-array
 struct handles with lifetime checks. H4/H2AMP shot visibility now reads native

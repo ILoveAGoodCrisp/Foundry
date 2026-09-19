@@ -52,7 +52,7 @@ unfinished migration work, not the intended workaround.
 | Serialized Havok geometry | Payload bytes read natively. The existing Foundry Python Havok decoder handles the two sampled vehicle payloads; unrecognized payloads now raise an unsupported error without ManagedBlam fallback. No specific failed payload is currently recorded here. |
 | Light/function conversion | Some mappings, physical lights and projected textures retain fallbacks. Being able to read a function does not imply Foundry can reproduce its behavior in Blender. |
 | Cinematic scripts | Foundry currently decodes script bytes as UTF-8 with an optional BOM and trailing NULs. The 76 sampled scripts passed. Other encodings are unverified, not a confirmed blam-tags byte-reading failure. |
-| Writing and custom editors | The top-level cinematic writer and its scenario bookkeeping are native. Unported scene/data writers, general scenario editors, playback helpers and function editing are tracked in the migration status; they are not read failures. |
+| Writing and custom editors | The top-level cinematic writer, common scenario metadata/edits and airprobe export are native. Unported scene/data writers, large scenario object/resource editors, playback helpers and function editing are tracked in the migration status; they are not read failures. |
 
 ## Resolved read limitations
 

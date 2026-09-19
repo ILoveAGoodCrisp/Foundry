@@ -6,7 +6,7 @@ import bpy
 import os
 import time
 import shutil
-from ..managed_blam.scenario import ScenarioTag
+from ..tags.scenario import ScenarioMetadataTag
 from .. import utils
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -57,7 +57,7 @@ class ImposterFarm:
         except:
             print("Unable to replace bonobo_init.txt. It is currently read only")
         
-        with ScenarioTag(path=self.scenario_path) as scenario:
+        with ScenarioMetadataTag(path=self.scenario_path) as scenario:
             utils.update_debug_menu(update_type=utils.DebugMenuType.IMPOSTER, bsp_names=scenario.get_bsp_names())
         
         if clear_imposter_cache and self.imposter_cache_dir.exists():

@@ -7,7 +7,7 @@ from ...patches import ToolPatcher
 
 from ...managed_blam.lightmapper_globals import LightmapperGlobalsTag
 
-from ...managed_blam.scenario import ScenarioTag
+from ...tags.scenario import ScenarioMetadataTag
 from ... import utils
 import os
 
@@ -78,7 +78,7 @@ class NWO_OT_Lightmap(bpy.types.Operator):
 
         export_title = f"►►► LIGHTMAPPER ◄◄◄"
         print(export_title)
-        with ScenarioTag() as scenario:
+        with ScenarioMetadataTag() as scenario:
             bsps = scenario.get_bsp_names()
             if not scene_nwo_export.lightmap_all_bsps and scene_nwo_export.lightmap_specific_bsp not in bsps:
                 utils.print_error(f"Cancelling Lightmap. Specified BSP [{scene_nwo_export.lightmap_specific_bsp}] does not exist in the scenario tag: {scenario.tag_path.RelativePathWithExtension}")

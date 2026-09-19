@@ -4,12 +4,12 @@ import os
 from pathlib import Path
 import bpy
 from .. import utils
-from ..managed_blam.scenario import ScenarioTag
+from ..tags.scenario import ScenarioMetadataTag
 
 def set_default_sky(context, report, sky_index):
     scene_nwo = utils.get_scene_props()
     active_bsp = scene_nwo.regions_table[scene_nwo.regions_table_active_index].name
-    with ScenarioTag() as scenario:
+    with ScenarioMetadataTag() as scenario:
         sky_name = scenario.set_bsp_default_sky(active_bsp, sky_index)
         if sky_name is None:
             report({'WARNING'}, f"BSP {active_bsp} not found. Could not set sky")
@@ -63,7 +63,7 @@ class NWO_NewSky(bpy.types.Operator):
         if not Path(utils.get_tags_path(), rel_path).exists():
             self.report({'WARNING'}, f"Failed to add Sky. Given path is not located inside of project tags folder\nProject: {utils.get_project_path()}\nSky Tag Path: {self.filepath}")
             return {'CANCELLED'}
-        with ScenarioTag() as scenario:
+        with ScenarioMetadataTag() as scenario:
             sky_name, sky_index = scenario.add_new_sky(rel_path)
             # scenario.save()
         if self.type == 'material' and NWO_SetSky.poll(context):
@@ -92,7 +92,7 @@ class NWO_SetSky(bpy.types.Operator):
         else:
             items.append(("-1", "None", "", "", 0))
         # Read the skies block
-        with ScenarioTag() as scenario:
+        with ScenarioMetadataTag() as scenario:
             skies = scenario.get_skies_mapping()
         for idx, sky in enumerate(skies):
             items.append((str(idx), f'{sky} ({str(idx)})', '', idx + 1))

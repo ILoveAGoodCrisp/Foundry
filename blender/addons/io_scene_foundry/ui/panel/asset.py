@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import bpy
 
-from ...managed_blam.scenario import ScenarioTag
+from ...tags.scenario import ScenarioMetadataTag
 
 from ...icons import get_icon_id
 from ... import utils
@@ -58,10 +58,8 @@ class NWO_OT_CopyScenario(bpy.types.Operator):
         if not new_scenario.parent.exists():
             new_scenario.parent.mkdir(parents=True, exist_ok=True)
             
-        with ScenarioTag(path=scenario) as scen:
-            new_tag_path = scen._TagPath_from_string(new_scenario)
-            scen.tag.SelectField("type").Value = 0 # set to solo
-            scen.tag.SaveAsCopy(new_tag_path)
+        with ScenarioMetadataTag(path=scenario) as scen:
+            scen.save_copy_as_solo(new_scenario)
         
         if new_scenario.exists():
             scene_nwo.cinematic_scenario = str(new_scenario)
@@ -99,7 +97,7 @@ class NWO_OT_ImportCinematicScenario(bpy.types.Operator):
             self.report({'WARNING'}, f"Scenario does not exist: {scenario_path}")
             return {'CANCELLED'}
 
-        with ScenarioTag(path=scenario_path) as scenario:
+        with ScenarioMetadataTag(path=scenario_path) as scenario:
             zone_sets = scenario.get_zone_sets_dict()
 
         importer_module.zone_set_items = zone_sets

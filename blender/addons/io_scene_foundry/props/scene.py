@@ -7,8 +7,6 @@ from mathutils import Matrix
 from ..constants import get_named_color
 
 from ..tools.asset_types import asset_type_items
-from ..managed_blam.scenario import ScenarioTag
-
 from ..icons import get_icon_id
 from .. import utils
 

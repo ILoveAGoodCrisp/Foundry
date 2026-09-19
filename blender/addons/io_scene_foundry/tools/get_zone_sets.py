@@ -1,7 +1,7 @@
 
 from pathlib import Path
 import bpy
-from ..managed_blam.scenario import ScenarioTag
+from ..tags.scenario import ScenarioMetadataTag
 
 from ..utils import get_tags_path
 from .. import utils
@@ -26,15 +26,11 @@ class NWO_GetZoneSets(bpy.types.Operator):
     
     def zone_set_items(self, context):
         scene_nwo = utils.get_scene_props()
-        with ScenarioTag(path=scene_nwo.cinematic_scenario) as scenario:
-            if not scenario.block_zone_sets.Elements.Count:
+        with ScenarioMetadataTag(path=scene_nwo.cinematic_scenario) as scenario:
+            names = scenario.zone_set_names()
+            if not names:
                 return [("default", "default", "")]
-            items = []
-            for element in scenario.block_zone_sets.Elements:
-                zs_name = element.Fields[0].GetStringData()
-                items.append((zs_name, zs_name, ""))
-
-            return items
+            return [(name, name, "") for name in names]
         
         return [("default", "default", "")]
     

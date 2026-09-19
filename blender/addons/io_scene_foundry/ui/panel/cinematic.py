@@ -5,7 +5,7 @@ import blf
 import bpy
 from mathutils import Euler, Matrix, Vector
 
-from ...managed_blam.scenario import ScenarioTag
+from ...tags.scenario import ScenarioMetadataTag
 from ...managed_blam.render_model import RenderModelMetadataTag
 from ...managed_blam.model import ModelTag
 from ...managed_blam.object import ObjectTag
@@ -1745,7 +1745,7 @@ class NWO_GetScenarioCustsceneTitles(bpy.types.Operator):
     def title_items(self, context):
         nwo = utils.get_scene_props()
         items = []
-        with ScenarioTag(path=nwo.cinematic_scenario) as scenario:
+        with ScenarioMetadataTag(path=nwo.cinematic_scenario) as scenario:
             items = scenario.collect_cutscene_titles()
 
         if not items:

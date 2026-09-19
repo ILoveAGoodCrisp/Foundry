@@ -30,6 +30,7 @@ from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
 from ..managed_blam.object import ObjectTag
 
 from ..managed_blam.cinematic import CinematicTag
+from ..tags.scenario import ScenarioMetadataTag
 
 from .cinematic import QUA, Actor, CinematicScene
 
@@ -3309,15 +3310,10 @@ class ExportScene:
                 
             if self.export_settings.allow_proxy_decals and not self.corinth and self.any_collision_proxies:
                 self.print_post(f"--- Fixing Up collision proxy surface mapping")
-                with ScenarioTag() as scenario:
-                    for element in scenario.block_bsps.Elements:
-                        bsp_path = element.Fields[0].Path
-                        if bsp_path is None:
-                            continue
-                        
-                        if Path(bsp_path.Filename).exists():
-                            with ScenarioStructureBspTag(path=bsp_path.RelativePathWithExtension) as bsp:
-                                bsp.fix_collision_render_surface_mapping()
+                with ScenarioMetadataTag() as scenario:
+                    for bsp_path in scenario.get_bsp_paths():
+                        with ScenarioStructureBspTag(path=utils.relative_path(bsp_path)) as bsp:
+                            bsp.fix_collision_render_surface_mapping()
 
         light_asset = self.export_settings.update_lighting_info and (self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY}))
         if light_asset:
@@ -3454,7 +3450,7 @@ class ExportScene:
                 
     def lightmap(self):
         if self.export_settings.lightmap_structure and (self.asset_type == AssetType.SCENARIO or (self.corinth and self.is_model)):
-            with ScenarioTag() as scenario:
+            with ScenarioMetadataTag() as scenario:
                 valid_bsps = scenario.get_bsp_names()
                 bsps = [b for b in valid_bsps if b in self.virtual_scene.structure]
                 if not self.export_settings.lightmap_all_bsps and self.export_settings.lightmap_specific_bsp not in bsps:

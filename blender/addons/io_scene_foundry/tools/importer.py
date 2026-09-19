@@ -33,6 +33,7 @@ from ..managed_blam.globals import FPARMS, GlobalsTag
 
 from ..managed_blam import Tag, switch_project_from_filepath
 from ..tags.backend import TagDocument
+from ..tags.scenario import ScenarioMetadataTag
 
 from .animation.generate_frames import FrameGenerator
 
@@ -1830,13 +1831,11 @@ class NWO_Import(bpy.types.Operator):
                             if imported_cinematic_scenario_objects:
                                 anchor_position = Vector.Fill(3, 0)
                                 anchor_facing = Vector.Fill(3, 0)
-                                with ScenarioTag(path=scenario) as scenario_tag:
-                                    for element in scenario_tag.tag.SelectField("Block:cutscene flags").Elements:
-                                        if element.Fields[0].GetStringData() == sdata.anchor_name:
-                                            anchor_position = Vector([n for n in element.SelectField("position").Data]) * 100
-                                            for idx, n in enumerate(element.SelectField("facing").Data):
-                                                anchor_facing[idx] = n
-                                            break        
+                                with ScenarioMetadataTag(path=scenario) as scenario_tag:
+                                    anchor = scenario_tag.cutscene_anchor(sdata.anchor_name)
+                                    if anchor is not None:
+                                        anchor_position = Vector(anchor[0]) * 100
+                                        anchor_facing = Vector(anchor[1])
                                 
                                 anchor_euler = Euler((anchor_facing[2], -anchor_facing[1], anchor_facing[0]), 'ZYX')
                                 anchor_matrix = Matrix.LocRotScale(anchor_position, anchor_euler, Vector.Fill(3, 1))
@@ -4610,17 +4609,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             if self.import_type == "scenario":
                 global zone_set_items
                 global sky_items
-                with ScenarioTag(path=self.filepath) as scenario:
+                with ScenarioMetadataTag(path=self.filepath) as scenario:
                     zone_set_items = scenario.get_zone_sets_dict()
                     if zone_set_items:
                         self.has_zone_sets = True
-                    
-                    sky_items = []
-                    for element in scenario.tag.SelectField("skies").Elements:
-                        sky = element.SelectField("Reference:sky").Path
-                        sky_path = scenario.get_path_str(sky, True)
-                        if sky_path and Path(sky_path).exists():
-                            sky_items.append(sky.RelativePathWithExtension)
+                    sky_items = scenario.get_sky_paths()
                             
             elif self.import_type == 'cinematic':
                 global cinematic_scene_items

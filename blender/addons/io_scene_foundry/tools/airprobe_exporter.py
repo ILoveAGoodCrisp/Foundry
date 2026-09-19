@@ -4,7 +4,7 @@ import types
 import bpy
 
 from .. import utils
-from ..managed_blam.scenario import ScenarioTag
+from ..tags.scenario import ScenarioMetadataTag
 
 
 AIRPROBE_MARKER_TYPE = "_connected_geometry_marker_type_airprobe"
@@ -77,15 +77,22 @@ def _airprobe_items(airprobe_objects):
     return [(ob, ob.name) for ob in airprobe_objects]
 
 
-def _write_airprobes(airprobes, airprobe_objects):
-    airprobes.RemoveAllElements()
-    if len(airprobe_objects) > 512:
-        utils.print_warning(f"More than 512 airprobes found [Total {len(airprobe_objects)}]. Exported first 512 only")
-    for ob, name in _airprobe_items(airprobe_objects)[:512]:
-        element = airprobes.AddElement()
+def _write_airprobes(scenario, airprobe_objects):
+    root = scenario.tag.root()
+    airprobes = scenario.block(root, 'airprobes')
+    airprobes.clear()
+    items = list(_airprobe_items(airprobe_objects))
+    if len(items) > 512:
+        utils.print_warning(f"More than 512 airprobes found [Total {len(items)}]. Exported first 512 only")
+    for ob, name in items[:512]:
+        index = airprobes.add()
+        airprobes = scenario.block(root, 'airprobes')
+        element = airprobes[index]
         matrix = utils.halo_transforms_matrix(ob.matrix_world)
-        element.SelectField("airprobe position").Data = matrix.translation
-        element.SelectField("airprobe name").SetStringData(utils.clean_text(name))
+        position = scenario.required_field(element, 'airprobe position')
+        position.set(type(position.value)(*matrix.translation))
+        scenario.required_field(element, 'airprobe name').set(utils.clean_text(name))
+        scenario.tag_has_changes = True
 
 
 def export_airprobes(airprobe_objects=None):
@@ -95,9 +102,7 @@ def export_airprobes(airprobe_objects=None):
 
     print("--- Writing airprobes to Tag")
     start = time.perf_counter()
-    with ScenarioTag(path=scenario_path) as scenario:
-        airprobes = scenario.tag.SelectField("Block:airprobes")
-        _write_airprobes(airprobes, airprobe_objects)
-        scenario.tag_has_changes = True
+    with ScenarioMetadataTag(path=scenario_path) as scenario:
+        _write_airprobes(scenario, airprobe_objects)
 
     print("--- Completed airprobes tag write in", utils.human_time(time.perf_counter() - start, True))

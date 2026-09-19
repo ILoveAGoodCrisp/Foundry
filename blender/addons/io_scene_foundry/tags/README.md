@@ -23,7 +23,12 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
 - Object-function node creation for supported native editor shapes; unsupported
   shapes retain the legacy fallback before any nodes are created.
 - Cinematic scenery conversion when the source block layouts match the target
-  schema. Incompatible layouts use the isolated legacy copy fallback.
+  schema. Incompatible layouts raise explicitly.
+- Top-level cinematic import/export and its scenario bookkeeping, including
+  transition tags, scripts, scene references, zone sets and anchors.
+- Scenario metadata and lightweight editing for type detection, BSP/design/sky
+  discovery, zone sets, lightmap settings, sky assignment, cutscene titles,
+  scenario copies, debug zone sets and airprobe export.
 
 The Blender-facing classes retain their existing import locations. Their
 implementations live in this package. Reference results are detached Python
@@ -31,9 +36,9 @@ objects; the few callers still passing them into legacy tag wrappers convert
 references at that boundary.
 
 The addon still requires ManagedBlam/Python.NET for unmigrated workflows:
-object custom functions/light attachments and cinematic object conversion,
-full geometry import, animation, bitmap operations,
-shader functions, scenario/cinematic editors and other specialized helpers.
+full render/BSP geometry import, animation graphs, shader/material editing,
+large scenario object/resource editors, cinematic scene/data writers and other
+specialized helpers.
 Removing that dependency now would break those workflows. The Foundation plugin
 installer also still uses .NET independently of tag access.
 

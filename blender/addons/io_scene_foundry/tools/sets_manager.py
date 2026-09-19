@@ -12,7 +12,7 @@ from ..icons import get_icon_id
 from ..managed_blam.model import ModelTag
 from ..managed_blam.object import ObjectTag
 from ..managed_blam.render_model import RenderModelMetadataTag
-from ..managed_blam.scenario import ScenarioTag
+from ..tags.scenario import ScenarioMetadataTag
 from ..tools.collection_manager import get_full_name
 
 from ..utils import create_parent_mapping, get_asset_tag, get_asset_tags, get_rig_prioritize_active, get_tags_path, get_scene_props, is_corinth, is_frame, is_marker, is_mesh, poll_ui, set_type_from_asset, update_tables_from_objects, valid_nwo_asset
@@ -1574,7 +1574,7 @@ class NWO_BSPInfo(bpy.types.Operator):
         self.info = None
         nwo = get_scene_props()
         bsp = nwo.regions_table[nwo.regions_table_active_index].name
-        with ScenarioTag() as scenario:
+        with ScenarioMetadataTag() as scenario:
             self.info = scenario.get_bsp_info(bsp)
         
         if self.info is None:
@@ -1649,7 +1649,7 @@ class NWO_BSPSetLightmapRes(bpy.types.Operator):
         self.info = None
         nwo = get_scene_props()
         bsp = nwo.regions_table[nwo.regions_table_active_index].name
-        with ScenarioTag() as scenario:
+        with ScenarioMetadataTag() as scenario:
             success = scenario.set_bsp_lightmap_res(bsp, int(self.size_class), int(self.refinement_size_class))
             if not success:
                 self.report({'WARNING'}, f"BSP {bsp} does not exist in scenario tag. You may need to export this scene")
