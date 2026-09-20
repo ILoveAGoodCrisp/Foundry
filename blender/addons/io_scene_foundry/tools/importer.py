@@ -22,6 +22,7 @@ from ..managed_blam import import_transform
 from ..managed_blam.cinematic import NativeCinematicTag
 
 from ..managed_blam.decorator_set import DecoratorSetTag
+from ..managed_blam.decal_system import DecalSystemCorinthTag, DecalSystemTag
 
 from ..managed_blam.polyart import PolyArtTag
 
@@ -43,14 +44,6 @@ from ..ui.panel.cinematic import bake_vis_to_keyframes
 from ..managed_blam.object import ObjectTag
 from ..managed_blam.particle_model import ParticleModelTag
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
-from ..managed_blam.scenario import (
-    DECORATOR_ATTR_SCALE,
-    DECORATOR_CLOUD_PROP,
-    DECORATOR_INSTANCE_SOURCE_PROP,
-    DECORATOR_TAG_PROP,
-    DECORATOR_VARIANT_PROP,
-    ScenarioTag,
-)
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.pca_animation import PCAAnimationTag
 from ..managed_blam.render_model import RenderModelTag
@@ -87,6 +80,14 @@ legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 DECORATOR_INSTANCER_GROUP = "Instanced Decorators"
+DECORATOR_CLOUD_PROP = "nwo_decorator_placement_cloud"
+DECORATOR_INSTANCE_SOURCE_PROP = "nwo_decorator_instance_source"
+DECORATOR_TAG_PROP = "nwo_decorator_tag"
+DECORATOR_VARIANT_PROP = "nwo_decorator_variant"
+DECORATOR_ATTR_NORMAL = "normal"
+DECORATOR_ATTR_INFO = "decorator_info"
+DECORATOR_ATTR_SCALE = "decorator_scale"
+DECORATOR_ATTR_TINT = "decorator_tint"
 
 IMPORT_TEMPLATE_VALUES = {
     IMPORT_TEMPLATE_EVERYTHING: {
@@ -370,6 +371,104 @@ def draw_scenario_import_sections(operator, layout, corinth, show_template=True,
         row.prop(operator, "decorator_lod")
     view_box.prop(operator, "build_blender_materials")
     view_box.prop(operator, "always_extract_bitmaps")
+
+def _set_vector_point_attribute(mesh, name, values):
+    attribute = mesh.attributes.new(name, 'FLOAT_VECTOR', 'POINT')
+    attribute.data.foreach_set('vector', np.ascontiguousarray(values, dtype=np.float32).reshape(-1))
+
+
+def _set_color_point_attribute(mesh, name, values):
+    attribute = mesh.attributes.new(name, 'FLOAT_COLOR', 'POINT')
+    attribute.data.foreach_set('color', np.ascontiguousarray(values, dtype=np.float32).reshape(-1))
+
+
+def _decorator_up_vectors(rotations):
+    x, y, z, w = (rotations[:, index] for index in range(4))
+    up = np.empty((len(rotations), 3), dtype=np.float32)
+    up[:, 0] = 2.0 * (x * z + w * y)
+    up[:, 1] = 2.0 * (y * z - w * x)
+    up[:, 2] = 1.0 - 2.0 * (x * x + y * y)
+    lengths = np.linalg.norm(up, axis=1)
+    valid = lengths > 0.000001
+    up[valid] /= lengths[valid, None]
+    up[~valid] = (0.0, 0.0, 1.0)
+    return up
+
+
+def _decorator_rotation_values(rotations, up):
+    x, y, z, w = (rotations[:, index] for index in range(4))
+    original_x = np.empty((len(rotations), 3), dtype=np.float32)
+    original_x[:, 0] = 1.0 - 2.0 * (y * y + z * z)
+    original_x[:, 1] = 2.0 * (x * y + z * w)
+    original_x[:, 2] = 2.0 * (x * z - y * w)
+
+    align = np.empty((len(rotations), 4), dtype=np.float32)
+    align[:, 0] = 1.0 + up[:, 2]
+    align[:, 1] = -up[:, 1]
+    align[:, 2] = up[:, 0]
+    align[:, 3] = 0.0
+    align[align[:, 0] < 0.000001] = (0.0, 1.0, 0.0, 0.0)
+    align /= np.linalg.norm(align, axis=1)[:, None]
+
+    aw, ax, ay, az = (align[:, index] for index in range(4))
+    base_x = np.empty_like(up)
+    base_x[:, 0] = 1.0 - 2.0 * (ay * ay + az * az)
+    base_x[:, 1] = 2.0 * (ax * ay + az * aw)
+    base_x[:, 2] = 2.0 * (ax * az - ay * aw)
+    cross = np.cross(base_x, original_x)
+    sin = np.einsum('ij,ij->i', up, cross)
+    cos = np.einsum('ij,ij->i', base_x, original_x)
+    return np.mod(np.arctan2(sin, cos), 2.0 * np.pi) / (2.0 * np.pi)
+
+
+def _decorator_records_to_clouds(placements, path, name, types, collection, bvh=None):
+    grouped = defaultdict(list)
+    for placement in placements:
+        decorator_type = types.get(placement.type_index)
+        if decorator_type is None:
+            continue
+        position = Vector(tuple(value * 100 for value in placement.position))
+        if bvh and not utils.test_point_bvh(bvh, position):
+            continue
+        grouped[placement.type_index].append(placement)
+
+    clouds = []
+    placement_count = 0
+    for type_index, records in grouped.items():
+        decorator_type = types[type_index]
+        placement_count += len(records)
+        cloud_name = f'{name}_{decorator_type.decorator_type_name}_decorator_cloud'
+        positions = np.asarray([record.position for record in records], dtype=np.float32) * 100.0
+        rotations = np.asarray([record.rotation for record in records], dtype=np.float32)
+        mesh = bpy.data.meshes.new(cloud_name)
+        mesh.vertices.add(len(records))
+        mesh.vertices.foreach_set('co', positions.reshape(-1))
+        up = _decorator_up_vectors(rotations)
+        _set_vector_point_attribute(mesh, DECORATOR_ATTR_NORMAL, up)
+        info = np.ones((len(records), 4), dtype=np.float32)
+        info[:, 0] = _decorator_rotation_values(rotations, up)
+        info[:, 1] = np.asarray([record.ground_tint for record in records], dtype=np.float32) / 255.0
+        info[:, 2] = np.asarray([record.motion_scale for record in records], dtype=np.float32) / 255.0
+        _set_color_point_attribute(mesh, DECORATOR_ATTR_INFO, info)
+        scale = np.ones((len(records), 4), dtype=np.float32)
+        scale[:, :3] = np.asarray([record.scale for record in records], dtype=np.float32)[:, None]
+        _set_color_point_attribute(mesh, DECORATOR_ATTR_SCALE, scale)
+        tint = np.ones((len(records), 4), dtype=np.float32)
+        tint[:, :3] = np.asarray([record.tint for record in records], dtype=np.float32) ** 2.2
+        _set_color_point_attribute(mesh, DECORATOR_ATTR_TINT, tint)
+        mesh.transform(import_transform.mesh_matrix())
+        mesh.update()
+
+        ob = bpy.data.objects.new(name=cloud_name, object_data=mesh)
+        ob.matrix_world = import_transform.rotation_matrix()
+        ob[DECORATOR_CLOUD_PROP] = True
+        ob[DECORATOR_TAG_PROP] = path
+        ob[DECORATOR_VARIANT_PROP] = decorator_type.decorator_type_name
+        ob.nwo.export_this = False
+        collection.objects.link(ob)
+        clouds.append(ob)
+    return clouds, placement_count
+
 
 def _decorator_cloud_marker_data(cloud: bpy.types.Object):
     tag_path = cloud.get(DECORATOR_TAG_PROP) or cloud.nwo.marker_game_instance_tag_name
@@ -3548,8 +3647,183 @@ class NWOImporter:
         
         return actions
     
-    def import_scenario_data(self):
-        pass
+    def _scenario_objects_to_blender(self, scenario, parent_collection=None, bvh=None, bsp_indices=None):
+        object_name_count, folder_records, placements = scenario.object_placements()
+        objects = []
+        child_objects = {}
+        skeleton_poses = []
+
+        objects_collection = bpy.data.collections.new(name=f"{scenario.tag_path.ShortName}_objects")
+        objects_collection.nwo.type = 'exclude'
+        if parent_collection is None:
+            bpy.context.scene.collection.children.link(objects_collection)
+        else:
+            parent_collection.children.link(objects_collection)
+
+        folders = []
+        for record in folder_records:
+            folder = bpy.data.collections.new(record.name)
+            folders.append(folder)
+        for folder, record in zip(folders, folder_records):
+            if 0 <= record.parent_index < len(folders):
+                folders[record.parent_index].children.link(folder)
+            else:
+                objects_collection.children.link(folder)
+
+        named_objects = [None] * object_name_count
+        used_folders = set()
+        for block_name, _ in scenario.OBJECT_BLOCKS:
+            block_placements = [placement for placement in placements
+                                if placement.block_name == block_name]
+            if not block_placements:
+                continue
+            print(f"Creating Scenario {block_name.capitalize()} Objects")
+            collection = bpy.data.collections.new(name=block_name)
+            objects_collection.children.link(collection)
+            used_collection = False
+            for placement in block_placements:
+                if placement.definition is None:
+                    continue
+                if bsp_indices is not None and placement.bsps:
+                    if not placement.bsps.intersection(bsp_indices):
+                        continue
+                elif bvh:
+                    point = Vector(tuple(value * 100 for value in placement.position))
+                    if not utils.test_point_bvh(bvh, point):
+                        continue
+
+                position = Vector(tuple(value * 100 for value in placement.position))
+                yaw, pitch, roll = placement.rotation
+                rotation = Euler((roll, -pitch, yaw), 'ZYX')
+                ob = bpy.data.objects.new(name=placement.name, object_data=None)
+                ob.empty_display_type = "ARROWS"
+                ob.matrix_world = import_transform.marker_matrix(Matrix.LocRotScale(
+                    position, rotation, Vector.Fill(3, placement.scale)))
+                ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+                ob.nwo.marker_game_instance_tag_name = placement.definition
+                ob.nwo.marker_game_instance_tag_variant_name = placement.variant
+
+                if 0 <= placement.name_index < len(named_objects):
+                    named_objects[placement.name_index] = ob
+                if placement.parent_index >= 0:
+                    child_objects[ob] = placement.parent_index
+                if 0 <= placement.folder_index < len(folders):
+                    folder = folders[placement.folder_index]
+                    folder.objects.link(ob)
+                    used_folders.add(folder)
+                else:
+                    collection.objects.link(ob)
+                    used_collection = True
+                objects.append(ob)
+                skeleton_poses.append(None)
+
+            if not used_collection:
+                bpy.data.collections.remove(collection)
+
+        for ob, parent_index in child_objects.items():
+            if 0 <= parent_index < len(named_objects):
+                parent = named_objects[parent_index]
+                if parent is not None:
+                    ob.parent = parent
+
+        for folder in folders:
+            if folder in used_folders:
+                continue
+            if not any(child in used_folders for child in folder.children_recursive):
+                bpy.data.collections.remove(folder)
+
+        return objects, skeleton_poses
+
+    def _scenario_decals_to_blender(self, scenario, parent_collection=None, bvh=None, bsp_indices=None):
+        placements = scenario.decal_placements()
+        if not placements:
+            return []
+        print("Creating Scenario Decals")
+        collection = bpy.data.collections.new(name=f"{scenario.tag_path.ShortName}_decals")
+        collection.nwo.type = 'exclude'
+        if parent_collection is None:
+            bpy.context.scene.collection.children.link(collection)
+        else:
+            parent_collection.children.link(collection)
+
+        material_cache = {}
+        objects = []
+        for placement in placements:
+            if placement.definition is None:
+                continue
+            has_bsp_filter = bsp_indices is not None and placement.bsps
+            if has_bsp_filter:
+                if not placement.bsps.intersection(bsp_indices):
+                    continue
+            position = Vector(tuple(value * 100 for value in placement.position))
+            if not has_bsp_filter and bvh and not utils.test_point_bvh(bvh, position):
+                continue
+
+            material = material_cache.get(placement.definition)
+            if placement.definition not in material_cache:
+                material = None
+                tag_type = DecalSystemCorinthTag if scenario.corinth else DecalSystemTag
+                with tag_type(path=placement.definition) as decal:
+                    for element in decal.tag.SelectField("Block:decals").Elements:
+                        decal_name = f'{decal.tag_path.ShortName}_{element.SelectField("StringId:decal name").GetStringData()}'
+                        material = bpy.data.materials.get(decal_name)
+                        if material is None:
+                            decal.reread_fields(element.ElementIndex)
+                            material = bpy.data.materials.new(decal_name)
+                            decal.to_nodes(material, generated_uvs=True)
+                material_cache[placement.definition] = material
+
+            scale_x, scale_y = (value * 100 for value in placement.scale)
+            mesh = bpy.data.meshes.new(placement.name)
+            mesh.from_pydata((
+                (-scale_x / 2, -scale_y / 2, 0),
+                (scale_x / 2, -scale_y / 2, 0),
+                (scale_x / 2, scale_y / 2, 0),
+                (-scale_x / 2, scale_y / 2, 0),
+            ), [], ((0, 1, 2, 3),))
+            mesh.transform(import_transform.mesh_matrix())
+            ob = bpy.data.objects.new(name=placement.name, object_data=mesh)
+            rotation = utils.ijkw_to_wxyz(placement.rotation)
+            matrix = Matrix.LocRotScale(position, rotation, Vector.Fill(3, 1))
+            normal = matrix.to_3x3() @ Vector((0, 0, 1))
+            matrix.translation += normal.normalized() * 0.1
+            ob.matrix_world = import_transform.object_matrix(matrix)
+            if material is not None:
+                mesh.materials.append(material)
+            collection.objects.link(ob)
+            objects.append(ob)
+        return objects
+
+    def _scenario_decorators_to_blender(self, scenario, parent_collection=None, bvh=None):
+        start_time = time.perf_counter()
+        decorator_sets = scenario.decorator_sets()
+        if not decorator_sets:
+            return []
+        print("Creating Scenario Decorators")
+        collection = bpy.data.collections.new(name=f"{scenario.tag_path.ShortName}_decorators")
+        if parent_collection is None:
+            bpy.context.scene.collection.children.link(collection)
+        else:
+            parent_collection.children.link(collection)
+
+        objects = []
+        placement_count = 0
+        for record in decorator_sets:
+            with DecoratorSetTag(path=record.definition) as decorator_set:
+                types = {item.decorator_type_index: item
+                         for item in decorator_set.get_decorator_types()}
+            print(f"  Processing {record.definition} - {len(record.placements)} placed in scenario")
+            clouds, accepted = _decorator_records_to_clouds(
+                record.placements, record.definition, record.name, types, collection, bvh)
+            objects.extend(clouds)
+            placement_count += accepted
+
+        elapsed = time.perf_counter() - start_time
+        if placement_count != len(objects):
+            print(f"Finished creating {placement_count} decorator placements in {len(objects)} cloud objects in {elapsed:.3f}s total")
+        else:
+            print(f"Finished creating {len(objects)} decorators in {elapsed:.3f}s total")
+        return objects
     
     def import_scenarios(self, paths, build_blender_materials, always_extract_bitmaps, return_collection=False, merge_sky_to_scenario_collection=False):
         imported_objects = []
@@ -3560,7 +3834,7 @@ class NWOImporter:
                 utils.print_section(f'Importing Scenario Tag: {Path(file).with_suffix("").name}')
             structure_collision = []
             with utils.TagImportMover(self.tags_dir, file) as mover:
-                with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
+                with ScenarioMetadataTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
                     all_bsps = scenario.get_bsp_paths()
@@ -3623,7 +3897,8 @@ class NWOImporter:
                                             
                     def import_scenario_data(child_scenario, child_collection):
                         if self.tag_scenario_import_objects:
-                            game_objects, skeleton_poses = child_scenario.objects_to_blender(child_collection, structure_collision, bsp_indices)
+                            game_objects, skeleton_poses = self._scenario_objects_to_blender(
+                                child_scenario, child_collection, structure_collision, bsp_indices)
                             if game_objects:
                                 print("Importing Game Object Geometry")
                                 imported_objects.extend(game_objects)
@@ -3655,10 +3930,14 @@ class NWOImporter:
                                     ob.nwo.marker_instance = True
                                     
                         if self.tag_scenario_import_decals:
-                            imported_objects.extend(child_scenario.decals_to_blender(child_collection, structure_collision, bsp_indices))
+                            imported_objects.extend(self._scenario_decals_to_blender(
+                                child_scenario,
+                                child_collection, structure_collision, bsp_indices))
                             
                         if self.tag_scenario_import_decorators:
-                            decorator_objects = child_scenario.decorators_to_blender(child_collection, structure_collision)
+                            decorator_objects = self._scenario_decorators_to_blender(
+                                child_scenario,
+                                child_collection, structure_collision)
                             if decorator_objects:
                                 print("Importing Decorator Set Geometry")
                                 imported_objects.extend(decorator_objects)
@@ -3690,20 +3969,25 @@ class NWOImporter:
                                     ob.instance_collection = game_object_collection
                                     ob.nwo.marker_instance = True
                                             
-                    import_scenario_data(scenario, scenario_collection)
+                    import_content = (
+                        self.tag_scenario_import_objects
+                        or self.tag_scenario_import_decals
+                        or self.tag_scenario_import_decorators
+                    )
+                    if import_content:
+                        import_scenario_data(scenario, scenario_collection)
                     
                     if self.corinth:
-                        for child in scenario.tag.SelectField("Block:child scenarios").Elements:
-                            child_path = child.Fields[0].Path
-                            if scenario.path_exists(child_path):
-                                print(f"--- Importing data from child scenario: {child_path.ShortName}")
-                                child_coll = bpy.data.collections.new(child_path.ShortName)
-                                scenario_collection.children.link(child_coll)
-                                with ScenarioTag(path=child_path) as child_scen:
-                                    import_scenario_data(child_scen, child_coll)
-                                    
-                                if not child_coll.all_objects:
-                                    bpy.data.collections.remove(child_coll)
+                        for child_path in scenario.child_scenario_paths():
+                            print(f"--- Importing data from child scenario: {child_path.ShortName}")
+                            child_coll = bpy.data.collections.new(child_path.ShortName)
+                            scenario_collection.children.link(child_coll)
+                            if import_content:
+                                with ScenarioMetadataTag(path=child_path) as child_scenario:
+                                    import_scenario_data(child_scenario, child_coll)
+
+                            if not child_coll.all_objects:
+                                bpy.data.collections.remove(child_coll)
 
                     if self.setup_as_asset:
                         set_asset(Path(file).suffix)

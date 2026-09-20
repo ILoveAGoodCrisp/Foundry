@@ -28,7 +28,9 @@ SCHEMAS = ('scenario.json', 'scenario_cinematics_resource.json',
            'device_dispenser.json', 'spawner.json',
            'device_machine.json', 'device_control.json', 'device_terminal.json', 'projectile.json',
            'sound_scenery.json', 'effect_scenery.json', 'light.json', 'cheap_light.json',
-           'structure_seams.json', 'structure_meta.json', 'pca_animation.json', 'collision_model.json', 'physics_model.json')
+           'structure_seams.json', 'structure_meta.json', 'pca_animation.json', 'collision_model.json', 'physics_model.json',
+           'camera_fx_settings.json', 'area_screen_effect.json', 'ssao_definition.json',
+           'atmosphere_globals.json', 'sky_atm_parameters.json', 'chocolate_mountain_new.json')
 
 
 def stage_schemas(source, addon):

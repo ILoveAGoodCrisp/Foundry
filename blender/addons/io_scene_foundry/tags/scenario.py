@@ -1,4 +1,5 @@
 """Native scenario metadata and lightweight editor operations."""
+from dataclasses import dataclass
 from pathlib import Path
 import shutil
 
@@ -6,8 +7,92 @@ from .backend import TagDocument
 from .blender import BlenderTag
 
 
+@dataclass(frozen=True)
+class ScenarioEditorFolder:
+    name: str
+    parent_index: int
+
+
+@dataclass(frozen=True)
+class ScenarioObjectPlacement:
+    block_name: str
+    name: str
+    name_index: int
+    definition: str | None
+    variant: str
+    position: tuple[float, float, float]
+    rotation: tuple[float, float, float]
+    scale: float
+    folder_index: int
+    parent_index: int
+    bsps: frozenset[int]
+
+
+@dataclass(frozen=True)
+class ScenarioDecalPlacement:
+    name: str
+    definition: str | None
+    position: tuple[float, float, float]
+    rotation: tuple[float, float, float, float]
+    scale: tuple[float, float]
+    bsps: frozenset[int]
+
+
+@dataclass(frozen=True)
+class ScenarioDecoratorPlacement:
+    position: tuple[float, float, float]
+    rotation: tuple[float, float, float, float]
+    scale: float
+    type_index: int
+    motion_scale: int
+    ground_tint: int
+    tint: tuple[float, float, float]
+
+
+@dataclass(frozen=True)
+class ScenarioDecoratorSet:
+    definition: str
+    name: str
+    placements: tuple[ScenarioDecoratorPlacement, ...]
+
+
 class ScenarioMetadataTag(BlenderTag, TagDocument):
     tag_ext = 'scenario'
+
+    OBJECT_BLOCKS = (
+        ('scenery', 'scenery palette'),
+        ('bipeds', 'biped palette'),
+        ('vehicles', 'vehicle palette'),
+        ('equipment', 'equipment palette'),
+        ('weapons', 'weapon palette'),
+        ('machines', 'machine palette'),
+        ('terminals', 'terminal palette'),
+        ('controls', 'control palette'),
+        ('giants', 'giant palette'),
+        ('crates', 'crate palette'),
+    )
+
+    TEMPLATE_PALETTES = (
+        'scenery palette', 'biped palette', 'vehicle palette',
+        'equipment palette', 'weapon palette', 'machine palette',
+        'terminal palette', 'control palette', 'dispenser palette',
+        'spawner palette', 'bink palette', 'sound scenery palette',
+        'giant palette', 'effect scenery palette', 'map variant palettes',
+        'map variant palettes compatibility', 'Playtest req palette',
+        'decal palette', 'detail object collection palette',
+        'style pallette', 'character palette', 'acoustics palette',
+        'atmosphere', 'camera fx palette', 'weather palette', 'crate palette',
+        'flock palette', 'creature palette', 'big battle creature palette',
+        'neuticle palette', 'cinematic lighting palette',
+    )
+    GLOBAL_TAGS = (
+        ('camera effects', 'camera_fx_settings'),
+        ('global screen effect', 'area_screen_effect'),
+        ('global ssao', 'ssao_definition'),
+        ('atmosphere globals', 'atmosphere_globals'),
+        ('old atmosphere', 'sky_atm_parameters'),
+        ('chocalate mountain', 'chocolate_mountain_new'),
+    )
 
     def _set_value(self, struct, name, value):
         self.required_field(struct, name).set(value)
@@ -90,6 +175,96 @@ class ScenarioMetadataTag(BlenderTag, TagDocument):
         if equipment is not None and defaults.get('starting equipment') is not None:
             self.set_reference(profile, 'starting equipment', defaults['starting equipment'])
         self.tag_has_changes = True
+
+    @staticmethod
+    def _optional_block(struct, name):
+        field = struct.field(name)
+        return field.as_block() if field is not None else None
+
+    def copy_template_data(self, template):
+        root = self.tag.root()
+        template_root = template.tag.root()
+
+        skies = self._optional_block(root, 'skies')
+        template_skies = self._optional_block(template_root, 'skies')
+        if skies is not None and template_skies is not None and not len(skies) and len(template_skies):
+            skies.copy_from(template_skies)
+            template_names = template.block(template_root, 'object names')
+            for sky_index in range(len(template_skies)):
+                name_index = template.value(template_skies[sky_index], 'name')
+                root = self.tag.root()
+                skies = self.block(root, 'skies')
+                if not isinstance(name_index, int) or not 0 <= name_index < len(template_names):
+                    self._set_value(skies[sky_index], 'name', -1)
+                    continue
+                snapshot = template_names.snapshot(name_index)
+                object_names = self.block(root, 'object names')
+                new_name_index = object_names.paste(len(object_names), snapshot)
+                root = self.tag.root()
+                skies = self.block(root, 'skies')
+                self._set_value(skies[sky_index], 'name', new_name_index)
+            self.tag_has_changes = True
+
+        for name in self.TEMPLATE_PALETTES:
+            root = self.tag.root()
+            destination = self._optional_block(root, name)
+            source = self._optional_block(template_root, name)
+            if destination is None or source is None or len(destination) or not len(source):
+                continue
+            destination.copy_from(source)
+            self.tag_has_changes = True
+
+        root = self.tag.root()
+        decorators = self._optional_block(root, 'decorators')
+        template_decorators = self._optional_block(template_root, 'decorators')
+        if (decorators is not None and template_decorators is not None
+                and not len(decorators) and len(template_decorators)):
+            decorator_index = decorators.add()
+            root = self.tag.root()
+            decorators = self.block(root, 'decorators')
+            sets = self.block(decorators[decorator_index], 'sets')
+            template_sets = template.block(template_decorators[0], 'sets')
+            for template_set in template_sets:
+                reference = template.reference(template_set, 'decorator set')
+                set_index = sets.add()
+                root = self.tag.root()
+                decorators = self.block(root, 'decorators')
+                sets = self.block(decorators[decorator_index], 'sets')
+                if reference is not None:
+                    self.set_reference(sets[set_index], 'decorator set', reference)
+            self.tag_has_changes = True
+
+    def copy_template_globals(self, template):
+        root = self.tag.root()
+        template_root = template.tag.root()
+        for field_name, extension in self.GLOBAL_TAGS:
+            if root.field(field_name) is None or template_root.field(field_name) is None:
+                continue
+            source = template.reference(template_root, field_name)
+            current = self.reference(root, field_name)
+            if not template.path_exists(source) or self.path_exists(current):
+                continue
+            destination = self.system_path.with_suffix('.' + extension)
+            source_path = Path(source.Filename)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if source_path.resolve() != destination.resolve():
+                shutil.copy2(source_path, destination)
+            self.set_reference(root, field_name, destination)
+
+    def ensure_global_tags(self):
+        root = self.tag.root()
+        for field_name, extension in self.GLOBAL_TAGS:
+            if root.field(field_name) is None:
+                continue
+            current = self.reference(root, field_name)
+            if self.path_exists(current):
+                continue
+            destination = self.system_path.with_suffix('.' + extension)
+            if not destination.is_file():
+                with TagDocument(destination, tags_root=self.tags_root, game=self.game,
+                                 extension=extension, definitions=self.definitions):
+                    pass
+            self.set_reference(root, field_name, destination)
 
     def survival_mode(self):
         return self.scenario_type() == 0 and self.required_field(self.tag.root(), 'flags').get_flag('survival')
@@ -194,6 +369,168 @@ class ScenarioMetadataTag(BlenderTag, TagDocument):
         return [reference.RelativePathWithExtension for element in self.block(root, 'skies')
                 if (reference := self.reference(element, 'sky')) is not None
                 and self.path_exists(reference)]
+
+    def child_scenario_paths(self):
+        root = self.tag.root()
+        children = self._optional_block(root, 'child scenarios')
+        if children is None:
+            return []
+        return [reference for element in children
+                if (reference := self.reference(element, 'tag')) is not None
+                and self.path_exists(reference)]
+
+    def object_placements(self):
+        root = self.tag.root()
+        object_names = [self.value(element, 'name') for element in self.block(root, 'object names')]
+        folders = []
+        for element in self.block(root, 'editor folders'):
+            parent_index = self.value(element, 'parent folder')
+            folders.append(ScenarioEditorFolder(
+                self.value(element, 'name') or '',
+                parent_index if isinstance(parent_index, int) else -1,
+            ))
+        placements = []
+
+        for block_name, palette_name in self.OBJECT_BLOCKS:
+            block = self._optional_block(root, block_name)
+            palette_block = self._optional_block(root, palette_name)
+            if block is None or palette_block is None:
+                continue
+            palette = [self.reference(element, 'name') for element in palette_block]
+            for element_index, element in enumerate(block):
+                type_index = self.value(element, 'type')
+                reference = palette[type_index] if isinstance(type_index, int) and 0 <= type_index < len(palette) else None
+                definition = reference.RelativePathWithExtension if self.path_exists(reference) else None
+                name_index = self.value(element, 'name')
+                if isinstance(name_index, int) and 0 <= name_index < len(object_names):
+                    name = object_names[name_index]
+                elif reference is not None:
+                    name = f'{reference.ShortName}:{element_index}'
+                else:
+                    name = 'object'
+
+                object_data = self.required_field(element, 'object data').as_struct()
+                if object_data is None:
+                    raise TypeError(f'{self.path}: {block_name}[{element_index}] object data is not a struct')
+                position = self.value(object_data, 'position')
+                rotation = self.value(object_data, 'rotation')
+                scale = self.value(object_data, 'scale') or 1.0
+                folder_index = self.value(object_data, 'editor folder')
+                if not isinstance(folder_index, int):
+                    folder_index = -1
+
+                parent_index = -1
+                parent_field = object_data.field('parent id')
+                parent = parent_field.as_struct() if parent_field is not None else None
+                if parent is not None:
+                    parent_index = self.value(parent, 'parent object')
+                    if not isinstance(parent_index, int):
+                        parent_index = -1
+
+                bsps = set()
+                object_id_field = object_data.field('object id')
+                object_id = object_id_field.as_struct() if object_id_field is not None else None
+                if object_id is not None:
+                    origin_bsp = self.value(object_id, 'origin bsp index')
+                    if isinstance(origin_bsp, int) and origin_bsp >= 0:
+                        bsps.add(origin_bsp)
+                if not self.corinth and not bsps:
+                    for flag_name in ('manual bsp flags', 'can attach to bsp flags'):
+                        field = object_data.field(flag_name)
+                        if field is not None:
+                            bsps.update(self._active_indices(field.value, 32))
+
+                permutation_field = element.field('permutation data')
+                permutation = permutation_field.as_struct() if permutation_field is not None else None
+                variant = self.value(permutation, 'variant name') if permutation is not None else ''
+                placements.append(ScenarioObjectPlacement(
+                    block_name=block_name,
+                    name=name or 'object',
+                    name_index=name_index,
+                    definition=definition,
+                    variant=variant or '',
+                    position=(position.x, position.y, position.z),
+                    rotation=(rotation.yaw, rotation.pitch, rotation.roll),
+                    scale=scale,
+                    folder_index=folder_index,
+                    parent_index=parent_index,
+                    bsps=frozenset(bsps),
+                ))
+        return len(object_names), folders, placements
+
+    def decal_placements(self):
+        root = self.tag.root()
+        palette_block = self._optional_block(root, 'decal palette')
+        decal_block = self._optional_block(root, 'decals')
+        if palette_block is None or decal_block is None:
+            return []
+        palette = [self.reference(element, 'reference') for element in palette_block]
+        placements = []
+        for element in decal_block:
+            palette_index = self.value(element, 'decal palette index')
+            reference = palette[palette_index] if isinstance(palette_index, int) and 0 <= palette_index < len(palette) else None
+            definition = reference.RelativePathWithExtension if self.path_exists(reference) else None
+            position = self.value(element, 'position')
+            rotation = self.value(element, 'rotation')
+            scale_x_field = element.field('scale x')
+            if scale_x_field is not None:
+                scale = (scale_x_field.value, self.value(element, 'scale y'))
+            else:
+                uniform_scale = self.value(element, 'scale')
+                scale = (uniform_scale, uniform_scale)
+            bsps = set()
+            flags = element.field('manual bsp flags')
+            if flags is not None and not self.corinth:
+                bsps.update(self._active_indices(flags.value, 32))
+            placements.append(ScenarioDecalPlacement(
+                name=reference.ShortName if reference is not None else 'decal',
+                definition=definition,
+                position=(position.x, position.y, position.z),
+                rotation=(rotation.i, rotation.j, rotation.k, rotation.w),
+                scale=scale,
+                bsps=frozenset(bsps),
+            ))
+        return placements
+
+    def decorator_sets(self):
+        root = self.tag.root()
+        decorators = self._optional_block(root, 'decorators')
+        if decorators is None or not len(decorators):
+            return []
+        sets = self._optional_block(decorators[0], 'sets')
+        if sets is None:
+            return []
+        result = []
+        for element in sets:
+            reference = self.reference(element, 'decorator set')
+            if not self.path_exists(reference):
+                continue
+            placement_block = self.block(element, 'placements')
+            placements = []
+            for placement in placement_block:
+                position = self.value(placement, 'position')
+                rotation = self.value(placement, 'rotation')
+                tint = self.value(placement, 'tint color')
+                motion_scale = int(self.value(placement, 'motion scale'))
+                ground_tint = int(self.value(placement, 'ground tint'))
+                if not self.corinth:
+                    motion_scale &= 0xFF
+                    ground_tint &= 0xFF
+                placements.append(ScenarioDecoratorPlacement(
+                    position=(position.x, position.y, position.z),
+                    rotation=(rotation.i, rotation.j, rotation.k, rotation.w),
+                    scale=float(self.value(placement, 'scale')),
+                    type_index=int(self.value(placement, 'type index')),
+                    motion_scale=motion_scale,
+                    ground_tint=ground_tint,
+                    tint=(tint.x, tint.y, tint.z),
+                ))
+            result.append(ScenarioDecoratorSet(
+                definition=reference.RelativePathWithExtension,
+                name=reference.ShortName,
+                placements=tuple(placements),
+            ))
+        return result
 
     @staticmethod
     def _set_point(field, point):

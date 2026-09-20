@@ -22,11 +22,14 @@ Common scenario metadata and lightweight edits now use `ScenarioMetadataTag`:
 scenario type/firefight detection, BSP/design/sky discovery, zone sets, lightmap
 settings, sky assignment, cutscene titles and anchors, scenario copies, debug zone
 sets, default starting profiles, airprobe export, cubemap generation and decorator
-export. Launcher, cache builder, lightmapper, cinematic UI and scenario import
-setup callers use this native path. Cubemap split-resource mirroring and BSP bitmap
+export, plus template palette and scenario-global tag export. Launcher, cache builder, lightmapper, cinematic UI and scenario import
+setup callers use this native path. The full scenario importer now uses it for
+scenario type, BSP/design/sky metadata and child-scenario discovery. Placed objects read their
+palettes, names, transforms, variants, BSP membership, editor folders and parent
+links natively; decals and decorator placement clouds also read native records.
+The obsolete legacy scenario wrapper has been removed. Cubemap split-resource mirroring and BSP bitmap
 references are native; bitmap checksum edits use the native bitmap wrapper. The
-remaining legacy scenario wrapper is retained for the template/global export block
-and full scenario object/decorator import, including child scenarios.
+scenario and child-scenario import no longer use the legacy scenario wrapper.
 
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
@@ -109,9 +112,9 @@ The source audit updated on 2026-09-19 found:
   lightmapper globals, cinematic-lighting metadata, light tags, cheap lights,
   structure seams, structure metadata, authored PCA animation, collision models,
   scenario metadata/editing and scenario airprobes.
-- 14 tag classes still inherit the legacy `Tag` base, directly or indirectly:
-  5 direct wrappers and 9 shader/material/decal subclasses.
-- 14 modules under `managed_blam` still contain `SelectField` calls (excluding
+- 13 tag classes still inherit the legacy `Tag` base, directly or indirectly:
+  4 direct wrappers and 9 shader/material/decal subclasses.
+- 13 modules under `managed_blam` still contain `SelectField` calls (excluding
   the legacy base and generated type declarations).
 
 Physics also uses native records for constraints, spheres, capsules, boxes, convex
@@ -246,7 +249,7 @@ its mass update was verified by reopening a temporary physics tag.
 | Geometry and resources | Port render models and the remaining collision, physics, decorator and polyart resource paths, including Blender mesh/skeleton construction. Particle-model import is native. |
 | Animation | Expose animation decoding and port graph edits, frame events, PCA and animation import. |
 | Bitmaps | Review the native/Python extraction path across formats, mipmaps, cubemaps and material texture use; complete any resource layouts not represented by processed pixel data. |
-| Scenarios and cinematics | Port template/global scenario export, full scenario object/decorator import, BSP/structure editors, lighting-info export, cinematic scene/data writers and remaining referenced-resource workflows. Top-level cinematic writing and common scenario/cubemap/decorator edits are native. |
+| Scenarios and cinematics | Port BSP/structure editors, lighting-info export, cinematic scene/data writers and remaining referenced-resource workflows. Scenario object/decal/decorator import, top-level cinematic writing, template/global scenario export and common scenario/cubemap/decorator edits are native. |
 | Dependency removal and acceptance | Remove startup validation and DLL initialization, revise packaging/UI, and run representative complete imports and exports with ManagedBlam unavailable. |
 
 The Rust library already contains functionality in several of these areas, but
