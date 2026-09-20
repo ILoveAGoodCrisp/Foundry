@@ -83,6 +83,9 @@ references. Ranges, detached sound/effect/dialogue events, clearing and aborted
 writes are covered by save/reopen tests. Populated script events have no Blender
 mapping and raise explicitly for affected animations. The containing animation
 graph is still legacy, so this does not complete animation import/export migration.
+The native wrapper and Blender event records now live under `tags`; the legacy
+animation graph keeps its graph-field adapter locally and no longer imports a
+ManagedBlam frame-event module.
 Read-only sampling of 60 real frame-event lists decoded 4,696 animation entries
 and 3,623 event records with no errors or source-byte changes. Editing-kit
 acceptance of newly written event lists remains unverified.
@@ -114,7 +117,7 @@ The source audit updated on 2026-09-19 found:
   scenario metadata/editing and scenario airprobes.
 - 13 tag classes still inherit the legacy `Tag` base, directly or indirectly:
   4 direct wrappers and 9 shader/material/decal subclasses.
-- 13 modules under `managed_blam` still contain `SelectField` calls (excluding
+- 12 modules under `managed_blam` still contain `SelectField` calls (excluding
   the legacy base and generated type declarations).
 
 Physics also uses native records for constraints, spheres, capsules, boxes, convex

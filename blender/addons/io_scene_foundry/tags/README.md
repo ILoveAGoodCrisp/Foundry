@@ -26,6 +26,7 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
   schema. Incompatible layouts raise explicitly.
 - Top-level cinematic import/export and its scenario bookkeeping, including
   transition tags, scripts, scene references, zone sets and anchors.
+- Frame-event-list import/export, shared references and partial animation updates.
 - Scenario metadata and lightweight editing for type detection, BSP/design/sky
   discovery, zone sets, lightmap settings, sky assignment, cutscene titles,
   scenario copies, default player profiles, debug zone sets, airprobe export,

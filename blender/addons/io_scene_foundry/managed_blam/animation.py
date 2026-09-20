@@ -11,7 +11,7 @@ from typing import cast
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 
-from .frame_event_list import AnimationEvent, DialogueEvent, EffectEvent, FrameEventListTag, Reference, SoundEvent
+from ..tags.frame_event_list import AnimationEvent, DialogueEvent, EffectEvent, FrameEventListTag, Reference, SoundEvent
 
 from .Tags import TagFieldBlockElement
 
@@ -68,6 +68,66 @@ PRESERVE_REPLACEMENT_OBJECT_SPACE_PARENT_FRAME = True
 # Object-space parent nodes are metadata generated from frame 0 by Tool.
 # Set APPLY_OBJECT_SPACE_PARENT_CORRECTION_TO_FULL_ANIMATION to False to use
 # frame-0-only preservation instead of baking the correction across playback.
+
+
+def _legacy_enum_name(element, selector):
+    field = element.SelectField(selector)
+    return field.Items[field.Value].DisplayName
+
+
+def _legacy_event_reference(element, corinth):
+    reference = Reference()
+    path = element.Fields[0].Path
+    if path is not None:
+        reference.tag = path.RelativePathWithExtension
+    flags = element.SelectField("WordFlags:flags")
+    for attribute, name in FrameEventListTag.reference_flags:
+        setattr(reference, attribute, flags.TestBit(name))
+    if corinth:
+        model = element.SelectField("Reference:model").Path
+        if model is not None:
+            reference.model_tag = model.RelativePathWithExtension
+        reference.variant = element.SelectField("StringId:variant").GetStringData()
+    return reference
+
+
+def _legacy_graph_animation_event(element):
+    event = AnimationEvent()
+    event.frame = utils.blender_frame(element.SelectField("ShortInteger:frame").Data)
+    event.end_frame = event.frame
+    event.type = _legacy_enum_name(element, "ShortEnum:type")
+    if event.type in {'jetpack closed', 'jetpack open', 'sound event', 'effect event'}:
+        event.type = 'none'
+    return event
+
+
+def _legacy_graph_sound_event(element, references):
+    event = SoundEvent()
+    event.frame_offset = element.SelectField("ShortInteger:frame").Data
+    event.marker_name = element.SelectField("StringId:marker name").GetStringData()
+    index = element.SelectField("ShortBlockIndex:sound").Value
+    if 0 <= index < len(references):
+        event.sound_reference = references[index]
+    return event
+
+
+def _legacy_graph_effect_event(element, references):
+    event = EffectEvent()
+    event.frame_offset = element.SelectField("ShortInteger:frame").Data
+    event.marker_name = element.SelectField("StringId:marker name").GetStringData()
+    index = element.SelectField("ShortBlockIndex:effect").Value
+    if 0 <= index < len(references):
+        event.effect_reference = references[index]
+    event.damage_effect_reporting_type = _legacy_enum_name(
+        element, "CharEnum:damage effect reporting type")
+    return event
+
+
+def _legacy_graph_dialogue_event(element):
+    event = DialogueEvent()
+    event.frame_offset = element.SelectField("ShortInteger:frame").Data
+    event.dialogue_type = _legacy_enum_name(element, "ShortEnum:dialogue event")
+    return event
 
 RESOURCE_SECTION_ORDER = (
     "static_node_flags",
@@ -5364,15 +5424,11 @@ class AnimationTag(Tag):
                 
         unique_sounds = []
         for element in self.block_sound_references.Elements:
-            ref = Reference()
-            ref.from_element(element, self.corinth)
-            unique_sounds.append(ref)
+            unique_sounds.append(_legacy_event_reference(element, self.corinth))
             
         unique_effects = []
         for element in self.block_effect_references.Elements:
-            ref = Reference()
-            ref.from_element(element, self.corinth)
-            unique_effects.append(ref)
+            unique_effects.append(_legacy_event_reference(element, self.corinth))
         
         blender_animations = {a.name.replace(":", " "): a for a in imported_animations if a.export_this}
         blender_markers = {ob.nwo.marker_model_group: ob for ob in bpy.data.objects if ob.type == 'EMPTY'}
@@ -5393,9 +5449,7 @@ class AnimationTag(Tag):
             animation_events: list[AnimationEvent] = []
             
             for element in animation.SelectField("Block:shared animation data[0]/Block:frame events").Elements:
-                event = AnimationEvent()
-                event.from_element(element, True)
-                animation_events.append(event)
+                animation_events.append(_legacy_graph_animation_event(element))
                 
             none_event = None
             
@@ -5406,8 +5460,7 @@ class AnimationTag(Tag):
             
             for element in animation.SelectField("Block:shared animation data[0]/Block:sound events").Elements:
                 if element.SelectField("ShortBlockIndex:sound").Value > -1:
-                    sound_event = SoundEvent()
-                    sound_event.from_element(element, unique_sounds, True)
+                    sound_event = _legacy_graph_sound_event(element, unique_sounds)
                     
                     if sound_event.sound_reference is None:
                         continue
@@ -5419,8 +5472,7 @@ class AnimationTag(Tag):
                     
             for element in animation.SelectField("Block:shared animation data[0]/Block:effect events").Elements:
                 if element.SelectField("ShortBlockIndex:effect").Value > -1:
-                    effect_event = EffectEvent()
-                    effect_event.from_element(element, unique_effects, True)
+                    effect_event = _legacy_graph_effect_event(element, unique_effects)
                     
                     if effect_event.effect_reference is None:
                         continue
@@ -5431,8 +5483,7 @@ class AnimationTag(Tag):
                     none_event.effect_events.append(effect_event)
                         
             for element in animation.SelectField("Block:shared animation data[0]/Block:dialogue events").Elements:
-                dialogue_event = DialogueEvent()
-                dialogue_event.from_element(element, True)
+                dialogue_event = _legacy_graph_dialogue_event(element)
                 
                 if none_event is None:
                     none_event = make_none_event()

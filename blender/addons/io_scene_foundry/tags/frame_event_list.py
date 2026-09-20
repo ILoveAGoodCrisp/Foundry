@@ -1,17 +1,9 @@
-
-
-from collections import defaultdict
 from pathlib import Path
 import random
-from typing import cast
 import bpy
 
-from .Tags import TagFieldBlockElement, TagPath
-
-from .render_model import RenderModelTag
-from . import tag_path_from_string
-from ..tags.blender import BlenderTag
-from ..tags.backend import TagDocument
+from .blender import BlenderTag
+from .backend import TagDocument
 from .. import utils
 
 import json
@@ -145,62 +137,12 @@ class Reference:
         self.variant = ""
         self.index = -1
         
-    def from_element(self, element: TagFieldBlockElement, corinth: bool):
-        tag_path = element.Fields[0].Path
-        if tag_path is not None:
-            self.tag = tag_path.RelativePathWithExtension
-        
-        flags = element.SelectField("WordFlags:flags")
-        self.allow_on_player = flags.TestBit("allow on player")
-        self.left_arm_only = flags.TestBit("left arm only")
-        self.right_arm_only = flags.TestBit("right arm only")
-        self.first_person_only = flags.TestBit("first-person only")
-        self.third_person_only = flags.TestBit("third-person only")
-        self.forward_only = flags.TestBit("forward only")
-        self.reverse_only = flags.TestBit("reverse only")
-        self.fp_no_aged_weapons = flags.TestBit("fp no aged weapons")
-        
-        if corinth:
-            model_path = element.SelectField("Reference:model").Path
-            if model_path is not None:
-                self.model_tag = model_path.RelativePathWithExtension
-            self.variant = element.SelectField("StringId:variant").GetStringData()
-    
-    def to_element(self, element: TagFieldBlockElement, corinth: bool):
-        element.Fields[0].Path = tag_path_from_string(self.tag) if self.tag else None
-        flags = element.Fields[1]
-        flags.SetBit("allow on player", self.allow_on_player)
-        flags.SetBit("left arm only", self.left_arm_only)
-        flags.SetBit("right arm only", self.right_arm_only)
-        flags.SetBit("first-person only", self.first_person_only)
-        flags.SetBit("third-person only", self.third_person_only)
-        flags.SetBit("forward only", self.forward_only)
-        flags.SetBit("reverse only", self.reverse_only)
-        flags.SetBit("fp no aged weapons", self.fp_no_aged_weapons)
-        if corinth:
-            element.Fields[3].Path = tag_path_from_string(self.model_tag) if self.model_tag else None
-            element.Fields[4].SetStringData(self.variant)
-    
 class SoundEvent:
     def __init__(self):
         self.animation_event_index = -1
         self.frame_offset = 0
         self.sound_reference: Reference = None
         self.marker_name = ""
-    
-    def from_element(self, element: TagFieldBlockElement, sounds: list[Reference], graph=False):
-        if not graph:
-            self.animation_event_index = element.SelectField("ShortBlockIndex:frame event").Value
-            self.frame_offset = element.SelectField("ShortInteger:frame offset").Data
-        else:
-            self.frame_offset = element.SelectField("ShortInteger:frame").Data
-        self.marker_name = element.SelectField("StringId:marker name").GetStringData()
-        sound_index = element.SelectField("ShortBlockIndex:sound").Value
-        if sound_index > -1 and sound_index < len(sounds):
-            self.sound_reference = sounds[sound_index]
-    
-    def to_element(self, element: TagFieldBlockElement):
-        pass
     
     def __hash__(self):
         return hash((self.frame_offset, self.sound_reference.__dict__.values(), self.marker_name))
@@ -213,23 +155,6 @@ class EffectEvent:
         self.marker_name = ""
         self.damage_effect_reporting_type = "unknown"
     
-    def from_element(self, element: TagFieldBlockElement, effects: list[Reference], graph=False):
-        if not graph:
-            self.animation_event_index = element.SelectField("ShortBlockIndex:frame event").Value
-            self.frame_offset = element.SelectField("ShortInteger:frame offset").Data
-        else:
-            self.frame_offset = element.SelectField("ShortInteger:frame").Data
-        self.marker_name = element.SelectField("StringId:marker name").GetStringData()
-        effect_index = element.SelectField("ShortBlockIndex:effect").Value
-        if effect_index > -1 and effect_index < len(effects):
-            self.effect_reference = effects[effect_index]
-            
-        damage_items = element.SelectField("CharEnum:damage effect reporting type").Items
-        self.damage_effect_reporting_type = damage_items[element.SelectField("CharEnum:damage effect reporting type").Value].DisplayName
-    
-    def to_element(self, element: TagFieldBlockElement):
-        pass
-    
     def __hash__(self):
         return hash((self.frame_offset, self.effect_reference.__dict__.values(), self.marker_name, self.damage_effect_reporting_type))
     
@@ -238,18 +163,6 @@ class DialogueEvent:
         self.animation_event_index = -1
         self.frame_offset = 0
         self.dialogue_type = "bump"
-    
-    def from_element(self, element: TagFieldBlockElement, graph=False):
-        if not graph:
-            self.animation_event_index = element.SelectField("ShortBlockIndex:frame event").Value
-            self.frame_offset = element.SelectField("ShortInteger:frame offset").Data
-        else:
-            self.frame_offset = element.SelectField("ShortInteger:frame").Data
-        dialogue_items = element.SelectField("ShortEnum:dialogue event").Items
-        self.dialogue_type = dialogue_items[element.SelectField("ShortEnum:dialogue event").Value].DisplayName
-        
-    def to_element(self, element: TagFieldBlockElement):
-        pass
     
     def __hash__(self):
         return hash((self.frame_offset, self.dialogue_type))
@@ -266,26 +179,6 @@ class AnimationEvent:
         self.end_frame = 0
         self.unique_id = random.randint(0, 2147483647)
         
-    def from_element(self, element: TagFieldBlockElement, graph=False):
-        if graph:
-            self.frame = utils.blender_frame(element.SelectField("ShortInteger:frame").Data)
-        else:
-            self.frame = utils.blender_frame(element.SelectField("ShortInteger:frame").Data + element.SelectField("ShortInteger:frame offset").Data)
-            self.name = element.SelectField("StringId:event name").GetStringData()
-            id = element.SelectField("LongInteger:unique ID").Data
-            if id != 0:
-                self.unique_id = id
-            
-        self.end_frame = self.frame
-        type_items = element.SelectField("ShortEnum:type").Items
-        self.type = type_items[element.SelectField("ShortEnum:type").Value].DisplayName
-        if self.type in {'jetpack closed', 'jetpack open', 'sound event', 'effect event'}:
-            self.type = 'none'
-            
-    
-    def to_element(self, element: TagFieldBlockElement):
-        pass
-    
     def from_blender(self, blender_animation, blender_animation_event, unique_sounds: dict, unique_effects: dict):
         self.frame = utils.game_frame(blender_animation_event.frame_frame - blender_animation.frame_start)
         self.type = blender_animation_event.frame_name

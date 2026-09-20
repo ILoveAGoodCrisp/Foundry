@@ -16,7 +16,7 @@ import time
 
 from ..managed_blam.globals import GlobalsTag
 
-from ..managed_blam.frame_event_list import FrameEventListTag, dump_frame_animation_events
+from ..tags.frame_event_list import dump_frame_animation_events
 
 from ..managed_blam.material import MaterialTag
 from ..managed_blam.shader import ShaderTag

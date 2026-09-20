@@ -243,7 +243,7 @@ class WrapperTests(unittest.TestCase):
             bpy.utils.unregister_class(props)
 
     def test_native_frame_event_list_roundtrip_and_partial_export(self):
-        from io_scene_foundry.managed_blam.frame_event_list import FrameEventListTag, FRAME_EVENT_TYPE
+        from io_scene_foundry.tags.frame_event_list import FrameEventListTag, FRAME_EVENT_TYPE
         for game in ('reach', 'halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
                  patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
