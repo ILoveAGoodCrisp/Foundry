@@ -105,6 +105,15 @@ class StructureBspEnvironmentObject:
     variant: str
 
 
+@dataclass(frozen=True)
+class StructureBspHavokGeometry:
+    data: bytes
+    kind: str
+    collision_type: int
+    bounds_min: tuple[float, float, float] | None
+    bounds_max: tuple[float, float, float] | None
+
+
 class PrefabTag(BlenderTag, TagDocument):
     tag_ext = 'prefab'
 
@@ -310,6 +319,61 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 definition=definition,
                 variant='' if variant is None else str(variant.value),
             ))
+        return records
+
+    def havok_geometry(self) -> list[StructureBspHavokGeometry]:
+        """Detach serialized H4/H2AMP structure collision from tag handles."""
+        interface_field = self.tag.root().field('resource interface')
+        if interface_field is None:
+            return []
+        interface = interface_field.as_struct()
+        if interface is None:
+            raise TypeError(f'{self.path}: resource interface is not a struct')
+        raw_resources_field = interface.field('raw_resources')
+        if raw_resources_field is None:
+            return []
+        raw_resources = raw_resources_field.as_block()
+        if raw_resources is None:
+            raise TypeError(f'{self.path}: raw resources is not a block')
+
+        records: list[StructureBspHavokGeometry] = []
+        for raw_resource in raw_resources:
+            raw_items_field = raw_resource.field('raw_items')
+            if raw_items_field is None:
+                continue
+            raw_items = raw_items_field.as_struct()
+            if raw_items is None:
+                raise TypeError(f'{self.path}: raw resource items is not a struct')
+            havok_field = raw_items.field('Havok Data')
+            if havok_field is None:
+                continue
+            havok_data = havok_field.as_block()
+            if havok_data is None:
+                raise TypeError(f'{self.path}: Havok data is not a block')
+            for havok in havok_data:
+                bounds = []
+                for name in ('Shapes bounds min', 'Shapes bounds max'):
+                    field = havok.field(name)
+                    bounds.append(None if field is None else tuple(field.value.to_array()))
+                per_type_field = havok.field('Serialized Per Collision Type Havok Geometry')
+                if per_type_field is None:
+                    continue
+                per_type = per_type_field.as_block()
+                if per_type is None:
+                    raise TypeError(f'{self.path}: serialized Havok geometry is not a block')
+                for index, element in enumerate(per_type):
+                    collision_field = element.field('collision type')
+                    collision_type = index if collision_field is None else int(collision_field.value)
+                    for field_name, kind in (
+                            ('Serialized Havok Data', 'havok_collision'),
+                            ('Serialized Static Havok Data', 'static_havok_collision')):
+                        field = element.field(field_name)
+                        data = None if field is None else field.as_data()
+                        if data:
+                            records.append(StructureBspHavokGeometry(
+                                data=bytes(data), kind=kind,
+                                collision_type=collision_type,
+                                bounds_min=bounds[0], bounds_max=bounds[1]))
         return records
 
     def cookie_cutters(self):

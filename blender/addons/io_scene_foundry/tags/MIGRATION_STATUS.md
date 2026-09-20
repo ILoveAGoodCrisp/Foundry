@@ -603,3 +603,13 @@ layers remain Blender-independent; their Blender behavior is isolated in dedicat
 wrapper modules. Several of these wrappers still reuse conversion helpers from the
 legacy-named connected geometry/material modules, which are the next separation
 target.
+The native backend now carries concrete blam-tags annotations for tag files,
+structs, fields, blocks and generated camera-track math values. Its public `tag`
+property remains precisely typed while the optional closed-state handle stays
+private. Model/object helpers propagate the wheel's struct and block types, and
+the Blender mixin accepts the shared native tag-path protocol. The wheel's shipped
+`py.typed` stubs provide completion without importing Blender or eagerly loading
+the binding during add-on startup.
+
+The standalone animation resource codec now lives in `tags/animation_resource.py`.
+The unused ManagedBlam assembly-loader helper was removed.

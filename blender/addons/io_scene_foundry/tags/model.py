@@ -1,10 +1,17 @@
 """Model references and variant selection through native blam-tags fields."""
+from __future__ import annotations
+
 from enum import Enum
 from pathlib import Path
 import random
 from types import SimpleNamespace
-from .backend import TagDocument, ReferenceField
+from typing import TYPE_CHECKING, cast
+
+from .backend import TagDocument, ReferenceField, TagReference
 from .metadata import enum_index
+
+if TYPE_CHECKING:
+    import blam_tags
 
 ChildObject = SimpleNamespace
 
@@ -23,11 +30,11 @@ class ModelDocument(TagDocument):
     reference_animation = property(lambda self: ReferenceField(self, 'animation'))
     reference_physics_model = property(lambda self: ReferenceField(self, 'physics_model'))
 
-    def variants(self):
+    def variants(self) -> blam_tags.TagBlock:
         return self.block(self.tag.root(), 'variants')
 
-    def get_model_variants(self):
-        return [self.value(e, 'name') for e in self.variants()]
+    def get_model_variants(self) -> list[str]:
+        return [cast(str, self.value(e, 'name')) for e in self.variants()]
 
     def get_render_model(self, optional_tag_root=None, override_type=None):
         reference = self.reference_render_model.Path
@@ -40,7 +47,8 @@ class ModelDocument(TagDocument):
         return self.reference_filename(reference, optional_tag_root)
 
     @staticmethod
-    def reference_filename(reference, root=None):
+    def reference_filename(reference: TagReference | None,
+                           root: str | Path | None = None) -> str:
         if reference is None:
             return ''
         return str(Path(root) / reference.RelativePathWithExtension) if root else reference.Filename

@@ -1,8 +1,15 @@
 """Object metadata using native field names, without Blender or .NET."""
-from .backend import TagDocument
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from .backend import TagDocument, TagPathInput
 from .model import ModelDocument
 from dataclasses import dataclass
 from .backend import TagReference
+
+if TYPE_CHECKING:
+    import blam_tags
 
 
 @dataclass(frozen=True)
@@ -18,28 +25,28 @@ class CinematicCopyUnsupported(RuntimeError):
 
 
 class ObjectModelReference:
-    def __init__(self, document):
+    def __init__(self, document: ObjectDocument) -> None:
         self.document = document
 
     @property
-    def Path(self):
+    def Path(self) -> TagReference | None:
         return self.document.reference(self.document.object_struct(), 'model')
 
     @Path.setter
-    def Path(self, path):
+    def Path(self, path: TagPathInput | None) -> None:
         self.document.set_reference(self.document.object_struct(), 'model', path)
 
 
 class ObjectDocument(TagDocument):
     reference_model = property(lambda self: ObjectModelReference(self))
 
-    def nested(self, struct, name):
+    def nested(self, struct: blam_tags.TagStruct, name: str) -> blam_tags.TagStruct:
         result = self.required_field(struct, name).as_struct()
         if result is None:
             raise TypeError(f'{self.path}: {name!r} is not a struct')
         return result
 
-    def object_struct(self):
+    def object_struct(self) -> blam_tags.TagStruct:
         struct = self.tag.root()
         for _ in range(4):
             if struct.field('default model variant') is not None and struct.field('model') is not None:

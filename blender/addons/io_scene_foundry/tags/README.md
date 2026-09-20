@@ -219,3 +219,7 @@ Model and object keep their document layer separate from `model_blender.py` and
 Blender. Collision, physics, structure, particle, PCA and light import wrappers
 follow the same native blam-tags path even where Blender conversion helpers have
 not yet been moved out of the legacy package.
+`backend.py` annotates its public boundary with the wheel's exported `TagFile`,
+`TagStruct`, `TagField`, `TagBlock`, and math types. The wheel includes `py.typed`
+stubs, so these definitions are available to VS Code while the runtime binding is
+still imported lazily when a document is opened.

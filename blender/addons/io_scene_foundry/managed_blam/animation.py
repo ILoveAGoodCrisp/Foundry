@@ -15,7 +15,7 @@ from ..tags.frame_event_list import AnimationEvent, DialogueEvent, EffectEvent, 
 
 from .Tags import TagFieldBlockElement
 
-from .animation_resource import (
+from ..tags.animation_resource import (
     AnimationCodecType,
     AnimationResourceData,
     BinaryReader,

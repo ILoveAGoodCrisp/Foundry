@@ -15,7 +15,7 @@ from .. import import_transform
 from ..utils import jstr
 from . import Tag
 from .. import utils
-from ..tags.prefab import ScenarioStructureBspMetadataTag
+from ..tags.prefab import ScenarioStructureBspMetadataTag, StructureBspHavokGeometry
 
 class ScenarioStructureBspTag(Tag):
     tag_ext = 'scenario_structure_bsp'
@@ -82,6 +82,10 @@ class ScenarioStructureBspTag(Tag):
                 native_bsp.cookie_cutters()
                 if import_geometry and not for_cinematic else []
             )
+            native_havok_geometry = (
+                native_bsp.havok_geometry()
+                if import_havok and not for_cinematic else []
+            )
             structure_meta_data = native_bsp.structure_meta_data()
             
         # Get all emissive data
@@ -117,7 +121,8 @@ class ScenarioStructureBspTag(Tag):
                             
         if not import_geometry:
             if import_havok and not for_cinematic:
-                havok_collisions = self._read_havok_collisions(collision_materials)
+                havok_collisions = self._read_havok_collisions(
+                    collision_materials, native_havok_geometry)
                 if havok_collisions:
                     add_havok_collision_objects(havok_collisions, new_structure_collection())
                     if always_get_structure_collision:
@@ -143,7 +148,8 @@ class ScenarioStructureBspTag(Tag):
         havok_collisions = []
         havok_standalone_face_indices = None
         if import_havok and not for_cinematic:
-            havok_collisions = self._read_havok_collisions(collision_materials)
+            havok_collisions = self._read_havok_collisions(
+                collision_materials, native_havok_geometry)
 
         # Get all instance definitions
         instance_definitions = []
@@ -518,28 +524,6 @@ class ScenarioStructureBspTag(Tag):
         return objects
     
     @staticmethod
-    def _select_field_safe(element, name: str):
-        try:
-            return element.SelectField(name)
-        except Exception:
-            return None
-
-    @staticmethod
-    def _data_field_bytes(field) -> bytes:
-        if field is None:
-            return b""
-
-        try:
-            data = field.GetData()
-        except Exception:
-            return b""
-
-        if data is None:
-            return b""
-
-        return bytes(data)
-
-    @staticmethod
     def _cluster_triangle_ranges(clusters: list[Cluster], temp_meshes) -> list[tuple[int, int, int]]:
         section_triangle_ranges = []
         first_triangle_index = 0
@@ -776,59 +760,18 @@ class ScenarioStructureBspTag(Tag):
             utils.print_step(f"Creating Havok Instance Collision ({proxy_count} proxies, {collision_only_count} collision-only definitions)")
         return definition_collision_objects, standalone_face_indices
 
-    def _read_havok_collisions(self, collision_materials: list[BSPCollisionMaterial]) -> list[HavokCollision]:
-        raw_resources = self._select_field_safe(self.tag, "Struct:resource interface[0]/Block:raw_resources")
-        if raw_resources is None or raw_resources.Elements.Count == 0:
-            return []
-
+    def _read_havok_collisions(self, collision_materials: list[BSPCollisionMaterial],
+                               records: list[StructureBspHavokGeometry]) -> list[HavokCollision]:
         havok_collisions = []
-        for raw_resource in raw_resources.Elements:
-            havok_data = self._select_field_safe(raw_resource, "Struct:raw_items[0]/Block:Havok Data")
-            if havok_data is None or havok_data.Elements.Count == 0:
-                continue
-
-            for havok_element in havok_data.Elements:
-                bounds_min_field = self._select_field_safe(havok_element, "Shapes bounds min")
-                bounds_max_field = self._select_field_safe(havok_element, "Shapes bounds max")
-                bounds_min = bounds_min_field.Data if bounds_min_field is not None else None
-                bounds_max = bounds_max_field.Data if bounds_max_field is not None else None
-                per_collision_type = self._select_field_safe(havok_element, "Block:Serialized Per Collision Type Havok Geometry")
-                if per_collision_type is None:
-                    continue
-
-                for per_type_element in per_collision_type.Elements:
-                    collision_type_field = self._select_field_safe(per_type_element, "collision type")
-                    collision_type = collision_type_field.Data if collision_type_field is not None else per_type_element.ElementIndex
-                    try:
-                        collision_type = int(collision_type)
-                    except (TypeError, ValueError):
-                        collision_type = per_type_element.ElementIndex
-                    data_fields = (
-                        ("Serialized Havok Data", "havok_collision"),
-                        ("Serialized Static Havok Data", "static_havok_collision"),
-                    )
-                    for field_name, name_suffix in data_fields:
-                        data_field = self._select_field_safe(per_type_element, field_name)
-                        serialized_data = self._data_field_bytes(data_field)
-                        if not serialized_data:
-                            continue
-
-                        name = f"{self.tag_path.ShortName}_{name_suffix}_{collision_type}"
-                        collision = HavokCollision.from_serialized_shape(serialized_data, name, collision_materials, bounds_min, bounds_max, collision_type)
-                        if collision is not None:
-                            havok_collisions.append(collision)
+        for record in records:
+            name = f"{self.tag_path.ShortName}_{record.kind}_{record.collision_type}"
+            collision = HavokCollision.from_serialized_shape(
+                record.data, name, collision_materials, record.bounds_min,
+                record.bounds_max, record.collision_type)
+            if collision is not None:
+                havok_collisions.append(collision)
 
         return sorted(havok_collisions, key=lambda collision: collision.collision_type)
-
-            
-    def read_havok_collision_data(self):
-        havok_data = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources[0]/Struct:raw_items[0]/Block:Havok Data").Elements[0]
-        for element in havok_data.SelectField("Block:Serialized Per Collision Type Havok Geometry").Elements:
-            print("\n\nHAVOK DATA ELEMENT", element.ElementIndex)
-            print("\nMAIN", element.Fields[0].DisplayName)
-            print(bytes(element.Fields[0].GetData()))
-            print("\nSTATIC", element.Fields[1].DisplayName)
-            print(bytes(element.Fields[1].GetData()))
     
 def are_faces_overlapping(face1, face2):
     if not face1.normal.dot(face2.normal) > 0.999:
