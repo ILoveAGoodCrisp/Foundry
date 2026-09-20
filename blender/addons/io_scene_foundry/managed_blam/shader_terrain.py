@@ -9,6 +9,7 @@ from mathutils import Vector
 from ..constants import NormalType
 
 from .. import utils
+from ..tags.shader import ShaderTerrainMetadataTag
 
 from .shader import ChannelType, ShaderTag
 
@@ -57,13 +58,8 @@ class ShaderTerrainTag(ShaderTag):
     category_parameters = None
     
     def get_global_material(self):
-        global_material = self.tag.SelectField("StringId:material name 0").GetStringData()
-        
-        if not global_material and self.reference.Path is not None and self.path_exists(self.reference.Path):
-            with ShaderTerrainTag(path=self.reference.Path) as ref_shader:
-                return ref_shader.get_global_material()
-            
-        return global_material
+        with ShaderTerrainMetadataTag(path=self.tag_path) as metadata:
+            return metadata.global_material()
 
     def _group_option_member_from_socket(self, category_name, enum_cls, socket_value):
         if category_name == "material_3" and isinstance(socket_value, str):

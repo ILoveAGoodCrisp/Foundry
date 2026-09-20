@@ -590,6 +590,146 @@ class CinObject():
 class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
     """Native cinematic-scene import entry point."""
     tag_ext = 'cinematic_scene'
+
+    def _set_value(self, element, name, value):
+        self.required_field(element, name).set(value)
+        self.tag_has_changes = True
+
+    def _set_script(self, root, name, text):
+        script = self.required_field(root, name).as_struct()
+        if script is None:
+            raise TypeError(f'{self.path}: {name!r} is not a script structure')
+        self._set_value(script, 'script', text.encode('utf-8'))
+
+    def write_export_header(self, name, reset_object_lighting, header, footer,
+                            data_path=None):
+        root = self.tag.root()
+        self._set_value(root, 'name', name)
+        self._set_value(root, 'anchor', f'{name}_anchor')
+        self._set_value(root, 'reset object lighting', int(reset_object_lighting))
+        self._set_script(root, 'header', header)
+        self._set_script(root, 'footer', footer)
+        if data_path is not None:
+            self.set_reference(root, 'data', data_path)
+
+    def _set_shot_flags(self, element, name, indices, document=None):
+        document = document or self
+        field = document.required_field(element, name)
+        if field.type_name == 'long block flags':
+            mask = sum(1 << index for index in indices if 0 <= index < 32)
+            if mask & 0x80000000:
+                mask -= 0x100000000
+            field.set(mask)
+        elif field.type_name == 'array':
+            chunks = field.as_array()
+            masks = [0] * len(chunks)
+            for index in indices:
+                if 0 <= index < len(chunks) * 32:
+                    masks[index // 32] |= 1 << (index % 32)
+            for chunk, mask in zip(chunks, masks):
+                document.required_field(chunk, 'shot flag data').set(mask)
+        else:
+            raise TypeError(f'{self.path}: {name!r} is not a supported shot-flags field')
+        document.tag_has_changes = True
+
+    @staticmethod
+    def _set_available_flag(field, name, value):
+        if name in field.options().names:
+            field.set_flag(name, value)
+
+    def _add_export_attachment(self, block, invisible, marker_name, object_name,
+                               attachment_marker_name, attachment_type):
+        element = block[block.add()]
+        flags = element.field('flags')
+        if flags is not None:
+            flags.set_flag('invisible', invisible)
+        self._set_value(element, 'object marker name', marker_name)
+        self._set_value(element, 'attachment object name', object_name)
+        self._set_value(element, 'attachment marker name', attachment_marker_name)
+        self.set_reference(element, 'attachment type', attachment_type)
+
+    def write_export_objects(self, actors, script_from_text, data=None):
+        objects = self.block(self.tag.root(), 'objects')
+        objects.clear()
+        data_objects = None
+        if data is not None:
+            data_objects = data.block(data.tag.root(), 'objects')
+            data_objects.clear()
+
+        for actor in actors:
+            element = objects[objects.add()]
+            self._set_value(element, 'name', actor.name)
+            self._set_value(element, 'variant name', actor.variant)
+            actor_nwo = actor.ob.nwo
+            attachments = self.block(element, 'attachments')
+            if actor.weapon_tag is not None:
+                self._add_export_attachment(attachments, True, 'primary_trigger',
+                    f'{actor.name}_weapon', 'primary_trigger', actor.weapon_tag)
+            for index, attachment in enumerate(actor_nwo.attachments):
+                attachment_type = attachment.attachment_type.strip()
+                if not attachment_type:
+                    continue
+                attachment_type = utils.relative_path(attachment_type)
+                marker_name = utils.clean_text(attachment.marker_name, empty_string_allowed=True)
+                attachment_marker = utils.clean_text(
+                    attachment.attachment_marker_name or attachment.marker_name,
+                    empty_string_allowed=True)
+                base_name = Path(attachment_type).with_suffix('').name or 'attachment'
+                object_name = utils.clean_text(
+                    f'{actor.name}_{base_name}_{index + 1}', replace_spaces=True)
+                self._add_export_attachment(attachments, attachment.invisible,
+                    marker_name, object_name, attachment_marker, attachment_type)
+
+            flags = self.required_field(element, 'flags')
+            special_case = actor.name in {'player0', 'player1', 'player2', 'player3'}
+            self._set_available_flag(flags, 'Special Case (like player0)', special_case)
+            self._set_available_flag(flags, 'Placed Manually in Sapien',
+                not special_case and actor_nwo.object_source == 'CREATE_ANEW')
+            self._set_available_flag(flags, 'Object Comes From Game',
+                not special_case and actor_nwo.object_source == 'USE')
+            for name, value in (
+                    ('Effect Object', actor_nwo.effect_object),
+                    ('No Lightmap Shadow', actor_nwo.no_lightmap_shadow),
+                    ('Apply Player Customization', actor_nwo.apply_player_customization),
+                    ('Apply First Person Player Customization', actor_nwo.apply_first_person_player_customization),
+                    ('I will animate the English lipsync manually', actor_nwo.english_lipsync_manual)):
+                self._set_available_flag(flags, name, value)
+            if self.corinth:
+                self._set_available_flag(flags, 'Primary Cortana', actor_nwo.primary_cortana)
+                self._set_available_flag(flags, 'Preload Textures', actor_nwo.preload_textures)
+
+            overrides = self.required_field(element, 'override creation flags')
+            for name, value in (
+                    ('single player', not actor_nwo.override_1_player),
+                    ('2 player co-op', not actor_nwo.override_2_player),
+                    ('3 player co-op', not actor_nwo.override_3_player),
+                    ('4 player co-op', not actor_nwo.override_4_player)):
+                overrides.set_flag(name, value)
+            self._set_script(element, 'custom don\'t create condition', script_from_text(
+                self.corinth, actor_nwo.override_script, actor_nwo.override_script_text,
+                actor_nwo.override_script_use_text))
+
+            if data_objects is None:
+                self._set_value(element, 'identifier', actor.name)
+                self.set_reference(element, 'model animation graph', actor.graph or None)
+                self.set_reference(element, 'object type', actor.tag or None)
+                self._set_shot_flags(element, 'shots active flags', actor.shots_active)
+                lightmap = element.field('lightmap shadow flags')
+                if lightmap is not None:
+                    self._set_shot_flags(element, 'lightmap shadow flags', actor.shots_lightmap)
+            else:
+                self._set_shot_flags(element, 'lightmap shadow flags', actor.shots_lightmap)
+                self._set_shot_flags(element, 'high res flags', actor.shots_high_res)
+                data_element = data_objects[data_objects.add()]
+                data.required_field(data_element, 'name').set(actor.name)
+                data.required_field(data_element, 'identifier').set(actor.name)
+                data.set_reference(data_element, 'model animation graph', actor.graph or None)
+                data.set_reference(data_element, 'object type', actor.tag or None)
+                self._set_shot_flags(data_element, 'shots active flags',
+                    actor.shots_active, data)
+        self.tag_has_changes = True
+        if data is not None:
+            data.tag_has_changes = True
     
     def to_blender(self, film_aperture: float, cinematic_name: str, data: CinematicSceneDataTag):
         with CinematicCameraDocument(data.tag_path.Filename, tags_root=utils.get_tags_path(),

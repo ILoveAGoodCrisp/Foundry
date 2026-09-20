@@ -29,9 +29,15 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
   transition tags, scripts, scene references, zone sets and anchors.
 - Frame-event-list import/export, shared references and partial animation updates.
 - Particle-emitter custom-points tag creation during particle-model export.
-- Cinematic event sound-effect names and playback availability.
+- Cinematic event sound-effect names, playback availability and indexed sound-class
+  labels.
 - H4/H2AMP prefab structure-BSP reference resolution during import.
 - Multiplayer weapon-source discovery for biped import.
+- Terrain-shader global-material lookup through inherited shader references.
+- Empty shader-tag creation for non-node material export.
+- Cinematic scene creation, scene-level export metadata/scripts, shot settings,
+  camera-frame arrays, final scene object/attachment records and camera-authored
+  screen-effect/user-input-constraint records where the tag layout supports them.
 - Scenario metadata and lightweight editing for type detection, BSP/design/sky
   discovery, zone sets, lightmap settings, sky assignment, cutscene titles,
   scenario copies, default player profiles, debug zone sets, airprobe export,
@@ -48,7 +54,7 @@ references at that boundary.
 
 The addon still requires ManagedBlam/Python.NET for unmigrated workflows:
 full render/BSP geometry import, animation graphs, shader/material editing,
-remaining scenario resources, cinematic scene/data writers and other
+remaining scenario resources, cinematic referenced-resource workflows and other
 specialized helpers.
 Removing that dependency now would break those workflows. The Foundation plugin
 installer also still uses .NET independently of tag access.

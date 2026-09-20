@@ -6,12 +6,11 @@ import bpy
 from mathutils import Euler, Matrix, Vector
 
 from ...tags.scenario import ScenarioMetadataTag
-from ...tags.sound import SoundEffectCollectionTag
+from ...tags.sound import SoundClassesTag, SoundEffectCollectionTag
 from ...managed_blam.render_model import RenderModelMetadataTag
 from ...managed_blam.model import ModelTag
 from ...managed_blam.object import ObjectTag
 from ...managed_blam.cinematic_lighting import CinematicLightingTag
-from ...managed_blam import Tag
 from ...icons import get_icon_id
 from ... import utils
 
@@ -1358,10 +1357,8 @@ class NWO_OT_GetSoundClasses(bpy.types.Operator):
         if not Path(utils.get_tags_path(), SOUND_CLASSES_TAG).exists():
             return items
         
-        with Tag(path=SOUND_CLASSES_TAG) as fx:
-            for element in fx.tag.SelectField("Block:sound classes").Elements:
-                name = element.ElementHeaderText
-                items.append((name, name, ""))
+        with SoundClassesTag(path=SOUND_CLASSES_TAG) as sound_classes:
+            items.extend((name, name, "") for name in sound_classes.class_names())
 
         return items
     

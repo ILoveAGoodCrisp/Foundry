@@ -3,7 +3,7 @@ from pathlib import Path
 import bpy
 import os
 
-from ..managed_blam import Tag
+from ..tags.shader import EmptyShaderTag
 from ..managed_blam.shader import ShaderTag, build_templates
 from ..managed_blam.shader_custom import ShaderCustomTag
 from ..managed_blam.shader_decal import ShaderDecalTag
@@ -123,7 +123,8 @@ def build_shader(material, corinth, folder="", report=None):
             with tag_class(path=shader_path.with_suffix(suffix)) as tag:
                 nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes)
         else:
-            with Tag(path=shader_path.with_suffix(nwo.shader_type)) as tag:
+            with EmptyShaderTag(path=shader_path.with_suffix(nwo.shader_type),
+                                tag_must_exist=False) as tag:
                 nwo.shader_path = tag.tag_path.RelativePathWithExtension
                 
         if nwo.shader_path:

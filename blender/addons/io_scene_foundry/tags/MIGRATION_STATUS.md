@@ -97,8 +97,9 @@ Particle-model export now creates an empty custom-points tag through blam-tags;
 its schema is an ignored generated build asset and the export processor no longer
 imports the ManagedBlam base for this operation.
 The cinematic event UI now reads usable sound-effect names and playback contents
-through a native sound-effect-collection document. Sound-class display labels still
-come from editor-only block header metadata and remain a direct ManagedBlam read.
+through a native sound-effect-collection document. Sound-class display labels use
+the canonical indexed enum in the generated blam-tags schemas, replacing the final
+ManagedBlam read in that UI module.
 Standalone H4/H2AMP prefab import now resolves its structure-BSP reference through
 a native prefab document instead of opening the prefab through ManagedBlam.
 The biped weapon-source picker now resolves multiplayer object-type indices and
@@ -131,11 +132,28 @@ The source audit updated on 2026-09-20 found:
   scenario metadata/editing and scenario airprobes.
 - 13 tag classes still inherit the legacy `Tag` base, directly or indirectly:
   4 direct wrappers and 9 shader/material/decal subclasses.
-- 10 modules under `managed_blam` still contain `SelectField` calls (excluding
+- 9 modules under `managed_blam` still contain `SelectField` calls (excluding
   the legacy base and generated type declarations).
-- 4 direct `with Tag(...)` ManagedBlam call sites remain outside the legacy
-  wrappers: two in cinematic scene export, one sound-class label reader and one
-  blank shader-tag creation path. Additional legacy wrapper calls remain indirect.
+- No direct `with Tag(...)` ManagedBlam call sites remain outside legacy wrappers.
+  Indirect legacy wrapper calls remain, including shader template generation after
+  native blank-tag creation.
+
+Terrain-shader global-material lookup and inherited reference traversal now use a
+native metadata wrapper. Terrain shader node construction and authoring still run
+through the legacy shader base.
+Non-node shader export now creates the selected empty shader tag through blam-tags.
+The subsequent render-method template inspection/generation remains legacy.
+Cinematic scene export now creates both scene files and writes scene-level name,
+anchor, reset mode, header/footer scripts and the split data reference natively.
+Shot settings and camera-frame arrays are also written natively across H3, ODST,
+Reach, H4 and H2AMP. Scene objects, attachments, creation flags/scripts, references
+and shot masks are written natively in both combined and split layouts. Lighting,
+music, object functions, scripts, dialogue, effects, screen effects and user-input
+constraints also write through blam-tags; cinematic export no longer opens a
+ManagedBlam `Tag`. Focused schema checks covered these records and both 32-bit
+shot-mask layouts across all five supported cinematic profiles. H3 lacks persistent
+lighting, screen-effect and user-input-constraint fields and rejects populated
+settings explicitly.
 
 Physics also uses native records for constraints, spheres, capsules, boxes, convex
 polyhedra, nested lists/MOPPs, H4/H2AMP body properties and supported serialized
@@ -156,8 +174,8 @@ Cinematic import now reads shot lengths, anchor and structure-lighting reference
 natively and iterates detached shot/object records. There are no direct SelectField
 calls remaining in CinematicSceneTag.to_blender. NativeCinematicSceneTag exposes
 that conversion through a native constructor, and top-level cinematic export is
-native. Next: validate complete imports and replace the remaining scene/data writers
-and referenced asset/resource readers.
+native. Next: validate complete imports/exports and replace the remaining referenced
+asset/resource readers.
 
 READ-001 is resolved in the local binding: TagField.as_array returns fixed-array
 struct handles with lifetime checks. H4/H2AMP shot visibility now reads native
@@ -168,17 +186,15 @@ updating to use the new accessor.
 
 Cinematic object shot visibility now reads native 32-bit block flags for H3, ODST
 and Reach. Enabled bits are bounded to the actual shot count before camera lookup.
-H4/H2AMP use a fixed-array field that the current Python TagField binding does not
-expose; these retain the existing custom-field fallback. Tests cover native masks,
-out-of-shot bits and the later-layout fallback. All 53 tests pass. Exposing fixed
-arrays is the next binding requirement for removing this particular fallback.
+H4/H2AMP fixed arrays use the local `TagField.as_array()` binding. Tests cover
+native masks, cross-chunk bits and out-of-shot bits without a ManagedBlam fallback.
 
 Cinematic object metadata now reads natively: scene names/variants and data-side
 animation-graph/object references feed existing import logic. H4/H2AMP split tag
 layouts are covered alongside older combined layouts. Scene/data object-count
 mismatches are rejected before Blender allocation. All 53 regression tests pass.
-Shot-active flags still use the legacy custom-field reader, and animation/resource
-import remains legacy; this is not a complete cinematic object migration.
+Shot-active flags use native integer chunks; animation/resource import remains
+legacy, so this is not a complete cinematic object migration.
 
 Cinematic custom-script records now read natively from the camera/event source tag
 and feed the existing SCRIPT event conversion. UTF-8 text, optional BOM and trailing
@@ -203,8 +219,8 @@ top/left/bottom/right limits, frame, ticks and friction. Missing H3 blocks are e
 camera application retains the existing last-record selection and absolute limits.
 Five-profile tests cover layout differences and rectangle ordering. Real-tag
 sampling decoded two constraints from 20 tags / 196 shots without errors or source
-changes. All 53 tests pass; constraint writing and full camera behavior validation
-remain outstanding.
+changes. All 53 tests pass; constraint writing is now native, while full camera
+behavior validation remains outstanding.
 
 Cinematic object-function keyframes and screen-effect records now read natively.
 Function import preserves repeated-frame replacement, clear flags and interpolation
@@ -212,25 +228,23 @@ timing; the real-tag sample decoded 273 keyframes. Screen-effect import preserve
 the existing last-valid-reference camera selection; H3's absent block is empty.
 The same 20-tag / 196-shot sample decoded 64 screen effects without errors or source
 changes. Timing/persistence metadata is read but camera application remains as
-before. All 53 regression tests pass. Writers and complete cinematic validation
-still require further migration work.
+before. Writers now use native fields; complete cinematic validation remains.
 
 Cinematic music cues now read natively from cinematic_scene, including H4/H2AMP
 where camera/dialogue/effect data lives in a separate cinematic_scene_data tag.
 Start/stop flags, references and frame offsets pass five-profile event-mapping
 tests. Empty references are skipped, and mismatched scene/data shot counts are
 rejected before Blender allocation. A read-only sample decoded 15 music cues from
-20 tags / 196 shots without errors or source changes. All 53 tests pass. Music
-writing, remaining cinematic events and full cinematic import validation remain.
+20 tags / 196 shots without errors or source changes. Music writing now uses native
+fields; full cinematic import/export validation remains.
 
 Cinematic effect import now uses native references, frame timing, marker-parent
 names, flags and H4/H2AMP state/function metadata. Empty references are skipped
 before event creation; missing H3/ODST fields receive the legacy class defaults.
 Five-profile fixtures exercise event conversion and title-specific frame offsets.
 Read-only sampling decoded 266 effects across 196 shots in 20 real tags without
-errors or source changes. All 52 regression tests pass. Effect writing and other
-cinematic event/resource workflows still use legacy code; full visual parity is
-not established.
+errors or source changes. Effect writing now uses native fields. Referenced-resource
+workflows and full visual parity remain unvalidated.
 
 Cinematic dialogue import now consumes native detached records for sound references,
 timing, scale, actor and subtitle metadata. H3/ODST layouts omit female dialogue,
@@ -238,12 +252,13 @@ female subtitle and character fields; these receive empty defaults. Existing eve
 creation and title-specific frame offsets are preserved. Five-profile regression
 tests exercise native records through the Blender event mapping. A read-only sample
 decoded 123 dialogue entries across 196 shots in 20 tags without errors or source
-changes. All 52 tests pass. Dialogue writing, effects and object animation remain
-legacy; this does not establish complete cinematic import parity.
+changes. Dialogue/effect writing now uses native fields. Object animation and full
+cinematic import parity remain.
 
 Cinematic camera-frame decoding now uses native records for position, forward/up
 axes and focal length. The existing cinematic import consumes these detached
-records; dialogue, effects, object animation and scene editing remain legacy.
+records; the corresponding scene/data writer is native. Object animation and
+complete visual validation remain.
 Five-profile tests cover both camera layouts, save/reopen, detached record lifetime
 and empty-shot rejection. A read-only sample decoded 196 shots / 27,495 camera frames
 from 20 real cinematic tags without errors or source changes. This validates camera
@@ -269,7 +284,7 @@ its mass update was verified by reopening a temporary physics tag.
 | Geometry and resources | Port render models and the remaining collision, physics, decorator and polyart resource paths, including Blender mesh/skeleton construction. Particle-model import is native. |
 | Animation | Expose animation decoding and port graph edits, frame events, PCA and animation import. |
 | Bitmaps | Review the native/Python extraction path across formats, mipmaps, cubemaps and material texture use; complete any resource layouts not represented by processed pixel data. |
-| Scenarios and cinematics | Port BSP/structure editors, lighting-info export, cinematic scene/data writers and remaining referenced-resource workflows. Scenario object/decal/decorator import, top-level cinematic writing, template/global scenario export and common scenario/cubemap/decorator edits are native. |
+| Scenarios and cinematics | Port BSP/structure editors, lighting-info export and remaining referenced-resource workflows. Scenario object/decal/decorator import, cinematic scene/data writing, template/global scenario export and common scenario/cubemap/decorator edits are native. |
 | Dependency removal and acceptance | Remove startup validation and DLL initialization, revise packaging/UI, and run representative complete imports and exports with ManagedBlam unavailable. |
 
 The Rust library already contains functionality in several of these areas, but

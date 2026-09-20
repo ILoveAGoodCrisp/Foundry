@@ -1,5 +1,5 @@
 """Native cinematic camera and event records, detached from their tag handles."""
-from math import isfinite
+from math import degrees, isfinite
 from types import SimpleNamespace
 from .backend import TagDocument
 from .blender import BlenderTag
@@ -11,6 +11,309 @@ class CinematicCameraDocument(TagDocument):
         if any(count < 0 for count in counts):
             raise ValueError('Negative cinematic shot frame count')
         return counts
+
+    def _write_value(self, element, name, value):
+        self.required_field(element, name).set(value)
+        self.tag_has_changes = True
+
+    def _write_script(self, element, name, text):
+        script = self.required_field(element, name).as_struct()
+        if script is None:
+            raise TypeError(f'{self.path}: {name!r} is not a script structure')
+        self._write_value(script, 'script', text.encode('utf-8'))
+
+    def _write_vector(self, element, name, value):
+        field = self.required_field(element, name)
+        field.set(type(field.value)(*value))
+        self.tag_has_changes = True
+
+    def _shot_elements(self, shots, rebuild=False):
+        elements = self.block(self.tag.root(), 'shots')
+        if rebuild:
+            elements.clear()
+            for _ in shots:
+                elements.add()
+        if len(elements) != len(shots):
+            raise ValueError(
+                f'{self.path}: expected {len(shots)} shot records, found {len(elements)}')
+        return elements
+
+    def write_shot_settings(self, shots, corinth, script_from_text, rebuild=False):
+        for element, shot in zip(self._shot_elements(shots, rebuild), shots):
+            if not shot.frames:
+                continue
+            camera = shot.camera.nwo
+            self._write_script(element, 'header', script_from_text(
+                corinth, camera.header, camera.header_text, camera.header_use_text))
+            self._write_script(element, 'footer', script_from_text(
+                corinth, camera.footer, camera.footer_text, camera.footer_use_text))
+            self._write_value(element, 'environment darken', camera.environment_darken)
+            self._write_value(element, 'forced exposure', camera.forced_exposure)
+            flags = self.required_field(element, 'flags')
+            flags.set_flag('Instant Auto-Exposure', camera.instant_auto_exposure)
+            flags.set_flag('Force Exposure', camera.force_exposure)
+            flags.set_flag('Generate Looping Script', camera.generate_looping_script)
+
+            if corinth:
+                settings = self.required_field(element, 'settings flags')
+
+                def set_option(name, option):
+                    settings.set_flag(f'{name} - clear', option == 'CLEAR')
+                    settings.set_flag(f'{name} - persist across shots', option == 'PERSIST')
+
+                set_scalars = camera.lightmap_direct_scalar != 1.0 or camera.lightmap_indirect_scalar != 1.0
+                settings.set_flag('Lightmap Scalars - set', set_scalars)
+                self._write_value(element, 'Lightmap Direct Scalar', camera.lightmap_direct_scalar)
+                self._write_value(element, 'Lightmap Indirect Scalar', camera.lightmap_indirect_scalar)
+                set_option('Lightmap Scalars', camera.lightmap_scalar_option)
+                settings.set_flag('Sun Scalar - set', camera.sun_scalar != 1.0)
+                self._write_value(element, 'Sun Scalar', camera.sun_scalar)
+                set_option('Sun Scalar', camera.sun_scalar_option)
+                for field_name, path, option in (
+                        ('Atmosphere Fog', camera.atmosphere_fog, camera.atmosphere_fog_option),
+                        ('Camera Effects', camera.camera_effects, camera.camera_effects_option),
+                        ('Cubemap', camera.cubemap, camera.cubemap_option)):
+                    if path.strip():
+                        self.set_reference(element, field_name, path)
+                    set_option(field_name, option)
+                settings.set_flag('Disable All Lightmap Shadows', camera.disable_all_lightmap_shadows)
+            self.tag_has_changes = True
+
+    def write_camera_frames(self, shots, corinth, rebuild=False):
+        for element, shot in zip(self._shot_elements(shots, rebuild), shots):
+            self._write_value(element, 'frame count', shot.frame_count)
+            frame_data = self.block(element, 'frame data')
+            frame_data.clear()
+            for frame in shot.frames:
+                frame_element = frame_data[frame_data.add()]
+                camera_frame = self.required_field(frame_element, 'camera frame').as_struct()
+                if camera_frame is None:
+                    raise TypeError(f'{self.path}: camera frame is not a struct')
+                if corinth:
+                    dynamic = self.required_field(camera_frame, 'dynamic data').as_struct()
+                    constant = self.required_field(camera_frame, 'constant data').as_struct()
+                    if dynamic is None or constant is None:
+                        raise TypeError(f'{self.path}: split camera data is not a struct')
+                    self._write_vector(dynamic, 'camera position', frame.position)
+                    self._write_vector(dynamic, 'camera forward', frame.forward)
+                    self._write_vector(dynamic, 'camera up', frame.up)
+                    values = (
+                        ('focal length', frame.focal_length), ('depth of field', frame.depth_of_field),
+                        ('near focal plane distance', frame.near_focal_plane_distance),
+                        ('far focal plane distance', frame.far_focal_plane_distance),
+                        ('near focal depth', frame.near_focal_depth), ('far focal depth', frame.far_focal_depth),
+                        ('near blur amount', frame.near_blur_amount), ('far blur amount', frame.far_blur_amount))
+                    for name, value in values:
+                        self._write_value(constant, name, value)
+                else:
+                    self._write_vector(camera_frame, 'camera position', frame.position)
+                    self._write_vector(camera_frame, 'camera forward', frame.forward)
+                    self._write_vector(camera_frame, 'camera up', frame.up)
+                    values = (
+                        ('focal length', frame.focal_length), ('depth of field', frame.depth_of_field),
+                        ('near focal plane distance', frame.near_focal_plane_distance),
+                        ('far focal plane distance', frame.far_focal_plane_distance),
+                        ('focal depth', frame.focal_depth), ('blur amount', frame.blur_amount))
+                    for name, value in values:
+                        self._write_value(camera_frame, name, value)
+            self.tag_has_changes = True
+
+    def write_camera_shots(self, shots, corinth, script_from_text, rebuild=False):
+        self.write_shot_settings(shots, corinth, script_from_text, rebuild)
+        self.write_camera_frames(shots, corinth)
+
+    def write_camera_events(self, shots, corinth, game_frame):
+        for element, shot in zip(self._shot_elements(shots), shots):
+            camera = shot.camera.nwo
+            screen_effect = camera.screen_effect.strip()
+            screen_field = element.field('screen effects')
+            if screen_effect:
+                if screen_field is None:
+                    raise ValueError(f'{self.path}: screen effects are unavailable in this tag layout')
+                block = screen_field.as_block()
+                block.clear()
+                record = block[block.add()]
+                self.set_reference(record, 'screen effect', screen_effect)
+                frame = game_frame(camera.screen_effect_delay) + int(corinth)
+                self._write_value(record, 'frame', frame)
+                if camera.screen_effect_time > 0:
+                    self._write_value(record, 'stop frame',
+                                      frame + game_frame(camera.screen_effect_time))
+                elif corinth:
+                    self._write_value(record, 'stop frame', 1)
+                    self.required_field(record, 'flags').set_flag('Persist Entire Shot', True)
+                else:
+                    self._write_value(record, 'stop frame', shot.frame_count - 1)
+            elif screen_field is not None:
+                screen_field.as_block().clear()
+
+            has_constraints = any((camera.user_input_bounds_t,
+                                   camera.user_input_bounds_l,
+                                   camera.user_input_bounds_b,
+                                   camera.user_input_bounds_r))
+            constraint_field = element.field('user input constraints')
+            if has_constraints:
+                if constraint_field is None:
+                    raise ValueError(
+                        f'{self.path}: user-input constraints are unavailable in this tag layout')
+                block = constraint_field.as_block()
+                block.clear()
+                record = block[block.add()]
+                self._write_value(record, 'frame',
+                                  game_frame(camera.user_input_bounds_delay) + int(corinth))
+                self._write_value(record, 'ticks', game_frame(camera.user_input_bounds_time))
+                self._write_vector(record, 'maximum look angles', (
+                    int(degrees(camera.user_input_bounds_t)),
+                    int(degrees(-camera.user_input_bounds_l)),
+                    int(degrees(-camera.user_input_bounds_b)),
+                    int(degrees(camera.user_input_bounds_r))))
+                self._write_value(record, 'frictional force', camera.frictional_force)
+            elif constraint_field is not None:
+                constraint_field.as_block().clear()
+        self.tag_has_changes = True
+
+    def write_timeline_events(self, music, function_keyframes, locate_frame):
+        shots = self.block(self.tag.root(), 'shots')
+        for shot in shots:
+            self.block(shot, 'music').clear()
+            self.block(shot, 'object functions').clear()
+
+        for event, frame_index in music.items():
+            shot_index, shot_frame = locate_frame(frame_index)
+            if shot_index is None:
+                continue
+            block = self.block(shots[shot_index], 'music')
+            element = block[block.add()]
+            self.required_field(element, 'flags').set_flag(
+                'Stop Music At Frame (rather than starting it)',
+                event.stops_music_at_frame)
+            self.set_reference(element, r'music\foley', event.music)
+            self._write_value(element, 'frame', shot_frame)
+
+        object_indices = {
+            self.value(element, 'name'): index
+            for index, element in enumerate(self.block(self.tag.root(), 'objects'))
+        }
+        groups = {}
+        for event, frame_index in function_keyframes.items():
+            shot_index, shot_frame = locate_frame(frame_index)
+            if shot_index is None:
+                continue
+            groups.setdefault(
+                (shot_index, event.function_name, event.object), []).append(
+                    (event, shot_frame))
+
+        for (shot_index, function_name, object_name), keyframes in groups.items():
+            block = self.block(shots[shot_index], 'object functions')
+            element = block[block.add()]
+            self._write_value(element, 'object', object_indices.get(object_name, -1))
+            self._write_value(element, 'function name', function_name)
+            keys = self.block(element, 'keyframes')
+            for event, shot_frame in keyframes:
+                key = keys[keys.add()]
+                self.required_field(key, 'flags').set_flag(
+                    'clear function (Value and Interpolation time are unused)',
+                    event.clear_function)
+                self._write_value(key, 'frame', shot_frame)
+                self._write_value(key, 'value', event.value)
+                self._write_value(key, 'interpolation time', event.interpolation_time)
+        self.tag_has_changes = True
+
+    def write_script_events(self, scripts, locate_frame, corinth, script_from_text):
+        shots = self.block(self.tag.root(), 'shots')
+        for shot in shots:
+            self.block(shot, 'custom script').clear()
+        for event, frame_index in scripts.items():
+            if not event.script:
+                continue
+            shot_index, shot_frame = locate_frame(frame_index)
+            if shot_index is None:
+                continue
+            block = self.block(shots[shot_index], 'custom script')
+            element = block[block.add()]
+            flags = element.field('flags')
+            if flags is not None:
+                flags.set_flag('use maya value', event.use_maya_value)
+            self._write_value(element, 'frame', shot_frame)
+            self._write_script(element, 'script',
+                               script_from_text(corinth, event.script))
+            node_id = element.field('node id')
+            if node_id is not None:
+                node_id.set(event.node_id)
+                self.required_field(element, 'sequence id').set(event.sequence_id)
+        self.tag_has_changes = True
+
+    def write_content_events(self, dialogue, effects, locate_frame):
+        shots = self.block(self.tag.root(), 'shots')
+        for shot in shots:
+            self.block(shot, 'dialogue').clear()
+            self.block(shot, 'effects').clear()
+
+        for event, frame_index in dialogue.items():
+            shot_index, shot_frame = locate_frame(frame_index)
+            if shot_index is None:
+                continue
+            block = self.block(shots[shot_index], 'dialogue')
+            element = block[block.add()]
+            self.set_reference(element, 'dialogue', event.dialogue)
+            if element.field('female dialogue') is not None:
+                self.set_reference(element, 'female dialogue', event.female_dialogue)
+            for name, value in (
+                    ('frame', shot_frame), ('scale', event.scale),
+                    ('lipsync actor', event.actor),
+                    ('default sound effect', event.default_sound_effect),
+                    ('subtitle', event.subtitle),
+                    ('female subtitle', event.female_subtitle),
+                    ('character', event.character)):
+                if element.field(name) is not None:
+                    self._write_value(element, name, value)
+
+        object_indices = {
+            self.value(element, 'name'): index
+            for index, element in enumerate(self.block(self.tag.root(), 'objects'))
+        }
+        for event, frame_index in effects.items():
+            shot_index, shot_frame = locate_frame(frame_index)
+            if shot_index is None:
+                continue
+            block = self.block(shots[shot_index], 'effects')
+            element = block[block.add()]
+            flags = element.field('flags')
+            if flags is not None:
+                flags.set_flag('use maya value', event.use_maya_value)
+                if 'looping' in flags.options().names:
+                    flags.set_flag('looping', event.looping)
+            self.set_reference(element, 'effect', event.effect)
+            for name, value in (
+                    ('frame', shot_frame), ('marker name', event.marker_name),
+                    ('marker parent', object_indices.get(event.marker_parent, -1)),
+                    ('size scale', event.size_scale), ('state', event.state),
+                    ('function a', event.function_a), ('function b', event.function_b),
+                    ('node id', event.node_id), ('sequence id', event.sequence_id)):
+                if element.field(name) is not None:
+                    self._write_value(element, name, value)
+        self.tag_has_changes = True
+
+    def write_lighting_events(self, assignments):
+        shots = self.block(self.tag.root(), 'shots')
+        for shot in shots:
+            self.block(shot, 'lighting').clear()
+        for shot_index, subject, lighting, marker, persist in assignments:
+            if not 0 <= shot_index < len(shots):
+                raise ValueError(f'{self.path}: lighting assignment has invalid shot {shot_index}')
+            block = self.block(shots[shot_index], 'lighting')
+            element = block[block.add()]
+            flags = element.field('flags')
+            if flags is None:
+                if persist:
+                    raise ValueError(
+                        f'{self.path}: persistent lighting is unavailable in this tag layout')
+            else:
+                flags.set_flag('persists across shots', persist)
+            self.set_reference(element, 'lighting', lighting)
+            self._write_value(element, 'subject', subject)
+            self._write_value(element, 'marker', marker)
+        self.tag_has_changes = True
 
 
 class CinematicSceneDataTag(BlenderTag, CinematicCameraDocument):

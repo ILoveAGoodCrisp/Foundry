@@ -54,6 +54,7 @@ class TagDocument:
             raise ValueError(f'Unsupported Foundry game: {game!r}')
         self.game = game
         self.definitions = Path(definitions) if definitions is not None else Path(__file__).parent / 'definitions'
+        self.definitions_profile = PROFILES[game]
         self.tags_root = Path(tags_root).resolve()
         if hasattr(path, 'RelativePathWithExtension'):
             path = path.RelativePathWithExtension
@@ -73,7 +74,7 @@ class TagDocument:
         if self.tag_is_new:
             if must_exist:
                 raise FileNotFoundError(self.system_path)
-            schema = self.definitions / PROFILES[game] / (self.system_path.suffix[1:] + '.json')
+            schema = self.definitions / self.definitions_profile / (self.system_path.suffix[1:] + '.json')
             if not schema.is_file():
                 raise FileNotFoundError(f'Missing blam-tags schema: {schema}')
             self.tag = self.api.TagFile.new(schema)
