@@ -3,7 +3,7 @@ from ..tags.blender import BlenderTag
 from ..tags.physics import PhysicsDocument, PhysicsShapesUnsupported
 from .connected_geometry import Constraint, Sphere, Box, Pill, Polyhedron, RigidBody, HavokCollision
 from mathutils import Matrix
-from . import import_transform
+from .. import import_transform
 from .. import utils
 
 

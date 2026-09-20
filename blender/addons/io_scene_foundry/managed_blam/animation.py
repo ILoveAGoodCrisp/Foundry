@@ -37,7 +37,7 @@ from .animation_resource import (
 from .source_tag_resource import read_model_animation_graph_resources
 from .render_model import RenderModelTag
 from . import Tag
-from . import import_transform
+from .. import import_transform
 from ..legacy.jma import Node
 from .. import utils
 from ..constants import IK_INFLUENCE_ROUNDING_TOLERANCE

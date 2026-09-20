@@ -1,6 +1,7 @@
 
 
 from math import radians
+from types import SimpleNamespace
 from typing import cast
 
 from mathutils import Matrix, Vector, Color
@@ -11,11 +12,11 @@ from ..tools.property_apply import apply_props_material
 
 from ..props.object import NWO_ObjectPropertiesGroup
 from ..props.light import NWO_LightPropertiesGroup
-from ..tags.blender import BlenderTag
-from ..tags.backend import TagDocument
+from .blender import BlenderTag
+from .backend import TagDocument
 import struct
 import math
-from . import import_transform
+from .. import import_transform
 from .. import utils
 import bpy
 
@@ -128,6 +129,28 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
     def _read_fields(self):
         self.block_generic_light_definitions = self.block(self.tag.root(), 'generic light definitions')
         self.block_generic_light_instances = self.block(self.tag.root(), 'generic light instances')
+
+    def material_emissives(self):
+        field = self.tag.root().field('material info')
+        if field is None:
+            return []
+        records = []
+        for element in field.as_block():
+            flags = self.required_field(element, 'flags')
+            color = self.value(element, 'emissive color')
+            bounce = element.field('bounce ratio') or element.field('frustum blend')
+            records.append(SimpleNamespace(
+                power=float(self.value(element, 'emissive power')),
+                color=(float(color.red), float(color.green), float(color.blue)),
+                quality=float(self.value(element, 'emissive quality')),
+                focus=float(self.value(element, 'emissive focus')),
+                power_per_unit_area=flags.get_flag('power per unit area'),
+                use_shader_gel=flags.get_flag('use shader gel'),
+                attenuation_falloff=float(self.value(element, 'attenuation falloff')),
+                attenuation_cutoff=float(self.value(element, 'attenuation cutoff')),
+                bounce_ratio=0.0 if bounce is None else float(bounce.value),
+            ))
+        return records
 
     def _definition_index_from_id(self, id) -> int:
         for element_index, element in enumerate(self.block_generic_light_definitions):

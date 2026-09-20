@@ -3,7 +3,7 @@
 from pathlib import Path
 import bpy
 from .. import utils
-from ..managed_blam.camera_track import CameraTrackTag
+from ..tags.camera_track import CameraTrackTag
 
 def export_current_action_as_camera_track(context, asset_path):
     camera = utils.get_camera_track_camera(context)

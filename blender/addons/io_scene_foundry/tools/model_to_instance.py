@@ -9,7 +9,7 @@ from ..constants import WU_SCALAR
 
 from ..managed_blam.physics_model import PhysicsTag
 
-from ..managed_blam import import_transform
+from .. import import_transform
 from ..managed_blam.model import ModelTag
 from ..managed_blam.object import ObjectTag
 from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag

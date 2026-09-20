@@ -7,7 +7,7 @@ import time
 import bpy
 
 from ..managed_blam.model import ModelTag
-from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
+from ..tags.structure_lighting import ScenarioStructureLightingInfoTag
 from ..constants import VALID_MESHES, WU_SCALAR
 from ..auto_bsp import AutoBSPAssigner
 from .. import utils

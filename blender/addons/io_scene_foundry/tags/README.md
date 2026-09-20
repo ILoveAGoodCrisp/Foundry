@@ -39,6 +39,8 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
   used during geometry import.
 - Structure-BSP portals, markers, structure-meta references and legacy environment
   object placements used during import.
+- Reach/H4/H2AMP structure-BSP cookie cutters and older lighting-info material
+  emissives.
 - Multiplayer weapon-source discovery for biped import.
 - Terrain-shader global-material lookup through inherited shader references.
 - Material/shader albedo, alpha-mode and physics-material metadata used by

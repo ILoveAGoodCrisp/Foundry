@@ -49,7 +49,7 @@ class ObjectTag(BlenderTag, ObjectDocument):
         from mathutils import Matrix
         from types import SimpleNamespace
         from .. import utils
-        from . import import_transform
+        from .. import import_transform
         from .light import LightTag
         from .cheap_light import CheapLightTag
 

@@ -8,10 +8,10 @@ import numpy as np
 
 from .structure_meta import StructureMetaTag
 
-from .scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
+from ..tags.structure_lighting import ScenarioStructureLightingInfoTag
 
-from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, CompressionBounds, Emissive, EnvironmentObject, HavokCollision, Instance, InstanceDefinition, Material, Portal, StructureCollision, StructureMarker, SurfaceMapping
-from . import import_transform
+from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, CompressionBounds, Emissive, EnvironmentObject, HavokCollision, Instance, InstanceDefinition, Material, ModelCollision, Portal, StructureCollision, StructureMarker, SurfaceMapping
+from .. import import_transform
 from ..utils import jstr
 from . import Tag
 from .. import utils
@@ -78,6 +78,10 @@ class ScenarioStructureBspTag(Tag):
                 native_bsp.environment_objects()
                 if import_geometry and not for_cinematic and not self.corinth else []
             )
+            native_cookie_cutters = (
+                native_bsp.cookie_cutters()
+                if import_geometry and not for_cinematic else []
+            )
             structure_meta_data = native_bsp.structure_meta_data()
             
         # Get all emissive data
@@ -93,8 +97,10 @@ class ScenarioStructureBspTag(Tag):
         if lighting_info_path is not None and lighting_info_path.exists():
             with ScenarioStructureLightingInfoTag(path=str(lighting_info_path)) as info:
                 if not self.corinth:
-                    for element in info.tag.SelectField("Block:material info").Elements:
-                        emissives.append(Emissive(element))
+                    emissives.extend(
+                        Emissive.from_native(record)
+                        for record in info.material_emissives()
+                    )
                     
                     if import_geometry:
                         if not for_cinematic:
@@ -401,7 +407,7 @@ class ScenarioStructureBspTag(Tag):
                     objects.append(ob)
                     portals_collection.objects.link(ob)
             
-            if self.tag.SelectField("Block:cookie cutters").Elements.Count > 0:
+            if native_cookie_cutters:
                 utils.print_step("Creating Cookie Cutters")
                 layer = utils.add_permutation("cookie_cutters", utils.SetType.SCENARIO)
                 cookies_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_cookie_cutters")
@@ -409,8 +415,8 @@ class ScenarioStructureBspTag(Tag):
                 cookies_collection.nwo.type = "permutation"
                 cookies_collection.nwo.permutation = layer
                 self.collection.children.link(cookies_collection)
-                for element in self.tag.SelectField("Block:cookie cutters").Elements:
-                    cookie = BSP(element.Fields[1].Elements[0], f"cookie_cutter{element.ElementIndex}", [])
+                for record in native_cookie_cutters:
+                    cookie = ModelCollision.from_native(record)
                     ob = cookie.to_object(cookie_cutter=True)
                     objects.append(ob)
                     cookies_collection.objects.link(ob)

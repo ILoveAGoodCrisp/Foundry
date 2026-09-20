@@ -4,9 +4,9 @@ from math import radians
 import bpy
 import os
 from mathutils import Matrix, Quaternion, Vector
-from ..tags.backend import CameraTrackDocument
+from .backend import CameraTrackDocument
 from .. import utils
-from . import import_transform
+from .. import import_transform
 
 #  This matrix corrects for the camera's forward direction
 camera_correction_matrix = Matrix(((-0, 0, -1), (-1, -0, 0), (-0, 1, 0)))

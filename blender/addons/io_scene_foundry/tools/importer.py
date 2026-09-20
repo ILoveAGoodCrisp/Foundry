@@ -17,7 +17,7 @@ from mathutils import Color, Quaternion, Vector, Matrix, Euler
 import numpy as np
 
 from ..managed_blam import connected_geometry
-from ..managed_blam import import_transform
+from .. import import_transform
 
 from ..managed_blam.cinematic import NativeCinematicTag
 
@@ -26,7 +26,7 @@ from ..managed_blam.decal_system import DecalSystemCorinthTag, DecalSystemTag
 
 from ..managed_blam.polyart import PolyArtTag
 
-from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
+from ..tags.structure_lighting import ScenarioStructureLightingInfoTag
 
 from ..managed_blam.structure_design import StructureDesignTag
 
@@ -53,7 +53,7 @@ from ..managed_blam.physics_model import PhysicsTag
 from ..managed_blam.model import ChildObject, ModelTag, RenderModelOverrideType
 from ..tools.mesh_to_marker import convert_to_marker
 from ..managed_blam.bitmap import bitmap_to_image, clear_path_cache
-from ..managed_blam.camera_track import CameraTrackTag
+from ..tags.camera_track import CameraTrackTag
 from ..managed_blam.collision_model import CollisionTag
 from ..tools.clear_duplicate_materials import clear_duplicate_materials
 from ..tools.property_apply import apply_props_material, apply_prefix_bulk

@@ -9,7 +9,7 @@ from ..tags.backend import TagDocument
 from ..tags.blender import BlenderTag
 from ..tags.metadata import rgba
 from .. import utils
-from . import import_transform
+from .. import import_transform
 
 class StructureMetaTag(BlenderTag, TagDocument):
     tag_ext = 'structure_meta'

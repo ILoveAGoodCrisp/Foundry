@@ -12,7 +12,7 @@ from ..constants import VALID_MESHES
 from ..tags.backend import TagDocument
 from ..tags.blender import BlenderTag
 from .. import utils
-from . import import_transform
+from .. import import_transform
 
 POLYART_SCALE_FROM = 0.001
 POLYART_SCALE_TO = 1000

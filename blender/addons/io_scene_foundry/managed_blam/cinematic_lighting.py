@@ -6,7 +6,7 @@ from .light import LightTag
 from .. import utils
 from ..tags.blender import BlenderTag
 from ..tags.lighting import CinematicLightingDocument
-from . import import_transform
+from .. import import_transform
 import bpy
 
 def _cinematic_light_source_vector(direction_angle: float, front_back_angle: float) -> Vector:

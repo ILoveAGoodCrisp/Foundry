@@ -7,7 +7,7 @@ from mathutils import Vector
 
 from ..tags.backend import TagDocument
 from ..tags.blender import BlenderTag
-from . import import_transform
+from .. import import_transform
 
 
 class ParticleModelTag(BlenderTag, TagDocument):

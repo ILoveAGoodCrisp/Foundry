@@ -115,6 +115,13 @@ normalized into one record; geometry and resource decoding remain legacy.
 Cluster portals, structure markers, H4/H2AMP structure-meta references and
 H3/ODST/Reach environment-object placements now enter the BSP importer as native
 detached records too.
+Reach/H4/H2AMP cookie-cutter collision geometry now uses native bounded edge-loop
+decoding. H3/ODST/Reach lighting-info material emissives are also native. The
+already-native structure-lighting wrapper and shared coordinate-transform utility
+have moved out of `managed_blam`, so their callers no longer import that package
+solely for native lighting or transform operations.
+The native camera-track Blender wrapper and its correction matrix now live in
+`tags` as well; camera sync, import and cinematic export use that path directly.
 The biped weapon-source picker now resolves multiplayer object-type indices and
 weapon references through a native multiplayer-object-type-list document.
 

@@ -15,7 +15,7 @@ from ..managed_blam.cinematic_scene import CinematicCustomScript, CinematicDialo
 from ..tags.cinematic import CinematicSceneDataTag
 
 from .. import utils
-from ..managed_blam.camera_track import camera_correction_matrix
+from ..tags.camera_track import camera_correction_matrix
 
 # Blender DOF is lens based, while cinematic tags store linear blur ramps.
 # These CoC thresholds give the ramp a photographic sharp point and a sane

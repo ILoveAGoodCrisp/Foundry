@@ -9,7 +9,7 @@ from .connected_geometry import BSPSeam
 from ..tools.property_apply import apply_props_material
 from ..tags.blender import BlenderTag
 from ..tags.seams import StructureSeamsDocument
-from . import import_transform
+from .. import import_transform
 import os
 from .. import utils
 

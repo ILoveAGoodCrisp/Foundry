@@ -11,7 +11,7 @@ from ..constants import HALO_FACTOR
 
 from .connected_geometry import CompressionBounds, InstancePlacement, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
 from .Tags import *
-from . import import_transform
+from .. import import_transform
 
 from .. import utils
 from ..managed_blam import Tag

@@ -1,6 +1,6 @@
 from mathutils import Matrix, Quaternion, Vector
 
-from .. import utils
+from . import utils
 
 
 def scale_factor(scene_nwo=None) -> float:

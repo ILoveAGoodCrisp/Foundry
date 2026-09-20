@@ -7,7 +7,7 @@ from mathutils import Vector
 from ..constants import WU_SCALAR
 from ..tags.blender import BlenderTag
 from ..tags.structure_design import StructureDesignDocument
-from . import import_transform
+from .. import import_transform
 from .. import utils
 from ..tools.property_apply import apply_props_material
 

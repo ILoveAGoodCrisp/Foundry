@@ -9,7 +9,7 @@ from ..tags.blender import BlenderTag
 from ..tags.backend import TagDocument
 from ..tags.metadata import enum_index
 from .light_functions import light_functions, constant_light_value
-from . import import_transform
+from .. import import_transform
 import bpy
 
 class LightTag(BlenderTag, TagDocument):

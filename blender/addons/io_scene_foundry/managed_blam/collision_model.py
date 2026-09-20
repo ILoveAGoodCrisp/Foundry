@@ -4,7 +4,7 @@ from .connected_geometry import ModelCollision, PathfindingSphere
 from ..tags.blender import BlenderTag
 from ..tags.collision import CollisionDocument
 from .. import utils
-from . import import_transform
+from .. import import_transform
 import bpy
 
 

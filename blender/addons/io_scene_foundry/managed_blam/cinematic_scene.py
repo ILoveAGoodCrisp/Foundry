@@ -12,10 +12,10 @@ from ..tags.blender import BlenderTag
 from .. import utils
 from ..props.scene import NWO_CinematicEvent
 from . import tag_path_from_string
-from . import import_transform
+from .. import import_transform
 from .Tags import TagFieldBlock, TagFieldBlockElement, TagPath
 import bpy
-from ..managed_blam.camera_track import camera_correction_matrix
+from ..tags.camera_track import camera_correction_matrix
 
 def get_subject_name(subject_index: int, object_block: TagFieldBlock) -> str:
     if subject_index != -1 and object_block.Elements.Count > subject_index:

@@ -1,6 +1,8 @@
 """Native prefab metadata."""
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
+from types import SimpleNamespace as Record
 
 from ..constants import (
     LIGHTMAP_ADDITIVE_TRANSPARENCY_COLOR,
@@ -308,6 +310,68 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 definition=definition,
                 variant='' if variant is None else str(variant.value),
             ))
+        return records
+
+    def cookie_cutters(self):
+        field = self.tag.root().field('cookie cutters')
+        if field is None:
+            return []
+        records = []
+        edge_names = ('start vertex', 'end vertex', 'forward edge', 'reverse edge',
+                      'left surface', 'right surface')
+        for index, element in enumerate(field.as_block()):
+            collision = self.required_field(element, 'collision model').as_struct()
+            if collision is None:
+                raise TypeError(f'{self.path}: cookie cutter collision model is not a struct')
+            vertices = [tuple(self.value(vertex, 'point').to_array())
+                        for vertex in self.block(collision, 'vertices')]
+            if any(not isfinite(value) for vertex in vertices for value in vertex):
+                raise ValueError(f'{self.path}: cookie cutter has non-finite vertices')
+            edges = [tuple(int(self.value(edge, name)) & 0xffff for name in edge_names)
+                     for edge in self.block(collision, 'edges')]
+            surfaces, polygons = [], []
+            for surface_index, surface in enumerate(self.block(collision, 'surfaces')):
+                first = int(self.value(surface, 'first edge')) & 0xffff
+                current, visited, polygon = first, set(), []
+                while True:
+                    if current in visited or current >= len(edges):
+                        raise ValueError(
+                            f'{self.path}: cookie cutter surface {surface_index} has an invalid edge loop')
+                    visited.add(current)
+                    start, end, forward, reverse, left, right = edges[current]
+                    if left == surface_index:
+                        vertex, following = start, forward
+                    elif right == surface_index:
+                        vertex, following = end, reverse
+                    else:
+                        raise ValueError(
+                            f'{self.path}: cookie cutter edge does not belong to its surface')
+                    if vertex >= len(vertices):
+                        raise ValueError(f'{self.path}: cookie cutter vertex is out of range')
+                    polygon.append(vertex)
+                    if following == first:
+                        break
+                    current = following
+                if len(polygon) < 3 or len(set(polygon)) != len(polygon):
+                    raise ValueError(f'{self.path}: cookie cutter has a degenerate surface')
+                flags = self.required_field(surface, 'flags')
+                breakable = flags.get_flag('breakable')
+                invisible = flags.get_flag('invisible')
+                surfaces.append(Record(
+                    index=surface_index,
+                    material=None,
+                    negated=flags.get_flag('plane negated'),
+                    invalid=flags.get_flag('invalid'),
+                    ladder=flags.get_flag('climbable'),
+                    breakable=breakable,
+                    slip_surface=flags.get_flag('slip'),
+                    invisible=invisible,
+                    two_sided=flags.get_flag('two sided') and not (breakable or invisible),
+                ))
+                polygons.append(polygon)
+            records.append(Record(
+                name=f'cookie_cutter{index}', node_index=-1, bone='', vertices=vertices,
+                surfaces=surfaces, polygons=polygons))
         return records
 
     def fix_collision_render_surface_mapping(self):
