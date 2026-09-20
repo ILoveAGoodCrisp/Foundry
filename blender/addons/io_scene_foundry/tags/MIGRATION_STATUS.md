@@ -30,6 +30,8 @@ links natively; decals and decorator placement clouds also read native records.
 The obsolete legacy scenario wrapper has been removed. Cubemap split-resource mirroring and BSP bitmap
 references are native; bitmap checksum edits use the native bitmap wrapper. The
 scenario and child-scenario import no longer use the legacy scenario wrapper.
+The lightmap-quality menu now reads its names through the native lightmapper-globals
+document rather than opening ManagedBlam directly.
 
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
@@ -51,6 +53,8 @@ and Reach `.scenario_cinematics_resource` records without ManagedBlam. Generated
 schemas remain ignored build assets sourced from blam-tags rather than committed
 per-tag definitions. A focused in-memory schema check covered Reach, H4 and H2AMP;
 complete editing-kit export acceptance is deferred to the final migration review.
+The native cinematic-scene-data wrapper now lives with its camera document under
+`tags`; the obsolete `managed_blam` forwarding module has been removed.
 Focused schema checks exercised scenario BSP, sky, zone-set and lightmap fields for
 H3, ODST, Reach, H4 and H2AMP. Block flags are edited through their native integer
 value because blam-tags intentionally does not expose block-reference names as
@@ -89,6 +93,16 @@ ManagedBlam frame-event module.
 Read-only sampling of 60 real frame-event lists decoded 4,696 animation entries
 and 3,623 event records with no errors or source-byte changes. Editing-kit
 acceptance of newly written event lists remains unverified.
+Particle-model export now creates an empty custom-points tag through blam-tags;
+its schema is an ignored generated build asset and the export processor no longer
+imports the ManagedBlam base for this operation.
+The cinematic event UI now reads usable sound-effect names and playback contents
+through a native sound-effect-collection document. Sound-class display labels still
+come from editor-only block header metadata and remain a direct ManagedBlam read.
+Standalone H4/H2AMP prefab import now resolves its structure-BSP reference through
+a native prefab document instead of opening the prefab through ManagedBlam.
+The biped weapon-source picker now resolves multiplayer object-type indices and
+weapon references through a native multiplayer-object-type-list document.
 
 The local blam-tags API update had stashed Foundry's earlier function-editor and
 lossless copy bindings. Those additions were restored alongside the new anchored
@@ -108,7 +122,7 @@ tag is a physical light with periodic, modifier-driven attenuation. Sampling moc
 light allocation, final lighting setup and bitmap conversion; visual parity and
 complete import/export acceptance are still outstanding.
 
-The source audit updated on 2026-09-19 found:
+The source audit updated on 2026-09-20 found:
 
 - 17 migrated tag workflows: camera tracks, globals, render-method options,
   render-method definitions, material-shader metadata, models, object metadata,
@@ -117,8 +131,11 @@ The source audit updated on 2026-09-19 found:
   scenario metadata/editing and scenario airprobes.
 - 13 tag classes still inherit the legacy `Tag` base, directly or indirectly:
   4 direct wrappers and 9 shader/material/decal subclasses.
-- 12 modules under `managed_blam` still contain `SelectField` calls (excluding
+- 10 modules under `managed_blam` still contain `SelectField` calls (excluding
   the legacy base and generated type declarations).
+- 4 direct `with Tag(...)` ManagedBlam call sites remain outside the legacy
+  wrappers: two in cinematic scene export, one sound-class label reader and one
+  blank shader-tag creation path. Additional legacy wrapper calls remain indirect.
 
 Physics also uses native records for constraints, spheres, capsules, boxes, convex
 polyhedra, nested lists/MOPPs, H4/H2AMP body properties and supported serialized
@@ -290,22 +307,23 @@ matching the previous wrapper's behavior.
 The first tag-function binding is implemented: `TagFunctionEditor` decodes and
 describes functions, evaluates outputs and normalized shapes, and round-trips bytes.
 It exposes basic, periodic, exponent, transition and MultiSpline editor graphs.
-Object-function node creation now uses it. Unsupported editor shapes still fall
-back before any nodes are created. A read-only sample across 60 H3+ object tags
-decoded and round-tripped 266 functions; two unknown transition indices required
-fallback. Editing methods and shader consumer migration are still pending.
+Object-function node creation now uses it. Unsupported editor shapes raise before
+any nodes are created. A read-only sample across 60 H3+ object tags decoded and
+round-tripped 266 functions; two unknown transition indices remain unsupported.
+Editing methods and shader consumer migration are still pending.
 
 Reach lights and Reach/H4/H2AMP cheap lights now decode mappings natively, including
-input variables, range variables and output modifiers. Unsupported mappings use a
-shared legacy editor fallback before Blender lights or nodes are allocated. Projected
-gel textures still use the legacy bitmap decoder. Static H4/H2AMP point, spot and
+input variables, range variables and output modifiers. Unsupported mappings raise
+before Blender lights or nodes are allocated; the shared ManagedBlam editor fallback
+has been removed. Projected gel textures use the native bitmap wrapper and Foundry's
+Python image decoder. Static H4/H2AMP point, spot and
 directional light tags now convert natively; H3/ODST falloff conversion is explicitly unsupported because
 its fields differ from Reach. H3/ODST have no cheap-light tag group.
 
 A read-only sample of 120 real light/cheap-light tags across Reach, H4 and H2AMP
 decoded and byte-round-tripped all 330 mappings without fallback. Regression tests
-check color, intensity, distance scaling, spotlight angles, attachment dependencies,
-unchanged source bytes and fallback before light creation. Full visual parity in
+check color, intensity, distance scaling, spotlight angles, attachment dependencies
+and unchanged source bytes. Full visual parity in
 Blender and editing-kit acceptance remain to be checked.
 
 The static H4/H2AMP converter follows the existing scenario-lighting mapping for

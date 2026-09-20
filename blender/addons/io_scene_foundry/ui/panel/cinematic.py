@@ -6,6 +6,7 @@ import bpy
 from mathutils import Euler, Matrix, Vector
 
 from ...tags.scenario import ScenarioMetadataTag
+from ...tags.sound import SoundEffectCollectionTag
 from ...managed_blam.render_model import RenderModelMetadataTag
 from ...managed_blam.model import ModelTag
 from ...managed_blam.object import ObjectTag
@@ -1322,13 +1323,8 @@ class NWO_OT_GetSoundEffects(bpy.types.Operator):
         if not Path(utils.get_tags_path(), SOUND_FX_TAG).exists():
             return items
         
-        with Tag(path=SOUND_FX_TAG) as fx:
-            for element in fx.tag.SelectField("Block:sound effects").Elements:
-                name = element.SelectField("StringId:name").GetStringData()
-                if not name:
-                    continue
-                if element.SelectField("Struct:playback[0]/Reference:radio effect").Path is not None or element.SelectField("Struct:playback[0]/Block:sound components").Elements.Count > 0:
-                    items.append((name, name, ""))
+        with SoundEffectCollectionTag(path=SOUND_FX_TAG) as fx:
+            items.extend((name, name, "") for name in fx.usable_effect_names())
 
         return items
     

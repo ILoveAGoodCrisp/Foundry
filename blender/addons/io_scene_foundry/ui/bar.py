@@ -9,6 +9,7 @@ from ..constants import VALID_MESHES
 from ..tools.halo_export import export_quick, export
 
 from .. import managed_blam
+from ..managed_blam.lightmapper_globals import LightmapperGlobalsTag
 
 from .. import utils
 from .. import icons
@@ -1030,10 +1031,8 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
                     ("special_weekend", "Special Weekend", ""),
                     ]
         
-        with managed_blam.Tag(path=lightmapper_globals_tag_path) as lightmapper_globals:
-            block_quality_settings = lightmapper_globals.tag.SelectField("Block:quality settings")
-            for element in block_quality_settings.Elements:
-                name: str = element.Fields[0].GetStringData()
+        with LightmapperGlobalsTag(path=lightmapper_globals_tag_path) as lightmapper_globals:
+            for name in lightmapper_globals.quality_names():
                 items.append((name, name.replace('_', ' ').capitalize(), ''))
         
         return items

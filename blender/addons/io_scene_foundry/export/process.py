@@ -44,7 +44,7 @@ from ..tools.airprobe_exporter import export_airprobes
 
 # from ..tools.scenario.zone_sets import write_zone_sets_to_scenario
 
-from ..managed_blam import Tag
+from ..tags.particle import ParticleEmitterCustomPointsTag
 
 from ..managed_blam.render_model import RenderModelMetadataTag, RenderModelTag
 from ..managed_blam.animation import AnimationTag
@@ -2765,7 +2765,8 @@ class ExportScene:
             self.print_pre("--- Adding particle emitter custom points")
             emitter_path = Path(self.asset_path, self.asset_name).with_suffix(".particle_emitter_custom_points")
             if not emitter_path.exists():
-                with Tag(path=str(emitter_path)) as _: pass
+                with ParticleEmitterCustomPointsTag(path=emitter_path, tag_must_exist=False):
+                    pass
 
     def any_node_usage_override(self):
         # if not self.corinth and self.asset_type == AssetType.ANIMATION and self.scene_settings.asset_animation_type == 'first_person':

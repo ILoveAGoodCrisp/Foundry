@@ -7,8 +7,7 @@ from .cinematic_lighting import CinematicLightingTag
 
 from .lisp_to_corinth import script_from_text
 
-from .cinematic_scene_data import CinematicSceneDataTag
-from ..tags.cinematic import CinematicCameraDocument
+from ..tags.cinematic import CinematicCameraDocument, CinematicSceneDataTag
 from ..tags.blender import BlenderTag
 from .. import utils
 from ..props.scene import NWO_CinematicEvent

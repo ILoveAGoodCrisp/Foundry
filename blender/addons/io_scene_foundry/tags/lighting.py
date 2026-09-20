@@ -37,6 +37,9 @@ class CinematicLightingDocument(TagDocument):
 class LightmapperGlobalsDocument(TagDocument):
     tag_ext = 'lightmapper_globals'
 
+    def quality_names(self):
+        return [self.value(element, 'name') for element in self.block(self.tag.root(), 'quality settings')]
+
     def settings(self, name):
         field = self.required_field(self.tag.root(), name)
         result = field.as_struct()

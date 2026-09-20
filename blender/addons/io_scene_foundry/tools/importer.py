@@ -32,8 +32,10 @@ from ..managed_blam.structure_design import StructureDesignTag
 
 from ..managed_blam.globals import FPARMS, GlobalsTag
 
-from ..managed_blam import Tag, switch_project_from_filepath
+from ..managed_blam import switch_project_from_filepath
 from ..tags.backend import TagDocument
+from ..tags.multiplayer import MultiplayerObjectTypeListTag
+from ..tags.prefab import PrefabTag
 from ..tags.scenario import ScenarioMetadataTag
 
 from .animation.generate_frames import FrameGenerator
@@ -670,19 +672,12 @@ def biped_weapon_source_items(_self, _context):
     weapon_paths = defaultdict(set)
 
     try:
-        with Tag(path=r"multiplayer\globals.multiplayer_object_type_list", tag_must_exist=True, raise_on_error=False) as mp_globals:
-            
-            object_types = mp_globals.tag.SelectField("object types")
-            types_count = object_types.Elements.Count
-            
-            for element in mp_globals.tag.SelectField("Block:weapons").Elements:
-                type_value = element.Fields[0].Value
-                if type_value > -1 and type_value < types_count:
-                    type_element = object_types.Elements[type_value]
-                    object_tag_path = type_element.Fields[2].Path
-                    if mp_globals.path_exists(object_tag_path):
-                        folder = Path(object_tag_path.RelativePath).parent.parent
-                        weapon_paths[folder.name].add(object_tag_path.RelativePathWithExtension)
+        with MultiplayerObjectTypeListTag(
+                path=r"multiplayer\globals.multiplayer_object_type_list",
+                tag_must_exist=True) as mp_globals:
+            for object_tag_path in mp_globals.weapon_references():
+                folder = Path(object_tag_path.RelativePath).parent.parent
+                weapon_paths[folder.name].add(object_tag_path.RelativePathWithExtension)
     except Exception:
         biped_weapon_source_item_cache = items
         return biped_weapon_source_item_cache
@@ -4112,9 +4107,9 @@ class NWOImporter:
         else:
             bsp_collection.children.link(collection)
             
-        with Tag(path=file) as prefab:
-            bsp_ref = prefab.get_path_str(prefab.tag.Fields[0].Path, True)
-            if not bsp_ref or not Path(bsp_ref).exists():
+        with PrefabTag(path=file) as prefab:
+            bsp_ref = prefab.bsp_path()
+            if bsp_ref is None:
                 return
             
         with ScenarioStructureBspTag(path=bsp_ref) as bsp:

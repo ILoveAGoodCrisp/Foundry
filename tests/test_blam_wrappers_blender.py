@@ -503,7 +503,7 @@ class WrapperTests(unittest.TestCase):
     def test_native_cinematic_entry_points(self):
         from io_scene_foundry.managed_blam.cinematic import NativeCinematicTag, SceneData
         from io_scene_foundry.managed_blam.cinematic_scene import NativeCinematicSceneTag
-        from io_scene_foundry.managed_blam.cinematic_scene_data import CinematicSceneDataTag
+        from io_scene_foundry.tags.cinematic import CinematicSceneDataTag
         from io_scene_foundry.tags.backend import TagDocument
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \

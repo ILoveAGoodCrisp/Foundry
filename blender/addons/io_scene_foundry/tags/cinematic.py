@@ -2,6 +2,7 @@
 from math import isfinite
 from types import SimpleNamespace
 from .backend import TagDocument
+from .blender import BlenderTag
 
 
 class CinematicCameraDocument(TagDocument):
@@ -10,6 +11,10 @@ class CinematicCameraDocument(TagDocument):
         if any(count < 0 for count in counts):
             raise ValueError('Negative cinematic shot frame count')
         return counts
+
+
+class CinematicSceneDataTag(BlenderTag, CinematicCameraDocument):
+    tag_ext = 'cinematic_scene_data'
 
     def scene_metadata(self):
         root = self.tag.root()

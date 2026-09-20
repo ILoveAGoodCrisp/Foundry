@@ -13,20 +13,25 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
 - Model references, export path updates, variants, damage states, child objects,
   material mappings, render-region metadata and Reach sky detection.
 - Lightmap-region bounds, restriction flags, ambient occlusion and bounce mode
-  for H4/H2AMP.
+  for H4/H2AMP, plus lightmapper quality names used by the UI.
 - Object model references, variants, change colors, seat and weapon names,
   magazine/tether metadata, first-person model edits and scenery lighting references.
 - Object attachment references, marker names and scale-function names. Missing
   and unsupported attachments are filtered before opening a legacy converter.
 - Cinematic-lighting creation and dynamic-light references, flags and placement
-  metadata. Referenced light conversion still uses the legacy light wrapper.
+  metadata. Referenced Reach light conversion uses the native light wrapper;
+  H4/H2AMP authored-probe conversion remains unimplemented.
 - Object-function node creation for supported native editor shapes; unsupported
-  shapes retain the legacy fallback before any nodes are created.
+  shapes raise before any nodes are created.
 - Cinematic scenery conversion when the source block layouts match the target
   schema. Incompatible layouts raise explicitly.
 - Top-level cinematic import/export and its scenario bookkeeping, including
   transition tags, scripts, scene references, zone sets and anchors.
 - Frame-event-list import/export, shared references and partial animation updates.
+- Particle-emitter custom-points tag creation during particle-model export.
+- Cinematic event sound-effect names and playback availability.
+- H4/H2AMP prefab structure-BSP reference resolution during import.
+- Multiplayer weapon-source discovery for biped import.
 - Scenario metadata and lightweight editing for type detection, BSP/design/sky
   discovery, zone sets, lightmap settings, sky assignment, cutscene titles,
   scenario copies, default player profiles, debug zone sets, airprobe export,
@@ -140,8 +145,9 @@ flags, string inputs, nonzero-padding rejection and rollback after unknown field
 The fallback still needs editing-kit validation.
 
 Light wrappers now use native field reading and function decoding for Reach lights
-and Reach/H4/H2AMP cheap lights. Unsupported function shapes retain a shared legacy
-editor fallback; gel bitmap decoding also still requires ManagedBlam. H3/ODST light
+and Reach/H4/H2AMP cheap lights. Unsupported function shapes raise explicitly;
+gel bitmap conversion uses the native bitmap wrapper and Foundry's Python image
+decoder. H3/ODST light
 falloff remains unimplemented. Static H4/H2AMP point, spot and directional light
 tags now convert, including physical/artistic energy handling and shadow settings.
 Animated intensity is supported for artistic point/spot lights. Animated radius
