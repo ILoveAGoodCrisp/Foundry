@@ -7,7 +7,7 @@ from mathutils import Euler, Matrix, Vector
 
 from ...tags.scenario import ScenarioMetadataTag
 from ...tags.sound import SoundClassesTag, SoundEffectCollectionTag
-from ...managed_blam.render_model import RenderModelMetadataTag
+from ...tags.render_model import RenderModelMetadataTag
 from ...managed_blam.model import ModelTag
 from ...managed_blam.object import ObjectTag
 from ...managed_blam.cinematic_lighting import CinematicLightingTag

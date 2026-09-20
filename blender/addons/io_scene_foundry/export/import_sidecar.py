@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from ..managed_blam.render_model import RenderModelMetadataTag
+from ..tags.render_model import RenderModelMetadataTag
 
 from ..tools.asset_types import AssetType
 from .. import utils

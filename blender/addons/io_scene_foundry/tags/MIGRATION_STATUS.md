@@ -46,8 +46,10 @@ The obsolete ManagedBlam cinematic-scene wrapper has been removed; cinematic
 scene import now lives directly on `NativeCinematicSceneTag`. Cinematic debug-menu
 scene lookup and BSP-zone flags are also native. Common render-model metadata
 queries (nodes, regions, permutations and marker groups) now use a native wrapper
-in UI and export setup paths. Empty region/permutation insertion and first-material
-lookup now use the same wrapper; full render geometry remains legacy.
+in UI and export setup paths. That wrapper now lives in `tags`; the ManagedBlam
+render-model module contains only the remaining geometry importer. Empty
+region/permutation insertion and first-material lookup use the same wrapper; full
+render geometry remains legacy.
 The old `CinematicTag(Tag)` wrapper and its duplicate import path are gone. The
 replacement creates and updates `.cinematic`, `.cinematic_transition`, `.scenario`
 and Reach `.scenario_cinematics_resource` records without ManagedBlam. Generated
@@ -103,6 +105,16 @@ the canonical indexed enum in the generated blam-tags schemas, replacing the fin
 ManagedBlam read in that UI module.
 Standalone H4/H2AMP prefab import now resolves its structure-BSP reference through
 a native prefab document instead of opening the prefab through ManagedBlam.
+H4/H2AMP prefab export now writes structure-BSP external-reference records through
+blam-tags. H3/ODST/Reach collision proxy export also restores omitted render-surface
+mapping entries through the native structure-BSP document. The BSP importer now
+gets collision-material metadata, compression bounds, H4/H2AMP emissive materials
+render-material/lightmap properties and the structure-lighting reference from the
+same native document. H3/ODST material property blocks and newer direct fields are
+normalized into one record; geometry and resource decoding remain legacy.
+Cluster portals, structure markers, H4/H2AMP structure-meta references and
+H3/ODST/Reach environment-object placements now enter the BSP importer as native
+detached records too.
 The biped weapon-source picker now resolves multiplayer object-type indices and
 weapon references through a native multiplayer-object-type-list document.
 
@@ -146,6 +158,8 @@ H4/H2AMP material metadata and H3/ODST/Reach shader metadata now provide albedo
 bitmap, alpha-mode and physics-material reads. Decorator texture setup, Granny
 texture extraction and BSP collision-material lookup use these native readers;
 full node construction and material authoring remain legacy.
+Native tag-reference lookup normalizes space-padded group codes from the generated
+group index, including the H4/H2AMP `mat ` material group.
 Non-node shader export now creates the selected empty shader tag through blam-tags.
 The subsequent render-method template inspection/generation remains legacy.
 Cinematic scene export now creates both scene files and writes scene-level name,

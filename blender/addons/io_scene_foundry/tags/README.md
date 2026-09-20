@@ -32,6 +32,13 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
 - Cinematic event sound-effect names, playback availability and indexed sound-class
   labels.
 - H4/H2AMP prefab structure-BSP reference resolution during import.
+- H4/H2AMP prefab records and H3/ODST/Reach collision-proxy surface mappings in
+  structure BSPs.
+- Structure-BSP collision materials, compression bounds, H4/H2AMP emissive
+  materials, render-material/lightmap properties and structure-lighting references
+  used during geometry import.
+- Structure-BSP portals, markers, structure-meta references and legacy environment
+  object placements used during import.
 - Multiplayer weapon-source discovery for biped import.
 - Terrain-shader global-material lookup through inherited shader references.
 - Material/shader albedo, alpha-mode and physics-material metadata used by

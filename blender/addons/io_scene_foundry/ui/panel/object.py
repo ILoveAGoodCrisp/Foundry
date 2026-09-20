@@ -19,7 +19,7 @@ from ... import utils
 from ...managed_blam.globals import GlobalsTag
 from ...managed_blam.model import ModelTag
 from ...managed_blam.object import ObjectTag
-from ...managed_blam.render_model import RenderModelMetadataTag
+from ...tags.render_model import RenderModelMetadataTag
 
 int_highlight = 0
 

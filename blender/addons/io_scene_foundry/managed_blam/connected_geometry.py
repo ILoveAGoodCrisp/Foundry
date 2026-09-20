@@ -69,23 +69,18 @@ class PortalType(Enum):
     _connected_geometry_portal_type_two_way = 2
 
 class Portal:
-    def __init__(self, element: TagFieldBlockElement):
-        self.index = element.ElementIndex
+    def __init__(self, record):
+        self.index = record.index
         self.type = PortalType._connected_geometry_portal_type_two_way
-        flags = element.SelectField("flags")
-        if flags.TestBit("one-way") or flags.TestBit("one-way-reversed"):
+        if record.one_way:
             self.type = PortalType._connected_geometry_portal_type_one_way
-        elif flags.TestBit("no-way"):
+        elif record.no_way:
             self.type = PortalType._connected_geometry_portal_type_no_way
-            
-        self.ai_deafening = flags.TestBit("ai can't hear through this shit")
-        self.blocks_sounds = flags.TestBit("no one can hear through this")
-        self.is_door = flags.TestBit("door")
-            
-        vertices_block = element.SelectField("Block:vertices")
-        self.vertices = []
-        for e in vertices_block.Elements:
-            self.vertices.append(Vector(n for n in e.Fields[0].Data) * 100)
+
+        self.ai_deafening = record.ai_deafening
+        self.blocks_sounds = record.blocks_sounds
+        self.is_door = record.is_door
+        self.vertices = [Vector(vertex) * 100 for vertex in record.vertices]
             
     def create(self) -> bpy.types.Object:
         mesh = bpy.data.meshes.new(f"portal:{self.index}")
@@ -538,10 +533,10 @@ class Instance:
         return ig_collection
 
 class StructureMarker:
-    def __init__(self, element: TagFieldBlockElement):
-        self.name = element.SelectField("String:marker parameter").GetStringData()
-        self.rotation: Quaternion = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
-        self.position: Vector = ([n * 100 for n in element.SelectField("position").Data])
+    def __init__(self, record):
+        self.name = record.name
+        self.rotation: Quaternion = utils.ijkw_to_wxyz(record.rotation)
+        self.position: Vector = [value * 100 for value in record.position]
         
     def to_object(self):
         ob = bpy.data.objects.new(name=self.name, object_data=None)
@@ -550,26 +545,17 @@ class StructureMarker:
         ob.matrix_world = import_transform.marker_matrix(Matrix.LocRotScale(self.position, self.rotation, Vector.Fill(3, 1)))
         return ob
         
-class EnvironmentObjectReference:
-    def __init__(self, element: TagFieldBlockElement):
-        self.definition = None
-        def_path = element.Fields[0].Path
-        if def_path is not None:
-            if Path(def_path.Filename).exists():
-                self.definition = def_path.RelativePathWithExtension
-    
 class EnvironmentObject:
-    def __init__(self, element: TagFieldBlockElement, palette: list[EnvironmentObjectReference]):
-        self.name = element.SelectField("name").GetStringData()
-        self.rotation: Quaternion = utils.ijkw_to_wxyz([n for n in element.SelectField("rotation").Data])
-        self.translation: Vector = ([n * 100 for n in element.SelectField("translation").Data])
-        self.scale = element.SelectField("scale").Data
-        palette_index = element.SelectField("ShortBlockIndex:palette_index").Value
-        self.reference = palette[palette_index] if palette_index > -1  and palette_index < len(palette) else None
-        self.variant = element.SelectField("StringId:variant name").GetStringData()
+    def __init__(self, record):
+        self.name = record.name
+        self.rotation: Quaternion = utils.ijkw_to_wxyz(record.rotation)
+        self.translation: Vector = [value * 100 for value in record.translation]
+        self.scale = record.scale
+        self.reference = record.definition
+        self.variant = record.variant
         
     def to_object(self):
-        if self.reference is None or self.reference.definition is None:
+        if self.reference is None or not Path(self.reference.Filename).exists():
             return utils.print_warning(f"Found environment object named {self.name} but it has no valid tag reference")
             
         ob = bpy.data.objects.new(name=self.name, object_data=None)
@@ -577,7 +563,7 @@ class EnvironmentObject:
         ob.matrix_world = import_transform.marker_matrix(Matrix.LocRotScale(self.translation, self.rotation, Vector.Fill(3, self.scale)))
         
         ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
-        ob.nwo.marker_game_instance_tag_name = self.reference.definition
+        ob.nwo.marker_game_instance_tag_name = self.reference.RelativePathWithExtension
         ob.nwo.marker_game_instance_tag_variant_name = self.variant
         
         return ob
@@ -1260,12 +1246,12 @@ class CollisionMaterial:
         self.name = element.Fields[0].Data
 
 class BSPCollisionMaterial:
-    def __init__(self, element: TagFieldBlockElement):
-        self.index = element.ElementIndex
+    def __init__(self, record):
+        self.index = record.index
         self.render_method = ""
         self.tag_shader = None
         self.name = ""
-        render = element.SelectField("Reference:render method").Path
+        render = record.render_method
         if render:
             self.render_method = render.RelativePathWithExtension
             self.tag_shader = render
@@ -1273,11 +1259,9 @@ class BSPCollisionMaterial:
         
         self.global_material = ""
         self.global_material_override = ""
-        if utils.is_corinth():
-            override = element.SelectField("override material name").Data
-            if override:
-                self.global_material_override = override
-                self.global_material = override
+        if record.override_material_name:
+            self.global_material_override = record.override_material_name
+            self.global_material = record.override_material_name
                 
         if not self.global_material and render and Path(render.Filename).exists():
             if utils.is_corinth():
@@ -1292,8 +1276,7 @@ class BSPCollisionMaterial:
         else:
             self.blender_material = None
             
-        seam_flag = element.SelectField("WordFlags:flags")
-        self.is_seam = seam_flag.TestBit("is seam")
+        self.is_seam = record.is_seam
         
 class CollisionVertex:
     def __init__(self, element: TagFieldBlockElement):
@@ -2303,6 +2286,26 @@ class CompressionBounds:
         self.u1 = third[1]
         self.v0 = fourth[0]
         self.v1 = fourth[1]
+
+    @classmethod
+    def from_native(cls, record):
+        result = cls.__new__(cls)
+        first, second = record.position_0, record.position_1
+        result.x0 = first[0] * 100
+        result.x1 = first[1] * 100
+        result.y0 = first[2] * 100
+        result.y1 = second[0] * 100
+        result.z0 = second[1] * 100
+        result.z1 = second[2] * 100
+        result.co_matrix = Matrix((
+            (result.x1-result.x0, 0, 0, result.x0),
+            (0, result.y1-result.y0, 0, result.y0),
+            (0, 0, result.z1-result.z0, result.z0),
+            (0, 0, 0, 1),
+        ))
+        result.u0, result.u1 = record.texcoord_0
+        result.v0, result.v1 = record.texcoord_1
+        return result
         
 class Emissive:
     def __init__(self, element: TagFieldBlockElement):
@@ -2316,6 +2319,20 @@ class Emissive:
         self.attenuation_falloff = element.Fields[5].Data
         self.attenuation_cutoff = element.Fields[6].Data
         self.bounce_ratio = element.Fields[7].Data
+
+    @classmethod
+    def from_native(cls, record):
+        result = cls.__new__(cls)
+        result.power = record.power
+        result.color = tuple(utils.srgb_to_linear(value) for value in record.color)
+        result.quality = record.quality
+        result.focus = record.focus
+        result.power_per_unit_area = record.power_per_unit_area
+        result.use_shader_gel = record.use_shader_gel
+        result.attenuation_falloff = record.attenuation_falloff
+        result.attenuation_cutoff = record.attenuation_cutoff
+        result.bounce_ratio = record.bounce_ratio
+        return result
 
 class Material:
     def __init__(self, element: TagFieldBlockElement, emissives: list[Emissive] = [], for_bsp=False):
@@ -2354,6 +2371,39 @@ class Material:
                 elif emissives or self.emissive_index > 0:
                     self.emissive_invalid = True
                     utils.print_warning(f"Invalid emissive on tag material {self.name}, material index={self.index}, emissive index={self.emissive_index}")
+
+    @classmethod
+    def from_native(cls, record, emissives: list[Emissive] = [], for_bsp=False):
+        result = cls.__new__(cls)
+        result.index = record.index
+        result.name = record.render_method.ShortName
+        result.new = not bool(bpy.data.materials.get(result.name, 0))
+        result.shader_path = record.render_method.RelativePathWithExtension
+        result.emissive_index = record.emissive_index
+        result.lm_res = int(record.lightmap_resolution)
+        result.lm_transparency = record.additive_transparency
+        result.lm_translucency = record.translucency_tint
+        result.lm_both_sides = record.lighting_from_both_sides
+        result.lm_transparency_override = record.transparency_override
+        result.lm_ignore_default_res = record.ignore_default_resolution
+        result.lm_chart_group_index = record.chart_group_index
+        result.breakable_surface_index = record.breakable_surface_index
+        result.lm_analytical_absorb = record.analytical_absorb
+        result.lm_normal_absorb = record.normal_absorb
+        result.emissive_invalid = False
+        result.blender_material = get_blender_material(result.name, result.shader_path)
+        result.emissive = None
+        if for_bsp and result.emissive_index > -1:
+            if result.emissive_index < len(emissives):
+                emissive = emissives[result.emissive_index]
+                if emissive.power > 0:
+                    result.emissive = emissive
+            elif emissives or result.emissive_index > 0:
+                result.emissive_invalid = True
+                utils.print_warning(
+                    f"Invalid emissive on tag material {result.name}, "
+                    f"material index={result.index}, emissive index={result.emissive_index}")
+        return result
     
 class IndexLayoutType(Enum):
     DEFAULT = 0

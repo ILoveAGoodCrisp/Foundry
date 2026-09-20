@@ -24,7 +24,7 @@ from ..managed_blam.decorator_set import DecoratorSetTag
 
 from ..patches import ToolPatcher
 
-from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
+from ..tags.prefab import ScenarioStructureBspMetadataTag
 
 from ..managed_blam.object import ObjectTag
 
@@ -45,7 +45,7 @@ from ..tools.airprobe_exporter import export_airprobes
 
 from ..tags.particle import ParticleEmitterCustomPointsTag
 
-from ..managed_blam.render_model import RenderModelMetadataTag
+from ..tags.render_model import RenderModelMetadataTag
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.model import ModelTag
 from .import_sidecar import SidecarImport
@@ -3009,7 +3009,7 @@ class ExportScene:
                 self.print_post(f"--- Fixing Up collision proxy surface mapping")
                 with ScenarioMetadataTag() as scenario:
                     for bsp_path in scenario.get_bsp_paths():
-                        with ScenarioStructureBspTag(path=utils.relative_path(bsp_path)) as bsp:
+                        with ScenarioStructureBspMetadataTag(path=utils.relative_path(bsp_path)) as bsp:
                             bsp.fix_collision_render_surface_mapping()
 
         light_asset = self.export_settings.update_lighting_info and (self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY}))

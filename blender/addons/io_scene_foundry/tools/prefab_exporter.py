@@ -3,7 +3,7 @@
 from pathlib import Path
 import time
 import bpy
-from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
+from ..tags.prefab import ScenarioStructureBspMetadataTag
 from ..auto_bsp import AutoBSPAssigner
 from .. import utils
 
@@ -124,4 +124,5 @@ def export_prefabs():
     for idx, bsp_path in enumerate(structure_bsp_paths):
         b = bsps[idx]
         prefabs_list = [prefab for prefab in prefabs if prefab.bsp == b]
-        with ScenarioStructureBspTag(path=bsp_path) as bsp: bsp.write_prefabs(prefabs_list)
+        with ScenarioStructureBspMetadataTag(path=bsp_path) as bsp:
+            bsp.write_prefabs(prefabs_list)

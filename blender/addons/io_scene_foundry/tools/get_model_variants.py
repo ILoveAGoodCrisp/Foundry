@@ -2,7 +2,7 @@
 from pathlib import Path
 import bpy
 
-from ..managed_blam.render_model import RenderModelMetadataTag
+from ..tags.render_model import RenderModelMetadataTag
 from ..managed_blam.model import ModelTag
 from ..managed_blam.object import ObjectTag
 

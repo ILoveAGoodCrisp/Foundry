@@ -38,7 +38,9 @@ class TagReference:
 
 @lru_cache(maxsize=32)
 def group_names(metadata_path):
-    return json.loads(Path(metadata_path).read_text(encoding='utf-8'))['tag_index']
+    names = json.loads(Path(metadata_path).read_text(encoding='utf-8'))['tag_index']
+    # blam-tags formats integer group codes without their trailing space padding.
+    return {group.rstrip(): extension for group, extension in names.items()}
 
 
 class TagDocument:
