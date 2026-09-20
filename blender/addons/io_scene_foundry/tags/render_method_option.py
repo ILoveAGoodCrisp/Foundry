@@ -1,6 +1,6 @@
 """Render-method option metadata, backed by blam-tags."""
-from ..tags.blender import BlenderTag
-from ..tags.metadata import RenderMethodOptionDocument, option_rgba
+from .blender import BlenderTag
+from .metadata import RenderMethodOptionDocument, option_rgba
 from types import SimpleNamespace
 
 OptionParameter = SimpleNamespace

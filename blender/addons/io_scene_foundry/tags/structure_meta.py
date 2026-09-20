@@ -5,8 +5,8 @@ from typing import cast
 import bpy
 from mathutils import Euler, Matrix, Vector
 
-from ..tags.backend import TagDocument
-from ..tags.blender import BlenderTag
+from .backend import TagDocument
+from .blender import BlenderTag
 from ..tags.metadata import rgba
 from .. import utils
 from .. import import_transform

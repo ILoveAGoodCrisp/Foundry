@@ -9,8 +9,8 @@ import numpy as np
 
 from ..constants import VALID_MESHES
 
-from ..tags.backend import TagDocument
-from ..tags.blender import BlenderTag
+from .backend import TagDocument
+from .blender import BlenderTag
 from .. import utils
 from .. import import_transform
 

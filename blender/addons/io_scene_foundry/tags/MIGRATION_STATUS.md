@@ -595,3 +595,11 @@ and ManagedBlam is never initialized. Alignment to actual model skeletons and
 visual/game parity remain unverified. Regression tests also exercise Havok mesh
 triangle-mapping attributes and verify decoder failure selects legacy fallback
 before native object creation. The complete suite contains 49 passing tests.
+Native Blender-facing wrappers for model/object metadata, globals, lightmapper
+globals, render-method definitions/options, material shaders, collision and physics
+models, particle models, structure metadata/seams/design, PCA animation, lights and
+cinematic lighting now live in the tags package. The model and object document
+layers remain Blender-independent; their Blender behavior is isolated in dedicated
+wrapper modules. Several of these wrappers still reuse conversion helpers from the
+legacy-named connected geometry/material modules, which are the next separation
+target.

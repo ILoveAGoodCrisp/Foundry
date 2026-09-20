@@ -3,7 +3,7 @@ import bpy
 
 from .. import utils
 
-from ..managed_blam.cinematic import NativeCinematicTag
+from ..tags.cinematic_root import NativeCinematicTag
 
 REACH_LOOP_IT_WORKS = False
 

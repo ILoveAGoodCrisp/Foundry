@@ -22,7 +22,7 @@ from ..tools import materials as special_materials
 
 from .. import utils
 from .. import import_transform
-from .havok_tagfile import HavokTagfileReader
+from ..tags.havok_tagfile import HavokTagfileReader
 from .Tags import TagFieldBlock, TagFieldBlockElement
 from mathutils.geometry import tessellate_polygon
 

@@ -26,7 +26,7 @@ from ..tools.refresh_cinematic_controls import add_controls_to_debug_menu
 from ..tools.asset_types import AssetType
 
 from ..tools.camera_track_sync import export_current_action_as_camera_track
-from ..managed_blam.polyart import export_polyart
+from ..tags.polyart import export_polyart
 
 from .process import ExportScene
 

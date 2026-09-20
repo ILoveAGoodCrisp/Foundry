@@ -1,8 +1,8 @@
 from pathlib import Path
 import bpy
 import os
-from ..managed_blam.model import ModelTag
-from ..managed_blam.object import ObjectTag
+from ..tags.model_blender import ModelTag
+from ..tags.object_blender import ObjectTag
 from .. import utils
 
 class NWO_OT_LoadTemplate(bpy.types.Operator):

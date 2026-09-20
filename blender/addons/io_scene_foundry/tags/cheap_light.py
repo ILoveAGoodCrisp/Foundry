@@ -2,8 +2,8 @@
 
 
 from .. import utils
-from ..tags.blender import BlenderTag
-from ..tags.backend import TagDocument
+from .blender import BlenderTag
+from .backend import TagDocument
 from .light_functions import light_functions
 from .. import import_transform
 import bpy

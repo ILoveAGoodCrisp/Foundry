@@ -9,8 +9,8 @@ import bpy
 from .. import utils
 from ..constants import MATERIAL_SHADERS_DIR
 from ..managed_blam.material import MaterialTag
-from ..managed_blam.material_shader import MaterialShaderTag
-from ..managed_blam.render_method_definition import RenderMethodDefinitionTag
+from ..tags.material_shader import MaterialShaderTag
+from ..tags.render_method_definition import RenderMethodDefinitionTag
 from ..managed_blam.shader import ShaderTag
 
 

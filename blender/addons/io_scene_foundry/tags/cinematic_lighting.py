@@ -4,8 +4,8 @@ from mathutils import Matrix, Vector
 
 from .light import LightTag
 from .. import utils
-from ..tags.blender import BlenderTag
-from ..tags.lighting import CinematicLightingDocument
+from .blender import BlenderTag
+from .lighting import CinematicLightingDocument
 from .. import import_transform
 import bpy
 

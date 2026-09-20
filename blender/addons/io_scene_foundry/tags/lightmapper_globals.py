@@ -1,6 +1,6 @@
 """Lightmapper globals backed by blam-tags."""
-from ..tags.blender import BlenderTag
-from ..tags.lighting import LightmapperGlobalsDocument
+from .blender import BlenderTag
+from .lighting import LightmapperGlobalsDocument
 
 
 class LightmapperGlobalsTag(BlenderTag, LightmapperGlobalsDocument):

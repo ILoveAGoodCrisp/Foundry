@@ -1,9 +1,9 @@
 """Global material and player metadata, backed by blam-tags."""
 from enum import Enum
 from pathlib import Path
-from .model import ModelTag
-from ..tags.blender import BlenderTag
-from ..tags.metadata import GlobalsDocument
+from .model_blender import ModelTag
+from .blender import BlenderTag
+from .metadata import GlobalsDocument
 
 
 class FPARMS(Enum):

@@ -34,7 +34,7 @@ from .animation_resource import (
     compose_replacement_animation,
     default_frame_channels,
 )
-from .source_tag_resource import read_model_animation_graph_resources
+from ..tags.source_tag_resource import read_model_animation_graph_resources
 from .render_model import RenderModelTag
 from . import Tag
 from .. import import_transform

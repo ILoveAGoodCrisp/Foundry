@@ -6,7 +6,7 @@ import bpy
 from mathutils import Matrix, Vector
 import numpy as np
 
-from .structure_meta import StructureMetaTag
+from ..tags.structure_meta import StructureMetaTag
 
 from ..tags.structure_lighting import ScenarioStructureLightingInfoTag
 

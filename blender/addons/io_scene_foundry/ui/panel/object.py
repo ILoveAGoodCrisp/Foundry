@@ -16,9 +16,9 @@ from ...constants import VALID_MESHES, face_prop_type_items, face_prop_descripti
 from ...icons import get_icon_id
 from ... import utils
 
-from ...managed_blam.globals import GlobalsTag
-from ...managed_blam.model import ModelTag
-from ...managed_blam.object import ObjectTag
+from ...tags.globals import GlobalsTag
+from ...tags.model_blender import ModelTag
+from ...tags.object_blender import ObjectTag
 from ...tags.render_model import RenderModelMetadataTag
 
 int_highlight = 0

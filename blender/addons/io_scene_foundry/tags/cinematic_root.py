@@ -1,12 +1,12 @@
 from pathlib import Path
 
-from .lisp_to_corinth import script_from_text
+from .cinematic_script import script_from_text
 
-from ..tags.cinematic import CinematicSceneDataTag
+from .cinematic import CinematicSceneDataTag
 
-from .cinematic_scene import NativeCinematicSceneTag
-from ..tags.backend import TagDocument
-from ..tags.blender import BlenderTag
+from ..managed_blam.cinematic_scene import NativeCinematicSceneTag
+from .backend import TagDocument
+from .blender import BlenderTag
 
 from .. import utils
 

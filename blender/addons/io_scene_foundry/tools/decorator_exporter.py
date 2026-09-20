@@ -6,7 +6,7 @@ from mathutils import Matrix, Quaternion, Vector
 import numpy as np
 import types
 
-from ..managed_blam.decorator_set import DecoratorSetTag
+from ..tags.decorator_set import DecoratorSetTag
 
 from ..tags.scenario import ScenarioMetadataTag
 from .. import utils

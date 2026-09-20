@@ -4,8 +4,8 @@ from typing import cast
 
 from .. import utils
 
-from ..tags.pca import PCAAnimationDocument
-from ..tags.blender import BlenderTag
+from .pca import PCAAnimationDocument
+from .blender import BlenderTag
 
 class PCAAnimationTag(BlenderTag, PCAAnimationDocument):
     tag_ext = "pca_animation"

@@ -1,6 +1,8 @@
-"""Blender object metadata backed by blam-tags."""
-from ..tags.blender import BlenderTag
-from ..tags.object import ObjectDocument
+"""Blender-facing object metadata wrapper."""
+from collections import defaultdict
+
+from .blender import BlenderTag
+from .object import ObjectDocument
 
 
 class ObjectTag(BlenderTag, ObjectDocument):
@@ -8,8 +10,7 @@ class ObjectTag(BlenderTag, ObjectDocument):
         super().__init__(path, tag_must_exist=tag_must_exist, **kwargs)
 
     def functions_to_blender(self):
-        from .connected_material import Function, game_functions
-        from collections import defaultdict
+        from ..managed_blam.connected_material import Function, game_functions
         candidates = [e for e in self.block(self.object_struct(), 'functions')
                       if self.value(e, 'export name').strip()
                       and self.value(e, 'export name') != self.value(e, 'import name')
@@ -23,7 +24,8 @@ class ObjectTag(BlenderTag, ObjectDocument):
                 function.from_native_object(self, element)
                 decoded[self.value(element, 'export name')] = function
         except ValueError as exc:
-            raise ValueError(f'Cannot decode native object functions in {self.system_path}: {exc}') from exc
+            raise ValueError(
+                f'Cannot decode native object functions in {self.system_path}: {exc}') from exc
         for name, function in decoded.items():
             function.make_node_group(name)
         dependencies = defaultdict(list)
@@ -31,9 +33,11 @@ class ObjectTag(BlenderTag, ObjectDocument):
             function.to_blend_nodes(name=name)
             if function.input.strip():
                 dependencies[name].append(function.input)
-            for dependency in (function.range, function.scale_by, function.turn_off_with):
+            for dependency in (function.range, function.scale_by,
+                               function.turn_off_with):
                 if dependency.strip():
-                    dependencies[name].append(decoded[dependency].input if dependency in decoded else dependency)
+                    dependencies[name].append(
+                        decoded[dependency].input if dependency in decoded else dependency)
         return dependencies
 
     def attachments_to_blender(self, armature, markers, parent_collection):
@@ -59,11 +63,13 @@ class ObjectTag(BlenderTag, ObjectDocument):
         attachments = []
         for record in records:
             attachment = SimpleNamespace(
-                function_names={name for name in (record.primary_scale, record.secondary_scale) if name},
+                function_names={name for name in
+                                (record.primary_scale, record.secondary_scale) if name},
                 objects=[], armature=armature)
             cls = LightTag if record.reference.Extension == 'light' else CheapLightTag
             with cls(path=record.reference, tag_must_exist=True) as light:
-                data = light.to_blender(record.primary_scale, record.secondary_scale, attachment)
+                data = light.to_blender(
+                    record.primary_scale, record.secondary_scale, attachment)
             if data is None:
                 continue
             for marker in markers:
@@ -72,7 +78,8 @@ class ObjectTag(BlenderTag, ObjectDocument):
                 ob = bpy.data.objects.new(data.name, data)
                 collection.objects.link(ob)
                 if ob.type == 'LIGHT':
-                    ob.matrix_world = utils.halo_transforms(ob) @ Matrix.Rotation(radians(-90.0), 4, 'X')
+                    ob.matrix_world = (utils.halo_transforms(ob)
+                                       @ Matrix.Rotation(radians(-90.0), 4, 'X'))
                     ob.scale *= (1 / 0.03048) * import_transform.scale_factor()
                 ob.parent = marker
                 ob.parent_type = 'OBJECT'

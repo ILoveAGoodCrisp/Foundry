@@ -8,9 +8,9 @@ from mathutils import Euler, Matrix, Vector
 from ...tags.scenario import ScenarioMetadataTag
 from ...tags.sound import SoundClassesTag, SoundEffectCollectionTag
 from ...tags.render_model import RenderModelMetadataTag
-from ...managed_blam.model import ModelTag
-from ...managed_blam.object import ObjectTag
-from ...managed_blam.cinematic_lighting import CinematicLightingTag
+from ...tags.model_blender import ModelTag
+from ...tags.object_blender import ObjectTag
+from ...tags.cinematic_lighting import CinematicLightingTag
 from ...icons import get_icon_id
 from ... import utils
 

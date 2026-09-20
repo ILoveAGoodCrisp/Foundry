@@ -5,11 +5,11 @@ from pathlib import Path
 import bpy
 from mathutils import Euler
 
-from ..managed_blam.cinematic_lighting import CinematicLightingTag
-from ..managed_blam.lisp_to_corinth import script_from_text
+from ..tags.cinematic_lighting import CinematicLightingTag
+from ..tags.cinematic_script import script_from_text
 
-from ..managed_blam.object import ObjectTag
-from ..managed_blam.model import ModelTag
+from ..tags.object_blender import ObjectTag
+from ..tags.model_blender import ModelTag
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.cinematic_scene import CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicMusic, CinematicObjectFunctionKeyframe, NativeCinematicSceneTag
 from ..tags.cinematic import CinematicSceneDataTag

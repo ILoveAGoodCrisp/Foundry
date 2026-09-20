@@ -9,7 +9,7 @@ from ..constants import VALID_MESHES
 from ..tools.halo_export import export_quick, export
 
 from .. import managed_blam
-from ..managed_blam.lightmapper_globals import LightmapperGlobalsTag
+from ..tags.lightmapper_globals import LightmapperGlobalsTag
 
 from .. import utils
 from .. import icons

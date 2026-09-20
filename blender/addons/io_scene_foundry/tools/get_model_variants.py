@@ -3,8 +3,8 @@ from pathlib import Path
 import bpy
 
 from ..tags.render_model import RenderModelMetadataTag
-from ..managed_blam.model import ModelTag
-from ..managed_blam.object import ObjectTag
+from ..tags.model_blender import ModelTag
+from ..tags.object_blender import ObjectTag
 
 from ..utils import get_tags_path, relative_path, current_project_valid, get_scene_props
 

@@ -9,8 +9,8 @@ import bpy
 
 from ..constants import VALID_MESHES
 from ..icons import get_icon_id
-from ..managed_blam.model import ModelTag
-from ..managed_blam.object import ObjectTag
+from ..tags.model_blender import ModelTag
+from ..tags.object_blender import ObjectTag
 from ..tags.render_model import RenderModelMetadataTag
 from ..tags.scenario import ScenarioMetadataTag
 from ..tools.collection_manager import get_full_name

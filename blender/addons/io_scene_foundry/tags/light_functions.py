@@ -1,6 +1,6 @@
 """Native light-mapping decoding shared by the light tag importers."""
 from contextlib import contextmanager
-from .connected_material import Function
+from ..managed_blam.connected_material import Function
 from math import isfinite
 
 

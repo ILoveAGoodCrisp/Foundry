@@ -3,11 +3,11 @@
 
 from math import radians, isfinite
 
-from .bitmap import bitmap_to_image
+from ..managed_blam.bitmap import bitmap_to_image
 from .. import utils
-from ..tags.blender import BlenderTag
-from ..tags.backend import TagDocument
-from ..tags.metadata import enum_index
+from .blender import BlenderTag
+from .backend import TagDocument
+from .metadata import enum_index
 from .light_functions import light_functions, constant_light_value
 from .. import import_transform
 import bpy
@@ -80,7 +80,7 @@ class LightTag(BlenderTag, TagDocument):
         return data
     
     def _to_blender_corinth(self, primary_scale, secondary_scale, attachment):
-        from .connected_material import Function
+        from ..managed_blam.connected_material import Function
         parameters = self.required_field(self.tag.root(), 'Midnight_Light_Parameters').as_struct()
         value = lambda name: self.value(parameters, name)
         light_type = enum_index(value('Light Type'), ('Point', 'Spot', 'Directional', 'Area', 'Sun'))

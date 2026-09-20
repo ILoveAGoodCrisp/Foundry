@@ -14,21 +14,21 @@ from mathutils import Matrix, Vector
 import numpy as np
 import time
 
-from ..managed_blam.globals import GlobalsTag
+from ..tags.globals import GlobalsTag
 
 from ..tags.frame_event_list import dump_frame_animation_events
 
 from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 
-from ..managed_blam.decorator_set import DecoratorSetTag
+from ..tags.decorator_set import DecoratorSetTag
 
 from ..patches import ToolPatcher
 
 from ..tags.prefab import ScenarioStructureBspMetadataTag
 
-from ..managed_blam.object import ObjectTag
+from ..tags.object_blender import ObjectTag
 
-from ..managed_blam.cinematic import CinematicTag
+from ..tags.cinematic_root import CinematicTag
 from ..tags.scenario import ScenarioMetadataTag
 
 from .cinematic import QUA, Actor, CinematicScene
@@ -47,7 +47,7 @@ from ..tags.particle import ParticleEmitterCustomPointsTag
 
 from ..tags.render_model import RenderModelMetadataTag
 from ..managed_blam.animation import AnimationTag
-from ..managed_blam.model import ModelTag
+from ..tags.model_blender import ModelTag
 from .import_sidecar import SidecarImport
 from .build_sidecar import Sidecar, get_cinematic_scenes
 from .export_info import AdditionalCompression, BoundarySurfaceType, ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType, MeshObbVolumeType, PoopCollisionType, PoopInstanceImposterPolicy, PoopLighting, PoopInstancePathfindingPolicy, MeshTessellationDensity, MeshType, ObjectType

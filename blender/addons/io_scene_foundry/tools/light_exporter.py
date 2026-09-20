@@ -6,7 +6,7 @@ from pathlib import Path
 import time
 import bpy
 
-from ..managed_blam.model import ModelTag
+from ..tags.model_blender import ModelTag
 from ..tags.structure_lighting import ScenarioStructureLightingInfoTag
 from ..constants import VALID_MESHES, WU_SCALAR
 from ..auto_bsp import AutoBSPAssigner

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import bpy
 from ... import utils
-from ...managed_blam.object import ObjectTag
+from ...tags.object_blender import ObjectTag
 
 # Add (identifier, display name, description) entries to these lists as needed.
 HARD_CODED_MODE_OPTIONS = [

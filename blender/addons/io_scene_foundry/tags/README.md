@@ -213,3 +213,9 @@ An additional scan of 933 H3 object tags found three populated color-function
 blocks. Copies of all three convert natively, including the non-default colors
 and scale inputs on the reactor sky tag. These tests do not establish editing-kit
 acceptance of the resulting files.
+Blender-facing integrations belong in this package beside their native documents.
+Model and object keep their document layer separate from `model_blender.py` and
+`object_blender.py`, so scripts can inspect and edit tag data without importing
+Blender. Collision, physics, structure, particle, PCA and light import wrappers
+follow the same native blam-tags path even where Blender conversion helpers have
+not yet been moved out of the legacy package.

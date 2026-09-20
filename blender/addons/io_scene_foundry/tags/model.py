@@ -6,6 +6,8 @@ from types import SimpleNamespace
 from .backend import TagDocument, ReferenceField
 from .metadata import enum_index
 
+ChildObject = SimpleNamespace
+
 
 class RenderModelOverrideType(Enum):
     campaign = 0

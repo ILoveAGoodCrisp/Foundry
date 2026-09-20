@@ -7,11 +7,11 @@ import numpy as np
 
 from ..constants import WU_SCALAR
 
-from ..managed_blam.physics_model import PhysicsTag
+from ..tags.physics_blender import PhysicsTag
 
 from .. import import_transform
-from ..managed_blam.model import ModelTag
-from ..managed_blam.object import ObjectTag
+from ..tags.model_blender import ModelTag
+from ..tags.object_blender import ObjectTag
 from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 
 from .. import utils

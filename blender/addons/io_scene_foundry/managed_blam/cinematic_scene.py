@@ -3,9 +3,9 @@ import math
 from typing import cast
 from mathutils import Matrix, Vector
 
-from .cinematic_lighting import CinematicLightingTag
+from ..tags.cinematic_lighting import CinematicLightingTag
 
-from .lisp_to_corinth import script_from_text
+from ..tags.cinematic_script import script_from_text
 
 from ..tags.cinematic import CinematicCameraDocument, CinematicSceneDataTag
 from ..tags.blender import BlenderTag

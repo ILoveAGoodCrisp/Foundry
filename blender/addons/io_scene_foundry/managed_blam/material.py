@@ -10,7 +10,7 @@ from .connected_material import AnimatedParameterType, Function
 from .Tags import TagFieldBlockElement, TagPath
 
 from .bitmap import BitmapTag
-from .material_shader import MaterialShaderParameter, MaterialShaderTag, convert_argb
+from ..tags.material_shader import MaterialShaderParameter, MaterialShaderTag, convert_argb
 from .shader import BSDFParameter, ChannelType, ShaderTag
 from .. import utils
 import bpy

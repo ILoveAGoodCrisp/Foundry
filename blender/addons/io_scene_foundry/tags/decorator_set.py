@@ -5,13 +5,13 @@ from typing import cast
 from types import SimpleNamespace
 import bpy
 
-from .bitmap import bitmap_to_image
+from ..managed_blam.bitmap import bitmap_to_image
 from .. import utils
 
-from .render_model import RenderModelTag
+from ..managed_blam.render_model import RenderModelTag
 
-from ..tags.backend import TagDocument, ReferenceField
-from ..tags.blender import BlenderTag
+from .backend import TagDocument, ReferenceField
+from .blender import BlenderTag
 
 class DecoratorType:
     def __init__(self):

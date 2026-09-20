@@ -19,18 +19,18 @@ import numpy as np
 from ..managed_blam import connected_geometry
 from .. import import_transform
 
-from ..managed_blam.cinematic import NativeCinematicTag
+from ..tags.cinematic_root import NativeCinematicTag
 
-from ..managed_blam.decorator_set import DecoratorSetTag
+from ..tags.decorator_set import DecoratorSetTag
 from ..managed_blam.decal_system import DecalSystemCorinthTag, DecalSystemTag
 
-from ..managed_blam.polyart import PolyArtTag
+from ..tags.polyart import PolyArtTag
 
 from ..tags.structure_lighting import ScenarioStructureLightingInfoTag
 
-from ..managed_blam.structure_design import StructureDesignTag
+from ..tags.structure_design_blender import StructureDesignTag
 
-from ..managed_blam.globals import FPARMS, GlobalsTag
+from ..tags.globals import FPARMS, GlobalsTag
 
 from ..managed_blam import switch_project_from_filepath
 from ..tags.backend import TagDocument
@@ -43,18 +43,19 @@ from .animation.generate_frames import FrameGenerator
 from ..legacy.jma import JMA
 from ..ui.panel.cinematic import bake_vis_to_keyframes
 
-from ..managed_blam.object import ObjectTag
-from ..managed_blam.particle_model import ParticleModelTag
+from ..tags.object_blender import ObjectTag
+from ..tags.particle_model import ParticleModelTag
 from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
 from ..managed_blam.animation import AnimationTag
-from ..managed_blam.pca_animation import PCAAnimationTag
+from ..tags.pca_blender import PCAAnimationTag
 from ..managed_blam.render_model import RenderModelTag
-from ..managed_blam.physics_model import PhysicsTag
-from ..managed_blam.model import ChildObject, ModelTag, RenderModelOverrideType
+from ..tags.physics_blender import PhysicsTag
+from ..tags.model import ChildObject, RenderModelOverrideType
+from ..tags.model_blender import ModelTag
 from ..tools.mesh_to_marker import convert_to_marker
 from ..managed_blam.bitmap import bitmap_to_image, clear_path_cache
 from ..tags.camera_track import CameraTrackTag
-from ..managed_blam.collision_model import CollisionTag
+from ..tags.collision_blender import CollisionTag
 from ..tools.clear_duplicate_materials import clear_duplicate_materials
 from ..tools.property_apply import apply_props_material, apply_prefix_bulk
 from ..tools.rigging import HaloRig, aim_pitch_name, aim_yaw_name, needs_reach_fp_ik_fix, pedestal_name

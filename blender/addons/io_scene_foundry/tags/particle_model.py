@@ -5,8 +5,8 @@ from pathlib import Path
 import bpy
 from mathutils import Vector
 
-from ..tags.backend import TagDocument
-from ..tags.blender import BlenderTag
+from .backend import TagDocument
+from .blender import BlenderTag
 from .. import import_transform
 
 

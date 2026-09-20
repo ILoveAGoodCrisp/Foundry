@@ -9,7 +9,7 @@ from mathutils import Vector
 
 from .connected_material import Function, AnimatedParameterType, FunctionEditorColorGraphType, FunctionEditorMasterType, RotateNodeInputs, TilingNodeInputs
 
-from .render_method_option import OptionParameter
+from ..tags.render_method_option import OptionParameter
 
 from ..constants import NormalType
 from ..managed_blam import Tag
@@ -20,7 +20,7 @@ from ..tools.export_bitmaps import export_bitmap
 from .. import utils
 import bpy
 
-from ..managed_blam.render_method_definition import RenderMethodDefinitionTag
+from ..tags.render_method_definition import RenderMethodDefinitionTag
 
 global_render_method_definition = None
 last_group_node = None

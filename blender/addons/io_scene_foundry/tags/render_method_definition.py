@@ -1,6 +1,6 @@
 """Render-method category metadata, backed by blam-tags."""
-from ..tags.blender import BlenderTag
-from ..tags.metadata import RenderMethodDefinitionDocument
+from .blender import BlenderTag
+from .metadata import RenderMethodDefinitionDocument
 
 
 class RenderMethodDefinitionTag(BlenderTag, RenderMethodDefinitionDocument):

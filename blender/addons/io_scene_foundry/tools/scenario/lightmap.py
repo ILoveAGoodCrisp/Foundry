@@ -5,7 +5,7 @@ from subprocess import CalledProcessError
 
 from ...patches import ToolPatcher
 
-from ...managed_blam.lightmapper_globals import LightmapperGlobalsTag
+from ...tags.lightmapper_globals import LightmapperGlobalsTag
 
 from ...tags.scenario import ScenarioMetadataTag
 from ... import utils
