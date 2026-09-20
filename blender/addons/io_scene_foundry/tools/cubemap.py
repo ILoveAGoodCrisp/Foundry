@@ -6,9 +6,8 @@ import os
 import time
 import shutil
 
-from ..managed_blam import Tag
-from ..managed_blam.scenario import ScenarioTag
 from ..managed_blam.bitmap import BitmapTag
+from ..tags.scenario import ScenarioMetadataTag
 from .. import utils
 from pathlib import Path
 
@@ -50,27 +49,9 @@ class CubemapFarm:
                 return str(file)
             
     def ensure_cubemap_points(self):
-        with ScenarioTag(path=self.scenario_path) as scenario:
-            block_cubemaps = scenario.tag.SelectField("Block:cubemaps")
-            if block_cubemaps.Elements.Count > 0:
-                return
-            else:
+        with ScenarioMetadataTag(path=self.scenario_path) as scenario:
+            if scenario.ensure_default_cubemap():
                 print("Scenario has no cubemaps, adding default cubemap at position 0.0,0.0,0.6")
-                element = block_cubemaps.AddElement()
-                element.SelectField("cubemap position").Data = 0.0, 0.0, 0.6
-                scenario.tag_has_changes = True
-                resources = scenario.tag.SelectField("Block:scenario resources")
-                if resources.Elements.Count > 0:
-                    split_resources = resources.SelectField("Block:new split resources")
-                    if split_resources.Elements.Count > 0:
-                        cubemap_resource = split_resources.SelectField("Reference:cubemap reference resource")
-                        path = scenario.get_path_str(cubemap_resource.Path, True)
-                        if path and Path(path).exists():
-                            with Tag(path=path) as resource:
-                                block_cubemaps = resource.tag.SelectField("Block:cubemaps")
-                                element = block_cubemaps.AddElement()
-                                element.SelectField("cubemap position").Data = 0.0, 0.0, 0.6
-                                resource.tag_has_changes = True
     
     def launch_game(self):
         executable = self.get_tagplay_exe()
@@ -117,40 +98,21 @@ class CubemapFarm:
         index_map = self._bsp_cubemap_index_map()
         if not index_map or not any(index_map.values()):
             return f"No valid cubemap source files found at {str(Path(self.project_dir, 'cubemaps'))}"
-        with ScenarioTag(path=self.scenario_path) as scenario:
-            block_cubemaps = scenario.tag.SelectField("Block:cubemaps")
-            if block_cubemaps.Elements.Count <= 0:
+        with ScenarioMetadataTag(path=self.scenario_path) as scenario:
+            positions = scenario.cubemap_positions()
+            if not positions:
                 return "Scenario has no cubemaps"
-            for element in block_cubemaps.Elements:
-                position = element.SelectField("cubemap position")
-                points = position.Data
-                cubemaps.append(Cubemap(points[0], points[1], points[2]))
+            cubemaps.extend(Cubemap(*position) for position in positions)
         
             print("--- Generating cubemap bitmap tag")
             utils.run_tool(["cubemaps", self.scenario_path_no_ext, self.cubemaps_dir])
             print("\n--- Fixing up cubemap bitmap checksums")
                 
-            for bsp_element in scenario.block_bsps.Elements:
-                bsp_tagpath = bsp_element.SelectField("structure bsp").Path
-                bsp_name = bsp_tagpath.ShortName
-                scenario_name = Path(self.scenario_path_no_ext).name
-                cubemap_bitmap_name = f"{scenario_name}_{bsp_name}_cubemaps.bitmap"
-                scenario_dir = Path(self.scenario_path_no_ext).parent
-                cubemap_bitmap_path = str(Path(scenario_dir, cubemap_bitmap_name))
-                if utils.is_corinth():
-                    bitmap_tagpath = bsp_element.SelectField("bsp specific cubemap")
-                else:
-                    bitmap_tagpath = bsp_element.SelectField("cubemap bitmap group reference")
-                
-                cubemap_bitmap_tagpath = scenario._TagPath_from_string(cubemap_bitmap_path)
-                if bitmap_tagpath.Path != cubemap_bitmap_tagpath:
-                    bitmap_tagpath.Path = cubemap_bitmap_tagpath
-                    scenario.tag_has_changes = True
-                
-                bitmap_path = Path(bitmap_tagpath.Path.Filename)
+            for bsp_index, _, bitmap_reference in scenario.set_cubemap_bitmap_references():
+                bitmap_path = Path(bitmap_reference.Filename)
                 if bitmap_path.exists():   
                     with BitmapTag(path=bitmap_path) as bitmap:
-                        bitmap_cubemap_indices = index_map.get(bsp_element.ElementIndex, None)
+                        bitmap_cubemap_indices = index_map.get(bsp_index, None)
                         if bitmap_cubemap_indices is None: continue
                         for bitmap_element in bitmap.block_bitmaps.Elements:
                             current_cubemap_index = bitmap_cubemap_indices[bitmap_element.ElementIndex]

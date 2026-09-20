@@ -21,9 +21,12 @@ and object-function imports no longer call their legacy fallback wrappers.
 Common scenario metadata and lightweight edits now use `ScenarioMetadataTag`:
 scenario type/firefight detection, BSP/design/sky discovery, zone sets, lightmap
 settings, sky assignment, cutscene titles and anchors, scenario copies, debug zone
-sets and airprobe export. Launcher, cache builder, lightmapper, cinematic UI and
-scenario import setup callers use this native path. The remaining legacy scenario
-wrapper is retained for large object/decorator/cubemap imports and export setup.
+sets, default starting profiles, airprobe export, cubemap generation and decorator
+export. Launcher, cache builder, lightmapper, cinematic UI and scenario import
+setup callers use this native path. Cubemap split-resource mirroring and BSP bitmap
+references are native; bitmap checksum edits use the native bitmap wrapper. The
+remaining legacy scenario wrapper is retained for the template/global export block
+and full scenario object/decorator import, including child scenarios.
 
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
@@ -49,6 +52,10 @@ Focused schema checks exercised scenario BSP, sky, zone-set and lightmap fields 
 H3, ODST, Reach, H4 and H2AMP. Block flags are edited through their native integer
 value because blam-tags intentionally does not expose block-reference names as
 ordinary flag options. No ManagedBlam fallback is used.
+Additional layout checks covered default player profiles, cubemap records and
+decorator placement fields across the same five profiles, plus H3/ODST/Reach
+scenario cubemap resources. Decorator export now writes native fields directly;
+the legacy serialized-block optimization and fallback writer were removed.
 Particle-model import now calls the native blam-tags geometry decoder directly;
 the legacy render-model bridge and eager `_GameRenderModel` allocation are gone.
 Foundry validates every detached mesh before creating Blender data, then imports
@@ -239,7 +246,7 @@ its mass update was verified by reopening a temporary physics tag.
 | Geometry and resources | Port render models and the remaining collision, physics, decorator and polyart resource paths, including Blender mesh/skeleton construction. Particle-model import is native. |
 | Animation | Expose animation decoding and port graph edits, frame events, PCA and animation import. |
 | Bitmaps | Review the native/Python extraction path across formats, mipmaps, cubemaps and material texture use; complete any resource layouts not represented by processed pixel data. |
-| Scenarios and cinematics | Port the remaining general scenario/BSP/structure editors, lighting-info export, cinematic scene/data writers and remaining referenced-resource workflows. The top-level cinematic writer and its scenario bookkeeping are native. |
+| Scenarios and cinematics | Port template/global scenario export, full scenario object/decorator import, BSP/structure editors, lighting-info export, cinematic scene/data writers and remaining referenced-resource workflows. Top-level cinematic writing and common scenario/cubemap/decorator edits are native. |
 | Dependency removal and acceptance | Remove startup validation and DLL initialization, revise packaging/UI, and run representative complete imports and exports with ManagedBlam unavailable. |
 
 The Rust library already contains functionality in several of these areas, but

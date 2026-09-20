@@ -1,5 +1,4 @@
 from pathlib import Path
-import struct
 import time
 import bpy
 from math import tau
@@ -7,22 +6,19 @@ from mathutils import Matrix, Quaternion, Vector
 import numpy as np
 import types
 
-from ..constants import WU_SCALAR
-
 from ..managed_blam.decorator_set import DecoratorSetTag
 
-from ..managed_blam.scenario import (
-    DECORATOR_ATTR_INFO,
-    DECORATOR_ATTR_NORMAL,
-    DECORATOR_ATTR_SCALE,
-    DECORATOR_ATTR_TINT,
-    DECORATOR_CLOUD_PROP,
-    DECORATOR_INSTANCE_SOURCE_PROP,
-    DECORATOR_TAG_PROP,
-    DECORATOR_VARIANT_PROP,
-    ScenarioTag,
-)
+from ..tags.scenario import ScenarioMetadataTag
 from .. import utils
+
+DECORATOR_CLOUD_PROP = "nwo_decorator_placement_cloud"
+DECORATOR_INSTANCE_SOURCE_PROP = "nwo_decorator_instance_source"
+DECORATOR_TAG_PROP = "nwo_decorator_tag"
+DECORATOR_VARIANT_PROP = "nwo_decorator_variant"
+DECORATOR_ATTR_NORMAL = "normal"
+DECORATOR_ATTR_INFO = "decorator_info"
+DECORATOR_ATTR_SCALE = "decorator_scale"
+DECORATOR_ATTR_TINT = "decorator_tint"
 
 class NWO_OT_GetDecoratorTypes(bpy.types.Operator):
     bl_idname = "nwo.get_decorator_types"
@@ -288,30 +284,6 @@ def decorator_cloud_to_instances(ob, collection=None, remove_cloud=False):
     
     return created
 
-def _placement_field_offsets(element):
-    offsets = {}
-    offset = 0
-    for field in element.Fields:
-        offsets[field.FieldName] = offset
-        offset += int(field.Size)
-        
-    return offsets, offset
-
-def _serialized_block_with_payload(template, count, payload):
-    data = bytearray(template)
-    lbgt = data.rfind(b"lbgt")
-    dtpc = data.rfind(b"dtpc", 0, lbgt)
-    if lbgt == -1 or dtpc == -1:
-        raise ValueError("Serialized decorator placement block does not contain expected chunks")
-    
-    values_start = lbgt + 20
-    data = data[:values_start] + payload + data[values_start:]
-    struct.pack_into("<I", data, 8, len(data) - 12)
-    struct.pack_into("<I", data, dtpc + 8, len(data) - dtpc - 12)
-    struct.pack_into("<I", data, lbgt + 8, len(payload) + 8)
-    struct.pack_into("<I", data, lbgt + 12, count)
-    return bytes(data)
-
 def _decorator_type_indices(decorator_types):
     return {dec_type.decorator_type_name.lower(): dec_type.decorator_type_index for dec_type in decorator_types}
 
@@ -326,110 +298,42 @@ def _decorator_byte_value(value, corinth):
     
     return value
 
-def _decorator_placement_dtype(offsets, element_size):
-    fields = (
-        ("position", "position", ("<f4", (3,))),
-        ("type_index", "type index", "u1"),
-        ("motion_scale", "motion scale", "u1"),
-        ("ground_tint", "ground tint", "u1"),
-        ("rotation", "rotation", ("<f4", (4,))),
-        ("scale", "scale", "<f4"),
-        ("tint_color", "tint color", ("<f4", (3,))),
-        ("bsp_index", "bsp index", "<i4"),
-        ("cluster_index", "cluster index", "<i2"),
-    )
-    missing = [field_name for _, field_name, _ in fields if field_name not in offsets]
-    if missing:
-        raise ValueError(f"Decorator placement block is missing fields: {', '.join(missing)}")
-    
-    names = [name for name, _, _ in fields]
-    formats = [fmt for _, _, fmt in fields]
-    field_offsets = [offsets[field_name] for _, field_name, _ in fields]
-    if "cluster decorator set index" in offsets:
-        names.append("cluster_decorator_set_index")
-        formats.append("<i2")
-        field_offsets.append(offsets["cluster decorator set index"])
-    
-    return np.dtype({
-        "names": names,
-        "formats": formats,
-        "offsets": field_offsets,
-        "itemsize": element_size,
-    })
-
-def _build_decorator_placement_payload(decorator_objects, decorator_types, corinth, offsets, element_size):
-    payload = bytearray(element_size * len(decorator_objects))
-    if not decorator_objects:
-        return payload
-    
-    rows = np.ndarray(len(decorator_objects), dtype=_decorator_placement_dtype(offsets, element_size), buffer=payload)
-    rows["bsp_index"] = -1
-    rows["cluster_index"] = -1
-    if corinth and "cluster_decorator_set_index" in rows.dtype.names:
-        rows["cluster_decorator_set_index"] = -1
-    
-    type_indices = _decorator_type_indices(decorator_types)
-    for idx, ob in enumerate(decorator_objects):
-        matrix = utils.halo_transforms_matrix(ob.matrix_world)
-        rows["position"][idx] = tuple(matrix.translation)
-        q = matrix.to_quaternion()
-        rows["rotation"][idx] = q[1], q[2], q[3], q[0]
-        rows["scale"][idx] = max(ob.matrix_world.to_scale().to_tuple())
-        
-        variant = ob.nwo.marker_game_instance_tag_variant_name.strip().lower()
-        if variant:
-            rows["type_index"][idx] = type_indices.get(variant, 0) & 0xFF
-        
-        rows["motion_scale"][idx] = _decorator_byte_value(ob.nwo.decorator_motion_scale * 255, corinth)
-        rows["ground_tint"][idx] = _decorator_byte_value(ob.nwo.decorator_ground_tint * 255, corinth)
-        rows["tint_color"][idx] = tuple(utils.linear_to_srgb(ob.nwo.decorator_tint[i]) for i in range(3))
-        
-    return payload
-
-def _write_decorator_placements_serialized(placements, decorator_objects, decorator_types, corinth):
-    placements.RemoveAllElements()
-    if not decorator_objects:
-        return
-    
-    template_element = placements.AddElement()
-    offsets, element_size = _placement_field_offsets(template_element)
-    placements.RemoveAllElements()
-    
-    payload = _build_decorator_placement_payload(decorator_objects, decorator_types, corinth, offsets, element_size)
-    serialized = _serialized_block_with_payload(bytes(placements.Serialize()), len(decorator_objects), payload)
-    placements.Deserialize(serialized)
-
-def _write_decorator_placements_elementwise(placements, decorator_objects, decorator_types, corinth):
-    placements.RemoveAllElements()
+def _write_decorator_placements(scenario, placements, decorator_objects, decorator_types, corinth):
+    placements.clear()
     type_indices = _decorator_type_indices(decorator_types)
     for ob in decorator_objects:
-        placement = placements.AddElement()
+        index = placements.add()
+        placement = placements[index]
         matrix = utils.halo_transforms_matrix(ob.matrix_world)
-        placement.SelectField("position").Data = matrix.translation
+        position = scenario.required_field(placement, 'position')
+        position.set(type(position.value)(*matrix.translation))
         q = matrix.to_quaternion()
-        placement.SelectField("rotation").Data = q[1], q[2], q[3], q[0]
-        placement.SelectField("scale").Data = max(ob.matrix_world.to_scale().to_tuple())
+        rotation = scenario.required_field(placement, 'rotation')
+        rotation.set(type(rotation.value)(q[1], q[2], q[3], q[0]))
+        scenario.required_field(placement, 'scale').set(max(ob.matrix_world.to_scale().to_tuple()))
         
         variant = ob.nwo.marker_game_instance_tag_variant_name.strip().lower()
         if variant:
-            placement.SelectField("type index").Data = type_indices.get(variant, 0)
+            scenario.required_field(placement, 'type index').set(type_indices.get(variant, 0))
         
-        motion_scale = int(ob.nwo.decorator_motion_scale * 255)
-        ground_tint = int(ob.nwo.decorator_ground_tint * 255)
-                
+        motion_scale = _decorator_byte_value(ob.nwo.decorator_motion_scale * 255, corinth)
+        ground_tint = _decorator_byte_value(ob.nwo.decorator_ground_tint * 255, corinth)
         if not corinth:
             motion_scale = utils.signed_int8(motion_scale)
             ground_tint = utils.signed_int8(ground_tint)
-            
-        placement.SelectField("motion scale").Data = motion_scale
-        placement.SelectField("ground tint").Data = ground_tint
-        
-        placement.SelectField("tint color").Data = [utils.linear_to_srgb(c) for c in ob.nwo.decorator_tint]
-        
-        placement.SelectField("bsp index").Data = -1
-        placement.SelectField("cluster index").Data = -1
-        if corinth:
-            placement.SelectField("cluster decorator set index").Data = -1
+        scenario.required_field(placement, 'motion scale').set(motion_scale)
+        scenario.required_field(placement, 'ground tint').set(ground_tint)
+        tint = scenario.required_field(placement, 'tint color')
+        tint.set(type(tint.value)(*(utils.linear_to_srgb(c) for c in ob.nwo.decorator_tint)))
+
+        bsp = placement.field('bsp index') or placement.field('runtime bsp index')
+        if bsp is not None:
+            bsp.set(-1)
+        scenario.required_field(placement, 'cluster index').set(-1)
+        decorator_set_index = placement.field('cluster decorator set index')
+        if decorator_set_index is not None:
+            decorator_set_index.set(-1)
+    scenario.tag_has_changes = True
     
 def export_decorators(corinth, decorator_objects = None):
     scenario_path = utils.get_asset_tag(".scenario", True)
@@ -462,15 +366,14 @@ def export_decorators(corinth, decorator_objects = None):
                     
     print("--- Writing decorators to Tag")
     start = time.perf_counter()
-    with ScenarioTag(path=scenario_path) as scenario:
-        decorator_block = scenario.tag.SelectField("Block:decorators")
-        if decorator_block.Elements.Count < 1:
-            set_element = decorator_block.AddElement()
-        else:
-            set_element = decorator_block.Elements[0]
-            
-        sets_block = set_element.SelectField("Block:sets")
-        sets_block.RemoveAllElements()
+    with ScenarioMetadataTag(path=scenario_path) as scenario:
+        root = scenario.tag.root()
+        decorator_block = scenario.block(root, 'decorators')
+        if not len(decorator_block):
+            decorator_block.add()
+            decorator_block = scenario.block(root, 'decorators')
+        sets_block = scenario.block(decorator_block[0], 'sets')
+        sets_block.clear()
         # print("Max sets size", sets_block.MaximumElementCount)
         
         for key, value in decorator_sets.items():
@@ -479,18 +382,11 @@ def export_decorators(corinth, decorator_objects = None):
                 with DecoratorSetTag(path=path) as decorator_set:
                     decorator_types = decorator_set.get_decorator_types()
                     decorator_path = decorator_set.tag_path
-                element = sets_block.AddElement()
-                element.SelectField("Reference:decorator set").Path = decorator_path
-                placements = element.SelectField("Block:placements")
-                # print("Max placements size", placements.MaximumElementCount)
-                try:
-                    _write_decorator_placements_serialized(placements, value, decorator_types, corinth)
-                except Exception as error:
-                    print(f"Serialized decorator write failed for {path}, using element writes: {error}")
-                    _write_decorator_placements_elementwise(placements, value, decorator_types, corinth)
-                
-                    
-        scenario.tag_has_changes = True
+                index = sets_block.add()
+                element = sets_block[index]
+                scenario.set_reference(element, 'decorator set', decorator_path)
+                placements = scenario.block(element, 'placements')
+                _write_decorator_placements(scenario, placements, value, decorator_types, corinth)
     print("--- Completed decorators tag write in", utils.human_time(time.perf_counter() - start, True))
                             
                     

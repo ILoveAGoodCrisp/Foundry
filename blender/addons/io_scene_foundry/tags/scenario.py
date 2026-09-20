@@ -49,6 +49,48 @@ class ScenarioMetadataTag(BlenderTag, TagDocument):
     def set_scenario_type(self, value):
         self._set_value(self.tag.root(), 'type', value)
 
+    def create_default_profile(self):
+        root = self.tag.root()
+        locations = self.block(root, 'player starting locations')
+        locations.add()
+
+        profiles = self.block(root, 'player starting profile')
+        profile_index = profiles.add()
+        profiles = self.block(root, 'player starting profile')
+        profile = profiles[profile_index]
+        self._set_value(profile, 'name', 'default_single')
+
+        defaults = {}
+        object_types_path = self.tags_root / 'multiplayer/globals.multiplayer_object_type_list'
+        if object_types_path.is_file():
+            with TagDocument(object_types_path, tags_root=self.tags_root,
+                             game=self.game, must_exist=True) as object_types:
+                block = object_types.block(object_types.tag.root(), 'object types')
+                wanted = {
+                    'assault_rifle': 'primary weapon',
+                    'magnum': 'secondary weapon',
+                    'sprint_equipment': 'starting equipment',
+                }
+                for element in block:
+                    field = wanted.get(object_types.value(element, 'name'))
+                    if field is not None:
+                        reference = object_types.reference(element, 'object')
+                        if reference is not None:
+                            defaults[field] = reference
+
+        for name in ('primary weapon', 'secondary weapon'):
+            reference = defaults.get(name)
+            if reference is None:
+                continue
+            self.set_reference(profile, name, reference)
+            prefix = 'primary' if name.startswith('primary') else 'secondary'
+            self._set_value(profile, f'{prefix}rounds loaded', -1)
+            self._set_value(profile, f'{prefix}rounds total', -1)
+        equipment = profile.field('starting equipment')
+        if equipment is not None and defaults.get('starting equipment') is not None:
+            self.set_reference(profile, 'starting equipment', defaults['starting equipment'])
+        self.tag_has_changes = True
+
     def survival_mode(self):
         return self.scenario_type() == 0 and self.required_field(self.tag.root(), 'flags').get_flag('survival')
 
@@ -152,6 +194,64 @@ class ScenarioMetadataTag(BlenderTag, TagDocument):
         return [reference.RelativePathWithExtension for element in self.block(root, 'skies')
                 if (reference := self.reference(element, 'sky')) is not None
                 and self.path_exists(reference)]
+
+    @staticmethod
+    def _set_point(field, point):
+        field.set(type(field.value)(*point))
+
+    def cubemap_positions(self):
+        root = self.tag.root()
+        positions = []
+        for element in self.block(root, 'cubemaps'):
+            point = self.value(element, 'cubemap position')
+            positions.append((point.x, point.y, point.z))
+        return positions
+
+    def ensure_default_cubemap(self, point=(0.0, 0.0, 0.6)):
+        root = self.tag.root()
+        cubemaps = self.block(root, 'cubemaps')
+        if len(cubemaps):
+            return False
+        index = cubemaps.add()
+        cubemaps = self.block(root, 'cubemaps')
+        self._set_point(self.required_field(cubemaps[index], 'cubemap position'), point)
+        self.tag_has_changes = True
+
+        resources = self.block(root, 'scenario resources')
+        if not len(resources):
+            return True
+        split_resources = self.block(resources[0], 'new split resources')
+        if not len(split_resources):
+            return True
+        reference = self.reference(split_resources[0], 'cubemap reference resource')
+        if not self.path_exists(reference):
+            return True
+        with TagDocument(reference, tags_root=self.tags_root, game=self.game,
+                         must_exist=True) as resource:
+            resource_root = resource.tag.root()
+            resource_cubemaps = resource.block(resource_root, 'cubemaps')
+            resource_index = resource_cubemaps.add()
+            resource_cubemaps = resource.block(resource_root, 'cubemaps')
+            self._set_point(resource.required_field(
+                resource_cubemaps[resource_index], 'cubemap position'), point)
+            resource.tag_has_changes = True
+        return True
+
+    def set_cubemap_bitmap_references(self):
+        root, bsps, _ = self._blocks()
+        scenario_name = self.tag_path.ShortName
+        scenario_dir = Path(self.tag_path.RelativePath).parent
+        field_name = 'bsp specific cubemap' if self.corinth else 'cubemap bitmap group reference'
+        records = []
+        for index in range(len(bsps)):
+            element = bsps[index]
+            bsp = self.reference(element, 'structure bsp')
+            if bsp is None:
+                continue
+            bitmap = scenario_dir / f'{scenario_name}_{bsp.ShortName}_cubemaps.bitmap'
+            self.set_reference(element, field_name, bitmap)
+            records.append((index, bsp.ShortName, self.reference(element, field_name)))
+        return records
 
     def cutscene_anchor(self, name):
         root = self.tag.root()

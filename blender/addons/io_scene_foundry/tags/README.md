@@ -28,7 +28,8 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
   transition tags, scripts, scene references, zone sets and anchors.
 - Scenario metadata and lightweight editing for type detection, BSP/design/sky
   discovery, zone sets, lightmap settings, sky assignment, cutscene titles,
-  scenario copies, debug zone sets and airprobe export.
+  scenario copies, default player profiles, debug zone sets, airprobe export,
+  cubemap generation and decorator placement export.
 
 The Blender-facing classes retain their existing import locations. Their
 implementations live in this package. Reference results are detached Python
@@ -37,7 +38,8 @@ references at that boundary.
 
 The addon still requires ManagedBlam/Python.NET for unmigrated workflows:
 full render/BSP geometry import, animation graphs, shader/material editing,
-large scenario object/resource editors, cinematic scene/data writers and other
+template/global scenario export, full scenario object/resource import,
+cinematic scene/data writers and other
 specialized helpers.
 Removing that dependency now would break those workflows. The Foundation plugin
 installer also still uses .NET independently of tag access.

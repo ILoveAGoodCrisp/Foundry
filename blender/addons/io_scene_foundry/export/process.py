@@ -2756,11 +2756,11 @@ class ExportScene:
                 self.setup_scenario = True
                     
         if self.setup_scenario:
-            with ScenarioTag() as scenario:
+            with ScenarioMetadataTag() as scenario:
                 self.print_pre(f"--- Setting up new scenario: Creating default starting profile & setting scenario type to {self.scene_settings.scenario_type}")
                 scenario.create_default_profile()
                 if self.scene_settings.scenario_type != 'solo':
-                    scenario.tag.SelectField('type').SetValue(self.scene_settings.scenario_type)
+                    scenario.set_scenario_type(self.scene_settings.scenario_type)
                 
         if self.asset_type == AssetType.PARTICLE_MODEL and self.scene_settings.particle_uses_custom_points:
             self.print_pre("--- Adding particle emitter custom points")
