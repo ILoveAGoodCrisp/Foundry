@@ -12,10 +12,8 @@ import numpy as np
 
 from ..props.scene import NWO_ScenePropertiesGroup
 
-from ..managed_blam.material import MaterialTag
-
-from ..managed_blam.shader import ShaderTag
-from ..managed_blam.shader_decal import ShaderDecalTag
+from ..managed_blam.bitmap import BitmapTag
+from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 
 from ..granny.formats import GrannyAnimation, GrannyBone, GrannyCurveDataDaKeyframes32f, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyMorphTarget, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVectorTrack, GrannyVertexData
 from ..granny import Granny
@@ -999,17 +997,15 @@ class VirtualMaterial:
         bitmap_data = None
         if not full_path.exists():
             return
-        if scene.corinth:
-            with MaterialTag(path=shader_path) as shader:
-                bitmap_data = shader.get_diffuse_bitmap_data_for_granny()
-        else:
-            match self.shader_type:
-                case 'shader':
-                    with ShaderTag(path=shader_path) as shader:
-                        bitmap_data = shader.get_diffuse_bitmap_data_for_granny()
-                case 'shader_decal':
-                    with ShaderDecalTag(path=shader_path) as shader:
-                        bitmap_data = shader.get_diffuse_bitmap_data_for_granny()
+        if not scene.corinth and self.shader_type not in {'shader', 'shader_decal'}:
+            return
+        shader_type = MaterialMetadataTag if scene.corinth else ShaderMetadataTag
+        with shader_type(path=shader_path) as shader:
+            bitmap_path = shader.get_albedo_bitmap()
+            fill_alpha = shader.albedo_fill_alpha()
+        if bitmap_path is not None:
+            with BitmapTag(path=bitmap_path) as bitmap:
+                bitmap_data = bitmap.get_granny_data(fill_alpha, False)
             
         if not bitmap_data:
             return

@@ -18,8 +18,7 @@ from ..managed_blam.globals import GlobalsTag
 
 from ..tags.frame_event_list import dump_frame_animation_events
 
-from ..managed_blam.material import MaterialTag
-from ..managed_blam.shader import ShaderTag
+from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 
 from ..managed_blam.decorator_set import DecoratorSetTag
 
@@ -46,7 +45,7 @@ from ..tools.airprobe_exporter import export_airprobes
 
 from ..tags.particle import ParticleEmitterCustomPointsTag
 
-from ..managed_blam.render_model import RenderModelMetadataTag, RenderModelTag
+from ..managed_blam.render_model import RenderModelMetadataTag
 from ..managed_blam.animation import AnimationTag
 from ..managed_blam.model import ModelTag
 from .import_sidecar import SidecarImport
@@ -3069,21 +3068,19 @@ class ExportScene:
                 no_texture = decorator_set.reference_texture.Path is None
                 use_mesh_shader = False
                 if render_model_path is not None:
-                    with RenderModelTag(path=render_model_path) as render_model:
-                        render_method = render_model.tag.SelectField("Block:materials[0]/Reference:render method")
-                        if render_method is not None:
-                            render_method_path = render_model.get_path_str(render_method.Path, True)
-                            if render_method_path:
-                                if render_method.Path.ShortName not in {'invalid', 'missing', 'deprecated', '_invalid'}:
-                                    if self.corinth:
-                                        with MaterialTag(path=render_method_path) as shader:
-                                            albedo_bitmap = shader.get_albedo_bitmap()
-                                            
-                                    else:
-                                        with ShaderTag(path=render_method_path) as shader:
-                                            albedo_bitmap = shader.get_albedo_bitmap()
-                                            if no_texture:
-                                                use_mesh_shader = shader.is_opaque()
+                    with RenderModelMetadataTag(path=render_model_path) as render_model:
+                        render_method = render_model.first_render_method()
+                    if (render_method is not None
+                            and render_method.ShortName not in {
+                                'invalid', 'missing', 'deprecated', '_invalid'}):
+                        if self.corinth:
+                            with MaterialMetadataTag(path=render_method) as shader:
+                                albedo_bitmap = shader.get_albedo_bitmap()
+                        else:
+                            with ShaderMetadataTag(path=render_method) as shader:
+                                albedo_bitmap = shader.get_albedo_bitmap()
+                                if no_texture:
+                                    use_mesh_shader = shader.is_opaque()
                                             
                 if albedo_bitmap is not None:
                     self.print_post(f"--- Setting decorator set texture to: {albedo_bitmap.RelativePathWithExtension}")

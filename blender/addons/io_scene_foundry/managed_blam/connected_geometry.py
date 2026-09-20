@@ -17,8 +17,7 @@ from ..tools.append_foundry_materials import add_special_materials
 
 from ..tools.property_apply import apply_props_material
 
-from .material import MaterialTag
-from .shader import ShaderTag
+from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 from ..tools import materials as special_materials
 
 from .. import utils
@@ -1282,14 +1281,11 @@ class BSPCollisionMaterial:
                 
         if not self.global_material and render and Path(render.Filename).exists():
             if utils.is_corinth():
-                with MaterialTag(path=self.render_method) as shader:
-                    self.global_material = shader.tag.SelectField("physics material name").Data
+                with MaterialMetadataTag(path=self.render_method) as shader:
+                    self.global_material = shader.global_material()
             else:
-                with ShaderTag(path=self.render_method) as shader:
-                    material_name_field = shader.tag.SelectField("material name")
-                    if material_name_field is None:
-                        material_name_field = shader.tag.SelectField("material name 0")
-                    self.global_material = material_name_field.Data
+                with ShaderMetadataTag(path=self.render_method) as shader:
+                    self.global_material = shader.global_material()
         
         if self.name:
             self.blender_material = get_blender_material(self.name, self.render_method)

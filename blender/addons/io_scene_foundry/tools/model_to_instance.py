@@ -10,10 +10,9 @@ from ..constants import WU_SCALAR
 from ..managed_blam.physics_model import PhysicsTag
 
 from ..managed_blam import import_transform
-from ..managed_blam.material import MaterialTag
 from ..managed_blam.model import ModelTag
 from ..managed_blam.object import ObjectTag
-from ..managed_blam.shader import ShaderTag
+from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 
 from .. import utils
 
@@ -114,8 +113,9 @@ class ModelInstance:
                     if not mat.nwo.shader_path or not Path(utils.get_tags_path(), shader_path).exists():
                         continue
                     
-                    with ShaderTag(path=shader_path) as shader:
-                        shader_material = shader.get_global_material()
+                    shader_type = MaterialMetadataTag if self.corinth else ShaderMetadataTag
+                    with shader_type(path=shader_path) as shader:
+                        shader_material = shader.global_material()
                         if not shader_material:
                             continue
                             

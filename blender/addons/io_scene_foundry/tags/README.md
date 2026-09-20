@@ -34,6 +34,8 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
 - H4/H2AMP prefab structure-BSP reference resolution during import.
 - Multiplayer weapon-source discovery for biped import.
 - Terrain-shader global-material lookup through inherited shader references.
+- Material/shader albedo, alpha-mode and physics-material metadata used by
+  decorator setup, Granny texture extraction and BSP collision import.
 - Empty shader-tag creation for non-node material export.
 - Cinematic scene creation, scene-level export metadata/scripts, shot settings,
   camera-frame arrays, final scene object/attachment records and camera-authored

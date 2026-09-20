@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from ..managed_blam.render_model import RenderModelTag
+from ..managed_blam.render_model import RenderModelMetadataTag
 
 from ..tools.asset_types import AssetType
 from .. import utils
@@ -123,7 +123,7 @@ class SidecarImport:
             print("\nImporting Render Geometry & Animation Only\n")
             render_only_failed, render_only_failed_error = utils.run_tool_sidecar(["import", self.sidecar_path, *self._get_import_flags(render_only=True)], self.export_settings.event_level, tool_patches=tool_patches)
             
-            with RenderModelTag() as render_model:
+            with RenderModelMetadataTag(tag_must_exist=True) as render_model:
                 render_model.insert_empty_region_perms(empty_region_perms)
             
             if self.export_settings.export_collision or self.export_settings.export_physics:

@@ -46,7 +46,8 @@ The obsolete ManagedBlam cinematic-scene wrapper has been removed; cinematic
 scene import now lives directly on `NativeCinematicSceneTag`. Cinematic debug-menu
 scene lookup and BSP-zone flags are also native. Common render-model metadata
 queries (nodes, regions, permutations and marker groups) now use a native wrapper
-in UI and export setup paths, while full render geometry remains legacy.
+in UI and export setup paths. Empty region/permutation insertion and first-material
+lookup now use the same wrapper; full render geometry remains legacy.
 The old `CinematicTag(Tag)` wrapper and its duplicate import path are gone. The
 replacement creates and updates `.cinematic`, `.cinematic_transition`, `.scenario`
 and Reach `.scenario_cinematics_resource` records without ManagedBlam. Generated
@@ -141,6 +142,10 @@ The source audit updated on 2026-09-20 found:
 Terrain-shader global-material lookup and inherited reference traversal now use a
 native metadata wrapper. Terrain shader node construction and authoring still run
 through the legacy shader base.
+H4/H2AMP material metadata and H3/ODST/Reach shader metadata now provide albedo
+bitmap, alpha-mode and physics-material reads. Decorator texture setup, Granny
+texture extraction and BSP collision-material lookup use these native readers;
+full node construction and material authoring remain legacy.
 Non-node shader export now creates the selected empty shader tag through blam-tags.
 The subsequent render-method template inspection/generation remains legacy.
 Cinematic scene export now creates both scene files and writes scene-level name,
