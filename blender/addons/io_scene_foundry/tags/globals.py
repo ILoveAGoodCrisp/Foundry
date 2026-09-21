@@ -15,6 +15,14 @@ class FPARMS(Enum):
 class GlobalsTag(BlenderTag, GlobalsDocument):
     tag_ext = 'globals'
 
+    def cinematic_film_aperture(self) -> float | None:
+        field = self.tag.root().field('cinematics globals')
+        block = None if field is None else field.as_block()
+        if block is None or not len(block):
+            return None
+        aperture = block[0].field('cinematic film aperture')
+        return None if aperture is None else float(aperture.value)
+
     def get_fp_arms_path(self, character_type: FPARMS):
         if character_type not in (FPARMS.SPARTAN, FPARMS.ELITE):
             return

@@ -17,7 +17,7 @@ import time
 from ..tags.globals import GlobalsTag
 
 from ..tags.frame_event_list import dump_frame_animation_events
-from ..tags.animation_graph import AnimationGraphTag
+from ..tags.animation_graph import AnimationGraphTag, VehicleSuspensionUpdate
 
 from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 
@@ -1789,9 +1789,9 @@ class ExportScene:
             globals_path = Path(utils.get_tags_path(), "globals\\globals.globals")
             if globals_path.exists():
                 with GlobalsTag(path=globals_path) as tag_globals:
-                    film_aperture_field = tag_globals.tag.SelectField("Block:cinematics globals[0]/Real:cinematic film aperture")
-                    if film_aperture_field is not None:
-                        film_aperture = film_aperture_field.Data
+                    configured_aperture = tag_globals.cinematic_film_aperture()
+                    if configured_aperture is not None:
+                        film_aperture = configured_aperture
                     else:
                         utils.print_warning(f"Failed to read globals tag. Using default cinematic film aperture of {film_aperture}")
             else:
@@ -2707,10 +2707,11 @@ class ExportScene:
             self.context.view_layer.update()
         
     def preprocess_tags(self):
-        """ManagedBlam tasks to run before tool import is called"""
+        """Tag edits to run before Tool import is called."""
         self.node_usage_set = self.asset_type != AssetType.CINEMATIC and self.has_animations and self.any_node_usage_override()
         
-        if self.node_usage_set or self.scene_settings.ik_chains or self.exported_animations:
+        if (self.node_usage_set or self.scene_settings.ik_chains or
+                self.exported_animations or self.scene_settings.parent_animation_graph):
             has_skeleton = self.virtual_scene.skeleton_model is not None and self.virtual_scene.skeleton_model.skeleton is not None
             
             if self.scene_settings.template_model_animation_graph:
@@ -2726,28 +2727,58 @@ class ExportScene:
                             utils.copy_file(full_path, expected_asset_path)
                             print(f'--- Loaded model_animation_graph tag template')
             
-            with AnimationTag() as animation:
-                if self.scene_settings.parent_animation_graph:
-                    self.print_pre("--- Setting parent animation graph")
+            if self.scene_settings.parent_animation_graph:
+                self.print_pre("--- Setting parent animation graph")
+                with AnimationGraphTag(tag_must_exist=False) as animation:
                     animation.set_parent_graph(self.scene_settings.parent_animation_graph)
-                    # print("--- Set Parent Animation Graph")
+
+            if self.node_usage_set and has_skeleton:
+                self.print_pre("--- Setting node usages")
+                usage_names = (
+                    ('pedestal', 'pedestal'), ('physics_control', 'physics control'),
+                    ('camera_control', 'camera control'), ('origin_marker', 'origin marker'),
+                    ('left_clavicle', 'left clavicle'), ('left_upperarm', 'left upperarm'),
+                    ('pose_blend_pitch', 'pose blend pitch'), ('pose_blend_yaw', 'pose blend yaw'),
+                    ('pelvis', 'pelvis'), ('left_foot', 'left foot'),
+                    ('right_foot', 'right foot'), ('damage_root_gut', 'damage root gut'),
+                    ('damage_root_chest', 'damage root chest'), ('damage_root_head', 'damage root head'),
+                    ('damage_root_left_shoulder', 'damage root left shoulder'),
+                    ('damage_root_left_arm', 'damage root left arm'),
+                    ('damage_root_left_leg', 'damage root left leg'),
+                    ('damage_root_left_foot', 'damage root left foot'),
+                    ('damage_root_right_shoulder', 'damage root right shoulder'),
+                    ('damage_root_right_arm', 'damage root right arm'),
+                    ('damage_root_right_leg', 'damage root right leg'),
+                    ('damage_root_right_foot', 'damage root right foot'),
+                )
+                if self.corinth:
+                    usage_names += (('left_hand', 'left hand'), ('right_hand', 'right hand'),
+                                    ('weapon_ik', 'weapon ik'))
+                usages_by_node = defaultdict(list)
+                for attribute, usage_name in usage_names:
+                    node_name = getattr(self.scene_settings, f'node_usage_{attribute}')
+                    if node_name:
+                        usages_by_node[node_name].append(usage_name)
+                bone_names = [bone.name for bone in self.virtual_scene.skeleton_model.skeleton.animated_bones]
+                with AnimationGraphTag(tag_must_exist=False) as animation:
+                    animation.set_node_usages(bone_names, dict(usages_by_node))
+                    animation.set_data_driven()
+
+            if self.scene_settings.ik_chains and has_skeleton:
+                self.print_pre("--- Writing IK chains")
+                bone_names = [bone.name for bone in self.virtual_scene.skeleton_model.skeleton.animated_bones]
+                with AnimationGraphTag(tag_must_exist=False) as animation:
+                    animation.set_ik_chains(bone_names, self.scene_settings.ik_chains)
+                    animation.set_data_driven()
+
+            if self.exported_animations:
                 if self.virtual_scene and self.virtual_scene.animations:
                     self.print_pre(f"--- Validating animation compression for {len(self.exported_animations)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
-                    animation.validate_compression(self.exported_animations, self.scene_settings.default_animation_compression)
-                    # print("--- Validated Animation Compression")
-                if self.node_usage_set and has_skeleton:
-                    self.print_pre("--- Setting node usages")
-                    animation.set_node_usages(self.virtual_scene.skeleton_model.skeleton.animated_bones, True)
-                    #print("--- Updated Animation Node Usages")
-                if self.scene_settings.ik_chains and has_skeleton:
-                    self.print_pre("--- Writing IK chains")
-                    animation.write_ik_chains(self.scene_settings.ik_chains, self.virtual_scene.skeleton_model.skeleton.animated_bones, True)
-                    # print("--- Updated Animation IK Chains")
-                    
-                if animation.tag_has_changes and (self.node_usage_set or self.scene_settings.ik_chains):
-                    # Graph should be data driven if ik chains or overlay groups in use.
-                    # Node usages are a sign the user intends to create overlays group
-                    animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
+                    with AnimationGraphTag(tag_must_exist=False) as animation:
+                        animation.set_compression(
+                            self.exported_animations,
+                            self.scene_nwo.forced_animation_compression,
+                        )
 
         if self.asset_type == AssetType.SCENARIO:
             scenario_path = Path(self.tags_dir, utils.relative_path(self.asset_path), f"{self.asset_name}.scenario")
@@ -2933,7 +2964,7 @@ class ExportScene:
         print(txt)
             
     def postprocess_tags(self):
-        """ManagedBlam tasks to run after tool import is called"""
+        """Tag edits to run after Tool import is called."""
         # if not self.is_child_asset:
         self._setup_model_overrides()
         
@@ -2946,41 +2977,40 @@ class ExportScene:
                 with ObjectTag(path=expected_weapon_path) as weapon:
                     weapon.set_fp_weapon_render_model(render_path)
         
-        if self.has_animations and (self.scene_settings.frame_events_from_blender or self.sidecar.reach_world_animations or self.sidecar.pose_overlays or self.suspension_animations or self.anims_for_tag_info or self.external_animations):
+        if self.has_animations and self.sidecar.reach_world_animations:
+            self.print_post(f"--- Setting up {len(self.sidecar.reach_world_animations)} world relative animation{'s' if len(self.sidecar.reach_world_animations) > 1 else ''}")
+            with AnimationGraphTag() as animation:
+                animation.set_world_animations(self.sidecar.reach_world_animations)
+
+        if self.has_animations and self.suspension_animations:
+            self.print_post(f"--- Writing vehicle suspension data for {len(self.suspension_animations)} suspension animation{'s' if len(self.suspension_animations) > 1 else ''}")
+            updates = {
+                label: VehicleSuspensionUpdate(
+                    marker_name=value.suspension_marker.nwo.marker_model_group,
+                    extension_depth=value.suspension_extension_depth,
+                    compression_depth=value.suspension_compression_depth,
+                    destroyed_region_name=value.suspension_destroyed_region_name,
+                    destroyed_extension_depth=value.suspension_destroyed_extension_depth,
+                    destroyed_compression_depth=value.suspension_destroyed_compression_depth,
+                )
+                for label, value in self.suspension_animations.items()
+            }
+            with AnimationGraphTag() as animation:
+                animation.update_vehicle_suspension(updates)
+
+        if self.has_animations and self.anims_for_tag_info:
+            with AnimationGraphTag() as animation:
+                animation.set_animation_settings(self.anims_for_tag_info)
+
+        if self.has_animations and (self.scene_settings.frame_events_from_blender or self.sidecar.pose_overlays):
             with AnimationTag() as animation:
                 if self.scene_settings.frame_events_from_blender:
                     self.print_post("--- Adding Frame Events")
                     animation.events_from_blender()
-                if self.sidecar.reach_world_animations:
-                    self.print_post(f"--- Setting up {len(self.sidecar.reach_world_animations)} world relative animation{'s' if len(self.sidecar.reach_world_animations) > 1 else ''}")
-                    animation.set_world_animations(self.sidecar.reach_world_animations)
                 if self.sidecar.pose_overlays:
                     self.print_post(f"--- Updating animation blend screens for {len(self.sidecar.pose_overlays)} pose overlay animation{'s' if len(self.sidecar.pose_overlays) > 1 else ''}")
                     animation.setup_blend_screens(self.sidecar.pose_overlays)
                     
-                if self.anims_for_tag_info:
-                    animation.set_tag_info(self.anims_for_tag_info)
-                    
-                if self.suspension_animations:
-                    self.print_post(f"--- Writing vehicle suspension data for {len(self.suspension_animations)} suspension animation{'s' if len(self.suspension_animations) > 1 else ''}")
-                    for element in animation.tag.SelectField("Struct:content[0]/Block:vehicle suspension").Elements:
-                        label = element.Fields[0].GetStringData()
-                        virtual_animation = self.suspension_animations.get(label)
-                        if virtual_animation is not None:
-                            element.SelectField("marker name").SetStringData(virtual_animation.suspension_marker.nwo.marker_model_group)
-                            element.SelectField("full extension ground_depth").Data = virtual_animation.suspension_extension_depth
-                            element.SelectField("full compression ground_depth").Data = virtual_animation.suspension_compression_depth
-                            
-                            # if not element.SelectField("function name").GetStringData().strip():
-                            #     element.SelectField("function name").SetStringData(label.replace(":", "_"))
-                            
-                            if virtual_animation.suspension_destroyed_region_name:
-                                element.SelectField("region name").SetStringData(virtual_animation.suspension_destroyed_region_name)
-                                element.SelectField("destroyed full extension ground_depth").Data = virtual_animation.suspension_destroyed_extension_depth
-                                element.SelectField("destroyed full compression ground_depth").Data = virtual_animation.suspension_destroyed_compression_depth
-                            
-                            animation.tag_has_changes = True
-
         if self.asset_type == AssetType.SCENARIO:
             if self.setup_scenario or self.export_settings.create_debug_zone_set:
                 lm_value = 6 if self.corinth else 3
@@ -3055,14 +3085,11 @@ class ExportScene:
                     
         if self.asset_type == AssetType.DECORATOR_SET:
             with DecoratorSetTag() as decorator_set:
-                if decorator_set.decorator_types.Elements.Count == 0:
-                    if decorator_set.model_instances.Elements.Count == 0:
-                        utils.print_warning("Decorator set has not render model instances. Ensure your export contained geometry")
-                    else:
-                        self.print_post(f"--- Adding default decorator set type")
-                        element = decorator_set.decorator_types.AddElement()
-                        element.SelectField("mesh").Value = 0
-                        decorator_set.tag_has_changes = True
+                added_default = decorator_set.ensure_default_type()
+                if added_default is None:
+                    utils.print_warning("Decorator set has not render model instances. Ensure your export contained geometry")
+                elif added_default:
+                    self.print_post(f"--- Adding default decorator set type")
                 
                 albedo_bitmap = None
                 render_model_path = decorator_set.get_first_valid_render_model()
@@ -3090,7 +3117,7 @@ class ExportScene:
                     
                     if use_mesh_shader:
                         self.print_post(f"--- Setting decorator set render shader to solid mesh")
-                        decorator_set.tag.SelectField("render shader").Value = 2
+                        decorator_set.set_render_shader(2)
                     
                 if decorator_set.reference_texture.Path is None:
                     utils.print_warning("Decorator set has no texture set in the tag. Please ensure the appropriate bitmap tag is set in the tag")

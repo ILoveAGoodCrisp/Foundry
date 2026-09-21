@@ -407,6 +407,14 @@ class BitmapTag(BlenderTag, TagDocument):
         field = self.required_field(element, name)
         field.set(value)
         self.tag_has_changes = True
+
+    def set_registration_points(self, points: dict[int, tuple[int, int]]) -> None:
+        for index, point in points.items():
+            if not 0 <= index < len(self.block_bitmaps):
+                raise IndexError(f'{self.path}: bitmap index {index} is out of range')
+            field = self.required_field(self.block_bitmaps[index], 'registration point')
+            field.set(type(field.value)(*point))
+            self.tag_has_changes = True
         
     def new_bitmap(self, bitmap_name, bitmap_type, color_space):
         def get_type_from_name(bitmap_name):

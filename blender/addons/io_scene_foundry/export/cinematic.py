@@ -10,7 +10,7 @@ from ..tags.cinematic_script import script_from_text
 
 from ..tags.object_blender import ObjectTag
 from ..tags.model_blender import ModelTag
-from ..managed_blam.animation import AnimationTag
+from ..tags.animation_graph import AnimationGraphTag
 from ..tags.cinematic_scene import CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicMusic, CinematicObjectFunctionKeyframe, NativeCinematicSceneTag
 from ..tags.cinematic import CinematicSceneDataTag
 
@@ -275,15 +275,12 @@ class Actor:
                 if model.reference_animation.Path is None or not Path(model.reference_animation.Path.Filename).exists():
                     # No animation, so create on and add skeleton nodes so it is valid
                     graph_path = object_path.with_suffix(".model_animation_graph")
-                    with AnimationTag(path=graph_path) as graph:
+                    with AnimationGraphTag(path=graph_path, tag_must_exist=False) as graph:
                         cinematic_graph = Path(tags_dir, self.graph)
                         if not cinematic_graph.exists():
                             return f"Actor {self.name} has no cinematic animation graph"
-                        with AnimationTag(path=cinematic_graph) as cin_graph:
-                            graph.block_skeleton_nodes.Deserialize(cin_graph.block_skeleton_nodes.Serialize())
-                            # cin_graph.block_skeleton_nodes.CopyEntireTagBlock()
-                            # graph.block_skeleton_nodes.PasteReplaceEntireBlock()
-                            graph.tag_has_changes = True
+                        with AnimationGraphTag(path=cinematic_graph) as cin_graph:
+                            graph.copy_skeleton_from(cin_graph)
                         
                         model.reference_animation.Path = graph.tag_path
                         model.tag_has_changes = True

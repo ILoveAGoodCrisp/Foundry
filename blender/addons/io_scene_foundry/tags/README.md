@@ -30,7 +30,12 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
 - Frame-event-list import/export, shared references and partial animation updates.
 - Animation-graph names, skeleton ordering, parent indices, node usages, parent
   graph and imported-event references. Template setup and animation command lookup
-  use this metadata path without opening ManagedBlam.
+  use this metadata path without opening ManagedBlam. Graph creation, cinematic
+  skeleton copying, parent-graph assignment, node-usage and IK-chain export, and
+  compression, world-relative and vehicle-suspension settings are native too.
+  Animation weights, loop frames, playback flags, blend overrides and PCA group
+  metadata also write natively. Pose-overlay automation reads its blend screens
+  through this wrapper.
 - Particle-emitter custom-points tag creation during particle-model export.
 - Cinematic event sound-effect names, playback availability and indexed sound-class
   labels.

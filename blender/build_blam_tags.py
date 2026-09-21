@@ -17,7 +17,7 @@ PROFILES = ('haloce_mcc', 'halo2_mcc', 'halo3_mcc', 'halo3odst_mcc',
             'haloreach_mcc', 'halo4_mcc', 'halo2amp_mcc')
 SCHEMAS = ('scenario.json', 'scenario_cinematics_resource.json',
            'scenario_structure_bsp.json', 'scenario_structure_lighting_info.json',
-           'frame_event_list.json',
+           'frame_event_list.json', 'model_animation_graph.json',
            'structure_design.json', 'cinematic.json', 'cinematic_transition.json',
            'cinematic_scene.json', 'cinematic_scene_data.json', 'polyart_asset.json',
            'decorator_set.json', 'particle_emitter_custom_points.json', 'prefab.json',

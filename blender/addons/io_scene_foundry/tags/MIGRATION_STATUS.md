@@ -41,8 +41,21 @@ ManagedBlam today would break core Foundry workflows.
 Animation-graph metadata now has a typed native wrapper for animation names,
 skeleton nodes and parent indices, node usages, parent-graph references and frame
 event-list references. Template node-order setup, imported first-person arm
-parenting and the animation-command picker use it directly. Full animation
-resource import, graph mutation and export remain on the legacy graph class.
+parenting and the animation-command picker use it directly. New graph creation,
+cinematic skeleton copying, parent-graph assignment and export-time node-usage
+and IK-chain updates are native as well. Per-animation and forced-compression
+settings also use the native graph writer, so pre-Tool graph setup no longer needs
+ManagedBlam. Post-Tool world-relative animation flags are native across H3 through
+H2AMP, as are vehicle-suspension marker, depth and destroyed-region updates. The
+pose-overlay automation now reads legacy blend-screen angles and frame grids
+through the native graph wrapper. Animation weights, loop frames, playback flags,
+blend-time overrides and H4/H2AMP PCA group settings also write natively. The
+generated graph schemas remain ignored
+build assets. Full animation
+resource import and most remaining post-Tool graph mutation/export remain on the
+legacy graph class.
+Cubemap checksum registration points and model-to-instance physics material maps
+now use native fields; their tool callers no longer traverse ManagedBlam elements.
 
 Latest validation: 60 regression tests pass without starting ManagedBlam.
 Bitmap field access, creation settings, processed-pixel extraction and Granny

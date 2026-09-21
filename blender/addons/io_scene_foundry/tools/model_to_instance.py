@@ -87,22 +87,16 @@ class ModelInstance:
                         
                 if model.path_exists(model.reference_physics_model.Path):
                     with PhysicsTag(path=model.reference_physics_model.Path) as physics:
-                        for element in physics.block_materials.Elements:
-                            
-                            name = element.SelectField("name").GetStringData()
-                            global_material = element.SelectField("global material name").GetStringData()
-                            
-                            if not name:
+                        for material in physics.materials():
+                            if not material.name:
                                 continue
-                            
-                            if element.SelectField("phantom type").Value > -1:
-                                phantom_materials.add(name)
+                            if material.phantom:
+                                phantom_materials.add(material.name)
                                 continue
-                            
-                            if global_material:
-                                model_materials_map[name] = global_material
+                            if material.global_material:
+                                model_materials_map[material.name] = material.global_material
                             else:
-                                model_materials_map[name] = name
+                                model_materials_map[material.name] = material.name
                 
                 materials_model_map = defaultdict(list)
                 for name, global_material in model_materials_map.items():

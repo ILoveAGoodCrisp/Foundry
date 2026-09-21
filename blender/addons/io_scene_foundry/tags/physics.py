@@ -1,4 +1,5 @@
 """Native physics constraints and standalone rigid-body shape metadata."""
+from dataclasses import dataclass
 from types import SimpleNamespace
 from math import isfinite
 from .backend import TagDocument
@@ -15,12 +16,30 @@ CONSTRAINT_FIELDS = {
 }
 
 
+@dataclass(frozen=True)
+class PhysicsMaterial:
+    name: str
+    global_material: str
+    phantom: bool
+
+
 class PhysicsShapesUnsupported(NotImplementedError):
     """A rigid-body shape still requires the legacy converter."""
 
 
 class PhysicsDocument(TagDocument):
     tag_ext = 'physics_model'
+
+    def materials(self) -> list[PhysicsMaterial]:
+        result: list[PhysicsMaterial] = []
+        for element in self.block(self.tag.root(), 'materials'):
+            phantom = element.field('phantom type')
+            result.append(PhysicsMaterial(
+                name=str(self.value(element, 'name')),
+                global_material=str(self.value(element, 'global material name')),
+                phantom=phantom is not None and int(phantom.value) > -1,
+            ))
+        return result
 
     def primitive_bodies(self, *, include_serialized=False):
         root = self.tag.root()

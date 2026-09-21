@@ -114,13 +114,11 @@ class CubemapFarm:
                     with BitmapTag(path=bitmap_path) as bitmap:
                         bitmap_cubemap_indices = index_map.get(bsp_index, None)
                         if bitmap_cubemap_indices is None: continue
-                        for bitmap_element in bitmap.block_bitmaps.Elements:
-                            current_cubemap_index = bitmap_cubemap_indices[bitmap_element.ElementIndex]
-                            field_registration_point = bitmap_element.SelectField("registration point")
-                            rpx, rpy = cubemaps[current_cubemap_index].checksum_pair
-                            field_registration_point.SetStringData([rpx, rpy])
-                        
-                        bitmap.tag_has_changes = True
+                        registration_points = {}
+                        for bitmap_index in range(len(bitmap.block_bitmaps)):
+                            current_cubemap_index = bitmap_cubemap_indices[bitmap_index]
+                            registration_points[bitmap_index] = cubemaps[current_cubemap_index].checksum_pair
+                        bitmap.set_registration_points(registration_points)
                         
         return ""
                 

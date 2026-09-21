@@ -34,6 +34,23 @@ class DecoratorSetTag(BlenderTag, TagDocument):
     @staticmethod
     def get_path_str(reference, full=False):
         return (reference.Filename if full else reference.RelativePathWithExtension) if reference else ''
+
+    def ensure_default_type(self) -> bool | None:
+        """Add mesh zero when instances exist; return None when no instance exists."""
+        decorator_types = self.block(self.tag.root(), 'decorator types')
+        if len(decorator_types):
+            return False
+        instances = self.block(self.tag.root(), 'render model instance names')
+        if not len(instances):
+            return None
+        element = decorator_types[decorator_types.add()]
+        self.required_field(element, 'mesh').set(0)
+        self.tag_has_changes = True
+        return True
+
+    def set_render_shader(self, value: int) -> None:
+        self.required_field(self.tag.root(), 'render shader').set(value)
+        self.tag_has_changes = True
         
     def get_decorator_types(self) -> list[DecoratorType]:
         decorator_types = []

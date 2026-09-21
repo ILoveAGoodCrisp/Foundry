@@ -8,7 +8,7 @@ from math import degrees, radians
 from mathutils import Matrix
 
 from ... import utils
-from ...managed_blam.animation import AnimationTag
+from ...tags.animation_graph import AnimationBlendScreen, AnimationGraphTag
 import xml.etree.cElementTree as ET
 
 class BlendScreen:
@@ -53,16 +53,16 @@ class BlendScreen:
                 case "up pitch frame count":
                     self.up_pitch_frame_count = int(solve_xml_value(field))
         
-    def from_element(self, element):
-        self.label = element.Fields[0].GetStringData()
-        self.right_yaw_per_frame = element.Fields[1].Data
-        self.left_yaw_per_frame = element.Fields[2].Data
-        self.right_frame_count = element.Fields[3].Data
-        self.left_frame_count = element.Fields[4].Data
-        self.down_pitch_per_frame = element.Fields[5].Data
-        self.up_pitch_per_frame = element.Fields[6].Data
-        self.down_pitch_frame_count = element.Fields[7].Data
-        self.up_pitch_frame_count = element.Fields[8].Data
+    def from_record(self, record: AnimationBlendScreen):
+        self.label = record.label
+        self.right_yaw_per_frame = record.right_yaw_per_frame
+        self.left_yaw_per_frame = record.left_yaw_per_frame
+        self.right_frame_count = record.right_frame_count
+        self.left_frame_count = record.left_frame_count
+        self.down_pitch_per_frame = record.down_pitch_per_frame
+        self.up_pitch_per_frame = record.up_pitch_per_frame
+        self.down_pitch_frame_count = record.down_pitch_frame_count
+        self.up_pitch_frame_count = record.up_pitch_frame_count
         
     def compute_transforms(self):
         """Computes the transform a blend screen expects"""
@@ -111,19 +111,12 @@ class BlendScreen:
 def blend_screens_from_tag(filepath: str) -> dict[str: BlendScreen]:
     """Returns a dict of keys= animation name value=blend screen"""
     data = {}
-    blend_screens = []
-    with AnimationTag(path=filepath) as animation:
-        for element in animation.tag.SelectField("Struct:definitions[0]/Block:blend screens").Elements:
+    with AnimationGraphTag(path=filepath) as animation:
+        for animation_name, record in animation.blend_screens().items():
             bscreen = BlendScreen()
-            bscreen.from_element(element)
+            bscreen.from_record(record)
             bscreen.compute_transforms()
-            blend_screens.append(bscreen)
-            
-        for element in animation.block_animations.Elements:
-            index = element.SelectField("blend screen").Value
-            if index == -1:
-                continue
-            data[element.Fields[0].GetStringData()] = blend_screens[index]
+            data[animation_name] = bscreen
             
     return data
 
