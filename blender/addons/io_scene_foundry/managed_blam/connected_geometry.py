@@ -1,4 +1,5 @@
 """Classes to help with importing geometry from tags"""
+from __future__ import annotations
 
 from enum import Enum
 from math import radians
@@ -25,10 +26,11 @@ from ..tools import materials as special_materials
 from .. import utils
 from .. import import_transform
 from ..tags.havok_tagfile import HavokTagfileReader
-from .Tags import TagFieldBlock, TagFieldBlockElement
 from mathutils.geometry import tessellate_polygon
 
 if TYPE_CHECKING:
+    from ..tags.field_view import NativeTagBlock as TagFieldBlock
+    from ..tags.field_view import NativeTagStruct as TagFieldBlockElement
     from ..tags.render_model import (
         RenderModelInstancePlacement,
         RenderModelMarker,
@@ -3477,23 +3479,9 @@ class Mesh:
             try:
                 vertex_data = _read_serialized_raw_vertices(raw_vertices, self.corinth)
             except Exception as ex:
-                utils.print_warning(f"Failed to read raw vertices with Field.Serialize(); falling back to ManagedBlam mesh helpers: {ex}")
-                raw_positions = list(self.render_model.GetPositionsFromMesh(self.temp_meshes, raw_mesh_index))
-                raw_texcoords = list(self.render_model.GetTexCoordsFromMesh(self.temp_meshes, raw_mesh_index))
-                raw_normals = list(self.render_model.GetNormalsFromMesh(self.temp_meshes, raw_mesh_index))
-                vertex_data = {
-                    "positions": [tuple(raw_positions[i:i + 3]) for i in range(0, len(raw_positions), 3)],
-                    "texcoords": [tuple(raw_texcoords[i:i + 2]) for i in range(0, len(raw_texcoords), 2)],
-                    "normals": [tuple(raw_normals[i:i + 3]) for i in range(0, len(raw_normals), 3)],
-                    "lightmap_texcoords": [tuple(float(v) for v in e.Fields[5].Data) for e in raw_vertices.Elements],
-                    "vertex_colors": [tuple(float(v) for v in e.Fields[8].Data) for e in raw_vertices.Elements],
-                    "texcoords1": (
-                        [tuple(float(v) for v in e.Fields[9].Data) for e in raw_vertices.Elements]
-                        if self.corinth and raw_vertices.Elements.Count and len(raw_vertices.Elements[0].Fields) > 9 else []
-                    ),
-                    "node_indices": None,
-                    "node_weights": None,
-                }
+                raise RuntimeError(
+                    f"Native raw-vertex decoding failed for mesh {raw_mesh_index}: {ex}"
+                ) from ex
 
             try:
                 index_stream = _read_serialized_indices(raw_indices)

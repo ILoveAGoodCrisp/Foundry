@@ -50,7 +50,6 @@ from ..utils import (
     update_debug_menu,
     validate_ek,
 )
-from .. import managed_blam
 from .. import utils
 
 # export keywords
@@ -115,11 +114,11 @@ class NWO_ExportScene(Operator, ExportHelper):
     @classmethod
     def poll(cls, context):
         scene_nwo = utils.get_scene_props()
-        return utils.current_project_valid() and not validate_ek(require_managed_blam=not utils.uses_legacy_export()) and scene_nwo.asset_type != 'resource' and (utils.nwo_asset_type() == 'single_animation' or _is_child_animation_export(scene_nwo) or not scene_nwo.is_child_asset)
+        return utils.current_project_valid() and not validate_ek() and scene_nwo.asset_type != 'resource' and (utils.nwo_asset_type() == 'single_animation' or _is_child_animation_export(scene_nwo) or not scene_nwo.is_child_asset)
     
     @classmethod
     def description(cls, context, properties):
-        d = validate_ek(require_managed_blam=not utils.uses_legacy_export())
+        d = validate_ek()
         if d is not None:
             return "Export Unavaliable: " + d
         
@@ -452,8 +451,6 @@ class NWO_ExportScene(Operator, ExportHelper):
         layout.use_property_split = True
         # PROJECT
         row = layout.row()
-        if managed_blam.mb_active:
-            row.enabled = False
         projects = get_prefs().projects
         scene_nwo_export = utils.get_export_props()
         scene_nwo = utils.get_scene_props()

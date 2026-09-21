@@ -1807,7 +1807,7 @@ def get_halo_material_count() -> tuple:
 
     return count, total
 
-def validate_ek(require_managed_blam=True) -> str | None:
+def validate_ek() -> str | None:
     """Returns an relevant error message if the current game does not reference a valid editing kit. Else returns None"""
     ek = Path(get_project_path())
     scene_project = get_scene_props().scene_project
@@ -1817,10 +1817,6 @@ def validate_ek(require_managed_blam=True) -> str | None:
         return f"Tool not found, please check that you have tool.exe within your {scene_project} directory"
     elif not Path(ek, "data").exists():
         return f"Editing Kit data folder not found. Please ensure your {scene_project} directory has a 'data' folder"
-    elif require_managed_blam and not Path(ek, "bin", "ManagedBlam.dll").exists():
-        return f"ManagedBlam not found in your {scene_project} bin folder, please ensure this exists"
-    # elif not managed_blam.mb_operational:
-    #     return 'Failed to load Managedblam.dll. Please check that your Halo Editing Kit is installed correctly'
     else:
         prefs = get_prefs()
         projects = prefs.projects
@@ -2506,6 +2502,20 @@ def get_project(project_name=None):
                 return p
         
         return projects[0]
+
+def switch_project_from_filepath(context: bpy.types.Context, path: Path) -> None:
+    """Select the configured project containing an absolute tag path."""
+    path = Path(path)
+    for project in get_prefs().projects:
+        try:
+            path.relative_to(Path(project.project_path))
+        except ValueError:
+            continue
+        nwo = get_scene_props()
+        if nwo.scene_project != project.name:
+            nwo.scene_project = project.name
+            print(f"Project changed to {project.name} to read {path}")
+        return
     
 def get_project_from_path(path: str):
     projects = get_prefs().projects
@@ -5009,37 +5019,6 @@ class TagImportMover():
             pass
             # self.temp_file.unlink()
                 
-def get_foundry_blam_exe():
-    bin_dir = Path(get_project_path(), "bin")
-    if is_corinth():
-        target_exe = Path(bin_dir, "FoundryBlamCorinth.exe")
-    else:
-        target_exe = Path(bin_dir, "FoundryBlam.exe")
-    target_json_dll = Path(bin_dir, "Newtonsoft.Json.dll")
-    if False and target_exe.exists() and target_json_dll.exists():
-        return str(target_exe)
-    else:
-        source_dir = Path(addon_root(), "managed_blam", "FoundryBlam")
-        if is_corinth():
-            source_exe = Path(source_dir, "FoundryBlamCorinth.exe")
-        else:
-            source_exe = Path(source_dir, "FoundryBlam.exe")
-            
-        source_json_dll = Path(source_dir, "Newtonsoft.Json.dll")
-        try:
-            shutil.copyfile(source_exe, target_exe)
-            shutil.copyfile(source_json_dll, target_json_dll)
-        except:
-            pass
-
-    if not target_json_dll.exists():
-        raise RuntimeError("Failed to copy Newtonsoft.Json.dll for FoundryBlam")
-
-    if target_exe.exists():
-        return str(target_exe)
-    
-    raise RuntimeError("Failed to copy FoundryBlam.exe")
-
 def mouse_in_object_editor_region(context, x, y):
     for area in context.screen.areas:
         if area.type not in ('VIEW_3D', "PROPERTIES", "OUTLINER"):

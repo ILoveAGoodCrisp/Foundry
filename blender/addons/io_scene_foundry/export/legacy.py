@@ -413,7 +413,7 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
         export.ready_scene(collection_view_layer)
         export.get_initial_export_objects()
         export.map_halo_properties()
-        # Legacy tool tags cannot be read by ManagedBlam; use the prepared bone order.
+        # Legacy export uses the prepared bone order because its tags use the older layout.
         export.create_virtual_tree()
         export.sample_animations(single_animation)
         export.export_legacy(single_animation)

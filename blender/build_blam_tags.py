@@ -70,11 +70,13 @@ sys.path.insert(0, sys.argv[1])
 import blam_tags as api
 required = {
     'TagFile': ('read', 'new', 'write_atomic', 'particle_meshes',
-                'render_model_meshes', 'sbsp_render_meshes'),
+                'render_model_meshes', 'sbsp_render_meshes', 'animation_pose'),
     'TagField': ('options', 'as_array', 'copy_value_from'),
     'TagBlock': ('copy_from',),
     'TagStruct': ('raw_bytes',),
-    'TagFunctionEditor': ('describe', 'evaluate', 'evaluate_shape'),
+    'TagFunctionEditor': ('describe', 'evaluate', 'evaluate_shape',
+                          'set_master_type', 'set_color_graph_type',
+                          'set_color', 'set_clamp_range'),
 }
 missing = [f'{cls}.{method}' for cls, methods in required.items()
            for method in methods if not hasattr(getattr(api, cls, None), method)]

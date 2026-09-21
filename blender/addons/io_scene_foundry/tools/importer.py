@@ -33,7 +33,6 @@ from ..tags.structure_design_blender import StructureDesignTag
 
 from ..tags.globals import FPARMS, GlobalsTag
 
-from ..managed_blam import switch_project_from_filepath
 from ..tags.backend import TagDocument
 from ..tags.multiplayer import MultiplayerObjectTypeListTag
 from ..tags.prefab import PrefabTag
@@ -1337,10 +1336,10 @@ class NWO_Import(bpy.types.Operator):
             try:
                 utils.print_section("FOUNDRY IMPORTER")
                 
-                # Start MB if the file is a tag and switch project as needed.
+                # Switch project when the selected tag belongs to another kit.
                 # Only checking the last file for speed (last file is always self.filepath if there was one).
                 # If another file is a tag, too bad, we won't try to switch project for it
-                switch_project_from_filepath(context, Path(filepaths[-1]))
+                utils.switch_project_from_filepath(context, Path(filepaths[-1]))
 
                 scope_list = []
                 if self.scope:
@@ -4217,7 +4216,7 @@ class NWOImporter:
         for idx, fp in enumerate(bitmap_files):
             utils.update_progress(job, idx / bitmap_count)
             # bitmap_name = utils.dot_partition(os.path.basename(fp))
-            # if 'lp_array' in bitmap_name or 'global_render_texture' in bitmap_name: continue # Filter out the bitmaps that crash ManagedBlam
+            # if 'lp_array' in bitmap_name or 'global_render_texture' in bitmap_name: continue
             with utils.TagImportMover(self.tags_dir, fp) as mover:
                 info = bitmap_to_image(mover.tag_path, True)
                 if info.image:

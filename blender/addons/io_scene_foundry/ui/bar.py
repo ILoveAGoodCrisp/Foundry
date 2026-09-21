@@ -1,14 +1,12 @@
 import multiprocessing
 from functools import partial
 from pathlib import Path
-import tempfile
 import bpy
 
 from ..constants import VALID_MESHES
 
 from ..tools.halo_export import export_quick, export
 
-from .. import managed_blam
 from ..tags.lightmapper_globals import LightmapperGlobalsTag
 
 from .. import utils
@@ -171,23 +169,6 @@ class NWO_OT_ProjectChooser(bpy.types.Operator):
 
     def execute(self, context):
         nwo = utils.get_scene_props()
-        if managed_blam.mb_active:
-            mb_path = managed_blam.mb_path
-            if mb_path:
-                if not str(mb_path).startswith(str(utils.get_project_path(self.project_name))):
-                    box = utils.MessageBox(utils.MessageBoxType.YESNO, "Restart Required", "Blender needs to restart in order to load a different project. Save and restart now?")
-                    box.show()
-                    if box.confirmed:
-                        nwo.scene_project = self.project_name
-                        blend_path = bpy.data.filepath
-                        if not blend_path:
-                            blend_path = str(Path(tempfile.gettempdir(), "temp"))
-                        bpy.ops.wm.save_mainfile(filepath=blend_path, check_existing=False, compress=context.preferences.filepaths.use_file_compression)
-                        utils.restart_blender()
-                    
-                    self.report({"WARNING"}, "Project cannot be changed until Blender restart")
-                    return {'CANCELLED'}
-                        
         nwo.scene_project = self.project_name
         return {'FINISHED'}
     
@@ -1399,7 +1380,7 @@ def foundry_toolbar(layout, context):
             return sub_button.menu("NWO_MT_ProjectChooser")
         sub_project = row.row(align=True)
         sub_project.menu("NWO_MT_ProjectChooser", text="", icon_value=utils.project_icon(context))
-        error = utils.validate_ek(require_managed_blam=not utils.uses_legacy_export())
+        error = utils.validate_ek()
         if error is not None:
             sub_error = row.row()
             sub_error.label(text=error, icon="ERROR")

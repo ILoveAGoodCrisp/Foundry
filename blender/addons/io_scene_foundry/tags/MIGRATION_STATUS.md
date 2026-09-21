@@ -6,10 +6,19 @@ a new unreadable tag/field is encountered or a recorded limitation is resolved.
 
 ## Current position
 
-Migration policy: remove ManagedBlam entirely. Unsupported native operations must
+**ManagedBlam runtime dependency removal: complete.** No tag wrapper inherits the
+legacy `Tag` base, no add-on code imports CLR for tag access, startup no longer
+validates or initializes `ManagedBlam.dll`, and editing-kit validation no longer
+requires that DLL. The old `managed_blam` package name temporarily contains pure
+Python Blender converters at stable import paths; its initializer cannot load .NET.
+
+Migration policy: keep ManagedBlam entirely removed. Unsupported native operations must
 raise explicit errors rather than fall back to ManagedBlam. Temporary breakage on
 this branch is accepted; record gaps for investigation instead of preserving .NET
-compatibility. Unported readers and writers still need replacement.
+compatibility. Remaining work is native feature acceptance and direct-API cleanup.
+Measured as dependency replacement, the migration is now 100%: the add-on has no
+ManagedBlam tag-access path to fall back to. This does not mean every workflow has
+completed visual or editing-kit acceptance.
 
 Latest integration: cinematic import and the top-level cinematic writer now use
 native root, scene and scene-data entry points. The live scene wrapper and its
@@ -40,8 +49,9 @@ spawn/camera placements through typed `ScenarioMetadataTag` methods. The cache
 builder also reads zone-set names natively and contains no `SelectField` calls.
 Save/reopen checks covered Reach, Halo 4 and H2AMP scenario layouts.
 
-The native foundation works, but most feature migration remains. Removing
-ManagedBlam today would break core Foundry workflows.
+The native foundation now owns every tag-wrapper lifecycle. Representative native
+animation and shader/material reads pass in Blender with the legacy `Tag` base
+deleted.
 
 Animation-graph metadata now has a typed native wrapper for animation names,
 skeleton nodes and parent indices, node usages, parent-graph references and frame
@@ -63,10 +73,9 @@ through the native graph wrapper. Reach/H4/H2AMP pose-overlay blend-screen setup
 also writes its animation bindings, sources, flags, rates and weight functions
 natively. Animation weights, loop frames, playback flags,
 blend-time overrides and H4/H2AMP PCA group settings also write natively. The
-generated graph schemas remain ignored
-build assets. Full animation
-resource import and most remaining post-Tool graph mutation/export remain on the
-legacy graph class.
+generated graph schemas remain ignored build assets. Animation resource import
+now uses the Rust pose decoder; specialized composite behavior and broad visual
+acceptance remain.
 Cubemap checksum registration points and model-to-instance physics material maps
 now use native fields; their tool callers no longer traverse ManagedBlam elements.
 
@@ -142,7 +151,15 @@ H4/H2AMP authored-PCA reference and mesh-group ranges also use detached native
 metadata. Skeleton names, parent indices and additional-node default transforms
 now travel in the same typed metadata bundle, removing those ManagedBlam field
 reads from the resource importer.
-This does not complete animation resource import/export migration.
+Animation resource import now calls the Rust decoder through the typed
+`TagFile.animation_pose()` binding. The binding returns owned transforms after
+graph-selected overlay/replacement base composition, object-space correction and
+movement decoding. The Blender importer converts those native tuples directly and
+no longer initializes ManagedBlam or calls its former Python resource decoder.
+Blender 5.1.2 checks decoded real H3, ODST, Reach, H4 and H2AMP graphs with a forced
+failure if ManagedBlam starts. The sampled H3 codec-slot-0 stream also decodes
+successfully through the Rust pipeline. Baboon's animation extractor uses the
+same `blam_tags::extract` implementation.
 The native wrapper and Blender event records now live under `tags`; the legacy
 animation graph keeps its graph-field adapter locally and no longer imports a
 ManagedBlam frame-event module.
@@ -189,37 +206,37 @@ check properties and reject malformed data before allocation. Material assignmen
 and transforms are stubbed in these tests; visual acceptance remains outstanding.
 Read-only sampling decoded 38/50 real tags. Ten H3/ODST water cases and two Reach
 rain cases report explicit conversion gaps, with all source bytes unchanged.
-The importer no longer eagerly starts ManagedBlam. Unported tag wrappers can
-still initialize it and must be replaced.
+The importer and shader/material/decal wrappers open native documents. The package
+initializer no longer contains a ManagedBlam loader.
 The read-only H4/H2AMP sample reaches conversion for 59 of 60 light tags. The last
 tag is a physical light with periodic, modifier-driven attenuation. Sampling mocks
 light allocation, final lighting setup and bitmap conversion; visual parity and
 complete import/export acceptance are still outstanding.
 
-The source audit updated on 2026-09-21 found:
+The source audit updated on 2026-09-22 found:
 
 - 17 migrated tag workflows: camera tracks, globals, render-method options,
   render-method definitions, material-shader metadata, models, object metadata,
   lightmapper globals, cinematic-lighting metadata, light tags, cheap lights,
   structure seams, structure metadata, authored PCA animation, collision models,
   scenario metadata/editing and scenario airprobes.
-- 11 tag classes still inherit the legacy `Tag` base, directly or indirectly:
-  2 direct wrappers and 9 shader/material/decal subclasses.
+- No tag class inherits the legacy `Tag` base. Shader, material, decal and animation
+  wrappers now inherit native documents.
 - 6 modules under `managed_blam` still contain `SelectField` calls (excluding
   the legacy base and generated type declarations).
-- 16 Python modules remain in `managed_blam`; the cinematic-scene, render-model
+- 14 Python modules remain in `managed_blam`; the cinematic-scene, render-model
   and structure-BSP entry points have moved to `tags`.
-- No direct `with Tag(...)` ManagedBlam call sites remain outside legacy wrappers.
-  Indirect legacy wrapper calls remain, including shader template generation after
-  native blank-tag creation.
+- No ManagedBlam loader, `mb_init` call, DLL check or CLR tag-access import remains.
+  Python.NET is retained only by the separate Foundation plugin installer.
 
 Terrain-shader global-material lookup and inherited reference traversal now use a
-native metadata wrapper. Terrain shader node construction and authoring still run
-through the legacy shader base.
+native metadata wrapper. Terrain shader node construction and authoring run through
+the native shader document and its temporary field-view adapter.
 H4/H2AMP material metadata and H3/ODST/Reach shader metadata now provide albedo
 bitmap, alpha-mode and physics-material reads. Decorator texture setup, Granny
 texture extraction and BSP collision-material lookup use these native readers;
-full node construction and material authoring remain legacy.
+full node construction and material authoring now open native documents, with broad
+visual acceptance still outstanding.
 Native tag-reference lookup normalizes space-padded group codes from the generated
 group index, including the H4/H2AMP `mat ` material group.
 Non-node shader export now creates the selected empty shader tag through blam-tags.
@@ -245,9 +262,9 @@ legacy wrappers have been deleted. Cinematic scenery copying now propagates
 native layout errors without reopening either tag through ManagedBlam.
 These sample rates are not overall migration percentages.
 
-These are code-inventory counts, not a percentage of engineering effort. Several
-large remaining features depend on ManagedBlam resource decoders or custom editors,
-and migrated wrappers can still hand specialized operations to legacy converters.
+These sample rates are feature-acceptance evidence, not overall percentages.
+Remaining specialized converters are Python code and native blam-tags adapters;
+none can initialize ManagedBlam.
 
 ## Remaining work
 
@@ -359,14 +376,14 @@ profiles, invalid indices, reference selection and unchanged source bytes.
 The standalone `blender/example_edit_tag.py` demonstrates native read/edit/save;
 its mass update was verified by reopening a temporary physics tag.
 
-| Area | Work needed before removal |
+| Area | Post-removal acceptance work |
 | --- | --- |
-| Functions, shaders and lights | Extend the new function-decoding binding to editing operations; port materials, shader variants, decals and light converters. Remove unsupported object-function fallbacks. |
+| Functions, shaders and lights | Shader/material/decal lifecycle, ordinary fields and the function edits currently used by shader authoring are native. Finish broad node-graph and light visual acceptance. |
 | Geometry and resources | Complete acceptance of native render-model and structure-BSP import, then port the remaining decorator, polyart and specialized resource paths. Render-model geometry, BSP render/collision geometry and particle-model import are native. |
-| Animation | Expose animation decoding and port graph edits, frame events, PCA and animation import. |
+| Animation | Native decoding, pose composition, graph metadata/edits, frame events and PCA metadata are connected. Finish broad action-level visual acceptance and specialized composite cases. |
 | Bitmaps | Review the native/Python extraction path across formats, mipmaps, cubemaps and material texture use; complete any resource layouts not represented by processed pixel data. |
 | Scenarios and cinematics | Port remaining BSP/structure editors, lighting-info export and referenced-resource workflows. Scenario object/decal/decorator import, cinematic scene/data import and writing, template/global scenario export and common scenario/cubemap/decorator edits are native. |
-| Dependency removal and acceptance | Remove startup validation and DLL initialization, revise packaging/UI, and run representative complete imports and exports with ManagedBlam unavailable. |
+| Dependency removal and acceptance | Dependency removal is complete. Run representative complete imports/exports with no ManagedBlam installation and finish visual parity review. |
 
 The Rust library already contains functionality in several of these areas, but
 its current Python binding mostly exposes generic tag fields and math. Rust
@@ -374,10 +391,10 @@ capability does not yet imply Foundry can call it through Python.
 
 ## Recommended implementation order
 
-1. Extend the tag-function decoding binding to remaining light/shader consumers and editing operations; eliminate unsupported-function fallbacks.
-2. Expose resource, bitmap and animation APIs needed by Foundry; migrate their callers.
-3. Complete geometry and scenario/cinematic workflows and eliminate fallbacks.
-4. Remove dependency plumbing and verify complete workflows against editing kits.
+1. Run representative complete imports/exports against each H3+ editing kit and compare the resulting Blender data visually.
+2. Close the specialized composite-animation, bitmap-format and resource-layout gaps found by that review.
+3. Complete the remaining specialized geometry and scenario/cinematic acceptance work.
+4. Expose and validate classic H1/H2 loose-tag loading separately from the completed MCC dependency replacement.
 
 H1/H2 classic tag loading/creation through Python is a separate requirement for
 the all-MCC goal. It must be validated independently of H3+ MCC tag support.
@@ -400,13 +417,16 @@ Cinematic-lighting metadata now uses blam-tags. Converting referenced dynamic
 lights uses the native `LightTag` reader for Reach; H4/H2AMP authored-probe conversion remains unimplemented,
 matching the previous wrapper's behavior.
 
-The first tag-function binding is implemented: `TagFunctionEditor` decodes and
+The tag-function binding is implemented: `TagFunctionEditor` decodes and
 describes functions, evaluates outputs and normalized shapes, and round-trips bytes.
 It exposes basic, periodic, exponent, transition and MultiSpline editor graphs.
 Object-function node creation now uses it. Unsupported editor shapes raise before
 any nodes are created. A read-only sample across 60 H3+ object tags decoded and
 round-tripped 266 functions; two unknown transition indices remain unsupported.
-Editing methods and shader consumer migration are still pending.
+The binding now also writes master types, color graph types, colors and scalar
+clamp ranges. Shader/material/decal wrappers use native documents, and a real H3
+animated shader parameter was decoded, changed, saved and reopened successfully.
+Broader node-graph visual acceptance remains.
 
 Reach lights and Reach/H4/H2AMP cheap lights now decode mappings natively, including
 input variables, range variables and output modifiers. Unsupported mappings raise

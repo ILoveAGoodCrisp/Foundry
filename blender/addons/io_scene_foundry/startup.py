@@ -8,7 +8,6 @@ from .tools.prefab_exporter import export_prefabs
 from .tools.decorator_exporter import export_decorators
 from .tools.airprobe_exporter import export_airprobes
 
-from . import managed_blam
 from . import utils
 
 # -----------------------------------------------------------------------------
@@ -176,46 +175,10 @@ def load_handler(dummy):
 
         nwo.instance_proxy_running = False
 
-        # ManagedBlam project validation
-        mb_path = managed_blam.mb_path
-        if mb_path:
-            project_path = utils.get_project_path()
-
-            if not str(mb_path).startswith(str(project_path)):
-                if nwo.sidecar_path:
-                    utils.restart_blender()
-                else:
-                    possible_project = utils.get_project_from_path(
-                        str(Path(mb_path).parent.parent)
-                    )
-                    if possible_project is not None:
-                        nwo.scene_project = possible_project.name
-
         # Msgbus subscription (persistent owner)
         if _subscription_owner is None:
             _subscription_owner = object()
             subscribe(_subscription_owner)
-
-        # Validate ManagedBlam
-        try:
-            project_path_value = utils.get_project_path()
-            if not project_path_value:
-                managed_blam.mb_operational = False
-            else:
-                project_path = Path(project_path_value)
-                mb_bin = project_path / "bin" / "managedblam.dll"
-
-                if not project_path.exists():
-                    print(f"Project path does not exist: {project_path}")
-                    managed_blam.mb_operational = False
-                elif not mb_bin.exists():
-                    print(f"ManagedBlam path missing: {mb_bin}")
-                    managed_blam.mb_operational = False
-                else:
-                    managed_blam.mb_operational = True
-
-        except Exception:
-            managed_blam.mb_operational = False
 
     load_handler_complete = True
 
@@ -255,8 +218,3 @@ def save_object_positions_to_tags(dummy):
     ):
         print("Exporting Airprobes")
         export_airprobes()
-
-
-@persistent
-def managed_blam_exit(is_user_exit: bool):
-    managed_blam.close_managed_blam()

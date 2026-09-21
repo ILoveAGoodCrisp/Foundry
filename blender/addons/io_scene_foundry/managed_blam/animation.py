@@ -1,4 +1,4 @@
-
+from __future__ import annotations
 
 from contextlib import nullcontext
 from enum import Enum, IntEnum
@@ -11,7 +11,12 @@ import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 
 from ..tags.frame_event_list import AnimationEvent
-from ..tags.animation_graph import AnimationGraphImportMetadata, AnimationImportSettings
+from ..tags.field_view import NativeTagStruct as _NativeStruct
+from ..tags.animation_graph import (
+    AnimationGraphImportMetadata,
+    AnimationGraphTag,
+    AnimationImportSettings,
+)
 from ..tags.animation_names import (
     DIRECTIONS as directions,
     REGIONS as regions,
@@ -19,11 +24,9 @@ from ..tags.animation_names import (
     normalized_animation_graph_path,
 )
 
-from .Tags import TagFieldBlockElement
-
 from ..tags.animation_resource import (
     AnimationCodecType,
-    AnimationResourceData,
+    AnimationData,
     BinaryReader,
     CurveCodec,
     DefaultAnimationNode,
@@ -31,18 +34,11 @@ from ..tags.animation_resource import (
     FrameInfoType,
     RevisedCurveCodec,
     MovementData,
-    SharedStaticCodecData,
     apply_movement_data,
-    apply_shared_static_codec,
     append_final_frame,
-    build_animation,
-    compose_overlay_animation,
-    compose_replacement_animation,
-    default_frame_channels,
 )
 from ..tags.source_tag_resource import read_model_animation_graph_resources
 from ..tags.render_model_blender import RenderModelTag
-from . import Tag
 from .. import import_transform
 from ..legacy.jma import Node
 from .. import utils
@@ -215,8 +211,8 @@ class Animation:
         self.compression = Compression.medium_compression
         self.resource_group = -1
         self.resource_group_member = -1
-        self.element: TagFieldBlockElement = None
-        self.shared_element: TagFieldBlockElement = None
+        self.element: _NativeStruct | None = None
+        self.shared_element: _NativeStruct | None = None
         self.state_types = set()
         self.world_relative = False
         self.contains_pca_data = False
@@ -225,7 +221,8 @@ class Animation:
         self.is_pose_overlay = False
         self.translate_and_scale_root_only = False
         
-    def from_element(self, element: TagFieldBlockElement, shared_element: TagFieldBlockElement, corinth: bool):
+    def from_element(self, element: _NativeStruct,
+                     shared_element: _NativeStruct, corinth: bool):
         self.name = utils.AnimationName(element.Fields[0].GetStringData())
         self.index = element.ElementIndex
         self.frame_count = shared_element.SelectField("frame count").Data
@@ -250,21 +247,37 @@ class Animation:
         self.is_pose_overlay = self.animation_type == AnimationType.OVERLAY and shared_element.SelectField("object-space parent nodes").Elements.Count > 0
         
         if corinth:
-            self.composite_index = element.SelectField("composite").Value
+            composite = element.SelectField("composite")
+            if composite is not None:
+                self.composite_index = composite.Value
             if internal_flags.TestBit("contains pca data"):
                 self.contains_pca_data = True
-                self.pca_group = element.SelectField("pca group name").GetStringData()
+                pca_group = element.SelectField("pca group name")
+                if pca_group is not None:
+                    self.pca_group = pca_group.GetStringData()
         
     def __repr__(self):
         return self.name
         
-class AnimationTag(Tag):
+class AnimationTag(AnimationGraphTag):
     tag_ext = 'model_animation_graph'
 
+    def __init__(self, path='', *, tag_must_exist=True, always_save=False,
+                 hide_prints=False, raise_on_error=True):
+        super().__init__(path, tag_must_exist=tag_must_exist,
+                         always_save=always_save, hide_prints=hide_prints,
+                         raise_on_error=raise_on_error)
+        self.context = bpy.context
+        if self.valid:
+            self._native_root = _NativeStruct(self, self.tag.root())
+            self._read_fields()
+
     def _read_fields(self):
-        self.block_animations = self.tag.SelectField("Struct:definitions[0]/Block:animations")
-        self.block_modes = self.tag.SelectField("Struct:content[0]/Block:modes")
-        self.block_blend_screens = self.tag.SelectField('Struct:definitions[0]/Block:NEW blend screens')
+        self.block_animations = self._native_root.SelectField(
+            "Struct:definitions[0]/Block:animations")
+        self.block_modes = self._native_root.SelectField("Struct:content[0]/Block:modes")
+        self.block_blend_screens = self._native_root.SelectField(
+            'Struct:definitions[0]/Block:NEW blend screens')
         
         
     def get_animation_names(self, filter="") -> list[str]:
@@ -292,33 +305,20 @@ class AnimationTag(Tag):
                 
         return animations
         
-    def _initialize_tag(self):
-        self.tag.SelectField('Struct:definitions[0]/ShortInteger:animation codec pack').Data = 6
-        
-    
-                
-    
-    
-    
-            
-    def read_all_modes(self):
-        print(self.tag.Path.RelativePath)
-        print('-'*100)
-        for e in self.block_modes.Elements:
-            print(e.SelectField('label').GetStringData())
-        print('\n\n\n')
-        
-        
-                
-        
-
-    def _get_shared_animation_element(self, animation_element: TagFieldBlockElement) -> TagFieldBlockElement | None:
+    def _get_shared_animation_element(
+            self, animation_element: _NativeStruct) -> _NativeStruct | None:
+        if animation_element.SelectField('frame count') is not None:
+            return animation_element
         shared_block = animation_element.SelectField("Block:shared animation data")
         if shared_block is not None and shared_block.Elements.Count:
             return shared_block.Elements[0]
         
         graph_reference = animation_element.SelectField("Struct:shared animation reference[0]/Reference:graph reference")
-        reference_index = animation_element.SelectField("Struct:shared animation reference[0]/ShortInteger:shared animation index")
+        reference_index_field = animation_element.SelectField(
+            "Struct:shared animation reference[0]/ShortInteger:shared animation index")
+        if reference_index_field is None:
+            return None
+        reference_index = int(reference_index_field.Value)
 
         if reference_index < 0 or reference_index >= self.block_animations.Elements.Count:
             return None
@@ -519,45 +519,6 @@ class AnimationTag(Tag):
 
         return defaults, nodes, overlay_defaults
 
-    def _read_shared_static_codec(self):
-        rotations_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared_static_codec[0]/Block:rotations")
-        if rotations_block is None:
-            return None
-        
-        translations_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared_static_codec[0]/Block:translations")
-        scales_block = self.tag.SelectField("Struct:codec data[0]/Struct:shared_static_codec[0]/Block:scale")
-
-        rotations = []
-        for element in rotations_block.Elements:
-            rotations.append(
-                (
-                    element.Fields[0].Data,
-                    element.Fields[1].Data,
-                    element.Fields[2].Data,
-                    element.Fields[3].Data,
-                )
-            )
-
-        translations = []
-        if translations_block is not None:
-            for element in translations_block.Elements:
-                translations.append(
-                    Vector(
-                        (
-                            element.Fields[0].Data,
-                            element.Fields[1].Data,
-                            element.Fields[2].Data,
-                        )
-                    )
-                )
-
-        scales = []
-        if scales_block is not None:
-            for element in scales_block.Elements:
-                scales.append(element.Fields[0].Data)
-
-        return SharedStaticCodecData(rotations, translations, scales)
-
     def _serialized_tag_bytes(self):
         cache = getattr(self, "_native_serialized_tag_bytes", None)
         if cache is not None:
@@ -588,255 +549,6 @@ class AnimationTag(Tag):
             raise ValueError(f"Animation resource group member index {member_index} is out of range")
 
         return members[member_index]
-
-    def _select_animation_resource_group_members(self, container, _depth=0):
-        if container is None or _depth > 4:
-            return None
-
-        group_members = self._find_direct_child_field(
-            container,
-            "group_members",
-            "resource_group_members",
-        )
-        if group_members is not None:
-            return group_members
-
-        for resource_name in ("tag_resource", "resource_data", "pageable resource"):
-            resource_field = self._find_direct_child_field(container, resource_name)
-            if resource_field is None:
-                continue
-            nested_group_members = self._select_animation_resource_group_members(resource_field, _depth + 1)
-            if nested_group_members is not None:
-                return nested_group_members
-
-        return None
-
-    def _resolve_animation_resource_member(self, group_index, member_index):
-        candidate_groups = []
-
-        resource_groups = self._select_field_candidates(self.tag, "Block:tag resource groups", "tag resource groups")
-        if resource_groups is not None and group_index < resource_groups.Elements.Count:
-            candidate_groups.append(resource_groups.Elements[group_index])
-
-        if 0 <= group_index < self.block_animations.Elements.Count:
-            candidate_groups.append(self.block_animations.Elements[group_index])
-
-        if not candidate_groups:
-            raise ValueError(f"Animation resource group index {group_index} is out of range")
-
-        for group_element in candidate_groups:
-            group_members = self._select_animation_resource_group_members(group_element)
-            if group_members is None or member_index >= self._block_element_count(group_members):
-                continue
-            member = self._block_element_at(group_members, member_index)
-            if member is not None:
-                return member
-
-        raise ValueError(f"Animation resource group member index {member_index} is out of range")
-
-    def _read_animation_resource_data(self, tag_animation: Animation, shared_static_codec):
-        if tag_animation.resource_group < 0 or tag_animation.resource_group_member < 0:
-            raise ValueError("Animation resource group indices are missing")
-
-        def build_resource_data(
-            current_frame_count,
-            current_node_count,
-            current_checksum,
-            current_movement_type,
-            current_static_flags_size,
-            current_animated_flags_size,
-            current_static_data_size,
-            current_movement_data_size,
-            current_shared_static_size,
-            current_static_codec_size,
-            current_animated_codec_size,
-            current_revised_curve_rotation_layout,
-        ):
-            resource_data = AnimationResourceData(
-                current_frame_count,
-                current_node_count,
-                current_checksum,
-                current_movement_type,
-                current_static_flags_size,
-                current_animated_flags_size,
-                current_static_data_size,
-                movement_data_size=current_movement_data_size,
-                shared_static_data_size=current_shared_static_size,
-                static_codec_size=current_static_codec_size,
-                animated_codec_size=current_animated_codec_size,
-                revised_curve_rotation_layout=current_revised_curve_rotation_layout,
-                debug_name=tag_animation.name.tag_name,
-            )
-            resource_data.read(BinaryReader(animation_data))
-            if current_shared_static_size:
-                if shared_static_codec is None:
-                    raise ValueError("Animation uses shared static data but the graph codec data could not be read")
-                apply_shared_static_codec(resource_data, animation_data, shared_static_codec)
-            return resource_data
-
-        def track_count(codec, attr_name):
-            if codec is None:
-                return 0
-            values = getattr(codec, attr_name, None)
-            return len(values or ())
-
-        def flag_count(flags):
-            return sum(1 for flag in (flags or ()) if flag)
-
-        def resource_tracks_match_flags(resource_data):
-            static_codec = resource_data.static_data
-            animated_codec = resource_data.animation_data
-            checks = (
-                (flag_count(resource_data.static_rotated_node_flags), track_count(static_codec, "rotations")),
-                (flag_count(resource_data.static_translated_node_flags), track_count(static_codec, "translations")),
-                (flag_count(resource_data.static_scaled_node_flags), track_count(static_codec, "scales")),
-                (flag_count(resource_data.animated_rotated_node_flags), track_count(animated_codec, "rotations")),
-                (flag_count(resource_data.animated_translated_node_flags), track_count(animated_codec, "translations")),
-                (flag_count(resource_data.animated_scaled_node_flags), track_count(animated_codec, "scales")),
-            )
-            return all(flag_total <= track_total for flag_total, track_total in checks)
-
-        animation_data = None
-        frame_count = tag_animation.frame_count
-        node_count = self.nodes_count
-        checksum = 0
-        movement_type = tag_animation.frame_info_type
-        static_flags_size = 0
-        animated_flags_size = 0
-        movement_data_size = 0
-        static_data_size = 0
-        shared_static_size = 0
-        revised_curve_rotation_layout = "cache"
-
-        source_member = self._get_source_animation_resource_member(tag_animation.resource_group, tag_animation.resource_group_member)
-        source_layout_version = 3
-        source_section_boundaries = {}
-
-        if source_member is not None:
-            animation_data = source_member.animation_data
-            frame_count = source_member.frame_count or frame_count
-            node_count = source_member.node_count or node_count
-            checksum = source_member.animation_checksum
-            movement_type = source_member.movement_data_type
-            source_layout_version = getattr(source_member, "layout_version", 3)
-            source_section_boundaries = getattr(source_member, "section_boundaries", {}) or {}
-            if source_layout_version >= 4:
-                revised_curve_rotation_layout = "h4_source"
-                # H4 source tags serialize the cache-side PackedDataSizesStructActual,
-                # but the exposed source field names are shifted from their real meaning.
-                static_data_size = int(source_section_boundaries.get("static_node_flags", 0) or 0)
-                static_codec_size = static_data_size
-                animated_codec_size = int(source_section_boundaries.get("animated_node_flags", 0) or 0)
-                static_flags_size = int(source_section_boundaries.get("movement_data", 0) or 0)
-                animated_flags_size = int(source_section_boundaries.get("pill_offset_data", 0) or 0)
-                movement_data_size = int(source_section_boundaries.get("default_data", 0) or 0)
-            else:
-                # Reach source tags expose boundary-style values here instead.
-                flag_word_size = ((node_count + 31) // 32) * 4
-                static_codec_size = source_member.static_flags_size
-                animated_codec_size = source_member.animated_flags_size
-                static_flags_size = flag_word_size * 3 if source_member.static_flags_size else 0
-                animated_flags_size = flag_word_size * 3 if source_member.animated_flags_size else 0
-                movement_data_size = source_member.movement_data_size
-                static_data_size = source_member.static_data_size
-            shared_static_size = source_member.shared_static_data_size
-
-        if not animation_data:
-            raise ValueError("Animation resource data is missing")
-
-        if source_member is not None and source_layout_version >= 4:
-            try:
-                resource_data = build_resource_data(
-                    frame_count,
-                    node_count,
-                    checksum,
-                    movement_type,
-                    static_flags_size,
-                    animated_flags_size,
-                    static_data_size,
-                    movement_data_size,
-                    shared_static_size,
-                    static_codec_size,
-                    animated_codec_size,
-                    revised_curve_rotation_layout,
-                )
-                if resource_tracks_match_flags(resource_data):
-                    return resource_data
-            except Exception as exc:
-                last_error = exc
-
-            flag_candidates = []
-            for candidate in (
-                source_section_boundaries.get("uncompressed_data", 0),
-                source_section_boundaries.get("compressed_data", 0),
-                source_section_boundaries.get("blend_screen_data", 0),
-                source_section_boundaries.get("pill_offset_data", 0),
-                source_section_boundaries.get("movement_data", 0),
-            ):
-                candidate = int(candidate or 0)
-                if candidate > 0 and candidate not in flag_candidates:
-                    flag_candidates.append(candidate)
-
-            attempts = []
-            for candidate in flag_candidates:
-                attempts.append(
-                    (
-                        int(source_section_boundaries.get("movement_data", 0) or 0),
-                        candidate,
-                        int(source_section_boundaries.get("default_data", 0) or 0),
-                    )
-                )
-                attempts.append((candidate, 0, int(source_section_boundaries.get("default_data", 0) or 0)))
-
-            if not attempts:
-                attempts.append((static_flags_size, animated_flags_size, movement_data_size))
-
-            last_error = None
-            for candidate_static_flags, candidate_animated_flags, candidate_movement_size in attempts:
-                try:
-                    resource_data = build_resource_data(
-                        frame_count,
-                        node_count,
-                        checksum,
-                        movement_type,
-                        candidate_static_flags,
-                        candidate_animated_flags,
-                        static_data_size,
-                        candidate_movement_size,
-                        shared_static_size,
-                        static_codec_size,
-                        animated_codec_size,
-                        revised_curve_rotation_layout,
-                    )
-                except Exception as exc:
-                    last_error = exc
-                    continue
-
-                if resource_tracks_match_flags(resource_data):
-                    return resource_data
-
-                last_error = ValueError(
-                    f"Halo 4 flag mapping did not match decoded track counts for {tag_animation.name.tag_name} "
-                    f"(static={candidate_static_flags}, animated={candidate_animated_flags})"
-                )
-
-            if last_error is not None:
-                raise last_error
-
-        return build_resource_data(
-            frame_count,
-            node_count,
-            checksum,
-            movement_type,
-            static_flags_size,
-            animated_flags_size,
-            static_data_size,
-            movement_data_size,
-            shared_static_size,
-            static_codec_size,
-            animated_codec_size,
-            revised_curve_rotation_layout,
-        )
 
     def _scene_event_action(self):
         scene = getattr(self.scene_nwo, "id_data", None)
@@ -884,16 +596,6 @@ class AnimationTag(Tag):
             self._blend_screen_animation_map = cache
 
         return cache.get(tag_animation.index)
-
-    def _field_enum_display_name(self, element: TagFieldBlockElement, field_name: str) -> str:
-        field = element.SelectField(field_name)
-        if field is None:
-            return ""
-        index = getattr(field, "Value", None)
-        items = getattr(field, "Items", None)
-        if items is not None and index is not None and 0 <= index < len(items):
-            return items[index].DisplayName
-        return ""
 
     def _blend_screen_connection_type(self, tag_animation: Animation):
         blend_screen_data, _ = self._read_animation_resource_section_data(tag_animation, "blend_screen_data")
@@ -3021,7 +2723,7 @@ class AnimationTag(Tag):
         return None
 
     def _composite_timing_source_animation(self, animation: Animation, all_tag_animations) -> Animation | None:
-        composites_block = self.tag.SelectField("Struct:definitions[0]/Block:composites")
+        composites_block = self._native_root.SelectField("Struct:definitions[0]/Block:composites")
         if composites_block.Elements.Count == 0:
             return animation
 
@@ -3183,7 +2885,7 @@ class AnimationTag(Tag):
     def _normalized_int16_quaternion_component(self, value) -> float:
         return max(-1.0, min(1.0, float(int(value)) / INT16_NORMALIZED_MAX))
 
-    def _object_space_parent_rotation(self, element: TagFieldBlockElement) -> Quaternion:
+    def _object_space_parent_rotation(self, element: _NativeStruct) -> Quaternion:
         x = self._normalized_int16_quaternion_component(element.SelectField("Struct:parent orientation[0]/rotation x").Data)
         y = self._normalized_int16_quaternion_component(element.SelectField("Struct:parent orientation[0]/rotation y").Data)
         z = self._normalized_int16_quaternion_component(element.SelectField("Struct:parent orientation[0]/rotation z").Data)
@@ -3194,13 +2896,16 @@ class AnimationTag(Tag):
         rotation.normalize()
         return rotation
 
-    def _object_space_parent_orientation_transform(self, element: TagFieldBlockElement) -> tuple[Vector, Quaternion, float]:
-        translation = self._to_vector(element.SelectField("Struct:parent orientation[0]/default translation").Data) * 100.0
+    def _object_space_parent_orientation_transform(
+            self, element: _NativeStruct) -> tuple[Vector, Quaternion, float]:
+        translation = Vector(element.SelectField(
+            "Struct:parent orientation[0]/default translation").Data) * 100.0
         rotation = self._object_space_parent_rotation(element)
         scale = element.SelectField("Struct:parent orientation[0]/default scale").Data
         return translation, rotation, scale
 
-    def _object_space_parent_component_flags(self, element: TagFieldBlockElement) -> tuple[bool, bool, bool, bool]:
+    def _object_space_parent_component_flags(
+            self, element: _NativeStruct) -> tuple[bool, bool, bool, bool]:
         flags = element.SelectField("flags")
         if flags is None:
             return True, True, True, False
@@ -3776,131 +3481,82 @@ class AnimationTag(Tag):
         )
 
 
+    @staticmethod
+    def _native_default_tuple(node: DefaultAnimationNode) -> tuple[float, ...]:
+        rotation = node.rotation
+        translation = node.translation / 100.0
+        return (
+            translation.x,
+            translation.y,
+            translation.z,
+            rotation.x,
+            rotation.y,
+            rotation.z,
+            rotation.w,
+            node.scale,
+        )
+
+    @staticmethod
+    def _animation_data_from_native_pose(pose: dict) -> AnimationData:
+        frames = pose['frames']
+        frame_count = len(frames)
+        node_count = len(frames[0]) if frames else 0
+        translations: list[list[Vector]] = [[] for _ in range(node_count)]
+        rotations: list[list[Quaternion]] = [[] for _ in range(node_count)]
+        scales: list[list[float]] = [[] for _ in range(node_count)]
+        for frame in frames:
+            if len(frame) != node_count:
+                raise ValueError('blam-tags returned inconsistent animation frame sizes')
+            for node_index, transform in enumerate(frame):
+                tx, ty, tz, qx, qy, qz, qw, scale = transform
+                translations[node_index].append(Vector((tx, ty, tz)) * 100.0)
+                rotations[node_index].append(Quaternion((qw, qx, qy, qz)))
+                scales[node_index].append(scale)
+        return AnimationData(
+            frame_count,
+            translations,
+            rotations,
+            scales,
+            [True] * node_count,
+            [True] * node_count,
+            [True] * node_count,
+        )
+
+    def _native_animation_movement(
+        self, tag_animation: Animation, pose: dict
+    ) -> MovementData | None:
+        records = pose['movement']
+        if not records:
+            return None
+        return MovementData(
+            tag_animation.frame_info_type,
+            [Vector((record[0], record[1], record[2])) * 100.0
+             for record in records],
+            [Quaternion((record[6], record[3], record[4], record[5]))
+             for record in records],
+        )
+
     def _build_animation(self, tag_animation: Animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations, final_frame_stack=None):
         index = tag_animation.index
         if index in animation_cache:
             return animation_cache[index]
-        if final_frame_stack is None:
-            final_frame_stack = set()
-
-        resource_data = resource_cache.get(index)
-        if resource_data is None:
-            resource_data = self._read_animation_resource_data(tag_animation, shared_static_codec)
-            resource_cache[index] = resource_data
-
-        if resource_data.node_count != len(defaults):
-            utils.print_warning(
-                f"Animation {tag_animation.name.data_name} node count mismatch "
-                f"(resource={resource_data.node_count}, defaults={len(defaults)}). "
-                "Importing available nodes and using defaults for the rest."
-            )
-
-        animation_data = build_animation(resource_data, defaults, "default" if tag_animation.animation_type in (0, 1) else "neutral")
+        native_pose = self.tag.animation_pose(
+            index,
+            [self._native_default_tuple(node) for node in defaults],
+        )
+        animation_data = self._animation_data_from_native_pose(native_pose)
         if tag_animation.animation_type in (AnimationType.NONE, AnimationType.BASE):
-            final_frame = None
-            ignore_root = False
-            append_final_frame(animation_data, final_frame, ignore_root)
-            if resource_data.movement_data is not None:
+            append_final_frame(animation_data)
+            movement = self._native_animation_movement(tag_animation, native_pose)
+            if movement is not None:
                 apply_movement_data(
                     animation_data,
-                    self._movement_data_from_second_frame(resource_data.movement_data, animation_data.frame_count),
+                    self._movement_data_from_second_frame(
+                        movement, animation_data.frame_count),
                 )
-        if tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
-            base_candidate_name_groups = self._base_animation_candidate_name_groups(graph, tag_animation)
-            base_candidate_names = [name for group in base_candidate_name_groups for name in group]
-            base_candidates = []
-            base_tag_animations = []
-            named_rest_base = tag_animation.name.tag_name.lower() in {"any:look", "any:aim_spine"}
-            skipped_base_candidate_reason = ""
-            if named_rest_base:
-                skipped_base_candidate_reason = "pose overlay uses rest base"
-            elif not base_candidate_names:
-                skipped_base_candidate_reason = "custom animation name not found in graph"
-            else:
-                for candidate_names in base_candidate_name_groups:
-                    base_candidates = self._get_base_animation_candidates(
-                        graph,
-                        candidate_names,
-                        tag_animation.animation_type,
-                    )
-                    base_tag_animations = self._resolved_base_candidates(base_candidates, all_tag_animations)
-                    if base_tag_animations:
-                        break
-            self._debug_print_base_animation_candidates(
-                tag_animation,
-                base_candidate_names,
-                base_candidates,
-                base_tag_animations,
-                skipped_base_candidate_reason,
-            )
-
-            object_space_parent_targets = self._object_space_parent_transform_targets(tag_animation)
-            applied_object_space_parent_targets = (
-                object_space_parent_targets
-                if self._adjust_object_space_parent_nodes(tag_animation)
-                else []
-            )
-            reference_object_space_parent_targets = (
-                object_space_parent_targets
-                if self._preserve_object_space_parent_reference_frame(tag_animation)
-                else []
-            )
-            base_animation = None
-            selected_base_tag_animation = None
-            if base_tag_animations:
-                selected_base_tag_animation = base_tag_animations[0]
-                base_animation = self._build_animation(selected_base_tag_animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations, final_frame_stack)
-                base_frame = base_animation.first_frame()
-            else:
-                base_frame = default_frame_channels(defaults)
-
-            if not named_rest_base:
-                base_frame = self._base_frame_with_position_offset(
-                    tag_animation,
-                    base_frame,
-                    defaults,
-                    overlay_defaults,
-                    graph,
-                    shared_static_codec,
-                    resource_cache,
-                    animation_cache,
-                    all_tag_animations,
-                    final_frame_stack,
-                )
-
-            self._debug_print_applied_base_animation(
-                tag_animation,
-                selected_base_tag_animation,
-                base_animation,
-                base_frame,
-                object_space_parent_targets,
-                applied_object_space_parent_targets,
-                reference_object_space_parent_targets,
-            )
-
-            if tag_animation.animation_type == AnimationType.OVERLAY:
-                animation_data = compose_overlay_animation(
-                    animation_data,
-                    base_frame,
-                    resource_data,
-                    FORCE_OVERLAY_STATIC_CHANNELS_TO_BASE_FRAME,
-                )
-            else:
-                animation_data = compose_replacement_animation(animation_data, base_frame)
-
-            if applied_object_space_parent_targets:
-                self._apply_object_space_base_corrections(tag_animation, animation_data, base_frame, defaults)
-
-            if reference_object_space_parent_targets and tag_animation.animation_type == AnimationType.REPLACEMENT:
-                self._apply_object_space_reference_frame_corrections(tag_animation, animation_data, defaults)
-
+        elif tag_animation.animation_type == AnimationType.OVERLAY:
             if tag_animation.is_pose_overlay:
                 self._apply_pose_overlay_blend_screen_control_basis(tag_animation, animation_data)
-
-            if reference_object_space_parent_targets and tag_animation.animation_type == AnimationType.OVERLAY:
-                self._apply_object_space_reference_frame_corrections(tag_animation, animation_data, defaults)
-
-
         animation_cache[index] = animation_data
         return animation_data
 
@@ -3979,7 +3635,7 @@ class AnimationTag(Tag):
         with model_context as model:
             defaults, native_nodes, overlay_defaults = self._build_default_animation_nodes(
                 metadata, model)
-            shared_static_codec = self._read_shared_static_codec()
+            shared_static_codec = None
             native_resource_cache = {}
             native_animation_cache = {}
             grounding_source_animation_cache = {}
@@ -4449,7 +4105,7 @@ class AnimationTag(Tag):
         base_transforms[frame] = frame_data
         
     def _import_composite(self, blender_animation, composite_index: int, tag_animations):
-        composites_block = self.tag.SelectField("Struct:definitions[0]/Block:composites")
+        composites_block = self._native_root.SelectField("Struct:definitions[0]/Block:composites")
         if composites_block.Elements.Count == 0 or composite_index >= composites_block.Elements.Count:
             return
         
@@ -4545,7 +4201,7 @@ class AnimationTag(Tag):
         return f"{hs_func} {game_object} {self.tag_path.RelativePath} {animation.name.replace(' ', ':')} FALSE"
     
     def resource_info(self):
-        resource_group = self.tag.SelectField("tag resource groups")
+        resource_group = self._native_root.SelectField("tag resource groups")
         for element in resource_group.Elements:
             resource = element.SelectField("tag_resource")
             group = element.SelectField("group_members")
@@ -4630,48 +4286,81 @@ class AnimationTag(Tag):
             return animation
         
     def to_dict(self, tag_animations: list) -> dict:
-        '''Parses the mode n state graph and turns it into a dict'''
-        graph = {}
-        
-        def add_state(animation: Animation, state_name):
-            animation.state_types.add(state_name)
-            return animation
-        
-        for mode in self.block_modes.Elements:
-            mode_label = mode.Fields[0].GetStringData()
-            graph[mode_label] = {}
-            
-            for weapon_class in mode.Fields[4].Elements:
-                weapon_class_label = weapon_class.Fields[0].GetStringData()
-                graph[mode_label][weapon_class_label] = {}
-                
-                for weapon_type in weapon_class.Fields[3].Elements:
-                    weapon_type_label = weapon_type.Fields[0].GetStringData()
-                    graph[mode_label][weapon_class_label][weapon_type_label] = {}
-                    
-                    for set in weapon_type.Fields[3].Elements:
-                        set_label = set.Fields[0].GetStringData()
-                        graph[mode_label][weapon_class_label][weapon_type_label][set_label] = {}
-                        
-                        graph[mode_label][weapon_class_label][weapon_type_label][set_label]["actions"] = {action.Fields[0].GetStringData(): add_state(tag_animations[action.Fields[3].Elements[0].Fields[1].Value], "action") for action in set.Fields[4].Elements if action.Fields[3].Elements[0].Fields[1].Value > -1}
-                        graph[mode_label][weapon_class_label][weapon_type_label][set_label]["overlay_animations"] = {overlay.Fields[0].GetStringData(): add_state(tag_animations[overlay.Fields[3].Elements[0].Fields[1].Value], "overlay") for overlay in set.Fields[5].Elements if overlay.Fields[3].Elements[0].Fields[1].Value > -1}
-                        
-                        graph[mode_label][weapon_class_label][weapon_type_label][set_label]["death_and_damage"] = {}
-                        for death_and_damage in set.Fields[6].Elements:
-                            death_and_damage_label = death_and_damage.Fields[0].GetStringData()
-                            graph[mode_label][weapon_class_label][weapon_type_label][set_label]["death_and_damage"][death_and_damage_label] = {}
-                            for direction in death_and_damage.Fields[1].Elements:
-                                direction_label = directions[direction.ElementIndex]
-                                graph[mode_label][weapon_class_label][weapon_type_label][set_label]["death_and_damage"][death_and_damage_label][direction_label] = {regions[region.ElementIndex]: add_state(tag_animations[region.Fields[0].Elements[0].Fields[1].Value], "death and damage") for region in direction.Fields[0].Elements if region.Fields[0].Elements[0].Fields[1].Value > -1}
-                                
-                            
-                        graph[mode_label][weapon_class_label][weapon_type_label][set_label]["transitions"] = {}
-                        
-                        for transition in set.Fields[7].Elements:
-                            transition_state = transition.Fields[0].GetStringData()
-                            graph[mode_label][weapon_class_label][weapon_type_label][set_label]["transitions"][transition_state] = {f"2:{destination.Fields[0].GetStringData()}:{destination.Fields[1].GetStringData()}": add_state(tag_animations[destination.Fields[2].Elements[0].Fields[1].Value], "transition") for destination in transition.Fields[1].Elements if destination.Fields[2].Elements[0].Fields[1].Value > -1}
-                            
-                            
+        """Build the mode/state lookup used by the native resource decoder."""
+        animations_by_index = {animation.index: animation for animation in tag_animations}
+        graph: dict[str, dict] = {}
+
+        def add_entry(target: dict, label: str, element, state_type: str) -> None:
+            index = self._animation_path_index(element)
+            animation = animations_by_index.get(index)
+            if animation is None:
+                return
+            animation.state_types.add(state_type)
+            target[label] = animation
+
+        content = self.required_field(self.tag.root(), 'content').as_struct()
+        if content is None:
+            raise TypeError(f'{self.path}: content is not a structure')
+        for mode in self.block(content, 'modes'):
+            mode_graph = graph.setdefault(str(self.value(mode, 'label')), {})
+            for weapon_class in self.block(mode, 'weapon class'):
+                class_graph = mode_graph.setdefault(
+                    str(self.value(weapon_class, 'label')), {})
+                for weapon_type in self.block(weapon_class, 'weapon type'):
+                    type_graph = class_graph.setdefault(
+                        str(self.value(weapon_type, 'label')), {})
+                    sets_field = weapon_type.field('sets')
+                    sets = None if sets_field is None else sets_field.as_block()
+                    set_records = ((weapon_type, type_graph),) if sets is None else tuple(
+                        (animation_set, type_graph.setdefault(
+                            str(self.value(animation_set, 'label')), {}))
+                        for animation_set in sets)
+                    for animation_set, set_graph in set_records:
+                        actions: dict[str, Animation] = set_graph.setdefault('actions', {})
+                        overlays: dict[str, Animation] = set_graph.setdefault(
+                            'overlay_animations', {})
+                        overlay_name = ('overlays' if self.game in {'halo3', 'halo3odst'}
+                                        else 'overlay animations')
+                        for block_name, target, state_type in (
+                                ('actions', actions, 'action'),
+                                (overlay_name, overlays, 'overlay')):
+                            for entry in self.block(animation_set, block_name):
+                                add_entry(target, str(self.value(entry, 'label')),
+                                          entry, state_type)
+
+                        damage_graph: dict[str, dict] = set_graph.setdefault(
+                            'death_and_damage', {})
+                        for damage in self.block(animation_set, 'death and damage'):
+                            direction_graph = damage_graph.setdefault(
+                                str(self.value(damage, 'label')), {})
+                            for direction_index, direction in enumerate(
+                                    self.block(damage, 'directions')):
+                                if direction_index >= len(directions):
+                                    continue
+                                region_graph = direction_graph.setdefault(
+                                    directions[direction_index], {})
+                                for region_index, region in enumerate(
+                                        self.block(direction, 'regions')):
+                                    if region_index < len(regions):
+                                        add_entry(region_graph, regions[region_index], region,
+                                                  'death and damage')
+
+                        transition_graph: dict[str, dict] = set_graph.setdefault(
+                            'transitions', {})
+                        for transition in self.block(animation_set, 'transitions'):
+                            source_field = ('full name' if self.game in {'halo3', 'halo3odst'}
+                                            else 'state name')
+                            destinations = transition_graph.setdefault(
+                                str(self.value(transition, source_field)), {})
+                            for destination in self.block(transition, 'destinations'):
+                                if self.game in {'halo3', 'halo3odst'}:
+                                    mode_name = str(self.value(destination, 'full name'))
+                                    state_name = str(self.value(destination, 'mode'))
+                                else:
+                                    mode_name = str(self.value(destination, 'mode name'))
+                                    state_name = str(self.value(destination, 'state name'))
+                                add_entry(destinations, f'2:{mode_name}:{state_name}',
+                                          destination, 'transition')
         return graph
     
     def find_animation(self, graph: dict, tokens: list | str, categories: list[str] | None = None):

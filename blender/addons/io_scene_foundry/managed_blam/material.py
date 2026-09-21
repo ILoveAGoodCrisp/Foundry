@@ -7,7 +7,8 @@ from typing import cast
 from mathutils import Vector
 
 from .connected_material import AnimatedParameterType, Function
-from .Tags import TagFieldBlockElement, TagPath
+from ..tags.backend import TagReference
+from ..tags.field_view import NativeTagStruct
 
 from .bitmap import BitmapTag
 from ..tags.material_shader import MaterialShaderParameter, MaterialShaderTag, convert_argb
@@ -49,7 +50,7 @@ class MaterialParameter:
         self.functions: list[Function] = []
         self.default_bitmap = material_shader_parameter.default_bitmap
         
-    def from_element(self, element: TagFieldBlockElement):
+    def from_element(self, element: NativeTagStruct):
         match self.type:
             case 0:
                 bitmap_path = element.SelectField("bitmap").Path
@@ -85,15 +86,15 @@ class MaterialTag(ShaderTag):
     material_shaders = {}
     
     def get_global_material(self):
-        return self.tag.SelectField("StringId:physics material name").GetStringData()
+        return self._native_root.SelectField("StringId:physics material name").GetStringData()
     
     def _read_fields(self):
-        self.block_parameters = self.tag.SelectField("Block:material parameters")
-        self.reference_material_shader = self.tag.SelectField("Reference:material shader")
-        self.alpha_blend_mode = self.tag.SelectField('CharEnum:alpha blend mode')
+        self.block_parameters = self._native_root.SelectField("Block:material parameters")
+        self.reference_material_shader = self._native_root.SelectField("Reference:material shader")
+        self.alpha_blend_mode = self._native_root.SelectField('CharEnum:alpha blend mode')
     
     @classmethod
-    def _get_info(cls, material_shader_path: TagPath | str):
+    def _get_info(cls, material_shader_path: TagReference | str):
         if material_shader_path is None:
             return
         

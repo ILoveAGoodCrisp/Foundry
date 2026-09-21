@@ -37,9 +37,10 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
   metadata also write natively. Pose-overlay automation reads its blend screens
   through this wrapper. Mode/state graph traversal and Blender animation-rename
   generation are native across all five H3+ profiles. Animation import settings
-  and node-usage indices are detached native records passed into the remaining
-  legacy resource decoder, together with skeleton/default-transform records and
-  H4/H2AMP authored-PCA metadata.
+  and node-usage indices are detached native records. The Python binding exposes
+  Rust-decoded, fully composed animation poses, including graph-selected
+  overlay/replacement bases, object-space corrections and movement. The Blender
+  importer consumes those owned transforms for H3, ODST, Reach, H4 and H2AMP.
 - Particle-emitter custom-points tag creation during particle-model export.
 - Cinematic event sound-effect names, playback availability and indexed sound-class
   labels.
@@ -75,12 +76,11 @@ implementations live in this package. Reference results are detached Python
 objects; the few callers still passing them into legacy tag wrappers convert
 references at that boundary.
 
-The addon still requires ManagedBlam/Python.NET for unmigrated workflows:
-animation graph resource import and graph editing, shader/material editing,
-remaining scenario resources, cinematic referenced-resource workflows and other
-specialized helpers.
-Removing that dependency now would break those workflows. The Foundation plugin
-installer also still uses .NET independently of tag access.
+The add-on no longer requires or initializes ManagedBlam for tag access. Startup,
+project switching, editing-kit validation and packaging paths do not check for
+`ManagedBlam.dll`. Some converters remain under the `managed_blam` package name to
+preserve imports, but that package now contains Python conversion code only. The
+Foundation plugin installer still uses Python.NET independently of tag access.
 
 ## Build and generated assets
 
@@ -151,10 +151,12 @@ need the Rust classic reader/creator exposed in Python. The camera wrapper
 explicitly reports that capability gap. Creating an MCC container from an H1/H2
 schema does not prove classic editing-kit compatibility.
 
-Animation editing and custom shader helper APIs need additional Python binding
-coverage. Render-model and structure-BSP mesh decoding are exposed in the local
-wheel; bitmap extraction uses the native/Python path. Keep specific title selection distinct from tag-format
-generation when migrating these systems.
+Animation pose decoding and the shader function operations used by Foundry are
+exposed in the local wheel. The function editor can change master/color graph
+types, colors and scalar clamp ranges and serialize the result. Render-model and
+structure-BSP mesh decoding are also exposed; bitmap extraction uses the
+native/Python path. Remaining work in these areas is workflow and visual
+acceptance rather than a ManagedBlam dependency.
 
 Cinematic object conversion now uses native `TagBlock.copy_from` and
 `TagField.copy_value_from`. These APIs were added to the local blam-tags checkout;

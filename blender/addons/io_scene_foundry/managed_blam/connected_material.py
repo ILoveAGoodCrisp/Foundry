@@ -1,12 +1,15 @@
-
+from __future__ import annotations
 
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from ..tools.node_tree_arrange import arrange
 
 from .. import utils
-from .Tags import TagFieldBlockElement
 import bpy
+
+if TYPE_CHECKING:
+    from ..tags.field_view import NativeTagStruct as TagFieldBlockElement
 
 # OPTIONS
 
@@ -811,6 +814,21 @@ class Function:
         self.is_basic_function = False
     
     def from_element(self, element: TagFieldBlockElement, block_name: str):
+        if hasattr(element, 'document') and hasattr(element, 'struct'):
+            self._read_native_mapping(element.document, element.struct, block_name)
+            try:
+                self.animated_type = AnimatedParameterType(element.Fields[0].Value)
+            except (AttributeError, IndexError, ValueError):
+                pass
+            time_period = element.SelectField("time period")
+            input_name = element.SelectField("input name")
+            range_name = element.SelectField("range name")
+            self.time_period = 0 if time_period is None else time_period.Data
+            self.input = '' if input_name is None else input_name.GetStringData()
+            self.range = '' if range_name is None else range_name.GetStringData()
+            self.uses_input = bool(self.input)
+            self.input = self.input or 'one'
+            return
         editor = element.SelectField(block_name).Value
         self.editor = editor
         self.is_ranged = editor.IsRanged
@@ -958,7 +976,12 @@ class Function:
 
     def _read_native_mapping(self, document, element, name):
         from blam_tags import TagFunctionEditor
-        mapping = document.required_field(element, name).as_struct()
+        mapping_field = element.field(name)
+        if mapping_field is None and name == 'animation function':
+            mapping_field = element.field('function')
+        if mapping_field is None:
+            raise ValueError(f'{name}: missing mapping field')
+        mapping = mapping_field.as_struct()
         if mapping is None:
             raise ValueError(f'{name}: missing mapping struct')
         data = next((field.value for field in mapping.fields() if field.type_name == 'data'), None)

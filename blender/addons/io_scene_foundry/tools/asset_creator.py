@@ -6,7 +6,6 @@ import bpy
 
 from ..export.build_sidecar import Sidecar
 
-from .. import managed_blam
 from ..tools.append_grid_materials import append_grid_materials
 from ..tools.rigging.create_rig import add_rig
 from ..tools.append_foundry_materials import add_special_materials
@@ -344,12 +343,6 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         sidecar.build()
         
         self.report({"INFO"}, f"Created new {self.asset_type.title()} asset for {self.project}. Asset Name = {asset_name}")
-        
-        # Restart Blender if the currently loaded Managedblam dll is incompatiable
-        mb_path = managed_blam.mb_path
-        if mb_path:
-            if not Path(mb_path).is_relative_to(Path(project.project_path)):
-                utils.restart_blender()
         
         return {"FINISHED"}
     

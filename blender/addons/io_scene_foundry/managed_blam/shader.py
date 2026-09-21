@@ -12,8 +12,9 @@ from .connected_material import Function, AnimatedParameterType, FunctionEditorC
 from ..tags.render_method_option import OptionParameter
 
 from ..constants import NormalType
-from ..managed_blam import Tag
-from ..managed_blam.Tags import TagPath, TagsNameSpace
+from ..tags.backend import TagDocument, TagReference
+from ..tags.blender import BlenderTag
+from ..tags.field_view import NativeTagStruct
 import os
 from ..managed_blam.bitmap import BitmapTag, bitmap_to_image
 from ..tools.export_bitmaps import export_bitmap
@@ -24,6 +25,10 @@ from ..tags.render_method_definition import RenderMethodDefinitionTag
 
 global_render_method_definition = None
 last_group_node = None
+
+
+class _EmptyReference:
+    Path = None
 
 SK_TEST_CUBEMAP = r"objects\weapons\h2a_assault_rifle\bitmaps\test_textures\sk_test_cubemap.bitmap"
 DEFAULT_CUBEMAP = r"shaders\default_bitmaps\bitmaps\default_cube.bitmap"
@@ -49,7 +54,7 @@ def build_templates(shader_paths, do_print=False):
     if do_print: print("--- Validating templates for shaders")
     for spath in shader_paths:
         with ShaderTag(path=spath) as shader:
-            template = shader.tag.SelectField("Struct:render_method[0]/Block:postprocess[0]/Reference:shader template")
+            template = shader._native_root.SelectField("Struct:render_method[0]/Block:postprocess[0]/Reference:shader template")
             if template is None:
                 continue
             template_path = shader.get_path_str(template.Path, True)
@@ -201,7 +206,7 @@ class AlphaBlendSource(Enum):
     FROM_OPACITY_MAP_RGB = 3
     FROM_OPACITY_MAP_ALPHA_AND_ALBEDO_ALPHA = 4
 
-class ShaderTag(Tag):
+class ShaderTag(BlenderTag, TagDocument):
     # tag_ext = 'shader'
     scale_u = 'scale x'
     scale_v = 'scale y'
@@ -239,20 +244,75 @@ class ShaderTag(Tag):
         ("self_illumination", SelfIllumination, 6, 6),
         ("blend_mode", BlendMode, 7, 7),
     )
+
+    def __init__(self, path='', *, tag_must_exist=True, always_save=False,
+                 hide_prints=False, raise_on_error=True):
+        self.context = bpy.context
+        self.data_dir = utils.get_data_path()
+        self.always_extract_bitmaps = False
+        self.unit_scale = self.context.scene.unit_settings.scale_length
+        super().__init__(path, tag_must_exist=tag_must_exist,
+                         always_save=always_save, hide_prints=hide_prints,
+                         raise_on_error=raise_on_error)
+        if self.valid:
+            self._native_root = NativeTagStruct(self, self.tag.root())
+            self._read_fields()
+
+    def _TagPath_from_string(self, path: str | Path) -> TagReference:
+        return self.reference_from_path(path)
+
+    @staticmethod
+    def get_path_str(path: TagReference | None, full_path=False) -> str:
+        if path is None:
+            return ''
+        return path.Filename if full_path else path.RelativePathWithExtension
+
+    def _Element_from_field_value(self, block, field_name: str, value):
+        for element in block.Elements:
+            field = element.SelectField(field_name)
+            if field is not None and field.Value == value:
+                return element
+        return None
+
+    @staticmethod
+    def _EnumIntValue(block, field_name: str, value: str) -> int | None:
+        element = block.Elements[0] if block.Elements.Count else None
+        field = None if element is None else element.SelectField(field_name)
+        if field is None:
+            return None
+        target = value.casefold().replace('_', ' ')
+        for index, item in enumerate(field.Items):
+            if item.EnumName.casefold().replace('_', ' ') == target:
+                return index
+        return None
+
+    @staticmethod
+    def _FunctionEditorColorGraphType(value: int) -> int:
+        return value
+
+    @staticmethod
+    def _FunctionEditorMasterType(value: int) -> int:
+        return value
+
+    @staticmethod
+    def _GameColor_from_RGB(red: float, green: float, blue: float,
+                            alpha: float = 1.0):
+        from ..tags.field_view import NativeGameColor
+        return NativeGameColor(red, green, blue, alpha)
     
     def _read_fields(self):
-        self.render_method = self.tag.SelectField("Struct:render_method").Elements[0]
+        self.render_method = self._native_root.SelectField("Struct:render_method").Elements[0]
         self.block_parameters = self.render_method.SelectField("parameters")
         self.block_options = self.render_method.SelectField('options')
-        self.reference = self.render_method.SelectField('reference')
+        self.reference = self.render_method.SelectField('reference') or _EmptyReference()
         if self.reference.Path and self.reference.Path == self.tag_path: # prevent recursion issues
             self.reference.Path = None
         self.definition = self.render_method.SelectField('definition')
         
     def get_global_material(self):
-        global_material_field = self.tag.SelectField("StringId:material name")
+        global_material_field = self._native_root.SelectField("StringId:material name")
         if global_material_field is None:
-            global_material_field = self.tag.SelectField("StringId:material name 0")
+            global_material_field = self._native_root.SelectField("StringId:material name 0")
             
         if global_material_field is None:
             return ""
@@ -266,7 +326,7 @@ class ShaderTag(Tag):
         return global_material
     
     @classmethod
-    def _get_info(cls, definition_path: TagPath):
+    def _get_info(cls, definition_path: TagReference):
         if cls.category_parameters is None:
             def_path = definition_path
             if def_path is None:
@@ -299,9 +359,9 @@ class ShaderTag(Tag):
         if linked_to_blender:
             self._edit_tag()
         elif self.corinth and self.material_shader:
-            self.tag.SelectField("Reference:material shader").Path = self._TagPath_from_string(self.material_shader)
+            self._native_root.SelectField("Reference:material shader").Path = self._TagPath_from_string(self.material_shader)
             
-        return self.tag.Path.RelativePathWithExtension
+        return self.tag_path.RelativePathWithExtension
         
     def _edit_tag(self):
         self.alpha_type = self._alpha_type_from_blender_material()
@@ -1278,7 +1338,8 @@ class ShaderTag(Tag):
         else:
             type_field.SetValue(parameter_type)
             
-    def _setup_function_parameters(self, source: tuple[float] | bpy.types.Node, element: TagsNameSpace.TagElement, parameter_type: str):
+    def _setup_function_parameters(self, source: tuple[float] | bpy.types.Node,
+                                   element: NativeTagStruct, parameter_type: str):
         block_animated_parameters = element.SelectField(self.function_parameters)
         mapping = self._function_parameters_from_node(source, parameter_type)
         for k, v in mapping.items():
@@ -1348,11 +1409,16 @@ class ShaderTag(Tag):
             self._to_nodes_bsdf(blender_material)
         
         if not self.corinth:
-            flags = self.tag.SelectField("Struct:render_method[0]/WordFlags:shader flags")
+            flags = self._native_root.SelectField("Struct:render_method[0]/WordFlags:shader flags")
             if flags is not None and flags.TestBit("only render for shields"):
                 utils.material_add_shield(blender_material)
             
     def _option_value_from_index(self, index):
+        if index >= self.block_options.Elements.Count:
+            if self.reference.Path:
+                with ShaderTag(path=self.reference.Path) as shader:
+                    return shader._option_value_from_index(index)
+            return 0
         option_enum = self.block_options.Elements[index].Fields[0].Data
         if option_enum == -1 and self.reference.Path:
             with ShaderTag(path=self.reference.Path) as shader:
@@ -1958,7 +2024,10 @@ class ShaderTag(Tag):
         # self.shader_parameters.update(self.category_parameters[utils.game_str(e_parallax.name)])
         # self.shader_parameters.update(self.category_parameters[utils.game_str(e_misc.name)])
         # self.shader_parameters.update(self.category_parameters[utils.game_str(e_wetness.name)])
-        self.shader_parameters.update(self.category_parameters["alpha_blend_source"][utils.game_str(e_alpha_blend_source.name)])
+        alpha_blend_source = self.category_parameters.get("alpha_blend_source")
+        if alpha_blend_source is not None:
+            self.shader_parameters.update(
+                alpha_blend_source[utils.game_str(e_alpha_blend_source.name)])
         self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
 
         tree = blender_material.node_tree
