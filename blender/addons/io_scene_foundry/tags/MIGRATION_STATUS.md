@@ -34,6 +34,11 @@ references are native; bitmap checksum edits use the native bitmap wrapper. The
 scenario and child-scenario import no longer use the legacy scenario wrapper.
 The lightmap-quality menu now reads its names through the native lightmapper-globals
 document rather than opening ManagedBlam directly.
+Cache multiplayer/firefight validation now reads and writes required-resource
+references, child-scenario presence, scenery palettes, player starts and generated
+spawn/camera placements through typed `ScenarioMetadataTag` methods. The cache
+builder also reads zone-set names natively and contains no `SelectField` calls.
+Save/reopen checks covered Reach, Halo 4 and H2AMP scenario layouts.
 
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
@@ -47,8 +52,13 @@ and IK-chain updates are native as well. Per-animation and forced-compression
 settings also use the native graph writer, so pre-Tool graph setup no longer needs
 ManagedBlam. Post-Tool world-relative animation flags are native across H3 through
 H2AMP, as are vehicle-suspension marker, depth and destroyed-region updates. The
+Reach animation importer now temporarily forces uncompressed data and restores the
+original graph setting through the native wrapper; H3/ODST layouts without that
+field and H4/H2AMP retain their existing no-change behavior. The
 pose-overlay automation now reads legacy blend-screen angles and frame grids
-through the native graph wrapper. Animation weights, loop frames, playback flags,
+through the native graph wrapper. Reach/H4/H2AMP pose-overlay blend-screen setup
+also writes its animation bindings, sources, flags, rates and weight functions
+natively. Animation weights, loop frames, playback flags,
 blend-time overrides and H4/H2AMP PCA group settings also write natively. The
 generated graph schemas remain ignored
 build assets. Full animation
@@ -111,7 +121,10 @@ preserve other animations and shared reference indices; repeated exports reuse
 references. Ranges, detached sound/effect/dialogue events, clearing and aborted
 writes are covered by save/reopen tests. Populated script events have no Blender
 mapping and raise explicitly for affected animations. The containing animation
-graph is still legacy, so this does not complete animation import/export migration.
+graph now discovers animation names/frame counts and assigns the imported-event
+reference natively for export and the manual event-export operator. H3/ODST inline
+graph events remain on the legacy import path and reject external event-list export.
+This does not complete animation import/export migration.
 The native wrapper and Blender event records now live under `tags`; the legacy
 animation graph keeps its graph-field adapter locally and no longer imports a
 ManagedBlam frame-event module.

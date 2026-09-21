@@ -9,7 +9,7 @@ from typing import cast
 import bpy
 from mathutils import Matrix
 
-from ...managed_blam.animation import AnimationTag
+from ...tags.animation_graph import AnimationGraphTag
 
 from ...props.scene import NWO_AnimationBlendAxisItems, NWO_AnimationGroupItems, NWO_AnimationLeavesItems, NWO_AnimationPhaseSetsItems, NWO_AnimationPropertiesGroup
 from ... import constants
@@ -658,7 +658,7 @@ class NWO_OT_ExportFrameEvents(bpy.types.Operator):
     
     def execute(self, context):
         graph_path = utils.get_asset_tag(".model_animation_graph")
-        with AnimationTag(path=graph_path) as graph:
+        with AnimationGraphTag(path=graph_path) as graph:
             graph.events_from_blender()
             
         self.report({'INFO'}, "Frame events export complete")

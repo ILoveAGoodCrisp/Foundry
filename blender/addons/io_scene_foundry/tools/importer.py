@@ -1752,9 +1752,9 @@ class NWO_Import(bpy.types.Operator):
                     globals_path = Path(utils.get_tags_path(), "globals\\globals.globals")
                     if globals_path.exists():
                         with GlobalsTag(path=globals_path) as tag_globals:
-                            film_aperture_field = tag_globals.tag.SelectField("Block:cinematics globals[0]/Real:cinematic film aperture")
-                            if film_aperture_field is not None:
-                                film_aperture = film_aperture_field.Data
+                            tag_film_aperture = tag_globals.cinematic_film_aperture()
+                            if tag_film_aperture is not None:
+                                film_aperture = tag_film_aperture
                             else:
                                 utils.print_warning(f"Failed to read globals tag. Using default cinematic film aperture of {film_aperture}")
                     else:
@@ -3575,8 +3575,8 @@ class NWOImporter:
         with utils.TagImportMover(self.tags_dir, file) as mover:
             forced_compression_value = 0
             do_reset = False
-            with AnimationTag(path=mover.tag_path) as graph:
-                forced_compression_value, do_reset = graph.set_forced_uncompressed()
+            with AnimationGraphTag(path=mover.tag_path) as graph:
+                forced_compression_value, do_reset = graph.force_uncompressed_for_import()
                 match forced_compression_value:
                     case 0:
                         self.scene_nwo.forced_animation_compression = 'none'
@@ -3634,8 +3634,8 @@ class NWOImporter:
                     utils.print_bullet(f"Imported {count} frame events")
 
             if do_reset:
-                with AnimationTag(path=mover.tag_path) as graph:
-                    graph.reset_forced_compression(forced_compression_value)
+                with AnimationGraphTag(path=mover.tag_path) as graph:
+                    graph.restore_forced_compression(forced_compression_value)
 
         self.register_control_rig_actions(armature, actions)
 

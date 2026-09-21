@@ -102,21 +102,21 @@ class CacheBuilder:
                 
             self.do_mp_validation = mp_validation and self.scenario_type != ScenarioType.CAMPAIGN
                 
-            self.zone_sets = [element.Fields[0].GetStringData() for element in tag.block_zone_sets.Elements]
+            self.zone_sets = tag.zone_set_names()
             
             self.bsps = tag.get_bsp_names()
                 
             if self.do_mp_validation and own_asset:
                 self._multiplayer_validation(tag)
                 
-    def _multiplayer_validation(self, tag):
+    def _multiplayer_validation(self, tag: ScenarioMetadataTag):
         is_mp = self.scenario_type == ScenarioType.MULTIPLAYER
         type_txt = "multiplayer" if is_mp else "firefight"
         print(f"\n\n{type_txt.capitalize()} Validation")
         print("-----------------------------------------------------------------------\n")
         # Add MP resources
-        resource_field = tag.tag.SelectField("Reference:required resources")
-        if resource_field.Path is None:
+        resource_reference = tag.required_resources()
+        if resource_reference is None:
             if is_mp:
                 if self.game_engine == "HaloReach":
                     path = r"levels\multi\multiplayer.scenario_required_resource"
@@ -126,19 +126,18 @@ class CacheBuilder:
                 path = r"levels\firefight\firefight_required_resources.scenario_required_resource"
                 
             if Path(self.tags_dir, path).exists():
-                resource_field.Path = tag._TagPath_from_string(path)
+                tag.set_required_resources(path)
                 print(f"--- Added reference to {path}")
-                tag.tag_has_changes = True
             else:
                 return utils.print_warning(f"Failed to find required resources file for {type_txt}. File does not exist at: {path}")
         else:
-            print(f"--- Required resources validated: {resource_field.Path.RelativePath}")
+            print(f"--- Required resources validated: {resource_reference.RelativePath}")
             
         if is_mp: # Don't do this for firefight
             initial_spawn_point = r"objects\multi\spawning\initial_spawn_point.scenery"
                 
             # Abort if child scenarios
-            if tag.corinth and tag.tag.SelectField("Block:child scenarios").Elements.Count > 0:
+            if tag.corinth and tag.has_child_scenarios():
                 return print(f"Scenario has child scenarios, skipping spawn point check. If you do not spawn in MCC, then you will need to set up initial spawn points with the following tag: {initial_spawn_point}")
             
             # Check for initial spawn points tags
@@ -146,113 +145,47 @@ class CacheBuilder:
                 return utils.print_warning(f"Cannot validate MP spawns. Failed to find initial spawn point tag: {initial_spawn_point}")
             
             respawn_point = r"objects\multi\spawning\respawn_point.scenery"
-            respawn_point_ref = None
-            if Path(self.tags_dir, respawn_point).exists():
-                respawn_point_ref = tag._TagPath_from_string(respawn_point)
-            
-            has_respawn_ref = respawn_point_ref is not None
-            initial_spawn_point_ref = tag._TagPath_from_string(initial_spawn_point)
+            has_respawn_ref = Path(self.tags_dir, respawn_point).exists()
             
             camera = r"objects\multi\generic\mp_cinematic_camera.scenery"
-            camera_ref = None
-            if Path(self.tags_dir, camera).exists():
-                camera_ref = tag._TagPath_from_string(camera)
-            
-            has_camera_ref = camera_ref is not None
-            
-            # Search scenery palette for ref
-            initial_palette_index = -1
-            respawn_palette_index = -1
-            camera_palette_index = -1
-            scenery_palette = tag.tag.SelectField("Block:scenery palette")
-            for element in scenery_palette.Elements:
-                if element.Fields[0].Path == initial_spawn_point_ref:
-                    initial_palette_index = element.ElementIndex
-                elif has_respawn_ref and element.Fields[0].Path == respawn_point_ref:
-                    respawn_palette_index = element.ElementIndex
-                elif has_camera_ref and element.Fields[0].Path == camera_ref:
-                    camera_palette_index = element.ElementIndex
-                
-                if initial_palette_index != -1 and respawn_palette_index != -1 and camera_palette_index != -1:
-                    break
-            
-            if initial_palette_index == -1:
-                element = scenery_palette.AddElement()
-                element.Fields[0].Path = initial_spawn_point_ref
-                initial_palette_index = element.ElementIndex
-                tag.tag_has_changes = True
-                print("--- Added reference to initial spawn point tag")
-            if has_respawn_ref and respawn_palette_index == -1:
-                element = scenery_palette.AddElement()
-                element.Fields[0].Path = respawn_point_ref
-                respawn_palette_index = element.ElementIndex
-                tag.tag_has_changes = True
-                print("--- Added reference to respawn point tag")
-            if has_camera_ref and camera_palette_index == -1:
-                element = scenery_palette.AddElement()
-                element.Fields[0].Path = camera_ref
-                camera_palette_index = element.ElementIndex
-                tag.tag_has_changes = True
-                print("--- Added reference to camera tag")
+            has_camera_ref = Path(self.tags_dir, camera).exists()
 
-            has_initial_spawns = False
-            has_respawns = False
-            has_camera = False
-            
-            scenery = tag.tag.SelectField("Block:scenery")
-            
-            for element in scenery.Elements:
-                if initial_palette_index != -1 and element.Fields[1].Value == initial_palette_index:
-                    has_initial_spawns = True
-                elif has_respawn_ref and respawn_palette_index != -1 and element.Fields[1].Value == respawn_palette_index:
-                    has_respawns = True
-                elif has_camera_ref and camera_palette_index != -1 and element.Fields[1].Value == camera_palette_index:
-                    has_camera = True
-                    
-                if has_initial_spawns and has_respawns and has_camera:
-                    break
+            initial_palette_index, added = tag.ensure_scenery_palette_reference(initial_spawn_point)
+            if added:
+                print("--- Added reference to initial spawn point tag")
+            respawn_palette_index = -1
+            if has_respawn_ref:
+                respawn_palette_index, added = tag.ensure_scenery_palette_reference(respawn_point)
+                if added:
+                    print("--- Added reference to respawn point tag")
+            camera_palette_index = -1
+            if has_camera_ref:
+                camera_palette_index, added = tag.ensure_scenery_palette_reference(camera)
+                if added:
+                    print("--- Added reference to camera tag")
+
+            has_initial_spawns = tag.has_scenery_placement(initial_palette_index)
+            has_respawns = has_respawn_ref and tag.has_scenery_placement(respawn_palette_index)
+            has_camera = has_camera_ref and tag.has_scenery_placement(camera_palette_index)
                 
             if has_initial_spawns and has_respawns and has_camera:
                 print("--- Spawns validated")
             else:
-                tag.tag_has_changes = True
                 # Get valid positions from player starting points if possible
                 # spawn_coordinates = x, y, z, yaw, pitch
-                spawn_coordinates = []
-                for element in tag.tag.SelectField("Block:player starting locations").Elements:
-                    x, y, z = element.Fields[0].Data
-                    yaw = element.SelectField("Angle:facing").Data
-                    pitch = element.SelectField("Angle:pitch").Data
-                    spawn_coordinates.append(tuple((tuple((x, y, z)), tuple((yaw, pitch, 0.0)))))
-                    
+                spawn_coordinates = tag.player_starting_transforms()
                 if not spawn_coordinates:
-                    spawn_coordinates.append(tuple((tuple((0.0, 0.0, 0.0)), tuple((0.0, 0.0, 0.0)))))
+                    spawn_coordinates.append(((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
                     
                 if not has_initial_spawns:
                     for co in spawn_coordinates:
-                        element = scenery.AddElement()
-                        element.Fields[1].Value = initial_palette_index
-                        element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:source").Value = 1 # set to editor
-                        element.SelectField("Struct:object data[0]/RealPoint3d:position").Data = co[0]
-                        element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data = co[1]
-                        element.SelectField("Struct:object data[0]/Struct:object id[0]/LongInteger:unique id").Data = utils.unique_id()
-                        element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:type").Value = 6 # Scenery
-                        element.SelectField("Struct:multiplayer data[0]/CharEnum:owner team").Value = 8 # Neutral
+                        tag.add_scenery_placement(initial_palette_index, co, utils.unique_id())
                     print("--- Added initial spawn points")
-                    tag.tag_has_changes = True
                         
                 if has_respawn_ref and not has_respawns:
                     for co in spawn_coordinates:
-                        element = scenery.AddElement()
-                        element.Fields[1].Value = respawn_palette_index
-                        element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:source").Value = 1 # set to editor
-                        element.SelectField("Struct:object data[0]/RealPoint3d:position").Data = co[0]
-                        element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data = co[1]
-                        element.SelectField("Struct:object data[0]/Struct:object id[0]/LongInteger:unique id").Data = utils.unique_id()
-                        element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:type").Value = 6 # Scenery
-                        element.SelectField("Struct:multiplayer data[0]/CharEnum:owner team").Value = 8 # Neutral
+                        tag.add_scenery_placement(respawn_palette_index, co, utils.unique_id())
                     print("--- Added respawn points")
-                    tag.tag_has_changes = True
                     
                 if has_camera_ref and not has_camera:
                     # try:
@@ -263,15 +196,11 @@ class CacheBuilder:
                     else:
                         loc, rot, sca = utils.halo_loc_rot_sca(self.context.space_data.region_3d.view_matrix.inverted_safe())
                         print(f"--- Added multiplayer camera from blender viewport")
-                    element = scenery.AddElement()
-                    element.Fields[1].Value = camera_palette_index
-                    element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:source").Value = 1 # set to editor
-                    element.SelectField("Struct:object data[0]/RealPoint3d:position").Data = loc
-                    element.SelectField("Struct:object data[0]/RealEulerAngles3d:rotation").Data = rot
-                    element.SelectField("Struct:object data[0]/Struct:object id[0]/LongInteger:unique id").Data = utils.unique_id()
-                    element.SelectField("Struct:object data[0]/Struct:object id[0]/CharEnum:type").Value = 6 # Scenery
-                    element.SelectField("Struct:multiplayer data[0]/CharEnum:owner team").Value = 8 # Neutral
-                    tag.tag_has_changes = True
+                    tag.add_scenery_placement(
+                        camera_palette_index,
+                        (tuple(loc), tuple(rot)),
+                        utils.unique_id(),
+                    )
                     # except:
                     #     pass
         

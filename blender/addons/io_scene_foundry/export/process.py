@@ -47,7 +47,6 @@ from ..tools.airprobe_exporter import export_airprobes
 from ..tags.particle import ParticleEmitterCustomPointsTag
 
 from ..tags.render_model import RenderModelMetadataTag
-from ..managed_blam.animation import AnimationTag
 from ..tags.model_blender import ModelTag
 from .import_sidecar import SidecarImport
 from .build_sidecar import Sidecar, get_cinematic_scenes
@@ -2858,7 +2857,7 @@ class ExportScene:
             frame_start=self.context.scene.frame_start,
         )
         self.print_post("--- Adding Single Animation Frame Events")
-        with AnimationTag(path=graph_path) as graph:
+        with AnimationGraphTag(path=graph_path) as graph:
             graph.events_from_blender({name: animation})
 
     def tool_import_simple(self, sidecar_path):
@@ -3002,14 +3001,15 @@ class ExportScene:
             with AnimationGraphTag() as animation:
                 animation.set_animation_settings(self.anims_for_tag_info)
 
-        if self.has_animations and (self.scene_settings.frame_events_from_blender or self.sidecar.pose_overlays):
-            with AnimationTag() as animation:
-                if self.scene_settings.frame_events_from_blender:
-                    self.print_post("--- Adding Frame Events")
-                    animation.events_from_blender()
-                if self.sidecar.pose_overlays:
-                    self.print_post(f"--- Updating animation blend screens for {len(self.sidecar.pose_overlays)} pose overlay animation{'s' if len(self.sidecar.pose_overlays) > 1 else ''}")
-                    animation.setup_blend_screens(self.sidecar.pose_overlays)
+        if self.has_animations and self.scene_settings.frame_events_from_blender:
+            self.print_post("--- Adding Frame Events")
+            with AnimationGraphTag() as animation:
+                animation.events_from_blender()
+
+        if self.has_animations and self.sidecar.pose_overlays:
+            with AnimationGraphTag() as animation:
+                self.print_post(f"--- Updating animation blend screens for {len(self.sidecar.pose_overlays)} pose overlay animation{'s' if len(self.sidecar.pose_overlays) > 1 else ''}")
+                animation.setup_blend_screens(self.sidecar.pose_overlays)
                     
         if self.asset_type == AssetType.SCENARIO:
             if self.setup_scenario or self.export_settings.create_debug_zone_set:

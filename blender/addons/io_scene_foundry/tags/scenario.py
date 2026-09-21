@@ -1,10 +1,22 @@
 """Native scenario metadata and lightweight editor operations."""
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
+from typing import TYPE_CHECKING
 
-from .backend import TagDocument
+from .backend import TagDocument, TagPathInput, TagReference
 from .blender import BlenderTag
+
+if TYPE_CHECKING:
+    import blam_tags
+
+
+ScenarioTransform = tuple[
+    tuple[float, float, float],
+    tuple[float, float, float],
+]
 
 
 @dataclass(frozen=True)
@@ -319,9 +331,93 @@ class ScenarioMetadataTag(BlenderTag, TagDocument):
                 paths.append(reference.Filename)
         return paths
 
-    def zone_set_names(self):
+    def zone_set_names(self) -> list[str]:
         root = self.tag.root()
-        return [self.value(element, 'name') for element in self.block(root, 'zone sets')]
+        return [name for element in self.block(root, 'zone sets')
+                if isinstance(name := self.value(element, 'name'), str)]
+
+    def required_resources(self) -> TagReference | None:
+        return self.reference(self.tag.root(), 'required resources')
+
+    def set_required_resources(self, path: TagPathInput) -> None:
+        self.set_reference(self.tag.root(), 'required resources', path)
+
+    def has_child_scenarios(self) -> bool:
+        children = self._optional_block(self.tag.root(), 'child scenarios')
+        return children is not None and len(children) > 0
+
+    def ensure_scenery_palette_reference(self, path: TagPathInput) -> tuple[int, bool]:
+        """Return the palette index for *path*, adding it when absent."""
+        wanted = self.reference_from_path(path)
+        palette = self.block(self.tag.root(), 'scenery palette')
+        for index, element in enumerate(palette):
+            reference = self.reference(element, 'name')
+            if (reference is not None
+                    and reference.RelativePathWithExtension.casefold()
+                    == wanted.RelativePathWithExtension.casefold()):
+                return index, False
+
+        index = palette.add()
+        palette = self.block(self.tag.root(), 'scenery palette')
+        self.set_reference(palette[index], 'name', wanted)
+        return index, True
+
+    def has_scenery_placement(self, palette_index: int) -> bool:
+        scenery = self.block(self.tag.root(), 'scenery')
+        return any(self.value(element, 'type') == palette_index for element in scenery)
+
+    def player_starting_transforms(self) -> list[ScenarioTransform]:
+        transforms: list[ScenarioTransform] = []
+        locations = self.block(self.tag.root(), 'player starting locations')
+        for element in locations:
+            point = self.value(element, 'position')
+            transforms.append((
+                (float(point.x), float(point.y), float(point.z)),
+                (float(self.value(element, 'facing')),
+                 float(self.value(element, 'pitch')), 0.0),
+            ))
+        return transforms
+
+    def add_scenery_placement(
+        self,
+        palette_index: int,
+        transform: ScenarioTransform,
+        unique_id: int,
+    ) -> None:
+        scenery = self.block(self.tag.root(), 'scenery')
+        index = scenery.add()
+        scenery = self.block(self.tag.root(), 'scenery')
+        element = scenery[index]
+        self._set_value(element, 'type', palette_index)
+
+        object_data = self.required_field(element, 'object data').as_struct()
+        if object_data is None:
+            raise TypeError(f'{self.path}: scenery[{index}] object data is not a struct')
+        position, rotation = transform
+        self._set_vector(object_data, 'position', position)
+        self._set_vector(object_data, 'rotation', rotation)
+
+        object_id = self.required_field(object_data, 'object id').as_struct()
+        if object_id is None:
+            raise TypeError(f'{self.path}: scenery[{index}] object id is not a struct')
+        self._set_value(object_id, 'unique id', unique_id)
+        self._set_value(object_id, 'type', 'scenery')
+        self._set_value(object_id, 'source', 'editor')
+
+        multiplayer_data = self.required_field(element, 'multiplayer data').as_struct()
+        if multiplayer_data is None:
+            raise TypeError(f'{self.path}: scenery[{index}] multiplayer data is not a struct')
+        self._set_value(multiplayer_data, 'owner team', 'neutral')
+
+    def _set_vector(
+        self,
+        struct: blam_tags.TagStruct,
+        name: str,
+        value: tuple[float, float, float],
+    ) -> None:
+        field = self.required_field(struct, name)
+        field.set(type(field.value)(*value))
+        self.tag_has_changes = True
 
     def get_zone_sets_dict(self):
         root, bsps, _ = self._blocks()

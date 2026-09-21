@@ -20,6 +20,18 @@ class AnimationGraphNode:
     parent_index: int
 
 
+@dataclass(frozen=True)
+class AnimationGraphEventName:
+    tag_name: str
+    data_name: str
+
+
+@dataclass(frozen=True)
+class AnimationGraphEventAnimation:
+    name: AnimationGraphEventName
+    frame_count: int
+
+
 class AnimationGraphIkChainInput(Protocol):
     name: str
     start_node: str
@@ -111,6 +123,23 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             return [name for name in names if contains in name]
         return names
 
+    def event_animations(self) -> list[AnimationGraphEventAnimation]:
+        animations: list[AnimationGraphEventAnimation] = []
+        for element in self.block(self._definitions(), 'animations'):
+            name = str(self.value(element, 'name'))
+            frame_count = self._local_frame_count(element)
+            if frame_count is None:
+                raise ValueError(
+                    f'{self.path}: animation {name!r} has no local frame-count data')
+            animations.append(AnimationGraphEventAnimation(
+                name=AnimationGraphEventName(
+                    tag_name=name.replace(' ', ':'),
+                    data_name=name.replace(':', ' '),
+                ),
+                frame_count=frame_count,
+            ))
+        return animations
+
     def blend_screens(self) -> dict[str, AnimationBlendScreen]:
         definitions = self._definitions()
         screens: list[AnimationBlendScreen] = []
@@ -171,6 +200,127 @@ class AnimationGraphTag(BlenderTag, TagDocument):
         if self._definitions().field('imported events') is None:
             return None
         return self.reference(self._definitions(), 'imported events')
+
+    def events_from_blender(self, blender_animations: dict[str, object] | None = None) -> None:
+        definitions = self._definitions()
+        if definitions.field('imported events') is None:
+            raise NotImplementedError(
+                f'{self.path}: imported frame-event lists are unavailable in this graph layout')
+        from .frame_event_list import FrameEventListTag
+
+        event_list_path = Path(self.tag_path.RelativePath).with_suffix('.frame_event_list')
+        with FrameEventListTag(path=event_list_path) as events:
+            events.from_blender(self.event_animations(), blender_animations)
+            self.set_reference(definitions, 'imported events', events.tag_path)
+
+    @staticmethod
+    def _blend_screen_settings(
+        state: str,
+    ) -> tuple[str, str, str, float, tuple[str, ...]]:
+        yaw = pitch = weight = 'none'
+        rate = 0.0
+        flags: list[str] = []
+        if 'aim' in state:
+            yaw, pitch = 'aim yaw', 'aim pitch'
+        elif 'look' in state:
+            yaw, pitch = 'look yaw', 'look pitch'
+            flags.append('allow parent adjustment')
+        elif 'steer' in state:
+            yaw = pitch = 'steering'
+        elif 'acc' in state:
+            yaw, pitch, weight, rate = (
+                'acceleration yaw', 'acceleration pitch',
+                'acceleration magnitude', 0.333,
+            )
+        elif 'pitch' in state and 'turn' in state:
+            yaw, pitch = 'first person turn', 'first person pitch'
+        elif 'defense' in state:
+            yaw, pitch, weight, rate = 'defense yaw', 'defense pitch', 'defense', 0.25
+        elif 'pain' in state:
+            rate = 0.333
+            for suffix, label in (
+                ('gut', 'gut'), ('chest', 'chest'), ('head', 'head'),
+                ('left_shoulder', 'left shoulder'), ('left_arm', 'left arm'),
+                ('left_leg', 'left leg'), ('left_foot', 'left foot'),
+                ('right_shoulder', 'right shoulder'), ('right_arm', 'right arm'),
+                ('right_leg', 'right leg'), ('right_foot', 'right foot'),
+            ):
+                if state.endswith(suffix):
+                    yaw = f'damage {label} yaw'
+                    pitch = f'damage {label} pitch'
+                    weight = f'damage {label}'
+                    break
+        if state.endswith('_down'):
+            flags.append('active only when weapon down')
+        elif state == 'aiming':
+            flags.append('attempt piece-wise blending')
+        return yaw, pitch, weight, rate, tuple(flags)
+
+    def setup_blend_screens(self, animation_names: Iterable[str]) -> None:
+        definitions = self._definitions()
+        screens_field = definitions.field('NEW blend screens')
+        screens = None if screens_field is None else screens_field.as_block()
+        if screens is None:
+            raise NotImplementedError(
+                f'{self.path}: pose-overlay blend screens are unavailable in this graph layout')
+
+        animations = self.block(definitions, 'animations')
+        animation_name_by_index = {
+            index: str(self.value(element, 'name'))
+            for index, element in enumerate(animations)
+        }
+        animation_index_by_name = {
+            name: index for index, name in animation_name_by_index.items()
+        }
+        missing = {name.replace(' ', ':') for name in animation_names}
+        remove: list[int] = []
+        for index, element in enumerate(screens):
+            animation = self.required_field(element, 'animation').as_struct()
+            if animation is None:
+                raise TypeError(f'{self.path}: blend screen {index} animation is not a struct')
+            animation_index = int(self.value(animation, 'animation'))
+            if animation_index < 0:
+                remove.append(index)
+                continue
+            name = animation_name_by_index.get(animation_index)
+            if name is not None:
+                missing.discard(name)
+
+        for index in reversed(remove):
+            screens.delete(index)
+            self.tag_has_changes = True
+
+        functions = {
+            str(self.value(element, 'name')): index
+            for index, element in enumerate(self.block(definitions, 'functions'))
+        }
+        for name in sorted(missing):
+            animation_index = animation_index_by_name.get(name)
+            if animation_index is None:
+                continue
+            index = screens.add()
+            screens = self.block(definitions, 'NEW blend screens')
+            element = screens[index]
+            self.required_field(element, 'name').set(name)
+            animation = self.required_field(element, 'animation').as_struct()
+            if animation is None:
+                raise TypeError(f'{self.path}: blend screen {index} animation is not a struct')
+            self.required_field(animation, 'animation').set(animation_index)
+
+            state = name.rsplit(':', 1)[-1]
+            yaw, pitch, weight, rate, flag_names = self._blend_screen_settings(state)
+            for field_name, value in (
+                ('yaw source', yaw), ('pitch source', pitch),
+                ('weight source', weight), ('interpolation rate', rate),
+            ):
+                self.required_field(element, field_name).set(value)
+            function_index = functions.get(state)
+            if function_index is not None:
+                self.required_field(element, 'weight function').set(function_index)
+            flags = self.required_field(element, 'flags')
+            for flag_name in flag_names:
+                flags.set_flag(flag_name, True)
+            self.tag_has_changes = True
 
     def set_parent_graph(self, path: TagPathInput | None) -> None:
         if isinstance(path, RelativeTagPath):
@@ -269,19 +419,47 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 field.set(target)
                 self.tag_has_changes = True
 
+        self.set_forced_compression(forced)
+
+    def set_forced_compression(self, forced: str | int) -> None:
         forced_values = {'none': 0, 'medium': 1, 'rough': 2, 'uncompressed': 3}
-        target = forced_values.get(forced)
-        if target is None:
+        target = forced_values.get(forced) if isinstance(forced, str) else forced
+        if target not in forced_values.values():
             raise ValueError(f'Unknown forced animation compression: {forced!r}')
         field = self._definitions().field('force compression setting')
         if field is None:
-            if forced != 'none':
+            if target != 0:
                 raise NotImplementedError(
                     f'{self.path}: forced compression is unavailable in this graph layout')
             return
         options = field.options()
         if options is None or options.current != target:
             field.set(target)
+            self.tag_has_changes = True
+
+    def force_uncompressed_for_import(self) -> tuple[int, bool]:
+        field = self._definitions().field('force compression setting')
+        if field is None:
+            return 0, False
+        options = field.options()
+        original = int(field.value) if options is None else options.current
+        if self.corinth or original == 3:
+            return original, False
+        field.set(3)
+        self.tag_has_changes = True
+        return original, True
+
+    def restore_forced_compression(self, value: int) -> None:
+        field = self._definitions().field('force compression setting')
+        if field is None:
+            if value:
+                raise NotImplementedError(
+                    f'{self.path}: forced compression is unavailable in this graph layout')
+            return
+        options = field.options()
+        current = int(field.value) if options is None else options.current
+        if current != value:
+            field.set(value)
             self.tag_has_changes = True
 
     def _set_supported_flag(self, field: blam_tags.TagField,

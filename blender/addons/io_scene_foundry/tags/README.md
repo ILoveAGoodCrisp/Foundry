@@ -232,6 +232,10 @@ not yet been moved out of the legacy package.
 `TagStruct`, `TagField`, `TagBlock`, and math types. The wheel includes `py.typed`
 stubs, so these definitions are available to VS Code while the runtime binding is
 still imported lazily when a document is opened.
+- Reach/H4/H2AMP animation graphs export Blender-authored frame events through the
+  native graph and frame-event-list wrappers, including the graph reference update.
+- Cache validation uses native scenario methods for required resources, child
+  scenarios, scenery palettes, player starts and generated spawn/camera placements.
 - Structure BSP collision geometry, surface-to-triangle mappings, instance
   placements and policies, renderer-ready meshes, and serialized H4/H2AMP Havok
   collision payloads are read through typed blam-tags handles.

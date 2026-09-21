@@ -3986,154 +3986,6 @@ class AnimationTag(Tag):
             transforms[frame_index] = frame_transforms
         return transforms
         
-    def _get_animation_name_from_index(self, index):
-        if index > self.block_animations.Elements.Count - 1:
-            return ""
-        element = self.block_animations.Elements[index]
-        return element.SelectField("name").GetStringData()
-    
-    def _get_animation_index_from_name(self, name):
-        for element in self.block_animations.Elements:
-            if element.SelectField("name").GetStringData() == name:
-                return element.ElementIndex
-        
-        return -1
-    
-    
-        
-    
-        
-    
-    def setup_blend_screens(self, animation_names: set):
-        sorted_animations  = sorted(animation_names)
-        blend_screens_to_remove = []
-        tag_animation_names = [name.replace(" ", ":") for name in sorted_animations]
-        for element in self.block_blend_screens.Elements:
-            index = element.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value
-            if index > -1:
-                animation_name = self._get_animation_name_from_index(index)
-                if animation_name and animation_name in tag_animation_names:
-                    tag_animation_names.remove(animation_name)
-            else:
-                blend_screens_to_remove.append(element.ElementIndex)
-                
-        functions = {e.Fields[0].GetStringData(): e.ElementIndex for e in self.tag.SelectField("Struct:definitions[0]/Block:functions").Elements}
-        
-        for screen_index in reversed(blend_screens_to_remove):
-            self.block_blend_screens.RemoveElement(screen_index)
-            self.tag_has_changes = True
-        
-        for name in tag_animation_names:
-            animation_index = self._get_animation_index_from_name(name)
-            if animation_index > -1:
-                element = self.block_blend_screens.AddElement()
-                element.SelectField("name").SetStringData(name)
-                element.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value = animation_index
-                state = name.split(":")[-1]
-                yaw_source_value = "none"
-                pitch_source_value = "none"
-                weight_source_value = "none"
-                interpolation_rate = "0"
-                flag_weapon_down = False
-                flag_blending = False
-                flag_parent_adjust = False
-                if "aim" in state:
-                    yaw_source_value = "aim yaw"
-                    pitch_source_value = "aim pitch"
-                elif "look" in state:
-                    yaw_source_value = "look yaw"
-                    pitch_source_value = "look pitch"
-                    flag_parent_adjust = True
-                elif "steer" in state:
-                    yaw_source_value = "steering"
-                    pitch_source_value = "steering"
-                elif "acc" in state:
-                    yaw_source_value = "acceleration yaw"
-                    pitch_source_value = "acceleration pitch"
-                    weight_source_value = "acceleration magnitude"
-                    interpolation_rate = "0.333"
-                elif "pitch" in state and "turn" in state:
-                    yaw_source_value = "first person turn"
-                    pitch_source_value = "first person pitch"
-                elif "defense" in state:
-                    yaw_source_value = "defense yaw"
-                    pitch_source_value = "defense pitch"
-                    weight_source_value = "defense"
-                    interpolation_rate = "0.25"
-                elif "pain" in state:
-                    interpolation_rate = "0.333"
-                    if state.endswith("gut"):
-                        yaw_source_value = "damage gut yaw"
-                        pitch_source_value = "damage gut pitch"
-                        weight_source_value = "damage gut"
-                    elif state.endswith("chest"):
-                        yaw_source_value = "damage chest yaw"
-                        pitch_source_value = "damage chest pitch"
-                        weight_source_value = "damage chest"
-                    elif state.endswith("head"):
-                        yaw_source_value = "damage head yaw"
-                        pitch_source_value = "damage head pitch"
-                        weight_source_value = "damage head"
-                    elif state.endswith("left_shoulder"):
-                        yaw_source_value = "damage left shoulder yaw"
-                        pitch_source_value = "damage left shoulder pitch"
-                        weight_source_value = "damage left shoulder"
-                    elif state.endswith("left_arm"):
-                        yaw_source_value = "damage left arm yaw"
-                        pitch_source_value = "damage left arm pitch"
-                        weight_source_value = "damage left arm"
-                    elif state.endswith("left_leg"):
-                        yaw_source_value = "damage left leg yaw"
-                        pitch_source_value = "damage left leg pitch"
-                        weight_source_value = "damage left leg"
-                    elif state.endswith("left_foot"):
-                        yaw_source_value = "damage left foot yaw"
-                        pitch_source_value = "damage left foot pitch"
-                        weight_source_value = "damage left foot"
-                    elif state.endswith("right_shoulder"):
-                        yaw_source_value = "damage right shoulder yaw"
-                        pitch_source_value = "damage right shoulder pitch"
-                        weight_source_value = "damage right shoulder"
-                    elif state.endswith("right_arm"):
-                        yaw_source_value = "damage right arm yaw"
-                        pitch_source_value = "damage right arm pitch"
-                        weight_source_value = "damage right arm"
-                    elif state.endswith("right_leg"):
-                        yaw_source_value = "damage right leg yaw"
-                        pitch_source_value = "damage right leg pitch"
-                        weight_source_value = "damage right leg"
-                    elif state.endswith("right_foot"):
-                        yaw_source_value = "damage right foot yaw"
-                        pitch_source_value = "damage right foot pitch"
-                        weight_source_value = "damage right foot"
-                    
-                if state.endswith("_down"):
-                    flag_weapon_down = True
-                elif state == "aiming":
-                    flag_blending = True
-                    
-                element.SelectField("yaw source").SetValue(yaw_source_value)
-                element.SelectField("pitch source").SetValue(pitch_source_value)
-                element.SelectField("weight source").SetValue(weight_source_value)
-                element.SelectField("interpolation rate").SetStringData(interpolation_rate)
-                
-                weight_function_index = functions.get(state)
-                if weight_function_index is not None:
-                    element.SelectField("weight function").Value = weight_function_index
-                    
-                flags = element.SelectField("flags")
-                
-                if flag_weapon_down:
-                    flags.SetBit("active only when weapon down", True)
-                    
-                if flag_blending:
-                    flags.SetBit("attempt piece-wise blending", True)
-                
-                if flag_parent_adjust:
-                    flags.SetBit("allow parent adjustment", True)
-                
-                self.tag_has_changes = True
-                
     def get_node_usages(self) -> dict:
         usages = {}
         if self.block_node_usages.Elements.Count < 1:
@@ -4182,23 +4034,6 @@ class AnimationTag(Tag):
             case Compression.uncompressed:
                 blender_animation.compression = "Uncompressed"
         
-    def set_forced_uncompressed(self):
-        # Force uncompressed animations. This somehow works
-        forced_compression = self.tag.SelectField("Struct:definitions[0]/ShortEnum:force compression setting")
-        original = forced_compression.Value
-        if self.corinth:
-            return original, False # H4 doesn't store uncompressed animations :(
-        if original != 3:
-            self.tag.SelectField("Struct:definitions[0]/ShortEnum:force compression setting").Value = 3
-            self.tag_has_changes = True
-            return original, True
-        
-        return original, False
-        
-    def reset_forced_compression(self, value: int):
-        self.tag.SelectField("Struct:definitions[0]/ShortEnum:force compression setting").Value = value
-        self.tag_has_changes = True
-    
     def to_blender(
         self,
         render_model: str,
@@ -5101,17 +4936,6 @@ class AnimationTag(Tag):
         for animation in self.find_animation(graph_dict, tokens):
             print(animation.name, sorted(list(animation.state_types)))
         print("+++++++++++++++++++++++++++++++")
-        
-    def events_from_blender(self, blender_animations=None):
-        print(self.tag_path.RelativePathWithExtension)
-        frame_event_list_path = Path(self.tag_path.RelativePath).with_suffix(".frame_event_list")
-        with FrameEventListTag(path=frame_event_list_path) as events:
-            events.from_blender(self.get_animations(), blender_animations)
-            print(self.tag_path.RelativePathWithExtension)
-            event_list_tag_ref = self.tag.SelectField("Struct:definitions[0]/Reference:imported events")
-            if event_list_tag_ref.Path is None or event_list_tag_ref.Path.RelativePathWithExtension != events.tag_path.RelativePathWithExtension:
-                event_list_tag_ref.Path = self._TagPath_from_string(events.tag_path.RelativePathWithExtension)
-                self.tag_has_changes = True
         
     def events_to_blender(self, imported_animations) -> int:
         '''Create AnimationEvents from legacy graph events for newly imported animations'''

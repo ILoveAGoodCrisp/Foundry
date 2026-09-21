@@ -11,7 +11,6 @@ from ..constants import VALID_MESHES
 from ..icons import get_icon_id
 from ..tags.model_blender import ModelTag
 from ..tags.object_blender import ObjectTag
-from ..tags.render_model import RenderModelMetadataTag
 from ..tags.scenario import ScenarioMetadataTag
 from ..tools.collection_manager import get_full_name
 
@@ -142,64 +141,6 @@ def _apply_model_variant_selection(operator):
 
 def _update_model_variant_selection(self, context):
     _apply_model_variant_selection(self)
-
-def _get_render_model_region_data(render_model_path):
-    region_permutations = {}
-    with RenderModelMetadataTag(path=render_model_path) as render:
-        for region in render.get_regions():
-            permutations = render.get_permutations(region)
-            region_permutations[region] = permutations or ["default"]
-
-    if "default" in region_permutations:
-        default_region = "default"
-    elif region_permutations:
-        default_region = next(iter(region_permutations))
-    else:
-        default_region = "default"
-
-    region_default_permutations = {}
-    for region, permutations in region_permutations.items():
-        if "default" in permutations:
-            region_default_permutations[region] = "default"
-
-    return region_permutations, default_region, region_default_permutations
-
-def _variant_region_permutations(variant_element, region_permutations, default_region, region_default_permutations):
-    scoped_regions = {}
-    variant_regions = set()
-    for region_element in variant_element.SelectField("regions").Elements:
-        region = region_element.Fields[0].GetStringData()
-        if region == "default":
-            region = default_region
-
-        variant_regions.add(region)
-        permutations = []
-        permutation_elements = region_element.SelectField("permutations").Elements
-        if permutation_elements.Count == 0:
-            permutations.append(region_default_permutations.get(region, "default"))
-        else:
-            for permutation_element in permutation_elements:
-                permutation = permutation_element.Fields[0].GetStringData()
-                if not permutation:
-                    continue
-                if permutation == "default":
-                    permutation = region_default_permutations.get(region, "default")
-
-                permutations.append(permutation)
-                for state_element in permutation_element.SelectField("states").Elements:
-                    state_name = state_element.Fields[0].GetStringData()
-                    if state_name == "default":
-                        state_name = region_default_permutations.get(region, "default")
-                    if state_name:
-                        permutations.append(state_name)
-
-        scoped_regions[region] = _dedupe_names(permutations)
-
-    for region, permutations in region_permutations.items():
-        if region not in variant_regions:
-            scoped_regions[region] = list(permutations)
-
-    return scoped_regions
 
 def _model_variant_viewer_data(model_tag_path):
     variants = []
