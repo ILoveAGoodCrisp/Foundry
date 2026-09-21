@@ -613,3 +613,11 @@ the binding during add-on startup.
 
 The standalone animation resource codec now lives in `tags/animation_resource.py`.
 The unused ManagedBlam assembly-loader helper was removed.
+Structure BSP collision resources now traverse the blam-tags resource-interface
+struct. Standard and large collision BSPs are detached with validated edge loops,
+surface flags and material indices, then passed to the existing Blender mesh
+converter. Structure surface-to-render-triangle mappings and H4/H2AMP serialized
+Havok payloads are also detached natively. The old safe-SelectField helper and
+debug Havok reader have been removed. Cluster-to-mesh indices are native across all
+five H3+ profiles; only render mesh resources and instance definitions remain on
+the legacy BSP field path.

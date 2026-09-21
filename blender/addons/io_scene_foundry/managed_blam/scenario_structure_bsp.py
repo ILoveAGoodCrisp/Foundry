@@ -86,6 +86,17 @@ class ScenarioStructureBspTag(Tag):
                 native_bsp.havok_geometry()
                 if import_havok and not for_cinematic else []
             )
+            native_structure_collision = (
+                native_bsp.structure_collision()
+                if import_geometry and not for_cinematic else None
+            )
+            native_surface_mappings = (
+                native_bsp.surface_triangle_mappings()
+                if import_geometry and not for_cinematic else []
+            )
+            native_cluster_mesh_indices = (
+                native_bsp.cluster_mesh_indices() if import_geometry else []
+            )
             structure_meta_data = native_bsp.structure_meta_data()
             
         # Get all emissive data
@@ -203,17 +214,10 @@ class ScenarioStructureBspTag(Tag):
         #         bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
         
         def get_collision():
-            collision = None
-            raw_resources = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources")
-            if raw_resources.Elements.Count > 0:
-                collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:collision bsp")
-                large_collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:large collision bsp")
-                if collision_bsp.Elements.Count > 0:
-                    collision = StructureCollision(collision_bsp.Elements[0], "structure_collision", collision_materials, sky_index)
-                elif large_collision_bsp.Elements.Count > 0:
-                    collision = StructureCollision(large_collision_bsp.Elements[0], "structure_collision", collision_materials, sky_index)
-                    
-            return collision
+            if native_structure_collision is None:
+                return None
+            return StructureCollision.from_native(
+                native_structure_collision, collision_materials, sky_index)
             
         # Create structure
         structure_objects = []
@@ -222,8 +226,10 @@ class ScenarioStructureBspTag(Tag):
         
         structure_collection = new_structure_collection()
         structure_surface_triangle_mapping = []
-        cluster_elements = [element for element in self.tag.SelectField("Block:clusters").Elements]
-        clusters = [Cluster(element, meshes, render_materials) for element in cluster_elements]
+        clusters = [
+            Cluster.from_native(index, mesh_index, meshes, render_materials)
+            for index, mesh_index in enumerate(native_cluster_mesh_indices)
+        ]
         if not for_cinematic:
             collision = get_collision()
             if import_havok:
@@ -245,7 +251,12 @@ class ScenarioStructureBspTag(Tag):
                         created_instance_indices.add(io.index)
             legacy_surface_triangle_mapping = []
             if collision is not None:
-                legacy_surface_triangle_mapping = [SurfaceMapping(e.Fields[0].Data, e.Fields[1].Data, collision.surfaces[e.ElementIndex], self.tag.SelectField("Block:structure surface to triangle mapping")) for e in self.tag.SelectField("Block:large structure surfaces").Elements]
+                if len(native_surface_mappings) > len(collision.surfaces):
+                    raise ValueError('Structure surface mapping count exceeds collision surfaces')
+                legacy_surface_triangle_mapping = [
+                    SurfaceMapping.from_native(record, collision.surfaces[record.surface_index])
+                    for record in native_surface_mappings
+                ]
                 structure_surface_triangle_mapping = legacy_surface_triangle_mapping
         
         

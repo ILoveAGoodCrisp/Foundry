@@ -1,8 +1,14 @@
 """Native prefab metadata."""
+from __future__ import annotations
+
 from dataclasses import dataclass
 from math import isfinite
 from pathlib import Path
 from types import SimpleNamespace as Record
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    import blam_tags
 
 from ..constants import (
     LIGHTMAP_ADDITIVE_TRANSPARENCY_COLOR,
@@ -112,6 +118,36 @@ class StructureBspHavokGeometry:
     collision_type: int
     bounds_min: tuple[float, float, float] | None
     bounds_max: tuple[float, float, float] | None
+
+
+@dataclass(frozen=True)
+class StructureBspCollisionSurface:
+    index: int
+    material_index: int
+    negated: bool
+    invalid: bool
+    ladder: bool
+    breakable: bool
+    slip_surface: bool
+    invisible: bool
+    two_sided: bool
+
+
+@dataclass(frozen=True)
+class StructureBspCollision:
+    vertices: tuple[tuple[float, float, float], ...]
+    surfaces: tuple[StructureBspCollisionSurface, ...]
+    polygons: tuple[tuple[int, ...], ...]
+
+
+@dataclass(frozen=True)
+class StructureBspSurfaceMapping:
+    surface_index: int
+    triangle_values: tuple[int, ...]
+
+    @property
+    def collision_only(self) -> bool:
+        return not self.triangle_values
 
 
 class PrefabTag(BlenderTag, TagDocument):
@@ -321,8 +357,7 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
             ))
         return records
 
-    def havok_geometry(self) -> list[StructureBspHavokGeometry]:
-        """Detach serialized H4/H2AMP structure collision from tag handles."""
+    def _raw_resource_items(self) -> list[blam_tags.TagStruct]:
         interface_field = self.tag.root().field('resource interface')
         if interface_field is None:
             return []
@@ -335,8 +370,7 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
         raw_resources = raw_resources_field.as_block()
         if raw_resources is None:
             raise TypeError(f'{self.path}: raw resources is not a block')
-
-        records: list[StructureBspHavokGeometry] = []
+        items = []
         for raw_resource in raw_resources:
             raw_items_field = raw_resource.field('raw_items')
             if raw_items_field is None:
@@ -344,6 +378,125 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
             raw_items = raw_items_field.as_struct()
             if raw_items is None:
                 raise TypeError(f'{self.path}: raw resource items is not a struct')
+            items.append(raw_items)
+        return items
+
+    def structure_collision(self) -> StructureBspCollision | None:
+        """Read the first standard or large structure collision BSP natively."""
+        collision = None
+        large = False
+        for raw_items in self._raw_resource_items():
+            for field_name, is_large in (('collision bsp', False),
+                                         ('large collision bsp', True)):
+                field = raw_items.field(field_name)
+                if field is None:
+                    continue
+                block = field.as_block()
+                if block is None:
+                    raise TypeError(f'{self.path}: {field_name} is not a block')
+                if len(block):
+                    collision, large = block[0], is_large
+                    break
+            if collision is not None:
+                break
+        if collision is None:
+            return None
+
+        vertices = tuple(
+            tuple(cast('blam_tags.RealPoint3d', self.value(element, 'point')).to_array())
+            for element in self.block(collision, 'vertices')
+        )
+        if any(not isfinite(value) for vertex in vertices for value in vertex):
+            raise ValueError(f'{self.path}: structure collision has non-finite vertices')
+        mask = 0xffffffff if large else 0xffff
+        edge_names = ('start vertex', 'end vertex', 'forward edge', 'reverse edge',
+                      'left surface', 'right surface')
+        edges = tuple(
+            tuple(int(self.value(edge, name)) & mask for name in edge_names)
+            for edge in self.block(collision, 'edges')
+        )
+        surfaces: list[StructureBspCollisionSurface] = []
+        polygons: list[tuple[int, ...]] = []
+        for surface_index, surface in enumerate(self.block(collision, 'surfaces')):
+            first = int(self.value(surface, 'first edge')) & mask
+            current, visited, polygon = first, set(), []
+            while True:
+                if current in visited or current >= len(edges):
+                    raise ValueError(
+                        f'{self.path}: structure collision surface {surface_index} has an invalid edge loop')
+                visited.add(current)
+                start, end, forward, reverse, left, right = edges[current]
+                if left == surface_index:
+                    vertex, following = start, forward
+                elif right == surface_index:
+                    vertex, following = end, reverse
+                else:
+                    raise ValueError(
+                        f'{self.path}: structure collision edge does not belong to its surface')
+                if vertex >= len(vertices):
+                    raise ValueError(f'{self.path}: structure collision vertex is out of range')
+                polygon.append(vertex)
+                if following == first:
+                    break
+                current = following
+            if len(polygon) < 3 or len(set(polygon)) != len(polygon):
+                raise ValueError(f'{self.path}: structure collision has a degenerate surface')
+            flags = self.required_field(surface, 'flags')
+            breakable = flags.get_flag('breakable')
+            invisible = flags.get_flag('invisible')
+            surfaces.append(StructureBspCollisionSurface(
+                index=surface_index,
+                material_index=int(self.value(surface, 'material')),
+                negated=flags.get_flag('plane negated'),
+                invalid=flags.get_flag('invalid'),
+                ladder=flags.get_flag('climbable'),
+                breakable=breakable,
+                slip_surface=flags.get_flag('slip'),
+                invisible=invisible,
+                two_sided=(flags.get_flag('two sided') and
+                           not (breakable or invisible)),
+            ))
+            polygons.append(tuple(polygon))
+        return StructureBspCollision(vertices, tuple(surfaces), tuple(polygons))
+
+    def surface_triangle_mappings(self) -> list[StructureBspSurfaceMapping]:
+        root = self.tag.root()
+        surfaces_field = root.field('large structure surfaces')
+        mappings_field = root.field('structure surface to triangle mapping')
+        if surfaces_field is None or mappings_field is None:
+            return []
+        surfaces = surfaces_field.as_block()
+        mappings = mappings_field.as_block()
+        if surfaces is None or mappings is None:
+            raise TypeError(f'{self.path}: structure surface mappings are not blocks')
+        values = tuple(int(self.value(element, 'manual byteswarp1'))
+                       for element in mappings)
+        records = []
+        for index, surface in enumerate(surfaces):
+            first = int(self.value(
+                surface, 'first_structure_surface_to_triangle_mapping_index'))
+            count = int(self.value(
+                surface, 'structure_surface_to_triangle_mapping_count'))
+            if first < 0 or count < 0 or first + count > len(values):
+                raise ValueError(
+                    f'{self.path}: structure surface {index} has an invalid triangle mapping range')
+            records.append(StructureBspSurfaceMapping(
+                index, values[first:first + count]))
+        return records
+
+    def cluster_mesh_indices(self) -> list[int]:
+        field = self.tag.root().field('clusters')
+        if field is None:
+            return []
+        clusters = field.as_block()
+        if clusters is None:
+            raise TypeError(f'{self.path}: clusters is not a block')
+        return [int(self.value(element, 'mesh index')) for element in clusters]
+
+    def havok_geometry(self) -> list[StructureBspHavokGeometry]:
+        """Detach serialized H4/H2AMP structure collision from tag handles."""
+        records: list[StructureBspHavokGeometry] = []
+        for raw_items in self._raw_resource_items():
             havok_field = raw_items.field('Havok Data')
             if havok_field is None:
                 continue
@@ -354,7 +507,8 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 bounds = []
                 for name in ('Shapes bounds min', 'Shapes bounds max'):
                     field = havok.field(name)
-                    bounds.append(None if field is None else tuple(field.value.to_array()))
+                    bounds.append(None if field is None else tuple(
+                        cast('blam_tags.RealPoint3d', field.value).to_array()))
                 per_type_field = havok.field('Serialized Per Collision Type Havok Geometry')
                 if per_type_field is None:
                     continue

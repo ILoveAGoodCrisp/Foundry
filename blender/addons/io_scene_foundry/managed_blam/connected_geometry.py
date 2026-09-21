@@ -138,6 +138,17 @@ class StreamingPriority(Enum):
     _connected_geometry_poop_streamingpriority_highest = 2
     
 class Cluster:
+    @classmethod
+    def from_native(cls, index: int, mesh_index: int, mesh_block: TagFieldBlock,
+                    render_materials: list['Material']):
+        if mesh_index < 0 or mesh_index >= mesh_block.Elements.Count:
+            raise ValueError(f'Cluster {index} mesh index {mesh_index} is out of range')
+        result = cls.__new__(cls)
+        result.index = index
+        result.mesh_index = mesh_index
+        result.mesh = Mesh(mesh_block.Elements[mesh_index], materials=render_materials)
+        return result
+
     def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, render_materials: list['Material']):
         self.index = element.ElementIndex
         self.mesh_index = element.SelectField("mesh index").Data
@@ -180,6 +191,15 @@ class SurfaceMapping:
         mapping.surface = surface
         mapping.triangle_indices = triangle_indices
         mapping.collision_only = False
+        return mapping
+
+    @classmethod
+    def from_native(cls, record, surface):
+        mapping = cls.__new__(cls)
+        mapping.surface = surface
+        mapping.triangle_indices = [TriangleMapping(value)
+                                    for value in record.triangle_values]
+        mapping.collision_only = record.collision_only
         return mapping
 
 class HavokCollisionSurface:
@@ -1574,6 +1594,34 @@ class InstancePhysics():
             self.polyhedra.append(Polyhedron(poly_element, physics_materials, four_vectors_block, four_vectors_map, True))
         
 class StructureCollision(BSP):
+    @classmethod
+    def from_native(cls, record, collision_materials: list[CollisionMaterial], sky_index: int):
+        from types import SimpleNamespace
+        result = cls.__new__(cls)
+        result.name = 'structure_collision'
+        result.vertices = [SimpleNamespace(position=Vector(vertex) * 100)
+                           for vertex in record.vertices]
+        result.surfaces = []
+        for surface in record.surfaces:
+            material = (collision_materials[surface.material_index]
+                        if 0 <= surface.material_index < len(collision_materials) else None)
+            result.surfaces.append(SimpleNamespace(
+                index=surface.index, material=material, negated=surface.negated,
+                invalid=surface.invalid, ladder=surface.ladder,
+                breakable=surface.breakable, slip_surface=surface.slip_surface,
+                invisible=surface.invisible, two_sided=surface.two_sided))
+        result.native_polygons = record.polygons
+        result.uses_materials = True
+        result.sphere_collision_only = all(surface.invisible for surface in result.surfaces)
+        result.some_sphere_collision = any(surface.invisible for surface in result.surfaces)
+        result.sky_index = sky_index
+        return result
+
+    def get_surface_vertex_indices(self, surface):
+        if hasattr(self, 'native_polygons'):
+            return self.native_polygons[surface.index]
+        return super().get_surface_vertex_indices(surface)
+
     def __init__(self, element: TagFieldBlockElement, name, collision_materials: list[CollisionMaterial], sky_index: int):
         super().__init__(element, name, collision_materials)
         self.uses_materials = True
