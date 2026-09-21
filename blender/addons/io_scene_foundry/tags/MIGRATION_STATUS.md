@@ -12,7 +12,9 @@ this branch is accepted; record gaps for investigation instead of preserving .NE
 compatibility. Unported readers and writers still need replacement.
 
 Latest integration: cinematic import and the top-level cinematic writer now use
-native root, scene and scene-data entry points. Cinematic export writes settings,
+native root, scene and scene-data entry points. The live scene wrapper and its
+event adapters now reside in `tags`; obsolete `SelectField` readers/writers and
+the old `managed_blam/cinematic_scene.py` module have been removed. Cinematic export writes settings,
 scripts, scene/data references and transition tags through blam-tags. Its scenario
 update also uses native blocks for the cinematic link, zone-set flags, anchors,
 generated-script removal and Reach cinematic-resource synchronization. Camera
@@ -36,6 +38,12 @@ document rather than opening ManagedBlam directly.
 The native foundation works, but most feature migration remains. Removing
 ManagedBlam today would break core Foundry workflows.
 
+Animation-graph metadata now has a typed native wrapper for animation names,
+skeleton nodes and parent indices, node usages, parent-graph references and frame
+event-list references. Template node-order setup, imported first-person arm
+parenting and the animation-command picker use it directly. Full animation
+resource import, graph mutation and export remain on the legacy graph class.
+
 Latest validation: 60 regression tests pass without starting ManagedBlam.
 Bitmap field access, creation settings, processed-pixel extraction and Granny
 preview data now use blam-tags plus Foundry's existing Python bitmap decoders.
@@ -46,10 +54,11 @@ The obsolete ManagedBlam cinematic-scene wrapper has been removed; cinematic
 scene import now lives directly on `NativeCinematicSceneTag`. Cinematic debug-menu
 scene lookup and BSP-zone flags are also native. Common render-model metadata
 queries (nodes, regions, permutations and marker groups) now use a native wrapper
-in UI and export setup paths. That wrapper now lives in `tags`; the ManagedBlam
-render-model module contains only the remaining geometry importer. Empty
-region/permutation insertion and first-material lookup use the same wrapper; full
-render geometry remains legacy.
+in UI and export setup paths. The full Blender render-model importer now lives in
+`tags` and inherits the native document; its old ManagedBlam module has been
+removed. Empty region/permutation insertion, first-material lookup, mesh resources,
+materials, nodes, regions, markers, instances, compression bounds and skylights all
+use blam-tags.
 The old `CinematicTag(Tag)` wrapper and its duplicate import path are gone. The
 replacement creates and updates `.cinematic`, `.cinematic_transition`, `.scenario`
 and Reach `.scenario_cinematics_resource` records without ManagedBlam. Generated
@@ -143,17 +152,19 @@ tag is a physical light with periodic, modifier-driven attenuation. Sampling moc
 light allocation, final lighting setup and bitmap conversion; visual parity and
 complete import/export acceptance are still outstanding.
 
-The source audit updated on 2026-09-20 found:
+The source audit updated on 2026-09-21 found:
 
 - 17 migrated tag workflows: camera tracks, globals, render-method options,
   render-method definitions, material-shader metadata, models, object metadata,
   lightmapper globals, cinematic-lighting metadata, light tags, cheap lights,
   structure seams, structure metadata, authored PCA animation, collision models,
   scenario metadata/editing and scenario airprobes.
-- 13 tag classes still inherit the legacy `Tag` base, directly or indirectly:
-  4 direct wrappers and 9 shader/material/decal subclasses.
-- 9 modules under `managed_blam` still contain `SelectField` calls (excluding
+- 11 tag classes still inherit the legacy `Tag` base, directly or indirectly:
+  2 direct wrappers and 9 shader/material/decal subclasses.
+- 6 modules under `managed_blam` still contain `SelectField` calls (excluding
   the legacy base and generated type declarations).
+- 16 Python modules remain in `managed_blam`; the cinematic-scene, render-model
+  and structure-BSP entry points have moved to `tags`.
 - No direct `with Tag(...)` ManagedBlam call sites remain outside legacy wrappers.
   Indirect legacy wrapper calls remain, including shader template generation after
   native blank-tag creation.
@@ -307,10 +318,10 @@ its mass update was verified by reopening a temporary physics tag.
 | Area | Work needed before removal |
 | --- | --- |
 | Functions, shaders and lights | Extend the new function-decoding binding to editing operations; port materials, shader variants, decals and light converters. Remove unsupported object-function fallbacks. |
-| Geometry and resources | Port render models and the remaining collision, physics, decorator and polyart resource paths, including Blender mesh/skeleton construction. Particle-model import is native. |
+| Geometry and resources | Complete acceptance of native render-model and structure-BSP import, then port the remaining decorator, polyart and specialized resource paths. Render-model geometry, BSP render/collision geometry and particle-model import are native. |
 | Animation | Expose animation decoding and port graph edits, frame events, PCA and animation import. |
 | Bitmaps | Review the native/Python extraction path across formats, mipmaps, cubemaps and material texture use; complete any resource layouts not represented by processed pixel data. |
-| Scenarios and cinematics | Port BSP/structure editors, lighting-info export and remaining referenced-resource workflows. Scenario object/decal/decorator import, cinematic scene/data writing, template/global scenario export and common scenario/cubemap/decorator edits are native. |
+| Scenarios and cinematics | Port remaining BSP/structure editors, lighting-info export and referenced-resource workflows. Scenario object/decal/decorator import, cinematic scene/data import and writing, template/global scenario export and common scenario/cubemap/decorator edits are native. |
 | Dependency removal and acceptance | Remove startup validation and DLL initialization, revise packaging/UI, and run representative complete imports and exports with ManagedBlam unavailable. |
 
 The Rust library already contains functionality in several of these areas, but
@@ -619,5 +630,34 @@ surface flags and material indices, then passed to the existing Blender mesh
 converter. Structure surface-to-render-triangle mappings and H4/H2AMP serialized
 Havok payloads are also detached natively. The old safe-SelectField helper and
 debug Havok reader have been removed. Cluster-to-mesh indices are native across all
-five H3+ profiles; only render mesh resources and instance definitions remain on
-the legacy BSP field path.
+five H3+ profiles. Instance transforms, names, flags and policy metadata are also
+detached through typed native records; their legacy constructor and field reads
+have been removed. Instance-definition collision BSPs, surface mappings, cookie
+cutters and Reach physics polyhedra now follow the same path. The blam-tags Python
+binding now exposes its existing renderer-ready structure-BSP mesh decoder, so
+the final render-resource reads and ManagedBlam render-model helper have also been
+removed. A real ODST BSP decoded 192 definitions, 239 meshes, 273,970 vertices and
+160,637 triangles, including nine water meshes, without ManagedBlam. The BSP
+import wrapper now inherits the native document directly and lives in `tags`.
+A Blender 5.2 background smoke check converted a detached native mesh record into
+the expected Blender vertices, polygon, material, normals and UV layer.
+Render-model geometry now uses the same detached renderer-ready mesh path. The
+local Python binding exposes `TagFile.render_model_meshes()` over the existing
+cross-game Rust decoder, and the Blender importer no longer allocates
+`_GameRenderModel` or reads its raw vertex/index blocks. Real Reach weapon,
+character and triangle-strip models decoded 6 meshes, 21,941 vertices and 22,612
+source triangles in about 0.13 seconds total. A skinned grunt model resolved 23
+distinct bone indices across 5,681 weighted vertices; this also fixed unsigned
+byte node-index decoding and applies per-mesh node maps in the Rust render layer.
+A Blender 5.2 background check converted the strip-heavy sample into 240 vertices
+and 228 Blender faces after Foundry collapsed the 228 reverse-wound duplicates to
+two-sided face metadata. Nodes, regions/permutations, markers and instance
+placements now enter the importer as typed native records too; a real character
+sample detached 30 nodes, four regions and 19 marker groups and passed their
+existing conversion classes. Render materials, compression bounds and skylights
+are native as well. The compatibility importer now inherits the native document,
+moved into `tags/render_model_blender.py`, and the old ManagedBlam render-model
+module was deleted. It still reuses Blender conversion classes from the
+legacy-named `connected_geometry.py`; separating those helpers and broad editing-kit
+acceptance remain, but opening/importing a render model no longer initializes
+ManagedBlam.

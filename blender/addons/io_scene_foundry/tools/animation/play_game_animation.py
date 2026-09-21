@@ -1,7 +1,7 @@
 from pathlib import Path
 import bpy
 
-from ...managed_blam.animation import AnimationTag
+from ...tags.animation_graph import AnimationGraphTag
 from ... import utils
 
 animation_names = None
@@ -79,8 +79,8 @@ class NWO_OT_AnimationNameSearch(bpy.types.Operator):
                 else:
                     animation_names = []
             else:
-                with AnimationTag(path=path) as animation:
-                    names = animation.get_animation_names()
+                with AnimationGraphTag(path=path) as animation:
+                    names = animation.animation_names()
                     animation_names = [(n, n, "") for n in names]
             
         wm = context.window_manager

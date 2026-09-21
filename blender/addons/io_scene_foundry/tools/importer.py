@@ -20,6 +20,7 @@ from ..managed_blam import connected_geometry
 from .. import import_transform
 
 from ..tags.cinematic_root import NativeCinematicTag
+from ..tags.animation_graph import AnimationGraphTag
 
 from ..tags.decorator_set import DecoratorSetTag
 from ..managed_blam.decal_system import DecalSystemCorinthTag, DecalSystemTag
@@ -45,10 +46,10 @@ from ..ui.panel.cinematic import bake_vis_to_keyframes
 
 from ..tags.object_blender import ObjectTag
 from ..tags.particle_model import ParticleModelTag
-from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
+from ..tags.scenario_structure_bsp import ScenarioStructureBspTag
 from ..managed_blam.animation import AnimationTag
 from ..tags.pca_blender import PCAAnimationTag
-from ..managed_blam.render_model import RenderModelTag
+from ..tags.render_model_blender import RenderModelTag
 from ..tags.physics_blender import PhysicsTag
 from ..tags.model import ChildObject, RenderModelOverrideType
 from ..tags.model_blender import ModelTag
@@ -800,12 +801,11 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
             scene_nwo.template_collision_model = str(path.with_suffix(".collision_model"))
         if Path(tags_dir, path).with_suffix(".model_animation_graph").exists():
             scene_nwo.template_model_animation_graph = str(path.with_suffix(".model_animation_graph"))
-            with AnimationTag(path=scene_nwo.template_model_animation_graph) as animation:
+            with AnimationGraphTag(path=scene_nwo.template_model_animation_graph) as animation:
                 skeleton_node_names = animation.get_nodes()
-                for element in animation.block_node_usages.Elements:
-                    usage = element.Fields[0].Items[element.Fields[0].Value].EnumName.replace(" ", "_")
-                    node_index = element.Fields[1].Value
-                    if node_index > -1:
+                for usage_name, node_index in animation.node_usages().items():
+                    usage = usage_name.replace(" ", "_")
+                    if 0 <= node_index < len(skeleton_node_names):
                         node = skeleton_node_names[node_index]
                         setattr(scene_nwo, f"node_usage_{usage}", node)
                     
@@ -3219,14 +3219,15 @@ class NWOImporter:
                                                         fp_anim_tag = fp_reference.Filename if fp_reference else None
                                                                 
                                                         if fp_anim_tag is not None and Path(fp_anim_tag).exists():
-                                                            with AnimationTag(path=fp_anim_tag) as fp_graph:
+                                                            with AnimationGraphTag(path=fp_anim_tag) as fp_graph:
                                                                 use_fp_graph = True
-                                                                node_names = fp_graph.get_nodes()
-                                                                for idx, name in enumerate(node_names):
-                                                                    if utils.remove_node_prefix(name) == utils.remove_node_prefix(root_gun_bone):
-                                                                        fp_root_node_element = fp_graph.block_skeleton_nodes.Elements[idx]
-                                                                        parent_index = fp_root_node_element.SelectField("ShortBlockIndex:parent node index").Value
-                                                                        parent_node = node_names[parent_index]
+                                                                graph_nodes = fp_graph.nodes()
+                                                                node_names = [node.name for node in graph_nodes]
+                                                                for node in graph_nodes:
+                                                                    if utils.remove_node_prefix(node.name) == utils.remove_node_prefix(root_gun_bone):
+                                                                        if 0 <= node.parent_index < len(node_names):
+                                                                            parent_node = node_names[node.parent_index]
+                                                                        break
                                                         
                                                         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
                                                         root_gun_edit_bone = armature.data.edit_bones.get(root_gun_bone)

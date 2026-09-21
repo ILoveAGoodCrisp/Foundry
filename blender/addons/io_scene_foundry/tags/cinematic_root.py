@@ -4,7 +4,7 @@ from .cinematic_script import script_from_text
 
 from .cinematic import CinematicSceneDataTag
 
-from ..managed_blam.cinematic_scene import NativeCinematicSceneTag
+from .cinematic_scene import NativeCinematicSceneTag
 from .backend import TagDocument
 from .blender import BlenderTag
 

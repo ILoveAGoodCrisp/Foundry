@@ -6,23 +6,18 @@ import bpy
 from mathutils import Matrix, Vector
 import numpy as np
 
-from ..tags.structure_meta import StructureMetaTag
+from .structure_meta import StructureMetaTag
 
-from ..tags.structure_lighting import ScenarioStructureLightingInfoTag
+from .structure_lighting import ScenarioStructureLightingInfoTag
 
-from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, CompressionBounds, Emissive, EnvironmentObject, HavokCollision, Instance, InstanceDefinition, Material, ModelCollision, Portal, StructureCollision, StructureMarker, SurfaceMapping
+from ..managed_blam.connected_geometry import BSP, BSPCollisionMaterial, Cluster, Emissive, EnvironmentObject, HavokCollision, Instance, InstanceDefinition, Material, ModelCollision, Portal, StructureCollision, StructureMarker, SurfaceMapping
 from .. import import_transform
 from ..utils import jstr
-from . import Tag
 from .. import utils
-from ..tags.prefab import ScenarioStructureBspMetadataTag, StructureBspHavokGeometry
+from .prefab import ScenarioStructureBspMetadataTag, StructureBspHavokGeometry
 
-class ScenarioStructureBspTag(Tag):
+class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
     tag_ext = 'scenario_structure_bsp'
-    
-    def _read_fields(self):
-        self.block_instances = self.tag.SelectField("instanced geometry instances")
-        self.block_instance_definitions = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources[0]/Struct:raw_items[0]/Block:instanced geometries definitions")
     
     def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1, import_havok=False, skip_structure_merge=False):
         
@@ -61,43 +56,42 @@ class ScenarioStructureBspTag(Tag):
                 objects.append(ob)
                 structure_collection.objects.link(ob)
 
-        with ScenarioStructureBspMetadataTag(
-                path=self.tag_path.RelativePathWithExtension) as native_bsp:
-            collision_materials = (
-                [BSPCollisionMaterial(record)
-                 for record in native_bsp.collision_materials()]
-                if import_geometry or import_havok else []
-            )
-            structure_lighting_info = native_bsp.structure_lighting_info()
-            native_emissives = native_bsp.emissive_materials() if import_geometry else []
-            native_bounds = native_bsp.compression_bounds() if import_geometry else []
-            native_render_materials = native_bsp.render_materials() if import_geometry else []
-            native_portals = native_bsp.portals() if import_geometry and not for_cinematic else []
-            native_markers = native_bsp.markers() if import_geometry and not for_cinematic else []
-            native_environment_objects = (
-                native_bsp.environment_objects()
-                if import_geometry and not for_cinematic and not self.corinth else []
-            )
-            native_cookie_cutters = (
-                native_bsp.cookie_cutters()
-                if import_geometry and not for_cinematic else []
-            )
-            native_havok_geometry = (
-                native_bsp.havok_geometry()
-                if import_havok and not for_cinematic else []
-            )
-            native_structure_collision = (
-                native_bsp.structure_collision()
-                if import_geometry and not for_cinematic else None
-            )
-            native_surface_mappings = (
-                native_bsp.surface_triangle_mappings()
-                if import_geometry and not for_cinematic else []
-            )
-            native_cluster_mesh_indices = (
-                native_bsp.cluster_mesh_indices() if import_geometry else []
-            )
-            structure_meta_data = native_bsp.structure_meta_data()
+        collision_materials = (
+            [BSPCollisionMaterial(record) for record in self.collision_materials()]
+            if import_geometry or import_havok else []
+        )
+        structure_lighting_info = self.structure_lighting_info()
+        native_emissives = self.emissive_materials() if import_geometry else []
+        native_render_materials = self.render_materials() if import_geometry else []
+        native_portals = self.portals() if import_geometry and not for_cinematic else []
+        native_markers = self.markers() if import_geometry and not for_cinematic else []
+        native_environment_objects = (
+            self.environment_objects()
+            if import_geometry and not for_cinematic and not self.corinth else []
+        )
+        native_cookie_cutters = (
+            self.cookie_cutters() if import_geometry and not for_cinematic else []
+        )
+        native_havok_geometry = (
+            self.havok_geometry() if import_havok and not for_cinematic else []
+        )
+        native_structure_collision = (
+            self.structure_collision()
+            if import_geometry and not for_cinematic else None
+        )
+        native_surface_mappings = (
+            self.surface_triangle_mappings()
+            if import_geometry and not for_cinematic else []
+        )
+        native_cluster_mesh_indices = self.cluster_mesh_indices() if import_geometry else []
+        native_instances = self.instances() if import_geometry else []
+        native_instance_definitions = (
+            self.instance_definitions() if import_geometry else []
+        )
+        native_render_meshes = (
+            self.render_meshes(native_instance_definitions) if import_geometry else []
+        )
+        structure_meta_data = self.structure_meta_data()
             
         # Get all emissive data
         emissives = [Emissive.from_native(record) for record in native_emissives]
@@ -146,16 +140,6 @@ class ScenarioStructureBspTag(Tag):
             for record in native_render_materials
         ]
             
-        # Get all compression bounds
-        bounds = [CompressionBounds.from_native(record) for record in native_bounds]
-            
-        # Create RenderModel object
-        render_model = self._GameRenderModel()
-        
-        # Get render geometry temp meshes block
-        temp_meshes = self.tag.SelectField("Struct:render geometry[0]/Block:per mesh temporary")
-        meshes = self.tag.SelectField("Struct:render geometry[0]/Block:meshes")
-
         havok_collisions = []
         havok_standalone_face_indices = None
         if import_havok and not for_cinematic:
@@ -168,26 +152,31 @@ class ScenarioStructureBspTag(Tag):
         created_instance_indices = set()
         ig_collection = None
         permitted_collections = set()
-        num_defs = self.block_instance_definitions.Elements.Count
+        num_defs = len(native_instance_definitions)
         if num_defs > 0:
             instance_definitions = [
-                InstanceDefinition(element, meshes, bounds, render_materials, collision_materials, for_cinematic)
-                for element in self.block_instance_definitions.Elements
+                InstanceDefinition.from_native(
+                    record, native_render_meshes, render_materials,
+                    collision_materials, self.corinth, for_cinematic)
+                for record in native_instance_definitions
             ]
-            instances = [Instance(element, instance_definitions) for element in self.block_instances.Elements]
+            instances = [
+                Instance.from_native(record, instance_definitions)
+                for record in native_instances
+            ]
             if havok_collisions:
                 havok_standalone_face_indices = self._map_havok_instance_collision(
                     havok_collisions,
                     instances,
-                    render_model,
-                    temp_meshes,
+                    None,
+                    None,
                 )
 
             process = "  - Creating Instance Definitions"
             with utils.Spinner():
                 utils.update_job_count(process, "", 0, num_defs)
                 for definition in instance_definitions:
-                    objects.extend(definition.create(render_model, temp_meshes))
+                    objects.extend(definition.create(None, None))
                     utils.update_job_count(process, "", definition.index, num_defs)
                 utils.update_job_count(process, "", num_defs, num_defs)
             
@@ -227,7 +216,9 @@ class ScenarioStructureBspTag(Tag):
         structure_collection = new_structure_collection()
         structure_surface_triangle_mapping = []
         clusters = [
-            Cluster.from_native(index, mesh_index, meshes, render_materials)
+            Cluster.from_native(
+                index, mesh_index, native_render_meshes,
+                render_materials, self.corinth)
             for index, mesh_index in enumerate(native_cluster_mesh_indices)
         ]
         if not for_cinematic:
@@ -267,7 +258,7 @@ class ScenarioStructureBspTag(Tag):
             with utils.Spinner():
                 utils.update_job_count(process, "", 0, num_clusters)
                 for structure in clusters:
-                    structure_obs = structure.create(render_model, temp_meshes, structure_surface_triangle_mapping, structure.index, collision)
+                    structure_obs = structure.create(None, None, structure_surface_triangle_mapping, structure.index, collision)
                     for ob in structure_obs:
                         if ob is not None and ob.data and ob.data.polygons:
                             # structure_collection.objects.link(ob)

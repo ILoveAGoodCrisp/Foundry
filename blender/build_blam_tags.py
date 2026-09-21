@@ -69,7 +69,8 @@ import sys
 sys.path.insert(0, sys.argv[1])
 import blam_tags as api
 required = {
-    'TagFile': ('read', 'new', 'write_atomic', 'particle_meshes'),
+    'TagFile': ('read', 'new', 'write_atomic', 'particle_meshes',
+                'render_model_meshes', 'sbsp_render_meshes'),
     'TagField': ('options', 'as_array', 'copy_value_from'),
     'TagBlock': ('copy_from',),
     'TagStruct': ('raw_bytes',),

@@ -8,7 +8,7 @@ import bpy
 from ..managed_blam.bitmap import bitmap_to_image
 from .. import utils
 
-from ..managed_blam.render_model import RenderModelTag
+from .render_model_blender import RenderModelTag
 
 from .backend import TagDocument, ReferenceField
 from .blender import BlenderTag

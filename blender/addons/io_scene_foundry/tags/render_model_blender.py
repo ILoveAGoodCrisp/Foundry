@@ -2,109 +2,43 @@
 
 from collections import defaultdict
 import math
-import bmesh
-from mathutils import Color, Euler, Matrix, Quaternion, Vector
+from mathutils import Color, Matrix, Vector
 
 from ..tools.rigging import HaloRig, needs_reach_fp_ik_fix
 
 from ..constants import HALO_FACTOR
 
-from .connected_geometry import CompressionBounds, InstancePlacement, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
-from .Tags import *
+from ..managed_blam.connected_geometry import CompressionBounds, InstancePlacement, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
 from .. import import_transform
 
 from .. import utils
-from ..managed_blam import Tag
+from .render_model import RenderModelMetadataTag
 import bpy
     
-class RenderModelTag(Tag):
+class RenderModelTag(RenderModelMetadataTag):
     tag_ext = 'render_model'
-    
-    def _read_fields(self):
-        self.reference_structure_meta_data = self.tag.SelectField("Reference:structure meta data") if self.corinth else None
-        self.block_nodes = self.tag.SelectField("Block:nodes")
-        self.struct_render_geometry = self.tag.SelectField("Struct:render geometry")
-        self.block_compression_info = self.tag.SelectField("Struct:render geometry[0]/Block:compression info")
-        self.block_per_mesh_temporary = self.tag.SelectField("Struct:render geometry[0]/Block:per mesh temporary")
-        self.block_regions = self.tag.SelectField("Block:regions")
-        self.block_meshes = self.tag.SelectField("Struct:render geometry[0]/Block:meshes")
-        self.block_materials = self.tag.SelectField("Block:materials")
-        self.block_marker_groups = self.tag.SelectField("Block:marker groups")
-        
-    def set_structure_meta_ref(self, meta_path):
-        if self._tag_exists(meta_path):
-            self.reference_structure_meta_data.Path = self._TagPath_from_string(meta_path)
-            self.tag_has_changes = True
-        else:
-            print("Failed to add structure meta reference. Structure meta tag does not exist")
-            
-    def get_nodes(self):
-        return [e.SelectField('name').GetStringData() for e in self.block_nodes.Elements]
-    
-    def get_regions(self) -> list[str]:
-        return [e.Fields[0].GetStringData() for e in self.block_regions.Elements]
-    
-    def get_permutations(self, region: str = "") -> list[str]:
-        '''Returns a list of render model permutations. A region name can be passed in to only return permutations from that region'''
-        if region:
-            for element in self.block_regions.Elements:
-                if element.Fields[0].GetStringData() == region:
-                    return [e.Fields[0].GetStringData() for e in element.Fields[1].Elements]
-            else:
-                return []
-        else:
-            permutations = {}
-            for element in self.block_regions.Elements:
-                permutations.update({e.Fields[0].GetStringData(): None for e in element.Fields[1].Elements}) # using dict instead of set to maintain insertion order
-            return list(permutations)
-        
-    def get_markers(self):
-        return [e.Fields[0].GetStringData() for e in self.block_marker_groups.Elements]
-    
-    def read_render_geometry(self):
-        render_geo = self._GameRenderGeometry()
-        mesh_info = render_geo.GetMeshInfo(self.struct_render_geometry)
-        print("index_bytes", mesh_info.index_bytes)
-        print("index_count", mesh_info.index_count)
-        print("parts", mesh_info.parts)
-        print("subparts", mesh_info.subparts)
-        print("triangle_count", mesh_info.triangle_count)
-        print("vertex_bytes", mesh_info.vertex_bytes)
-        print("vertex_count", mesh_info.vertex_count)
-        print("vertex_type", mesh_info.vertex_type)
-        
-    def read_render_model(self):
-        data_block = self.struct_render_geometry.Elements[0].SelectField('per mesh temporary')
-        render_model = self._GameRenderModel()
-        node_indices = render_model.GetNodeIndiciesFromMesh(data_block, 0)
-        node_weights = render_model.GetNodeWeightsFromMesh(data_block, 0)
-        normals = render_model.GetNormalsFromMesh(data_block, 0)
-        positions = render_model.GetPositionsFromMesh(data_block, 0)
-        tex_coords = render_model.GetTexCoordsFromMesh(data_block, 0)
-        print("\nnode_indices")
-        print("#"*50 + '\n')
-        print([i for i in node_indices])
-        print("\nnode_weights")
-        print("#"*50 + '\n')
-        print([i for i in node_weights])
-        print("\nnormals")
-        print("#"*50 + '\n')
-        print([i for i in normals])
-        print("\npositions")
-        print("#"*50 + '\n')
-        print([i for i in positions])
-        print("\ntex_coords")
-        print("#"*50 + '\n')
-        print([i for i in tex_coords])
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.context = bpy.context
         
     def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set(), from_vert_normals=False, no_io=False, no_armature=False, specific_io_index=None, build_control_rig=False):
         self.collection = collection
         self.model_collection = model_collection
+        self._native_nodes = RenderModelMetadataTag.nodes(self)
+        self._native_regions = RenderModelMetadataTag.regions(self)
+        self._native_instance_placements = self.instance_placements()
+        self._native_marker_groups = self.marker_groups()
+        self._native_instance_mesh_index = self.instance_mesh_index()
+        self._native_compression_bounds = self.compression_bounds()
+        self._native_render_materials = self.render_materials() if render else []
+        self._native_render_meshes = self.render_meshes() if render else []
         objects = []
         self.armature = self._create_armature(existing_armature, build_control_rig)
         objects.append(self.armature)
         
-        self.regions: list[Region] = [Region(element) for element in self.block_regions.Elements]
+        self.regions: list[Region] = [Region.from_native(record)
+                                      for record in self._native_regions]
         
         if render:
             # print("Creating Render Geometry")
@@ -177,30 +111,17 @@ class RenderModelTag(Tag):
         pitch = None
         yaw = None
         nodes_dict = {}
-        for element in self.block_nodes.Elements:
-            node = Node(element.SelectField("name").GetStringData())
-            
-            node.index = element.ElementIndex
-            translation = element.SelectField("default translation").Data
-            node.translation = Vector([n for n in translation]) * 100
-            rotation = element.SelectField("default rotation").Data
-            node.rotation = Quaternion([rotation[3], rotation[0], rotation[1], rotation[2]])
-            inverse_forward = element.SelectField("inverse forward").Data
-            node.inverse_forward = Vector([n for n in inverse_forward])
-            inverse_left = element.SelectField("inverse left").Data
-            node.inverse_left = Vector([n for n in inverse_left])
-            inverse_up = element.SelectField("inverse up").Data
-            node.inverse_up = Vector([n for n in inverse_up])
-            inverse_position = element.SelectField("inverse position").Data
-            node.inverse_position = Vector([n for n in inverse_position]) * 100
-            inverse_scale = element.SelectField("inverse scale").Data
-            node.inverse_scale = float(inverse_scale)
-            
-            parent_index = element.SelectField("parent node").Value
+        for record in self._native_nodes:
+            node = Node.from_native(record)
+            rotation = record.rotation
+            parent_index = record.parent_index
             if parent_index > -1:
-                node.parent_name = self.block_nodes.Elements[parent_index].SelectField("name").GetStringData()
+                if parent_index >= len(self._native_nodes):
+                    raise ValueError(
+                        f"Node {record.index} parent index {parent_index} is out of range")
+                node.parent_name = self._native_nodes[parent_index].name
                 
-            if element.ElementIndex == 0:
+            if record.index == 0:
                 root = node
                 pedestal = node.name
                 if node.name.endswith(('pedestal')):
@@ -253,19 +174,19 @@ class RenderModelTag(Tag):
 
     def _create_render_geometry(self, allowed_region_permutations: set | str, from_vert_normals=False, no_io=False, specific_io_index=None):
         objects = []
-        if not self.block_compression_info.Elements.Count:
+        if not self._native_compression_bounds:
             utils.print_warning("Render Model has no compression info. Cannot import render model mesh")
             return []
-        self.bounds = CompressionBounds(self.block_compression_info.Elements[0])
-        render_model = self._GameRenderModel()
+        self.bounds = CompressionBounds.from_native(
+            self._native_compression_bounds[0])
+        native_render_meshes = self._native_render_meshes
         
-        materials = [Material(e) for e in self.block_materials.Elements]
+        materials = [Material.from_native(record)
+                     for record in self._native_render_materials]
         materials_by_index = {material.index: material for material in materials}
 
         clone_meshes: list[Mesh] = []
         original_meshes_by_perm_name = {}
-        mesh_node_map = self.tag.SelectField("Struct:render geometry[0]/Block:per mesh node map")
-        instance_placements_block = self.tag.SelectField("Block:instance placements")
         regions_by_name = {region.name: region for region in self.regions}
 
         if isinstance(allowed_region_permutations, str): # if str use all regions but only the given perm
@@ -291,9 +212,9 @@ class RenderModelTag(Tag):
                         region_perm_raw_mesh[(region.name, permutation.name, i)] = permutation.mesh_index
 
         if valid_instance_indexes is not None:
-            for element in instance_placements_block.Elements:
-                if element.ElementIndex not in instance_region_permutations:
-                    valid_instance_indexes.add(element.ElementIndex)
+            for record in self._native_instance_placements:
+                if record.index not in instance_region_permutations:
+                    valid_instance_indexes.add(record.index)
         
         for region in self.regions:
             for permutation in region.permutations:
@@ -304,58 +225,31 @@ class RenderModelTag(Tag):
                 if permutation.mesh_index < 0: continue
                 for i in range(permutation.mesh_count):
                     real_mesh_idx = None
-                    mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation, materials_by_index, mesh_node_map, from_vert_normals=from_vert_normals, tag_path=self.tag_path.RelativePathWithExtension)
-                    
-                    if mesh.permutation.clone_name:
-                        if not allowed_region_permutations or (region.name, mesh.permutation.clone_name) in allowed_region_permutations:
+                    mesh_index = permutation.mesh_index + i
+                    geometry_record = native_render_meshes[mesh_index]
+                    if permutation.clone_name:
+                        if not allowed_region_permutations or (region.name, permutation.clone_name) in allowed_region_permutations:
+                            mesh = Mesh.from_native(
+                                native_render_meshes[mesh_index],
+                                materials_by_index, self.corinth)
+                            mesh.permutation = permutation
                             clone_meshes.append(mesh)
                             continue
                         
-                        real_mesh_idx = region_perm_raw_mesh[(region.name, mesh.permutation.clone_name, i)]
-                    
-                    obs = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature, real_mesh_index=real_mesh_idx)
-                    # NOTE This code doesn't work correctly
-                    if False and mesh.mesh_keys:
-                        shape_names = {e.Fields[0].Data: utils.any_partition(e.Fields[1].GetStringData(), ":", True) for e in self.tag.SelectField("Struct:render geometry[0]/Block:shapeNames").Elements}
-                        new_obs = []
-                        for ob in obs:
-                            face_groups = defaultdict(list)
-                            bm = bmesh.new()
-                            bm.from_mesh(ob.data)
-                            for face in bm.faces:
-                                keys = [mesh.mesh_keys[v.index] for v in face.verts]
-                                uniq = set(keys)
-                                if len(uniq) == 1:
-                                    face_groups[keys[0]].append(face.index)
-                                else:
-                                    for k in uniq:
-                                        face_groups[k].append(face.index)
-                                        
-                            bm.free()
-                                
-                            for key, poly_indices in face_groups.items():
-                                new_mesh = ob.data.copy()
-                                new_ob = ob.copy()
-                                new_ob.data = new_mesh
-                                name = shape_names[key]
-                                new_ob.name = name
-                                new_mesh.name = name
+                        real_mesh_idx = region_perm_raw_mesh[(region.name, permutation.clone_name, i)]
+                        geometry_record = native_render_meshes[real_mesh_idx]
 
-                                bm = bmesh.new()
-                                bm.from_mesh(new_mesh)
-                                
-                                to_delete_faces = [f for f in bm.faces if f.index not in poly_indices]
-                                bmesh.ops.delete(bm, geom=to_delete_faces, context='FACES')
-                                
-                                bm.to_mesh(new_mesh)
-                                bm.free()
-                                new_obs.append(new_ob)
-                                ob_region_perms[new_ob] = region_perm
-                            
-                        obs = new_obs
-                    else:
-                        for ob in obs:
-                            ob_region_perms[ob] = region_perm
+                    mesh = Mesh.from_native(
+                        native_render_meshes[mesh_index], materials_by_index,
+                        self.corinth, geometry_record)
+                    mesh.permutation = permutation
+                    mesh.from_vert_normals = from_vert_normals
+                    mesh.tag_path = self.tag_path.RelativePathWithExtension
+                    
+                    obs = mesh.create(None, None, self.nodes, self.armature,
+                                      real_mesh_index=real_mesh_idx)
+                    for ob in obs:
+                        ob_region_perms[ob] = region_perm
                         
                     original_meshes_by_perm_name.setdefault(mesh.permutation.name, mesh)
                     objects.extend(obs)
@@ -367,15 +261,17 @@ class RenderModelTag(Tag):
         if not no_io:
             if specific_io_index is not None:
                 valid_instance_indexes = {specific_io_index}
-            self.instance_mesh_index = self.tag.SelectField("LongBlockIndex:instance mesh index").Value
+            self.instance_mesh_index = self._native_instance_mesh_index
             if self.instance_mesh_index > -1:
                 if valid_instance_indexes is None:
-                    for element in instance_placements_block.Elements:
-                        self.instances.append(InstancePlacement(element, self.nodes))
+                    for record in self._native_instance_placements:
+                        self.instances.append(
+                            InstancePlacement.from_native(record, self.nodes))
                 else:
-                    for element in instance_placements_block.Elements:
-                        if element.ElementIndex in valid_instance_indexes:
-                            self.instances.append(InstancePlacement(element, self.nodes))
+                    for record in self._native_instance_placements:
+                        if record.index in valid_instance_indexes:
+                            self.instances.append(
+                                InstancePlacement.from_native(record, self.nodes))
 
         for ob, region_perm in ob_region_perms.items():
             region, permutation = region_perm
@@ -383,8 +279,14 @@ class RenderModelTag(Tag):
             utils.set_permutation(ob, permutation, utils.SetType.MODEL)
             
         if self.instances:
-            instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials_by_index, mesh_node_map, from_vert_normals=from_vert_normals, tag_path=self.tag_path.RelativePathWithExtension)
-            ios = instance_mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature, self.instances, is_io=True)
+            instance_mesh = Mesh.from_native(
+                native_render_meshes[self.instance_mesh_index],
+                materials_by_index, self.corinth)
+            instance_mesh.from_vert_normals = from_vert_normals
+            instance_mesh.tag_path = self.tag_path.RelativePathWithExtension
+            ios = instance_mesh.create(
+                None, None, self.nodes, self.armature, self.instances,
+                is_io=True)
             for ob in ios:
                 ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_object_instance"
                 self.collection.objects.link(ob)
@@ -470,8 +372,8 @@ class RenderModelTag(Tag):
         markers_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_markers")
         self.collection.children.link(markers_collection)
         marker_size_factor = max(self.bounds.x1 - self.bounds.x0, self.bounds.y1 - self.bounds.y0, self.bounds.z1 - self.bounds.z0) * 0.025
-        for element in self.block_marker_groups.Elements:
-            marker_group = MarkerGroup(element, self.nodes, self.regions)
+        for record in self._native_marker_groups:
+            marker_group = MarkerGroup.from_native(record, self.nodes, self.regions)
             objects.extend(marker_group.to_blender(self.armature, markers_collection, marker_size_factor, allowed_region_permutations))
             
         return objects
@@ -481,19 +383,18 @@ class RenderModelTag(Tag):
         objects = []
         if self.corinth:
             return [] # H4+ no longer uses skylights, instead using a model scenario_structure_lighting_info tag
-        
-        flags = self.tag.SelectField("WordFlags:flags")
-        
-        if not flags.TestBit("this is supposed to be a sky"):
+
+        sky = self.sky_data()
+
+        if not sky.is_sky:
             return []
-        
-        block_sky_lights = self.tag.SelectField("Block:sky lights")
-        sun_index = block_sky_lights.Elements.Count - 1
+
+        sun_index = len(sky.lights) - 1
         
         if sun_index < 0:
             return []
         
-        sun_as_vmf_light = flags.TestBit("sun as vmf light")
+        sun_as_vmf_light = sky.sun_as_vmf_light
         
         collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_skylights")
         
@@ -510,12 +411,12 @@ class RenderModelTag(Tag):
             
             obj.matrix_world = import_transform.transform_matrix(Matrix.LocRotScale(loc, rot, sca))
             
-        for element in block_sky_lights.Elements:
-            direction = Vector((*element.Fields[0].Data,)).normalized()
-            color = Color((*element.Fields[1].Data,)) # intensity
-            power = element.Fields[2].Data # solid angle
+        for index, record in enumerate(sky.lights):
+            direction = Vector(record.direction).normalized()
+            color = Color(record.intensity)
+            power = record.solid_angle
             
-            if not sun_as_vmf_light and element.ElementIndex == sun_index:
+            if not sun_as_vmf_light and index == sun_index:
                 two_pi = 2.0 * math.pi
                 cos_theta = 1.0 - (power / two_pi)
                 cos_theta = max(-1.0, min(1.0, cos_theta))
@@ -523,7 +424,7 @@ class RenderModelTag(Tag):
                 self.scene_nwo.sun_size = 2.0 * half_angle_radians * 180.0 / math.pi
                 continue
             
-            data = bpy.data.lights.new(f"skylight:{element.ElementIndex}", 'SUN')
+            data = bpy.data.lights.new(f"skylight:{index}", 'SUN')
                 
             ob = bpy.data.objects.new(data.name, data)
             
@@ -536,15 +437,11 @@ class RenderModelTag(Tag):
             objects.append(ob)
         
         if not sun_as_vmf_light:
-            sun_array = self.tag.SelectField("Array:sun")
-            # direction
-            sun_dx = sun_array.Elements[0].Fields[0].Data
-            sun_dy = sun_array.Elements[1].Fields[0].Data
-            sun_dz = sun_array.Elements[2].Fields[0].Data
-            # RGB intensity
-            sun_ir = sun_array.Elements[3].Fields[0].Data
-            sun_ib = sun_array.Elements[4].Fields[0].Data
-            sun_ig = sun_array.Elements[5].Fields[0].Data
+            if len(sky.sun) < 6:
+                raise ValueError(
+                    f"{self.tag_path.RelativePathWithExtension} sky sun array "
+                    f"has {len(sky.sun)} of 6 values")
+            sun_dx, sun_dy, sun_dz, sun_ir, sun_ib, sun_ig = sky.sun[:6]
             
             data = bpy.data.lights.new("Sun", 'SUN')
             ob = bpy.data.objects.new(data.name, data)
@@ -560,53 +457,19 @@ class RenderModelTag(Tag):
             collection.objects.link(ob)
             objects.append(ob)
             
-        # sunlight_mutliplier = self.tag.SelectField("Real:direct sun light multiplier").Data
-        # skylight_multiplier = self.tag.SelectField("Real:sky dome and all bounce light multiplier").Data
-        self.scene_nwo.sun_bounce_scale = self.tag.SelectField("Real:sun 1st bounce scaler").Data
-        self.scene_nwo.skylight_bounce_scale = self.tag.SelectField("Real:sky light 1st bounce scaler").Data
+        self.scene_nwo.sun_bounce_scale = sky.sun_bounce_scale
+        self.scene_nwo.skylight_bounce_scale = sky.skylight_bounce_scale
         self.scene_nwo.sun_as_vmf_light = sun_as_vmf_light
         
         return objects
             
             
     def get_bounds(self):
-        return CompressionBounds(self.block_compression_info.Elements[0])
+        bounds = self.compression_bounds()
+        if not bounds:
+            raise ValueError(f"{self.tag_path.RelativePathWithExtension} has no compression bounds")
+        return CompressionBounds.from_native(bounds[0])
     
     def insert_empty_region_perms(self, empty_region_perms: dict[str, set]):
-        print("\nAdding Empty Region Permutations")
-        for region_element in self.block_regions.Elements:
-            region = region_element.Fields[0].GetStringData()
-            perms = empty_region_perms.get(region)
-            if perms is None:
-                continue
-            
-            permutations_block = region_element.SelectField("Block:permutations")
-            # Getting all existing perms to ensure we don't duplicate any, for example those created by clones
-            existing_perms = {e.Fields[0].GetStringData() for e in permutations_block.Elements}
-            remaining_perms = perms.difference(existing_perms)
-            print(f"\n--- Adding empty permutations to existing region {region}")
-            for perm in sorted(remaining_perms): # Sorting this to ensure a consistent order in multiple exports
-                perm_element = permutations_block.AddElement()
-                perm_element.Fields[0].SetStringData(perm)
-                perm_element.Fields[1].Data = -1 # mesh index
-                print(f"\tAdded permutation {perm}")
-                self.tag_has_changes = True
-            
-            empty_region_perms.pop(region)
-        
-        # This now contains only the completely empty regions
-        if empty_region_perms:
-            self.tag_has_changes = True
-        
-        for region, perms in empty_region_perms.items():
-            region_element = self.block_regions.AddElement()
-            region_element.Fields[0].SetStringData(region)
-            print(f"\n--- Created new empty region {region}")
-            
-            permutations_block = region_element.SelectField("Block:permutations")
-            for perm in sorted(perms):
-                perm_element = permutations_block.AddElement()
-                perm_element.Fields[0].SetStringData(perm)
-                perm_element.Fields[1].Data = -1 # mesh index
-                print(f"\tAdded permutation {perm}")
+        super().insert_empty_region_perms(empty_region_perms)
                 

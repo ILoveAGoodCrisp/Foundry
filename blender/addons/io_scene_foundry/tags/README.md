@@ -28,6 +28,9 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
 - Top-level cinematic import/export and its scenario bookkeeping, including
   transition tags, scripts, scene references, zone sets and anchors.
 - Frame-event-list import/export, shared references and partial animation updates.
+- Animation-graph names, skeleton ordering, parent indices, node usages, parent
+  graph and imported-event references. Template setup and animation command lookup
+  use this metadata path without opening ManagedBlam.
 - Particle-emitter custom-points tag creation during particle-model export.
 - Cinematic event sound-effect names, playback availability and indexed sound-class
   labels.
@@ -64,7 +67,7 @@ objects; the few callers still passing them into legacy tag wrappers convert
 references at that boundary.
 
 The addon still requires ManagedBlam/Python.NET for unmigrated workflows:
-full render/BSP geometry import, animation graphs, shader/material editing,
+animation graph resource import and graph editing, shader/material editing,
 remaining scenario resources, cinematic referenced-resource workflows and other
 specialized helpers.
 Removing that dependency now would break those workflows. The Foundation plugin
@@ -139,8 +142,9 @@ need the Rust classic reader/creator exposed in Python. The camera wrapper
 explicitly reports that capability gap. Creating an MCC container from an H1/H2
 schema does not prove classic editing-kit compatibility.
 
-Bitmap, render-geometry, animation and custom shader helper APIs need additional
-Python binding coverage. Keep specific title selection distinct from tag-format
+Animation editing and custom shader helper APIs need additional Python binding
+coverage. Render-model and structure-BSP mesh decoding are exposed in the local
+wheel; bitmap extraction uses the native/Python path. Keep specific title selection distinct from tag-format
 generation when migrating these systems.
 
 Cinematic object conversion now uses native `TagBlock.copy_from` and
@@ -223,5 +227,6 @@ not yet been moved out of the legacy package.
 `TagStruct`, `TagField`, `TagBlock`, and math types. The wheel includes `py.typed`
 stubs, so these definitions are available to VS Code while the runtime binding is
 still imported lazily when a document is opened.
-- Structure BSP collision geometry, surface-to-triangle mappings, and serialized
-  H4/H2AMP Havok collision payloads are read through typed blam-tags handles.
+- Structure BSP collision geometry, surface-to-triangle mappings, instance
+  placements and policies, renderer-ready meshes, and serialized H4/H2AMP Havok
+  collision payloads are read through typed blam-tags handles.

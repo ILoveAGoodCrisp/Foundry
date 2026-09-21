@@ -24,6 +24,7 @@ from ..constants import (
 )
 from .backend import TagDocument, TagReference
 from .blender import BlenderTag
+from .metadata import enum_index
 
 
 @dataclass(frozen=True)
@@ -144,10 +145,88 @@ class StructureBspCollision:
 class StructureBspSurfaceMapping:
     surface_index: int
     triangle_values: tuple[int, ...]
+    direct_triangles: tuple[tuple[int, int], ...] = ()
 
     @property
     def collision_only(self) -> bool:
-        return not self.triangle_values
+        return not self.triangle_values and not self.direct_triangles
+
+
+@dataclass(frozen=True)
+class StructureBspInstance:
+    index: int
+    definition_index: int
+    scale: float
+    forward: tuple[float, float, float]
+    left: tuple[float, float, float]
+    up: tuple[float, float, float]
+    position: tuple[float, float, float]
+    not_in_lightprobes: bool
+    render_only: bool
+    not_block_aoe: bool
+    decal: bool
+    imposter_transition: float
+    pathfinding: int
+    lightmapping: int
+    imposter: int
+    lightmap_resolution: float
+    name: str
+    remove_from_shadow: bool
+    cinema_type: int
+    imposter_brightness: float
+    disallow_lighting_samples: bool
+    streaming: int
+    world_bound_sphere_radius: float
+
+
+@dataclass(frozen=True)
+class StructureBspPhysicsPolyhedron:
+    material_index: int
+    radius: float
+    vertices: tuple[tuple[float, float, float], ...]
+
+
+@dataclass(frozen=True)
+class StructureBspInstanceDefinition:
+    index: int
+    mesh_index: int
+    compression_index: int
+    collision: StructureBspCollision | None
+    collision_is_proxy: bool
+    surface_mappings: tuple[StructureBspSurfaceMapping, ...]
+    cookie_cutter: StructureBspCollision | None
+    physics: tuple[StructureBspPhysicsPolyhedron, ...]
+
+
+@dataclass(frozen=True)
+class StructureBspRenderPart:
+    material_index: int
+    index_start: int
+    index_count: int
+    part_type: int
+
+
+@dataclass(frozen=True)
+class StructureBspRenderWater:
+    triangles: tuple[tuple[tuple[int, int], ...], ...]
+    base_texcoords: tuple[tuple[float, float, float], ...]
+    part_indices: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class StructureBspRenderMesh:
+    index: int
+    positions: tuple[tuple[float, float, float], ...]
+    texcoords: tuple[tuple[float, float], ...]
+    normals: tuple[tuple[float, float, float], ...]
+    node_indices: tuple[tuple[int, int, int, int], ...]
+    node_weights: tuple[tuple[float, float, float, float], ...]
+    lightmap_texcoords: tuple[tuple[float, float], ...]
+    vertex_colors: tuple[tuple[float, float, float], ...]
+    indices: tuple[int, ...]
+    rigid_node_index: int
+    parts: tuple[StructureBspRenderPart, ...]
+    water: StructureBspRenderWater | None
 
 
 class PrefabTag(BlenderTag, TagDocument):
@@ -381,6 +460,65 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
             items.append(raw_items)
         return items
 
+    def _collision_bsp(self, collision: blam_tags.TagStruct, *, large: bool,
+                       label: str) -> StructureBspCollision:
+        vertices = tuple(
+            tuple(cast('blam_tags.RealPoint3d', self.value(element, 'point')).to_array())
+            for element in self.block(collision, 'vertices')
+        )
+        if any(not isfinite(value) for vertex in vertices for value in vertex):
+            raise ValueError(f'{self.path}: {label} has non-finite vertices')
+        mask = 0xffffffff if large else 0xffff
+        edge_names = ('start vertex', 'end vertex', 'forward edge', 'reverse edge',
+                      'left surface', 'right surface')
+        edges = tuple(
+            tuple(int(self.value(edge, name)) & mask for name in edge_names)
+            for edge in self.block(collision, 'edges')
+        )
+        surfaces: list[StructureBspCollisionSurface] = []
+        polygons: list[tuple[int, ...]] = []
+        for surface_index, surface in enumerate(self.block(collision, 'surfaces')):
+            first = int(self.value(surface, 'first edge')) & mask
+            current, visited, polygon = first, set(), []
+            while True:
+                if current in visited or current >= len(edges):
+                    raise ValueError(
+                        f'{self.path}: {label} surface {surface_index} has an invalid edge loop')
+                visited.add(current)
+                start, end, forward, reverse, left, right = edges[current]
+                if left == surface_index:
+                    vertex, following = start, forward
+                elif right == surface_index:
+                    vertex, following = end, reverse
+                else:
+                    raise ValueError(f'{self.path}: {label} edge does not belong to its surface')
+                if vertex >= len(vertices):
+                    raise ValueError(f'{self.path}: {label} vertex is out of range')
+                polygon.append(vertex)
+                if following == first:
+                    break
+                current = following
+            if len(polygon) < 3 or len(set(polygon)) != len(polygon):
+                raise ValueError(f'{self.path}: {label} has a degenerate surface')
+            flags = self.required_field(surface, 'flags')
+            breakable = flags.get_flag('breakable')
+            invisible = flags.get_flag('invisible')
+            surfaces.append(StructureBspCollisionSurface(
+                index=surface_index,
+                material_index=int(self.value(surface, 'material')),
+                negated=(self.game not in {'halo3', 'halo3odst'} and
+                         flags.get_flag('plane negated')),
+                invalid=flags.get_flag('invalid'),
+                ladder=flags.get_flag('climbable'),
+                breakable=breakable,
+                slip_surface=flags.get_flag('slip'),
+                invisible=invisible,
+                two_sided=(flags.get_flag('two sided') and
+                           not (breakable or invisible)),
+            ))
+            polygons.append(tuple(polygon))
+        return StructureBspCollision(vertices, tuple(surfaces), tuple(polygons))
+
     def structure_collision(self) -> StructureBspCollision | None:
         """Read the first standard or large structure collision BSP natively."""
         collision = None
@@ -402,62 +540,8 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
         if collision is None:
             return None
 
-        vertices = tuple(
-            tuple(cast('blam_tags.RealPoint3d', self.value(element, 'point')).to_array())
-            for element in self.block(collision, 'vertices')
-        )
-        if any(not isfinite(value) for vertex in vertices for value in vertex):
-            raise ValueError(f'{self.path}: structure collision has non-finite vertices')
-        mask = 0xffffffff if large else 0xffff
-        edge_names = ('start vertex', 'end vertex', 'forward edge', 'reverse edge',
-                      'left surface', 'right surface')
-        edges = tuple(
-            tuple(int(self.value(edge, name)) & mask for name in edge_names)
-            for edge in self.block(collision, 'edges')
-        )
-        surfaces: list[StructureBspCollisionSurface] = []
-        polygons: list[tuple[int, ...]] = []
-        for surface_index, surface in enumerate(self.block(collision, 'surfaces')):
-            first = int(self.value(surface, 'first edge')) & mask
-            current, visited, polygon = first, set(), []
-            while True:
-                if current in visited or current >= len(edges):
-                    raise ValueError(
-                        f'{self.path}: structure collision surface {surface_index} has an invalid edge loop')
-                visited.add(current)
-                start, end, forward, reverse, left, right = edges[current]
-                if left == surface_index:
-                    vertex, following = start, forward
-                elif right == surface_index:
-                    vertex, following = end, reverse
-                else:
-                    raise ValueError(
-                        f'{self.path}: structure collision edge does not belong to its surface')
-                if vertex >= len(vertices):
-                    raise ValueError(f'{self.path}: structure collision vertex is out of range')
-                polygon.append(vertex)
-                if following == first:
-                    break
-                current = following
-            if len(polygon) < 3 or len(set(polygon)) != len(polygon):
-                raise ValueError(f'{self.path}: structure collision has a degenerate surface')
-            flags = self.required_field(surface, 'flags')
-            breakable = flags.get_flag('breakable')
-            invisible = flags.get_flag('invisible')
-            surfaces.append(StructureBspCollisionSurface(
-                index=surface_index,
-                material_index=int(self.value(surface, 'material')),
-                negated=flags.get_flag('plane negated'),
-                invalid=flags.get_flag('invalid'),
-                ladder=flags.get_flag('climbable'),
-                breakable=breakable,
-                slip_surface=flags.get_flag('slip'),
-                invisible=invisible,
-                two_sided=(flags.get_flag('two sided') and
-                           not (breakable or invisible)),
-            ))
-            polygons.append(tuple(polygon))
-        return StructureBspCollision(vertices, tuple(surfaces), tuple(polygons))
+        return self._collision_bsp(
+            collision, large=large, label='structure collision')
 
     def surface_triangle_mappings(self) -> list[StructureBspSurfaceMapping]:
         root = self.tag.root()
@@ -492,6 +576,279 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
         if clusters is None:
             raise TypeError(f'{self.path}: clusters is not a block')
         return [int(self.value(element, 'mesh index')) for element in clusters]
+
+    def instances(self) -> list[StructureBspInstance]:
+        """Detach instance placement and policy data from the tag document."""
+        field = self.tag.root().field('instanced geometry instances')
+        if field is None:
+            return []
+        block = field.as_block()
+        if block is None:
+            raise TypeError(f'{self.path}: instanced geometry instances is not a block')
+
+        def optional_value(element: blam_tags.TagStruct, name: str, default):
+            value_field = element.field(name)
+            return default if value_field is None else value_field.value
+
+        def optional_enum(element: blam_tags.TagStruct, name: str,
+                          options: tuple[str, ...], default: int) -> int:
+            value_field = element.field(name)
+            if value_field is None:
+                return default
+            return enum_index(value_field.value, options)
+
+        lightmapping_options = (
+            ('per-pixel seperate', 'per-vertex', 'single-probe', 'per-pixel shared')
+            if self.game in {'halo3', 'halo3odst'} else
+            ('per-pixel shared', 'per-vertex', 'single-probe', 'exclude',
+             'per-pixel ao', 'per-vertex ao')
+        )
+        imposter_options = (
+            ('polygon default', 'polygon high', 'cards medium', 'cards high',
+             'none', 'rainbow box (runtime only)') if self.corinth else
+            ('polygon default', 'polygon high', 'cards medium', 'cards high',
+             'none', 'never')
+        )
+        records = []
+        for index, element in enumerate(block):
+            flags = self.required_field(element, 'flags')
+            vectors = {
+                name: tuple(cast('blam_tags.RealVector3d', self.value(element, name)).to_array())
+                for name in ('forward', 'left', 'up')
+            }
+            position = cast(
+                'blam_tags.RealPoint3d', self.value(element, 'position'))
+            records.append(StructureBspInstance(
+                index=index,
+                definition_index=int(self.value(element, 'instance definition')),
+                scale=float(self.value(element, 'scale')),
+                position=tuple(position.to_array()),
+                not_in_lightprobes=flags.get_flag('not in lightprobes'),
+                render_only=flags.get_flag('render only'),
+                not_block_aoe=flags.get_flag('does not block aoe damage'),
+                decal=flags.get_flag('decal spacing'),
+                imposter_transition=float(optional_value(
+                    element, 'imposter transition complete distance', 0.0)),
+                pathfinding=optional_enum(
+                    element, 'pathfinding policy', ('cut-out', 'static', 'none'), 0),
+                lightmapping=optional_enum(
+                    element, 'lightmapping policy', lightmapping_options, 0),
+                imposter=optional_enum(
+                    element, 'imposter policy', imposter_options, 4),
+                lightmap_resolution=float(optional_value(
+                    element, 'lightmap resolution scale', 1.0)),
+                name=str(optional_value(element, 'name', f'instance_{index}')),
+                remove_from_shadow=(self.corinth and
+                                    flags.get_flag('remove from shadow geometry')),
+                cinema_type=(1 if self.corinth and flags.get_flag('cinema only')
+                             else 2 if self.corinth and flags.get_flag('exclude from cinema')
+                             else 0),
+                imposter_brightness=float(optional_value(
+                    element, 'imposter brightness', 0.0)),
+                disallow_lighting_samples=(self.corinth and
+                                           flags.get_flag('disallow object lighting samples')),
+                streaming=optional_enum(
+                    element, 'streaming priority', ('default', 'higher', 'highest'), 0),
+                world_bound_sphere_radius=float(optional_value(
+                    element, 'world bounding sphere radius', 0.0)),
+                **vectors,
+            ))
+        return records
+
+    def instance_definitions(self) -> list[StructureBspInstanceDefinition]:
+        """Detach BSP instance-definition metadata; render meshes remain resources."""
+        definitions = None
+        for raw_items in self._raw_resource_items():
+            field = raw_items.field('instanced geometries definitions')
+            if field is None:
+                continue
+            definitions = field.as_block()
+            if definitions is None:
+                raise TypeError(
+                    f'{self.path}: instanced geometries definitions is not a block')
+            break
+        if definitions is None:
+            return []
+
+        records = []
+        for index, element in enumerate(definitions):
+            collision_field = element.field('collision info')
+            collision_struct = (None if collision_field is None
+                                else collision_field.as_struct())
+            collision = None
+            if collision_struct is not None and len(self.block(collision_struct, 'surfaces')):
+                collision = self._collision_bsp(
+                    collision_struct, large=False,
+                    label=f'instance definition {index} collision')
+
+            mapping_surfaces_field = element.field('surfaces')
+            mapping_values_field = element.field('surface to triangle mapping')
+            mappings: list[StructureBspSurfaceMapping] = []
+            if mapping_surfaces_field is not None and mapping_values_field is not None:
+                mapping_surfaces = mapping_surfaces_field.as_block()
+                mapping_values = mapping_values_field.as_block()
+                if mapping_surfaces is None or mapping_values is None:
+                    raise TypeError(
+                        f'{self.path}: instance definition mappings are not blocks')
+                packed_values = []
+                direct_values = []
+                for value in mapping_values:
+                    packed = value.field('manual byteswarp1')
+                    if packed is not None:
+                        packed_values.append(int(packed.value))
+                    else:
+                        direct_values.append((
+                            int(self.value(value, 'triangle_index')),
+                            int(self.value(value, 'section_index')),
+                        ))
+                for surface_index, surface in enumerate(mapping_surfaces):
+                    first = int(self.value(
+                        surface, 'first_structure_surface_to_triangle_mapping_index'))
+                    count = int(self.value(
+                        surface, 'structure_surface_to_triangle_mapping_count'))
+                    value_count = len(packed_values) or len(direct_values)
+                    if first < 0 or count < 0 or first + count > value_count:
+                        raise ValueError(
+                            f'{self.path}: instance definition {index} surface '
+                            f'{surface_index} has an invalid triangle mapping range')
+                    mappings.append(StructureBspSurfaceMapping(
+                        surface_index,
+                        tuple(packed_values[first:first + count]),
+                        tuple(direct_values[first:first + count]),
+                    ))
+
+            render_bsp_field = element.field('render bsp')
+            render_bsp = None if render_bsp_field is None else render_bsp_field.as_block()
+            collision_is_proxy = collision is not None and (
+                not mappings or (render_bsp is not None and len(render_bsp) > 0))
+
+            cookie_cutter = None
+            cookie_field = element.field('poopie cutter collision')
+            cookie_struct = None if cookie_field is None else cookie_field.as_struct()
+            if cookie_struct is not None and len(self.block(cookie_struct, 'surfaces')):
+                cookie_cutter = self._collision_bsp(
+                    cookie_struct, large=False,
+                    label=f'instance definition {index} cookie cutter')
+
+            physics: list[StructureBspPhysicsPolyhedron] = []
+            polyhedra_field = element.field('polyhedra_with_materials')
+            vectors_field = element.field('polyhedron four vectors')
+            if polyhedra_field is not None and vectors_field is not None:
+                polyhedra = polyhedra_field.as_block()
+                vectors = vectors_field.as_block()
+                if polyhedra is None or vectors is None:
+                    raise TypeError(
+                        f'{self.path}: instance definition physics is not stored in blocks')
+                vector_offset = 0
+                for polyhedron in polyhedra:
+                    shape = self.required_field(polyhedron, 'polyhedron').as_struct()
+                    if shape is None:
+                        raise TypeError(f'{self.path}: instance polyhedron is not a struct')
+                    vector_count = int(self.value(shape, 'four vectors size'))
+                    if vector_count < 0 or vector_offset + vector_count > len(vectors):
+                        raise ValueError(
+                            f'{self.path}: instance definition {index} has invalid physics vectors')
+                    vertices = []
+                    for vector_index in range(vector_offset, vector_offset + vector_count):
+                        vector = vectors[vector_index]
+                        x = tuple(cast('blam_tags.RealVector3d',
+                                       self.value(vector, 'four vectors x')).to_array())
+                        y = tuple(cast('blam_tags.RealVector3d',
+                                       self.value(vector, 'four vectors y')).to_array())
+                        z = tuple(cast('blam_tags.RealVector3d',
+                                       self.value(vector, 'four vectors z')).to_array())
+                        vertices.extend((x[i], y[i], z[i]) for i in range(3))
+                        vertices.append((
+                            float(self.value(vector, 'havok w four vectors x')),
+                            float(self.value(vector, 'havok w four vectors y')),
+                            float(self.value(vector, 'havok w four vectors z')),
+                        ))
+                    vector_offset += vector_count
+                    convex = self.required_field(shape, 'polyhedron shape').as_struct()
+                    if convex is None:
+                        raise TypeError(f'{self.path}: instance convex shape is not a struct')
+                    physics.append(StructureBspPhysicsPolyhedron(
+                        material_index=int(self.value(polyhedron, 'material index')),
+                        radius=float(self.value(convex, 'radius')),
+                        vertices=tuple(vertices),
+                    ))
+
+            records.append(StructureBspInstanceDefinition(
+                index=index,
+                mesh_index=int(self.value(element, 'mesh index')),
+                compression_index=int(self.value(element, 'compression index')),
+                collision=collision,
+                collision_is_proxy=collision_is_proxy,
+                surface_mappings=tuple(mappings),
+                cookie_cutter=cookie_cutter,
+                physics=tuple(physics),
+            ))
+        return records
+
+    def render_meshes(
+            self, definitions: list[StructureBspInstanceDefinition]
+            ) -> list[StructureBspRenderMesh]:
+        """Decode renderer-ready BSP meshes through the blam-tags core."""
+        geometry = self.required_field(self.tag.root(), 'render geometry').as_struct()
+        if geometry is None:
+            raise TypeError(f'{self.path}: render geometry is not a struct')
+        mesh_count = len(self.block(geometry, 'meshes'))
+        compression_indices = [-1] * mesh_count
+        for definition in definitions:
+            if definition.mesh_index < 0 or definition.mesh_index >= mesh_count:
+                raise ValueError(
+                    f'{self.path}: instance definition {definition.index} mesh '
+                    f'index {definition.mesh_index} is out of range')
+            previous = compression_indices[definition.mesh_index]
+            if previous not in {-1, definition.compression_index}:
+                raise ValueError(
+                    f'{self.path}: mesh {definition.mesh_index} uses conflicting '
+                    'compression bounds')
+            compression_indices[definition.mesh_index] = definition.compression_index
+
+        decoded = self.tag.sbsp_render_meshes(compression_indices)
+        if len(decoded) != mesh_count:
+            raise ValueError(
+                f'{self.path}: decoded {len(decoded)} of {mesh_count} render meshes')
+        records = []
+        for index, mesh in enumerate(decoded):
+            parts = tuple(StructureBspRenderPart(
+                material_index=int(part['material_index']),
+                index_start=int(part['index_start']),
+                index_count=int(part['index_count']),
+                part_type=int(part['part_type']),
+            ) for part in cast(list[dict[str, object]], mesh['parts']))
+            water_value = mesh['water_data']
+            water = None
+            if water_value is not None:
+                water_data = cast(dict[str, object], water_value)
+                water = StructureBspRenderWater(
+                    triangles=tuple(tuple((int(point[0]), int(point[1]))
+                                          for point in triangle)
+                                    for triangle in cast(list, water_data['triangles'])),
+                    base_texcoords=tuple(tuple(float(value) for value in vertex[2])
+                                         for vertex in cast(list, water_data['vertices'])),
+                    part_indices=tuple(int(part[0])
+                                       for part in cast(list, water_data['parts'])),
+                )
+            records.append(StructureBspRenderMesh(
+                index=index,
+                positions=tuple(tuple(map(float, value)) for value in mesh['positions']),
+                texcoords=tuple(tuple(map(float, value)) for value in mesh['texcoords']),
+                normals=tuple(tuple(map(float, value)) for value in mesh['normals']),
+                node_indices=tuple(tuple(map(int, value)) for value in mesh['node_indices']),
+                node_weights=tuple(tuple(map(float, value)) for value in mesh['node_weights']),
+                lightmap_texcoords=tuple(tuple(map(float, value))
+                                         for value in mesh['lightmap_texcoords']),
+                vertex_colors=tuple(tuple(map(float, value))
+                                    for value in mesh['vertex_colors']),
+                indices=tuple(map(int, mesh['indices'])),
+                rigid_node_index=(-1 if mesh['rigid_node_index'] is None
+                                  else int(mesh['rigid_node_index'])),
+                parts=parts,
+                water=water,
+            ))
+        return records
 
     def havok_geometry(self) -> list[StructureBspHavokGeometry]:
         """Detach serialized H4/H2AMP structure collision from tag handles."""

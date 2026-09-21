@@ -17,6 +17,7 @@ import time
 from ..tags.globals import GlobalsTag
 
 from ..tags.frame_event_list import dump_frame_animation_events
+from ..tags.animation_graph import AnimationGraphTag
 
 from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 
@@ -1689,7 +1690,7 @@ class ExportScene:
             return
         if self.asset_type == AssetType.MODEL:
             if self.scene_settings.template_model_animation_graph and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_model_animation_graph)).exists():
-                with AnimationTag(path=self.scene_settings.template_model_animation_graph) as animation:
+                with AnimationGraphTag(path=self.scene_settings.template_model_animation_graph) as animation:
                     nodes = animation.get_nodes()
             elif self.scene_settings.template_render_model and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_render_model)).exists():
                 with RenderModelMetadataTag(path=self.scene_settings.template_render_model) as render_model:

@@ -6,6 +6,8 @@ import math
 from pathlib import Path
 import re
 import struct
+from types import SimpleNamespace
+from typing import TYPE_CHECKING
 import bmesh
 import bpy
 from mathutils import Matrix, Quaternion, Vector, bvhtree
@@ -25,6 +27,24 @@ from .. import import_transform
 from ..tags.havok_tagfile import HavokTagfileReader
 from .Tags import TagFieldBlock, TagFieldBlockElement
 from mathutils.geometry import tessellate_polygon
+
+if TYPE_CHECKING:
+    from ..tags.render_model import (
+        RenderModelInstancePlacement,
+        RenderModelMarker,
+        RenderModelMarkerGroup,
+        RenderModelNode,
+        RenderModelPermutation,
+        RenderModelRegion,
+    )
+    from ..tags.prefab import (
+        StructureBspCollision,
+        StructureBspInstance,
+        StructureBspInstanceDefinition,
+        StructureBspPhysicsPolyhedron,
+        StructureBspRenderMesh,
+        StructureBspRenderPart,
+    )
 
 mat_props_cache = {}
 
@@ -139,14 +159,16 @@ class StreamingPriority(Enum):
     
 class Cluster:
     @classmethod
-    def from_native(cls, index: int, mesh_index: int, mesh_block: TagFieldBlock,
-                    render_materials: list['Material']):
-        if mesh_index < 0 or mesh_index >= mesh_block.Elements.Count:
+    def from_native(cls, index: int, mesh_index: int,
+                    mesh_records: list['StructureBspRenderMesh'],
+                    render_materials: list['Material'], corinth: bool):
+        if mesh_index < 0 or mesh_index >= len(mesh_records):
             raise ValueError(f'Cluster {index} mesh index {mesh_index} is out of range')
         result = cls.__new__(cls)
         result.index = index
         result.mesh_index = mesh_index
-        result.mesh = Mesh(mesh_block.Elements[mesh_index], materials=render_materials)
+        result.mesh = Mesh.from_native(
+            mesh_records[mesh_index], render_materials, corinth)
         return result
 
     def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, render_materials: list['Material']):
@@ -173,18 +195,6 @@ class DirectTriangleMapping:
         self.section = section
         
 class SurfaceMapping:
-    def __init__(self, first: int, count: int, surface: 'CollisionSurface', surf_to_tri_block: TagFieldBlock):
-        self.surface = surface
-        self.triangle_indices: list[TriangleMapping] = []
-        self.collision_only = False
-        if count:
-            for i in range(first, first + count):
-                value = surf_to_tri_block.Elements[i].Fields[0].Data
-                mapping = TriangleMapping(value)
-                self.triangle_indices.append(mapping)
-        else:
-            self.collision_only = True
-
     @classmethod
     def from_render_triangles(cls, surface, triangle_indices: list[DirectTriangleMapping]):
         mapping = cls.__new__(cls)
@@ -197,8 +207,14 @@ class SurfaceMapping:
     def from_native(cls, record, surface):
         mapping = cls.__new__(cls)
         mapping.surface = surface
-        mapping.triangle_indices = [TriangleMapping(value)
-                                    for value in record.triangle_values]
+        if record.direct_triangles:
+            mapping.triangle_indices = [
+                DirectTriangleMapping(triangle, section)
+                for triangle, section in record.direct_triangles
+            ]
+        else:
+            mapping.triangle_indices = [TriangleMapping(value)
+                                        for value in record.triangle_values]
         mapping.collision_only = record.collision_only
         return mapping
 
@@ -215,42 +231,64 @@ class HavokCollisionSurface:
         self.invalid = False
             
 class InstanceDefinition:
-    def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, compression_bounds: list['CompressionBounds'], render_materials: list['Material'], collision_materials: list['BSPCollisionMaterial'], for_cinematic = False):
-        self.index = element.ElementIndex
-        self.mesh_index = element.SelectField("mesh index").Data
-        self.compression_index = element.SelectField("compression index").Data
-        self.compression = compression_bounds[self.compression_index]
-        self.mesh = Mesh(mesh_block.Elements[self.mesh_index], self.compression, materials=render_materials)
-        self.has_collision = False
-        self.collision_is_proxy = False
-        self.surface_triangle_mapping = []
-        self.collision_info = None
-        self.collision_only_surface_indices = []
-        self.has_cookie = False
-        self.cookie_info = None
-        self.blender_collision = None
-        self.blender_cookie = None
-        self.has_physics = False
-        self.blender_physics = []
-        self.blender_render = None
-        self.havok_collision_type_name = None
-        if not utils.is_corinth() and not for_cinematic:
-            self.has_collision = element.SelectField("Struct:collision info[0]/Block:surfaces").Elements.Count > 0
-            self.collision_is_proxy = self.has_collision and (element.SelectField("Block:surfaces").Elements.Count == 0 or element.SelectField("Block:render bsp").Elements.Count > 0)
-            if self.has_collision:
-                self.collision_info = InstanceCollision(element.SelectField("Struct:collision info").Elements[0], f"instance_collision:{self.index}", collision_materials)
-                if not self.collision_is_proxy:
-                    surf_to_tri_block = element.SelectField("Block:surface to triangle mapping")
-                    self.surface_triangle_mapping = [SurfaceMapping(e.Fields[0].Data, e.Fields[1].Data, self.collision_info.surfaces[e.ElementIndex], surf_to_tri_block) for e in element.SelectField("Block:surfaces").Elements]
-                    self.collision_only_surface_indices = [idx for idx, mapping in enumerate(self.surface_triangle_mapping) if mapping.collision_only]
-            self.has_cookie = element.SelectField("Struct:poopie cutter collision[0]/Block:surfaces").Elements.Count > 0
-            if self.has_cookie:
-                self.cookie_info = InstanceCollision(element.SelectField("Struct:poopie cutter collision").Elements[0], f"instance_cookie_cutter:{self.index}", collision_materials)
-            
-            self.has_physics = element.SelectField("Block:polyhedra_with_materials").Elements.Count > 0
-            if self.has_physics:
-                self.physics_info = InstancePhysics(element, f"instance_physics:{self.index}", collision_materials)
-    
+    @classmethod
+    def from_native(cls, record: 'StructureBspInstanceDefinition',
+                    mesh_records: list['StructureBspRenderMesh'],
+                    render_materials: list['Material'],
+                    collision_materials: list['BSPCollisionMaterial'],
+                    corinth: bool, for_cinematic=False):
+        if record.mesh_index < 0 or record.mesh_index >= len(mesh_records):
+            raise ValueError(
+                f'Instance definition {record.index} mesh index '
+                f'{record.mesh_index} is out of range')
+        definition = cls.__new__(cls)
+        definition.index = record.index
+        definition.mesh_index = record.mesh_index
+        definition.compression_index = record.compression_index
+        definition.mesh = Mesh.from_native(
+            mesh_records[record.mesh_index], render_materials, corinth)
+        import_collision = not corinth and not for_cinematic
+        definition.has_collision = import_collision and record.collision is not None
+        definition.collision_is_proxy = (
+            definition.has_collision and record.collision_is_proxy)
+        definition.surface_triangle_mapping = []
+        definition.collision_info = None
+        definition.collision_only_surface_indices = []
+        definition.has_cookie = import_collision and record.cookie_cutter is not None
+        definition.cookie_info = None
+        definition.blender_collision = None
+        definition.blender_cookie = None
+        definition.has_physics = import_collision and bool(record.physics)
+        definition.blender_physics = []
+        definition.blender_render = None
+        definition.havok_collision_type_name = None
+        if import_collision:
+            if record.collision is not None:
+                definition.collision_info = InstanceCollision.from_native(
+                    record.collision, f'instance_collision:{record.index}',
+                    collision_materials)
+                if not record.collision_is_proxy:
+                    definition.surface_triangle_mapping = [
+                        SurfaceMapping.from_native(mapping, surface)
+                        for mapping, surface in zip(
+                            record.surface_mappings,
+                            definition.collision_info.surfaces,
+                            strict=True)
+                    ]
+                    definition.collision_only_surface_indices = [
+                        index for index, mapping in enumerate(
+                            definition.surface_triangle_mapping)
+                        if mapping.collision_only
+                    ]
+            if record.cookie_cutter is not None:
+                definition.cookie_info = InstanceCollision.from_native(
+                    record.cookie_cutter, f'instance_cookie_cutter:{record.index}',
+                    collision_materials)
+            if record.physics:
+                definition.physics_info = InstancePhysics.from_native(
+                    record.physics, collision_materials)
+        return definition
+
     def create(self, render_model, temp_meshes) -> list[bpy.types.Object]:
         objects = []
         
@@ -383,55 +421,41 @@ class InstanceDefinition:
             
     
 class Instance:
-    def __init__(self, element: TagFieldBlockElement, definitions: list[InstanceDefinition]):
-        self.index = element.ElementIndex
-        self.mesh_index = element.SelectField("ShortInteger:mesh_index").Data
-        self.definition = definitions[self.mesh_index]
-        self.scale = element.SelectField("scale").Data
-        forward = element.SelectField("forward").Data
-        left = element.SelectField("left").Data
-        up = element.SelectField("up").Data
-        position = element.SelectField("position").Data
-        
-        self.matrix = Matrix((
-            (forward[0], left[0], up[0], position[0] * 100),
-            (forward[1], left[1], up[1], position[1] * 100),
-            (forward[2], left[2], up[2], position[2] * 100),
+    @classmethod
+    def from_native(cls, record: 'StructureBspInstance',
+                    definitions: list[InstanceDefinition]):
+        if record.definition_index < 0 or record.definition_index >= len(definitions):
+            raise ValueError(
+                f'Instance {record.index} definition index '
+                f'{record.definition_index} is out of range')
+        instance = cls.__new__(cls)
+        instance.index = record.index
+        instance.mesh_index = record.definition_index
+        instance.definition = definitions[record.definition_index]
+        instance.scale = record.scale
+        instance.matrix = Matrix((
+            (record.forward[0], record.left[0], record.up[0], record.position[0] * 100),
+            (record.forward[1], record.left[1], record.up[1], record.position[1] * 100),
+            (record.forward[2], record.left[2], record.up[2], record.position[2] * 100),
             (0, 0, 0, 1),
         ))
-        
-        flags = element.SelectField("flags")
-        self.not_in_lightprobes = flags.TestBit("not in lightprobes")
-        self.render_only = flags.TestBit("render only")
-        self.not_block_aoe = flags.TestBit("does not block aoe damage")
-        self.decal = flags.TestBit("decal spacing")
-                
-        self.imposter_transition = element.SelectField("imposter transition complete distance").Data
-        
-        self.pathfinding = PathfindingPolicy(element.SelectField("pathfinding policy").Value)
-        self.lightmapping = LightmappingPolicy(element.SelectField("lightmapping policy").Value)
-        self.imposter = ImposterPolicy(element.SelectField("imposter policy").Value)
-        
-        self.lightmap_res = element.SelectField("lightmap resolution scale").Data
-        
-        self.name = element.SelectField("name").Data
-        
-        self.remove_from_shadow = False
-        self.cinema_type = CinemaType._connected_geometry_poop_cinema_default
-        self.imposter_brightness = 0
-        self.disallow_lighting_samples = False
-        self.streaming = StreamingPriority._connected_geometry_poop_streamingpriority_default
-        if utils.is_corinth():
-            self.imposter_brightness = element.SelectField("imposter brightness").Data
-            self.streaming = StreamingPriority(element.SelectField("streaming priority").Value)
-            self.remove_from_shadow = flags.TestBit("remove from shadow geometry")
-            self.disallow_lighting_samples = flags.TestBit("disallow object lighting samples")
-            if flags.TestBit("cinema only"):
-                self.cinema_type = CinemaType._connected_geometry_poop_cinema_only
-            elif flags.TestBit("exclude from cinema"):
-                self.cinema_type = CinemaType._connected_geometry_poop_cinema_exclude
-                
-        self.world_bound_sphere_radius = element.SelectField("Real:world bounding sphere radius").Data
+        instance.not_in_lightprobes = record.not_in_lightprobes
+        instance.render_only = record.render_only
+        instance.not_block_aoe = record.not_block_aoe
+        instance.decal = record.decal
+        instance.imposter_transition = record.imposter_transition
+        instance.pathfinding = PathfindingPolicy(record.pathfinding)
+        instance.lightmapping = LightmappingPolicy(record.lightmapping)
+        instance.imposter = ImposterPolicy(record.imposter)
+        instance.lightmap_res = record.lightmap_resolution
+        instance.name = record.name
+        instance.remove_from_shadow = record.remove_from_shadow
+        instance.cinema_type = CinemaType(record.cinema_type)
+        instance.imposter_brightness = record.imposter_brightness
+        instance.disallow_lighting_samples = record.disallow_lighting_samples
+        instance.streaming = StreamingPriority(record.streaming)
+        instance.world_bound_sphere_radius = record.world_bound_sphere_radius
+        return instance
         
         
     def create(self) -> list[bpy.types.Object]:
@@ -604,6 +628,19 @@ class Face:
         self.index = index
 
 class Node:
+    @classmethod
+    def from_native(cls, record: 'RenderModelNode'):
+        node = cls(record.name)
+        node.index = record.index
+        node.translation = Vector(record.translation) * 100
+        node.rotation = Quaternion((record.rotation[3], *record.rotation[:3]))
+        node.inverse_forward = Vector(record.inverse_forward)
+        node.inverse_left = Vector(record.inverse_left)
+        node.inverse_up = Vector(record.inverse_up)
+        node.inverse_position = Vector(record.inverse_position) * 100
+        node.inverse_scale = record.inverse_scale
+        return node
+
     def __init__(self, name):
         self.name = name
         self.parent = None
@@ -619,6 +656,18 @@ class Node:
         self.bone = None
 
 class Permutation: 
+    @classmethod
+    def from_native(cls, record: 'RenderModelPermutation', region: 'Region'):
+        permutation = cls.__new__(cls)
+        permutation.region = region
+        permutation.index = record.index
+        permutation.name = record.name
+        permutation.mesh_index = record.mesh_index
+        permutation.mesh_count = record.mesh_count
+        permutation.clone_name = record.clone_name
+        permutation.instance_indices = list(record.instance_indices)
+        return permutation
+
     def __init__(self, element: TagFieldBlockElement, region: 'Region'):
         self.region = region
         self.index = element.ElementIndex
@@ -647,6 +696,15 @@ class Permutation:
                 self.instance_indices.append(i + 96)
     
 class Region:
+    @classmethod
+    def from_native(cls, record: 'RenderModelRegion'):
+        region = cls.__new__(cls)
+        region.index = record.index
+        region.name = record.name
+        region.permutations = [Permutation.from_native(permutation, region)
+                               for permutation in record.permutations]
+        return region
+
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
         self.name = element.SelectField("name").GetStringData()
@@ -1574,25 +1632,57 @@ class ModelCollision(BSP):
             self.bone = nodes[self.node_index]
     
 class InstanceCollision(BSP):
-    def __init__(self, element: TagFieldBlockElement, name, collision_materials: list[CollisionMaterial]):
-        super().__init__(element, name, collision_materials)
-        self.uses_materials = True
-        
+    @classmethod
+    def from_native(cls, record: 'StructureBspCollision', name: str,
+                    collision_materials: list[CollisionMaterial]):
+        result = cls.__new__(cls)
+        result.name = name
+        result.vertices = [SimpleNamespace(position=Vector(vertex) * 100)
+                           for vertex in record.vertices]
+        result.surfaces = []
+        for surface in record.surfaces:
+            material = (collision_materials[surface.material_index]
+                        if 0 <= surface.material_index < len(collision_materials) else None)
+            result.surfaces.append(SimpleNamespace(
+                index=surface.index, material=material, negated=surface.negated,
+                invalid=surface.invalid, ladder=surface.ladder,
+                breakable=surface.breakable, slip_surface=surface.slip_surface,
+                invisible=surface.invisible, two_sided=surface.two_sided))
+        result.native_polygons = record.polygons
+        result.uses_materials = True
+        result.sphere_collision_only = all(surface.invisible for surface in result.surfaces)
+        result.some_sphere_collision = any(surface.invisible for surface in result.surfaces)
+        return result
+
+    def get_surface_vertex_indices(self, surface):
+        if hasattr(self, 'native_polygons'):
+            return self.native_polygons[surface.index]
+        return super().get_surface_vertex_indices(surface)
+
 class InstancePhysics():
-    def __init__(self, element: TagFieldBlockElement, name, physics_materials: list[CollisionMaterial]):
-        polyhedra_block = element.SelectField("Block:polyhedra_with_materials")
-        four_vectors_block = element.SelectField("Block:polyhedron four vectors")
-        four_vectors_map = []
-        self.polyhedra: list[Polyhedron] = []
-        for poly_element in polyhedra_block.Elements:
-            size = poly_element.SelectField("Struct:polyhedron[0]/LongInteger:four vectors size").Data
-            if poly_element.ElementIndex == 0:
-                four_vectors_map.append(size)
-            else:
-                four_vectors_map.append(size + four_vectors_map[-1])
-                
-            self.polyhedra.append(Polyhedron(poly_element, physics_materials, four_vectors_block, four_vectors_map, True))
-        
+    @classmethod
+    def from_native(cls, records: tuple['StructureBspPhysicsPolyhedron', ...],
+                    physics_materials: list[CollisionMaterial]):
+        result = cls.__new__(cls)
+        result.polyhedra = []
+        for index, record in enumerate(records):
+            if (record.material_index < 0 or
+                    record.material_index >= len(physics_materials)):
+                raise ValueError(
+                    f'Instance physics polyhedron {index} material index '
+                    f'{record.material_index} is out of range')
+            result.polyhedra.append(Polyhedron.from_native(SimpleNamespace(
+                name='instance_physics',
+                material=physics_materials[record.material_index],
+                material_index=record.material_index,
+                friction=0,
+                restitution=0,
+                radius=record.radius,
+                offset=0,
+                vertices=record.vertices,
+            )))
+        return result
+
 class StructureCollision(BSP):
     @classmethod
     def from_native(cls, record, collision_materials: list[CollisionMaterial], sky_index: int):
@@ -2666,6 +2756,31 @@ class DrawDistance(Enum):
     detail_close = 2
 
 class MeshPart:    
+    @classmethod
+    def from_native(cls, index: int, record: 'StructureBspRenderPart',
+                    materials: list[Material]):
+        part = cls.__new__(cls)
+        part.index = index
+        part.material_index = record.material_index
+        part.index_start = record.index_start
+        part.index_count = record.index_count
+        part.draw_distance = DrawDistance.normal
+        part.lm_type_per_vertex = False
+        part.water_surface = False
+        part.part_type = PartType(record.part_type if 0 <= record.part_type <= 5 else 2)
+        part.tessellation = Tessellation.none
+        if isinstance(materials, dict):
+            part.material = materials.get(part.material_index)
+        else:
+            part.material = next(
+                (material for material in materials
+                 if material.index == part.material_index), None)
+        if part.material is None:
+            part.material = bpy.data.materials.get('invalid')
+            if part.material is None:
+                part.material = bpy.data.materials.new('invalid')
+        return part
+
     def __init__(self, element: TagFieldBlockElement, materials: list[Material]):
         self.index = element.ElementIndex
         self.material_index = element.SelectField("render method index").Value
@@ -2703,6 +2818,18 @@ class MeshPart:
             self.material = invalid_mat
             
 class MeshSubpart:
+    @classmethod
+    def from_native(cls, index: int, part: MeshPart):
+        subpart = cls.__new__(cls)
+        subpart.index = index
+        subpart.index_start = part.index_start
+        subpart.index_count = part.index_count
+        subpart.part_index = part.index
+        subpart.part = part
+        subpart.is_water_subpart = part.water_surface
+        subpart.is_water_surface = part.water_surface
+        return subpart
+
     def __init__(self, element: TagFieldBlockElement, parts: list[MeshPart], water_indices: list[int]):
         self.index = element.ElementIndex
         self.index_start = element.SelectField("index start").Data
@@ -2833,6 +2960,70 @@ class MeshSubpart:
 
 class Mesh:
     '''All new Halo 3 render geometry definitions!'''
+    @classmethod
+    def from_native(cls, record: 'StructureBspRenderMesh',
+                    materials: list['Material'], corinth: bool,
+                    geometry_record: 'StructureBspRenderMesh | None' = None):
+        geometry = record if geometry_record is None else geometry_record
+        mesh = cls.__new__(cls)
+        mesh.tag_path = None
+        mesh.index = record.index
+        mesh.permutation = None
+        mesh.rigid_node_index = geometry.rigid_node_index
+        mesh.index_buffer_type = IndexLayoutType.TRIANGLE_LIST.value
+        mesh.bounds = None
+        mesh.parts = [MeshPart.from_native(index, part, materials)
+                      for index, part in enumerate(record.parts)]
+        water_parts = set() if geometry.water is None else set(geometry.water.part_indices)
+        for part_index in water_parts:
+            if 0 <= part_index < len(mesh.parts):
+                mesh.parts[part_index].water_surface = True
+        mesh.subparts = [MeshSubpart.from_native(index, part)
+                         for index, part in enumerate(mesh.parts)]
+        mesh.subparts_by_index = {subpart.index: subpart for subpart in mesh.subparts}
+        mesh.valid = bool(mesh.parts and mesh.subparts)
+        mesh.does_not_need_parts = False
+        mesh.from_vert_normals = False
+        mesh.corinth = corinth
+        mesh.is_pca = False
+        mesh.uncompressed = False
+        mesh.raw_positions = list(geometry.positions)
+        mesh.raw_texcoords = list(geometry.texcoords)
+        mesh.raw_normals = list(geometry.normals)
+        mesh.raw_node_indices = list(geometry.node_indices)
+        mesh.raw_node_weights = list(geometry.node_weights)
+        mesh.raw_lightmap_texcoords = list(geometry.lightmap_texcoords)
+        mesh.raw_vertex_colors = list(geometry.vertex_colors)
+        mesh.raw_texcoords1 = []
+        mesh.raw_water_texcoords = []
+        if geometry.water is not None:
+            mesh.raw_water_texcoords = [(0.0, 0.0)] * len(geometry.positions)
+            for triangle in geometry.water.triangles:
+                for regular_index, water_index in triangle:
+                    if (0 <= regular_index < len(mesh.raw_water_texcoords) and
+                            0 <= water_index < len(geometry.water.base_texcoords)):
+                        uv = geometry.water.base_texcoords[water_index]
+                        mesh.raw_water_texcoords[regular_index] = uv[:2]
+        mesh.tris = IndexBuffer(
+            IndexLayoutType.TRIANGLE_LIST.value, list(geometry.indices)).get_faces(mesh)
+        mesh.all_triangle_indices = [face.indices for face in mesh.tris]
+        mesh.triangle_indices_by_subpart = {}
+        mesh.face_indices_by_subpart = {}
+        for face in mesh.tris:
+            if face.subpart is None:
+                continue
+            index = face.subpart.index
+            mesh.triangle_indices_by_subpart.setdefault(index, []).append(face.indices)
+            mesh.face_indices_by_subpart.setdefault(index, []).append(face.index)
+        mesh.node_map = []
+        mesh.vertex_keys = []
+        mesh.mesh_keys = []
+        mesh.render_model = None
+        mesh.temp_meshes = None
+        mesh.instances = []
+        mesh.real_mesh_index = -1
+        return mesh
+
     def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds = None, permutation=None, materials=[], block_node_map=None, does_not_need_parts=False, from_vert_normals=False, tag_path=None):
         self.tag_path = tag_path
         self.index = element.ElementIndex
@@ -3641,6 +3832,29 @@ class Mesh:
 
         
 class InstancePlacement:
+    @classmethod
+    def from_native(cls, record: 'RenderModelInstancePlacement', nodes: list[Node]):
+        instance = cls.__new__(cls)
+        instance.index = record.index
+        instance.name = utils.any_partition(record.name, "__", False)
+        instance.node_index = record.node_index
+        instance.bone = ""
+        if 0 <= instance.node_index < len(nodes):
+            instance.bone = nodes[instance.node_index].name
+        instance.scale = record.scale
+        instance.forward = Vector(record.forward)
+        instance.left = Vector(record.left)
+        instance.up = Vector(record.up)
+        instance.position = Vector(record.position) * 100
+        instance.matrix = Matrix((
+            (instance.forward[0], instance.left[0], instance.up[0], instance.position[0]),
+            (instance.forward[1], instance.left[1], instance.up[1], instance.position[1]),
+            (instance.forward[2], instance.left[2], instance.up[2], instance.position[2]),
+            (0, 0, 0, 1),
+        ))
+        instance.ob = None
+        return instance
+
     def __init__(self, element: TagFieldBlockElement, nodes: list[Node]):
         self.index = element.ElementIndex
         self.name = utils.any_partition(element.SelectField("name").GetStringData(), "__", False)
@@ -3683,6 +3897,30 @@ class MarkerType(Enum):
     _connected_geometry_marker_type_target = 6
 
 class Marker:
+    @classmethod
+    def from_native(cls, record: 'RenderModelMarker', nodes: list[Node],
+                    regions: list[Region]):
+        marker = cls.__new__(cls)
+        marker.region = ""
+        marker.permutation = ""
+        marker.bone = ""
+        marker.uses_regions = False
+        if 0 <= record.region_index < len(regions):
+            marker.uses_regions = True
+            marker.region = regions[record.region_index]
+            if 0 <= record.permutation_index < len(marker.region.permutations):
+                marker.permutation = marker.region.permutations[record.permutation_index]
+        if 0 <= record.node_index < len(nodes):
+            marker.bone = nodes[record.node_index].name
+        marker.translation = Vector(record.translation) * 100
+        marker.rotation = Quaternion((record.rotation[3], *record.rotation[:3]))
+        marker.scale = record.scale
+        marker.direction = list(record.direction)
+        marker.linked_to = []
+        marker.permutation_type = "exclude"
+        marker.permutations = []
+        return marker
+
     def __init__(self, element: TagFieldBlockElement, nodes: list[Node], regions: list[Region]):
         self.region = ""
         self.permutation = ""
@@ -3716,6 +3954,25 @@ class Marker:
         self.permutations = []
     
 class MarkerGroup:
+    @classmethod
+    def from_native(cls, record: 'RenderModelMarkerGroup', nodes: list[Node],
+                    regions: list[Region]):
+        group = cls.__new__(cls)
+        group.name = record.name
+        group.index = record.index
+        group.type = MarkerType._connected_geometry_marker_type_model
+        if group.name.startswith("fx_"):
+            group.type = MarkerType._connected_geometry_marker_type_effects
+        elif group.name.startswith("target_"):
+            group.type = MarkerType._connected_geometry_marker_type_target
+        elif group.name.startswith("garbage_"):
+            group.type = MarkerType._connected_geometry_marker_type_garbage
+        elif group.name.startswith("hint_"):
+            group.type = MarkerType._connected_geometry_marker_type_hint
+        group.markers = [Marker.from_native(marker, nodes, regions)
+                         for marker in record.markers]
+        return group
+
     def __init__(self, element: TagFieldBlockElement, nodes: list[Node], regions: list[Region]):
         self.name = element.SelectField("name").GetStringData()
         self.index = element.ElementIndex

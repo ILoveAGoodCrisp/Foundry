@@ -11,7 +11,7 @@ from ..tags.cinematic_script import script_from_text
 from ..tags.object_blender import ObjectTag
 from ..tags.model_blender import ModelTag
 from ..managed_blam.animation import AnimationTag
-from ..managed_blam.cinematic_scene import CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicMusic, CinematicObjectFunctionKeyframe, NativeCinematicSceneTag
+from ..tags.cinematic_scene import CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicMusic, CinematicObjectFunctionKeyframe, NativeCinematicSceneTag
 from ..tags.cinematic import CinematicSceneDataTag
 
 from .. import utils

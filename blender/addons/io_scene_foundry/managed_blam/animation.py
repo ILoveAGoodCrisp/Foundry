@@ -35,7 +35,7 @@ from ..tags.animation_resource import (
     default_frame_channels,
 )
 from ..tags.source_tag_resource import read_model_animation_graph_resources
-from .render_model import RenderModelTag
+from ..tags.render_model_blender import RenderModelTag
 from . import Tag
 from .. import import_transform
 from ..legacy.jma import Node
@@ -724,11 +724,10 @@ class AnimationTag(Tag):
                     stripped_graph_nodes.setdefault(utils.remove_node_prefix(name), local_node)
                 
         if model is not None:
-            for element in model.block_nodes.Elements:
-                name = element.SelectField("name").GetStringData()
-                translation = Vector((*element.SelectField("default translation").Data,)) * 100
-                rotation = element.SelectField("default rotation").Data
-                quaternion = Quaternion((rotation[3], rotation[0], rotation[1], rotation[2]))
+            for record in model.nodes():
+                name = record.name
+                translation = Vector(record.translation) * 100
+                quaternion = Quaternion((record.rotation[3], *record.rotation[:3]))
                 render_nodes[name] = (translation, quaternion, 1.0)
                 stripped_render_nodes.setdefault(utils.remove_node_prefix(name), (translation, quaternion, 1.0))
 
