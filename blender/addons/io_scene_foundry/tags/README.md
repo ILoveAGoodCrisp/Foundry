@@ -35,7 +35,11 @@ These wrappers now use native blam-tags documents and never initialize ManagedBl
   compression, world-relative and vehicle-suspension settings are native too.
   Animation weights, loop frames, playback flags, blend overrides and PCA group
   metadata also write natively. Pose-overlay automation reads its blend screens
-  through this wrapper.
+  through this wrapper. Mode/state graph traversal and Blender animation-rename
+  generation are native across all five H3+ profiles. Animation import settings
+  and node-usage indices are detached native records passed into the remaining
+  legacy resource decoder, together with skeleton/default-transform records and
+  H4/H2AMP authored-PCA metadata.
 - Particle-emitter custom-points tag creation during particle-model export.
 - Cinematic event sound-effect names, playback availability and indexed sound-class
   labels.

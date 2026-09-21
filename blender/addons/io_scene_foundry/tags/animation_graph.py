@@ -5,10 +5,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from math import degrees
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 from .backend import RelativeTagPath, TagDocument, TagPathInput, TagReference
 from .blender import BlenderTag
+from .animation_names import DIRECTIONS, REGIONS, renames_from_paths
 
 if TYPE_CHECKING:
     import blam_tags
@@ -20,6 +21,14 @@ if TYPE_CHECKING:
 class AnimationGraphNode:
     name: str
     parent_index: int
+
+
+@dataclass(frozen=True)
+class AnimationGraphDefaultNode:
+    name: str
+    rotation: tuple[float, float, float, float]
+    translation: tuple[float, float, float]
+    scale: float
 
 
 @dataclass(frozen=True)
@@ -52,6 +61,10 @@ class AnimationCompressionInput(Protocol):
     compression: str
 
 
+class ArrayValue(Protocol):
+    def to_array(self) -> list[float]: ...
+
+
 class AnimationSettingsInput(Protocol):
     name: str
     weight: float
@@ -75,6 +88,45 @@ class AnimationSettingsInput(Protocol):
     override_blend_out_time: float
     pca_group_name: str
     pca_best_quality: bool
+
+
+@dataclass(frozen=True)
+class AnimationImportSettings:
+    weight: float
+    loop_frame_index: int
+    disable_interpolation_in: bool
+    disable_interpolation_out: bool
+    disable_mode_ik: bool
+    disable_weapon_ik: bool
+    disable_weapon_aim: bool
+    disable_look_screen: bool
+    disable_transition_adjustment: bool
+    force_weapon_ik_on: bool
+    enable_animated_source_interpolation: bool
+    disable_ik_sets: bool
+    disable_ik_chains: bool
+    translate_and_scale_root_only: bool
+    enable_blend_out_on_replacement_anims: bool
+    override_player_input_with_motion: bool
+    disable_subframe_interp_on_loop: bool
+    override_blend_in_time: float
+    override_blend_out_time: float
+    pca_group_name: str
+
+
+@dataclass(frozen=True)
+class AnimationGraphPcaData:
+    path: TagReference | None
+    groups: dict[int, str]
+
+
+@dataclass(frozen=True)
+class AnimationGraphImportMetadata:
+    nodes: tuple[AnimationGraphNode, ...]
+    additional_nodes: tuple[AnimationGraphDefaultNode, ...]
+    node_usages: dict[str, int]
+    settings: dict[str, AnimationImportSettings]
+    pca: AnimationGraphPcaData
 
 
 @dataclass(frozen=True)
@@ -132,6 +184,119 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             return [name for name in names if contains in name]
         return names
 
+    def _animation_path_index(self, element: blam_tags.TagStruct) -> int:
+        animation = self.required_field(element, 'animation').as_struct()
+        if animation is None:
+            raise TypeError(f'{self.path}: animation graph entry has no animation structure')
+        return int(self.value(animation, 'animation'))
+
+    def animation_state_paths(self) -> dict[str, list[str]]:
+        """Map each local animation name to its authored mode/state graph paths."""
+        animation_names = self.animation_names()
+        name_to_paths: dict[str, list[str]] = {}
+
+        def add_path(element: blam_tags.TagStruct, tokens: list[str]) -> None:
+            index = self._animation_path_index(element)
+            if index < 0:
+                return
+            if index >= len(animation_names):
+                raise ValueError(
+                    f'{self.path}: graph animation index {index} is outside the '
+                    f'{len(animation_names)} local animations')
+            source_name = animation_names[index].replace(' ', ':')
+            name_to_paths.setdefault(source_name, []).append(':'.join(tokens))
+
+        content = self.required_field(self.tag.root(), 'content').as_struct()
+        if content is None:
+            raise TypeError(f'{self.path}: content is not a structure')
+        for mode in self.block(content, 'modes'):
+            mode_tokens = [str(self.value(mode, 'label'))]
+            for weapon_class in self.block(mode, 'weapon class'):
+                class_tokens = mode_tokens + [str(self.value(weapon_class, 'label'))]
+                for weapon_type in self.block(weapon_class, 'weapon type'):
+                    type_tokens = class_tokens + [str(self.value(weapon_type, 'label'))]
+                    sets_field = weapon_type.field('sets')
+                    sets = None if sets_field is None else sets_field.as_block()
+                    if sets is None:
+                        set_records = ((weapon_type, type_tokens),)
+                    else:
+                        set_records = tuple(
+                            (animation_set,
+                             type_tokens + [str(self.value(animation_set, 'label'))])
+                            for animation_set in sets
+                        )
+
+                    for animation_set, set_tokens in set_records:
+                        overlay_name = ('overlays' if self.game in {'halo3', 'halo3odst'}
+                                        else 'overlay animations')
+                        for block_name in ('actions', overlay_name):
+                            field = animation_set.field(block_name)
+                            entries = None if field is None else field.as_block()
+                            if entries is None:
+                                continue
+                            for entry in entries:
+                                add_path(entry, set_tokens + [str(self.value(entry, 'label'))])
+
+                        for damage in self.block(animation_set, 'death and damage'):
+                            damage_tokens = set_tokens + [str(self.value(damage, 'label'))]
+                            for direction_index, direction in enumerate(
+                                    self.block(damage, 'directions')):
+                                if direction_index >= len(DIRECTIONS):
+                                    raise ValueError(
+                                        f'{self.path}: unsupported damage direction index '
+                                        f'{direction_index}')
+                                for region_index, region in enumerate(
+                                        self.block(direction, 'regions')):
+                                    if region_index >= len(REGIONS):
+                                        raise ValueError(
+                                            f'{self.path}: unsupported damage region index '
+                                            f'{region_index}')
+                                    add_path(region, damage_tokens + [
+                                        DIRECTIONS[direction_index], REGIONS[region_index]])
+
+                        for transition in self.block(animation_set, 'transitions'):
+                            if self.game in {'halo3', 'halo3odst'}:
+                                source_state = str(self.value(transition, 'full name'))
+                            else:
+                                source_state = str(self.value(transition, 'state name'))
+                            for destination in self.block(transition, 'destinations'):
+                                if self.game in {'halo3', 'halo3odst'}:
+                                    destination_mode = str(self.value(destination, 'full name'))
+                                    destination_state = str(self.value(destination, 'mode'))
+                                else:
+                                    destination_mode = str(self.value(destination, 'mode name'))
+                                    destination_state = str(self.value(destination, 'state name'))
+                                add_path(destination, set_tokens + [source_state, '2',
+                                                                    destination_mode,
+                                                                    destination_state])
+        return name_to_paths
+
+    def animation_renames(self) -> list[tuple[str, str]]:
+        return renames_from_paths(self.animation_state_paths())
+
+    def generate_renames(self, contains: str = '') -> tuple[int, int]:
+        """Add mode/state aliases from this graph to matching Blender animations."""
+        blender_animations = {
+            animation.name.replace(' ', ':'): animation
+            for animation in self.scene_nwo.animations
+            if not contains or contains in animation.name.replace(' ', ':')
+        }
+        renames = self.animation_renames()
+        applied = 0
+        for source_name, rename in renames:
+            animation = blender_animations.get(source_name)
+            if animation is None:
+                continue
+            existing = {entry.name.replace(' ', ':')
+                        for entry in animation.animation_renames}
+            if rename not in existing:
+                animation.animation_renames.add().name = rename.replace(':', ' ')
+            applied += 1
+            print(f'renamed "{source_name}" ==> "{rename}"')
+        print(f'Generated {len(renames)} renames from tag and applied these to '
+              f'{applied} Blender animation entries')
+        return len(renames), applied
+
     def event_animations(self) -> list[AnimationGraphEventAnimation]:
         animations: list[AnimationGraphEventAnimation] = []
         for element in self.block(self._definitions(), 'animations'):
@@ -188,6 +353,21 @@ class AnimationGraphTag(BlenderTag, TagDocument):
         """Compatibility name for callers that only need skeleton ordering."""
         return [node.name for node in self.nodes()]
 
+    def additional_nodes(self) -> list[AnimationGraphDefaultNode]:
+        records: list[AnimationGraphDefaultNode] = []
+        for element in self.block(self.tag.root(), 'additional node data'):
+            rotation = cast(
+                ArrayValue, self.required_field(element, 'default rotation').value)
+            translation = cast(
+                ArrayValue, self.required_field(element, 'default translation').value)
+            records.append(AnimationGraphDefaultNode(
+                name=str(self.value(element, 'node name')),
+                rotation=tuple(rotation.to_array()),
+                translation=tuple(translation.to_array()),
+                scale=float(self.value(element, 'default scale')),
+            ))
+        return records
+
     def node_usages(self) -> dict[str, int]:
         usages: dict[str, int] = {}
         field = self._definitions().field('node usage')
@@ -201,6 +381,79 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             if name:
                 usages[name] = int(self.value(element, 'node to use'))
         return usages
+
+    def animation_import_settings(self) -> dict[str, AnimationImportSettings]:
+        records: dict[str, AnimationImportSettings] = {}
+        for element in self.block(self._definitions(), 'animations'):
+            flags = element.field('user flags') or element.field('playback flags')
+            if flags is None:
+                raise ValueError(f'{self.path}: animation has no playback flags')
+            options = flags.options()
+            if options is None:
+                raise TypeError(f'{self.path}: animation playback flags are not flags')
+            enabled = {name for _bit, name, is_set in options.flags if is_set}
+
+            def has(*names: str) -> bool:
+                return any(name in enabled for name in names)
+
+            blend_in = element.field('override blend in time')
+            blend_out = element.field('override blend out time')
+            pca_group = element.field('pca group name')
+            name = str(self.value(element, 'name')).replace(' ', ':')
+            records[name] = AnimationImportSettings(
+                weight=float(self.value(element, 'weight')),
+                loop_frame_index=int(self.value(element, 'loop frame index')),
+                disable_interpolation_in=has('disable interpolation in',
+                                             'disable interpolation_in'),
+                disable_interpolation_out=has('disable interpolation out',
+                                              'disable interpolation_out'),
+                disable_mode_ik=has('disable mode ik'),
+                disable_weapon_ik=has('disable weapon ik'),
+                disable_weapon_aim=has('disable weapon aim/1st person'),
+                disable_look_screen=has('disable look screen'),
+                disable_transition_adjustment=has('disable transition adjustment'),
+                force_weapon_ik_on=has('force weapon ik on'),
+                enable_animated_source_interpolation=has(
+                    'enable animated source interpolation'),
+                disable_ik_sets=has('disable ik sets'),
+                disable_ik_chains=has('disable ik chains'),
+                translate_and_scale_root_only=has('translate and scale root only'),
+                enable_blend_out_on_replacement_anims=has(
+                    'enable blend-out on replacement anims', 'enable blend out'),
+                override_player_input_with_motion=has(
+                    'override player input with motion'),
+                disable_subframe_interp_on_loop=has(
+                    'disable subframe interp on loop'),
+                override_blend_in_time=0.0 if blend_in is None else float(blend_in.value),
+                override_blend_out_time=0.0 if blend_out is None else float(blend_out.value),
+                pca_group_name='' if pca_group is None else str(pca_group.value),
+            )
+        return records
+
+    def pca_import_data(self) -> AnimationGraphPcaData:
+        field = self._definitions().field('pca data')
+        pca_data = None if field is None else field.as_struct()
+        if pca_data is None:
+            return AnimationGraphPcaData(None, {})
+        path = self.reference(pca_data, 'pca animation')
+        groups: dict[int, str] = {}
+        mesh_index = 0
+        for element in self.block(pca_data, 'PCA Groups'):
+            mesh_count = int(self.value(element, 'Desired Mesh Count'))
+            if mesh_count < 1:
+                continue
+            groups[mesh_index] = str(self.value(element, 'Group Name'))
+            mesh_index += mesh_count
+        return AnimationGraphPcaData(path, groups)
+
+    def import_metadata(self) -> AnimationGraphImportMetadata:
+        return AnimationGraphImportMetadata(
+            nodes=tuple(self.nodes()),
+            additional_nodes=tuple(self.additional_nodes()),
+            node_usages=self.node_usages(),
+            settings=self.animation_import_settings(),
+            pca=self.pca_import_data(),
+        )
 
     def ik_chains(self) -> list[AnimationGraphIkChain]:
         field = self._definitions().field('ik chains')

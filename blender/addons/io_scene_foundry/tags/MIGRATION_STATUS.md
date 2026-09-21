@@ -130,6 +130,18 @@ graph events and Reach/H4/H2AMP shared animation events now import natively too,
 including sound/effect/dialogue references and range collapsing. External event-list
 events retain priority when merged with inline graph events. H3/ODST still reject
 external event-list export because those layouts have no imported-event reference.
+Animation rename generation now traverses the mode/state graph through blam-tags
+for H3, ODST, Reach, H4 and H2AMP. It handles the older direct weapon-type layout,
+the newer animation-set layout, damage directions/regions and both transition
+representations; the importer no longer asks the legacy animation resource class
+to generate Blender rename entries. Animation weights, loop frames, playback flags,
+blend-time values, PCA group names and node-usage indices are now read by the same
+native wrapper before resource decoding; the legacy importer consumes detached,
+typed settings rather than selecting those graph fields through ManagedBlam. The
+H4/H2AMP authored-PCA reference and mesh-group ranges also use detached native
+metadata. Skeleton names, parent indices and additional-node default transforms
+now travel in the same typed metadata bundle, removing those ManagedBlam field
+reads from the resource importer.
 This does not complete animation resource import/export migration.
 The native wrapper and Blender event records now live under `tags`; the legacy
 animation graph keeps its graph-field adapter locally and no longer imports a

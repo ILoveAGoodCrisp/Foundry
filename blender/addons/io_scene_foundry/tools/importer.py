@@ -3575,8 +3575,10 @@ class NWOImporter:
         with utils.TagImportMover(self.tags_dir, file) as mover:
             forced_compression_value = 0
             do_reset = False
+            graph_metadata = None
             with AnimationGraphTag(path=mover.tag_path) as graph:
                 forced_compression_value, do_reset = graph.force_uncompressed_for_import()
+                graph_metadata = graph.import_metadata()
                 if self.graph_import_ik_chains:
                     if armature == self.scene_nwo.main_armature or self.scene_nwo.main_armature is None:
                         self.scene_nwo.main_armature = armature
@@ -3604,6 +3606,7 @@ class NWOImporter:
                             filter,
                             import_pca=True,
                             scale_animations_to_skeleton=self.graph_scale_animations_to_skeleton,
+                            metadata=graph_metadata,
                         )
                         if result is not None:
                             actions, animations, pca_animations, pca_groups, pca_path = result
@@ -3621,12 +3624,14 @@ class NWOImporter:
                             filter,
                             import_pca=False,
                             scale_animations_to_skeleton=self.graph_scale_animations_to_skeleton,
+                            metadata=graph_metadata,
                         )
                         if result is not None:
                             actions, animations = result
 
-                if self.graph_generate_renames:
-                    utils.print_bullet("Generating Animation Renames")
+            if self.graph_generate_renames:
+                utils.print_bullet("Generating Animation Renames")
+                with AnimationGraphTag(path=mover.tag_path) as graph:
                     graph.generate_renames(filter)
             if self.graph_import_events:
                 utils.print_bullet("Importing Frame Events")

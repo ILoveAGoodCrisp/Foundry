@@ -1,6 +1,5 @@
 
 
-from collections import defaultdict
 from contextlib import nullcontext
 from enum import Enum, IntEnum
 from math import degrees
@@ -12,6 +11,13 @@ import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 
 from ..tags.frame_event_list import AnimationEvent
+from ..tags.animation_graph import AnimationGraphImportMetadata, AnimationImportSettings
+from ..tags.animation_names import (
+    DIRECTIONS as directions,
+    REGIONS as regions,
+    animation_rename_map,
+    normalized_animation_graph_path,
+)
 
 from .Tags import TagFieldBlockElement
 
@@ -183,10 +189,6 @@ COMPOSITE_BLEND_AXIS_ALIASES = {
     "throw_yaw": "aim_yaw",
 }
 
-damage_states = "h_ping", "s_ping", "h_kill", "s_kill"
-directions = "front", "left", "right", "back"
-regions = "gut", "chest", "head", "l_arm", "l_hand", "l_leg", "l_foot", "r_arm", "r_hand", "r_leg", "r_foot"
-
 class AnimationType(IntEnum):
     NONE = 0
     BASE = 1
@@ -261,11 +263,8 @@ class AnimationTag(Tag):
 
     def _read_fields(self):
         self.block_animations = self.tag.SelectField("Struct:definitions[0]/Block:animations")
-        self.block_skeleton_nodes = self.tag.SelectField("definitions[0]/Block:skeleton nodes")
-        self.block_node_usages = self.tag.SelectField("definitions[0]/Block:node usage")
         self.block_modes = self.tag.SelectField("Struct:content[0]/Block:modes")
         self.block_blend_screens = self.tag.SelectField('Struct:definitions[0]/Block:NEW blend screens')
-        self.block_additional_node_dat = self.tag.SelectField("Block:additional node data")
         
         
     def get_animation_names(self, filter="") -> list[str]:
@@ -302,9 +301,6 @@ class AnimationTag(Tag):
     
     
             
-    def get_nodes(self):
-        return [e.SelectField('name').GetStringData() for e in self.block_skeleton_nodes.Elements]
-    
     def read_all_modes(self):
         print(self.tag.Path.RelativePath)
         print('-'*100)
@@ -372,17 +368,19 @@ class AnimationTag(Tag):
 
         return None
 
-    def _build_default_animation_nodes(self, graph_node_names: list[str], model: RenderModelTag | None = None):
+    def _build_default_animation_nodes(
+        self,
+        metadata: AnimationGraphImportMetadata,
+        model: RenderModelTag | None = None,
+    ):
+        graph_node_names = [node.name for node in metadata.nodes]
         identity_translation = Vector((0.0, 0.0, 0.0))
         identity_rotation = Quaternion((1.0, 0.0, 0.0, 0.0))
 
-        parent_indices = []
-        for index, _ in enumerate(graph_node_names):
-            skeleton_element = self.block_skeleton_nodes.Elements[index]
-            parent_index = skeleton_element.SelectField("parent node index").Value
-            if parent_index is None or parent_index < 0 or parent_index >= len(graph_node_names):
-                parent_index = -1
-            parent_indices.append(parent_index)
+        parent_indices = [
+            node.parent_index if 0 <= node.parent_index < len(graph_node_names) else -1
+            for node in metadata.nodes
+        ]
             
         graph_nodes = {}
         stripped_graph_nodes = {}
@@ -391,15 +389,16 @@ class AnimationTag(Tag):
         indexed_graph_nodes = []
         graph_name_mismatches = []
         
-        if self.block_additional_node_dat is not None:
+        if metadata.additional_nodes:
             world_graph_nodes = []
             world_graph_names = []
 
-            for index, element in enumerate(self.block_additional_node_dat.Elements):
-                name = element.Fields[0].GetStringData()
-                translation = self._to_vector(element.SelectField("default translation").Data) * 100.0
-                rotation = self._to_quaternion(element.SelectField("default rotation").Data)
-                scale = element.SelectField("default scale").Data
+            for index, record in enumerate(metadata.additional_nodes):
+                name = record.name
+                translation = Vector(record.translation) * 100.0
+                i, j, k, w = record.rotation
+                rotation = Quaternion((w, i, j, k))
+                scale = record.scale
 
                 node_data = (translation, rotation, scale)
 
@@ -1000,7 +999,7 @@ class AnimationTag(Tag):
         if not vertices:
             return
 
-        node_usages = self.get_node_usages()
+        node_usages = self._native_node_usages
         pitch_node_index = node_usages.get("pose blend pitch")
         yaw_node_index = node_usages.get("pose blend yaw")
         if pitch_node_index is None or yaw_node_index is None:
@@ -3916,45 +3915,29 @@ class AnimationTag(Tag):
             transforms[frame_index] = frame_transforms
         return transforms
         
-    def get_node_usages(self) -> dict:
-        usages = {}
-        if self.block_node_usages.Elements.Count < 1:
-            return usages
-        
-        items = [i.EnumName for i in self.block_node_usages.Elements[0].Fields[0].Items]
-        
-        for element in self.block_node_usages.Elements:
-            usages[items[element.Fields[0].Value]] = element.Fields[1].Value
-            
-        return usages
-    
-    def _add_animation_settings(self, tag_animation: Animation, blender_animation):
+    def _add_animation_settings(
+        self,
+        tag_animation: Animation,
+        blender_animation,
+        settings: AnimationImportSettings,
+    ):
         blender_animation.author_type = 'BLENDER'
-        blender_animation.weight = tag_animation.element.SelectField("weight").Data
-        blender_animation.loop_frame_index = tag_animation.element.SelectField("loop frame index").Data
-        
-        flags = tag_animation.element.SelectField("user flags")
-        blender_animation.disable_interpolation_in = flags.TestBit("disable interpolation in")
-        blender_animation.disable_interpolation_out = flags.TestBit("disable interpolation out")
-        blender_animation.disable_mode_ik = flags.TestBit("disable mode ik")
-        blender_animation.disable_weapon_ik = flags.TestBit("disable weapon ik")
-        blender_animation.disable_weapon_aim = flags.TestBit("disable weapon aim\\1st person")
-        blender_animation.disable_look_screen = flags.TestBit("disable look screen")
-        blender_animation.disable_transition_adjustment = flags.TestBit("disable transition adjustment")
-        blender_animation.force_weapon_ik_on = flags.TestBit("force weapon ik on")
-        blender_animation.enable_animated_source_interpolation = flags.TestBit("enable animated source interpolation")
-        blender_animation.disable_ik_sets = flags.TestBit("disable ik sets")
-        blender_animation.disable_ik_chains = flags.TestBit("disable ik chains")
-        blender_animation.translate_and_scale_root_only = flags.TestBit("translate and scale root only")
-        blender_animation.enable_blend_out_on_replacement_anims = flags.TestBit("enable blend-out on replacement anims" if self.corinth else "enable blend out") 
-        if self.corinth:
-            blender_animation.override_player_input_with_motion = flags.TestBit("override player input with motion")
-            blender_animation.pca_group_name = tag_animation.element.SelectField("pca group name").GetStringData()
-        else:
-            blender_animation.disable_subframe_interp_on_loop = flags.TestBit("disable subframe interp on loop")
-            
-        blender_animation.override_blend_in_time = tag_animation.element.SelectField("override blend in time").Data
-        blender_animation.override_blend_out_time = tag_animation.element.SelectField("override blend out time").Data
+        blender_animation.weight = settings.weight
+        blender_animation.loop_frame_index = settings.loop_frame_index
+        for name in (
+            'disable_interpolation_in', 'disable_interpolation_out',
+            'disable_mode_ik', 'disable_weapon_ik', 'disable_weapon_aim',
+            'disable_look_screen', 'disable_transition_adjustment',
+            'force_weapon_ik_on', 'enable_animated_source_interpolation',
+            'disable_ik_sets', 'disable_ik_chains',
+            'translate_and_scale_root_only',
+            'enable_blend_out_on_replacement_anims',
+            'override_player_input_with_motion',
+            'disable_subframe_interp_on_loop',
+            'override_blend_in_time', 'override_blend_out_time',
+            'pca_group_name',
+        ):
+            setattr(blender_animation, name, getattr(settings, name))
         
         match tag_animation.compression:
             case Compression.medium_compression | Compression.reach_medium_compression:
@@ -3971,7 +3954,11 @@ class AnimationTag(Tag):
         filter: str,
         import_pca=False,
         scale_animations_to_skeleton=False,
+        metadata: AnimationGraphImportMetadata | None = None,
     ):
+        if metadata is None:
+            raise ValueError('Native animation graph metadata is required')
+        self._native_node_usages = metadata.node_usages
         self.scale_animations_to_skeleton = scale_animations_to_skeleton
         actions = []
         animations = []
@@ -3979,10 +3966,9 @@ class AnimationTag(Tag):
             return print("No animations found in graph")
 
         pca_animations = {}
-        node_names = self.get_nodes()
+        node_names = [node.name for node in metadata.nodes]
+        node_usages = metadata.node_usages
         
-        node_usages = self.get_node_usages()
-
         model_context = nullcontext(None)
         render_model_path = self._resolve_render_model_path(render_model, armature)
         if render_model_path is not None:
@@ -3991,7 +3977,8 @@ class AnimationTag(Tag):
             utils.print_warning(f"Render model [{render_model}] was not found. Falling back to animation graph additional node data for native defaults.")
 
         with model_context as model:
-            defaults, native_nodes, overlay_defaults = self._build_default_animation_nodes(node_names, model)
+            defaults, native_nodes, overlay_defaults = self._build_default_animation_nodes(
+                metadata, model)
             shared_static_codec = self._read_shared_static_codec()
             native_resource_cache = {}
             native_animation_cache = {}
@@ -4162,25 +4149,19 @@ class AnimationTag(Tag):
                 action.frame_end = blender_animation.frame_end
                 self._apply_regular_animation_events(tag_animation, blender_animation, armature, actions)
                 self._infer_wrap_events(tag_animation, blender_animation, armature, native_nodes, transforms, node_usages)
-                self._add_animation_settings(tag_animation, blender_animation)
+                settings = metadata.settings.get(tag_animation.name.tag_name)
+                if settings is None:
+                    raise ValueError(
+                        f'Missing native settings for animation '
+                        f'{tag_animation.name.tag_name!r}')
+                self._add_animation_settings(tag_animation, blender_animation, settings)
 
         if self.corinth and import_pca:
-            pca_groups = []
+            pca_groups = {}
             pca_path = None
-            if pca_animations:
-                pca_tagpath = self.tag.SelectField("Struct:definitions[0]/Struct:pca data[0]/Reference:pca animation").Path
-                if self.path_exists(pca_tagpath):
-                    
-                    pca_groups = {}
-                    mesh_count = 0
-                    for element in self.tag.SelectField("Struct:definitions[0]/Struct:pca data[0]/Block:PCA Groups").Elements:
-                        c = element.Fields[1].Data
-                        if c < 1:
-                            continue
-                        pca_groups[mesh_count] = element.Fields[0].GetStringData()
-                        mesh_count += c
-                        
-                    pca_path = pca_tagpath
+            if pca_animations and self.path_exists(metadata.pca.path):
+                pca_groups = metadata.pca.groups
+                pca_path = metadata.pca.path
                     
             return actions, animations, pca_animations, pca_groups, pca_path
         
@@ -4638,52 +4619,6 @@ class AnimationTag(Tag):
             if previous_active is not None and previous_mode != "OBJECT":
                 utils.restore_mode(previous_mode)
             
-    def generate_renames(self, filter=""):
-        '''Reads current blender animation names and then parses in the mode n state graph to set up renames in blender'''
-        # dict with keys as blender animations and values as sets of renames
-        real_animations = {anim.name.replace(" ", ":"): anim for anim in self.scene_nwo.animations}
-        if filter:
-            real_animations = {k: v for k, v in real_animations.items() if filter in k}
-
-        tag_animations = self.get_animations()
-        graph_dict = self.to_dict(tag_animations)
-        renames = detect_renames(graph_dict)
-        # renames, copies = detect_copies_from_graph(graph_dict, renames)
-        copies = []
-        
-        for src, dst in renames:
-            print(f'renamed "{src}" ==> "{dst}"')
-
-        for src, dst in copies:
-            print(f'copied all "{src}" to "{dst}"')
-        
-        animations_with_renames_count = 0
-        renames_count = 0
-        
-        # add renames to animations
-        for src, dst in renames:
-            blender_animation = real_animations.get(src)
-            if blender_animation is None:
-                continue
-            
-            animations_with_renames_count += 1
-            if dst not in {r.name for r in blender_animation.animation_renames}:
-                blender_animation.animation_renames.add().name = dst.replace(":", " ")
-                
-                
-        # Add copies
-        for src, dst in copies:
-            for copy in self.scene_nwo.animation_copies:
-                if copy.source_name.replace(":", " ") == src.replace(":", " ") and copy.name.replace(":", " ") == dst.replace(":", " "):
-                    break
-                
-            else:
-                new_copy = self.scene_nwo.animation_copies.add()
-                new_copy.source_name = src.replace(":", " ")
-                new_copy.name = dst.replace(":", " ")
-                
-        print(f"Generated {len(renames)} renames from tag and applied these to {animations_with_renames_count} blender animations\nCreated {len(copies)} animation copies")
-        
     def _animation_from_index(self, index, state_type="") -> Animation:
         element = self.block_animations.Elements[index]
         shared_animation_element = self._get_shared_animation_element(element)
@@ -4823,91 +4758,3 @@ class AnimationTag(Tag):
         for animation in self.find_animation(graph_dict, tokens):
             print(animation.name, sorted(list(animation.state_types)))
         print("+++++++++++++++++++++++++++++++")
-        
-def normalized_animation_graph_path(path: str) -> str:
-    tokens = [token for token in (path or "").replace(" ", ":").split(":") if token]
-    if not tokens:
-        return ""
-    return ":".join(minimal_path(tokens))
-
-def animation_rename_map(graph: dict) -> dict[str, set[str]]:
-    renames_by_name = defaultdict(set)
-    for source_name, rename in detect_renames(graph):
-        normalized_rename = normalized_animation_graph_path(rename)
-        if normalized_rename:
-            renames_by_name[source_name].add(normalized_rename)
-    return dict(renames_by_name)
-
-def detect_renames(graph):
-    name_to_paths = defaultdict(list)
-
-    def walk(path_tokens, node):
-        # Categories that hold Animation objects
-        for cat in ("actions", "overlay_animations", "transitions", "death_and_damage"):
-            if cat not in node:
-                continue
-
-            if cat in ("actions", "overlay_animations"):
-                for state, anim in node[cat].items():
-                    name_to_paths[anim.name.tag_name].append(":".join(path_tokens + [state]))
-
-            elif cat == "transitions":
-                for state, dests in node[cat].items():
-                    for key, anim in dests.items():
-                        name_to_paths[anim.name.tag_name].append(":".join(path_tokens + [state, key]))
-
-            elif cat == "death_and_damage":
-                for dmg_state, dirs in node[cat].items():
-                    for dir_label, regions in dirs.items():
-                        for reg_label, anim in regions.items():
-                            name_to_paths[anim.name.tag_name].append(
-                                ":".join(path_tokens + [dmg_state, dir_label, reg_label])
-                            )
-
-        for k, sub in node.items():
-            if isinstance(sub, dict) and k not in (
-                "actions",
-                "overlay_animations",
-                "transitions",
-                "death_and_damage",
-            ):
-                walk(path_tokens + [k], sub)
-
-    walk([], graph)
-
-    renames = []
-    for anim_name, paths in name_to_paths.items():
-        if len(paths) < 2:
-            continue
-        canonical_src = normalized_animation_graph_path(anim_name)
-        for p in paths:
-            short_p = normalized_animation_graph_path(p)
-            if short_p != canonical_src:
-                renames.append((anim_name, short_p))
-    return renames
-
-def _strip_trailing_any(toks):
-    while toks and toks[-1] == "any":
-        toks.pop()
-    return toks
-
-def minimal_path(toks):
-
-    toks = [t for t in toks if not (t.startswith("var") and t[3:].isdigit())]
-
-    if len(toks) >= 5 and toks[-3] == "2":
-        base, tail = toks[:-4], toks[-4:]
-        return _strip_trailing_any(base) + tail
-
-    if (
-        len(toks) >= 5
-        and toks[-3] in damage_states
-        and toks[-2] in directions
-        and toks[-1] in regions
-    ):
-        base, tail = toks[:-3], toks[-3:]
-        return _strip_trailing_any(base) + tail
-
-    # Normal action / overlay
-    head, state = toks[:-1], [toks[-1]]
-    return _strip_trailing_any(head) + state
