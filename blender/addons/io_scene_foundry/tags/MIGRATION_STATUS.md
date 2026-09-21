@@ -55,6 +55,9 @@ H2AMP, as are vehicle-suspension marker, depth and destroyed-region updates. The
 Reach animation importer now temporarily forces uncompressed data and restores the
 original graph setting through the native wrapper; H3/ODST layouts without that
 field and H4/H2AMP retain their existing no-change behavior. The
+animation importer also reads IK-chain names and node bindings natively, updates
+Blender's chain collection and creates the existing proxy/pole helper bones without
+using the legacy graph field reader. The
 pose-overlay automation now reads legacy blend-screen angles and frame grids
 through the native graph wrapper. Reach/H4/H2AMP pose-overlay blend-screen setup
 also writes its animation bindings, sources, flags, rates and weight functions
@@ -123,8 +126,11 @@ writes are covered by save/reopen tests. Populated script events have no Blender
 mapping and raise explicitly for affected animations. The containing animation
 graph now discovers animation names/frame counts and assigns the imported-event
 reference natively for export and the manual event-export operator. H3/ODST inline
-graph events remain on the legacy import path and reject external event-list export.
-This does not complete animation import/export migration.
+graph events and Reach/H4/H2AMP shared animation events now import natively too,
+including sound/effect/dialogue references and range collapsing. External event-list
+events retain priority when merged with inline graph events. H3/ODST still reject
+external event-list export because those layouts have no imported-event reference.
+This does not complete animation resource import/export migration.
 The native wrapper and Blender event records now live under `tags`; the legacy
 animation graph keeps its graph-field adapter locally and no longer imports a
 ManagedBlam frame-event module.

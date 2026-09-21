@@ -229,8 +229,90 @@ class AnimationEvent:
         # if [d.__hash__() for d in self.dialogue_events] != [d.__hash__() for d in value.dialogue_events]:
         #     return False
         
-        
-        
+
+def collapse_events(events: list[AnimationEvent]) -> list[AnimationEvent]:
+    ordered = sorted(events, key=lambda event: event.frame, reverse=True)
+    collapsed: list[AnimationEvent] = []
+    end = ordered[0].frame if ordered else 0
+    for index, current in enumerate(ordered):
+        following = ordered[index + 1] if index + 1 < len(ordered) else None
+        if (following is not None and following.frame == current.frame - 1
+                and current.type == following.type
+                and not (current.sound_events or current.effect_events
+                         or current.dialogue_events)):
+            continue
+        current.end_frame = end
+        collapsed.append(current)
+        end = following.frame if following is not None else 0
+    return collapsed
+
+
+def apply_event_map_to_blender(
+    events_by_animation: dict[str, list[AnimationEvent]],
+    imported_animations,
+) -> int:
+    blender_animations = {
+        animation.name.replace(':', ' '): animation
+        for animation in imported_animations if animation.export_this
+    }
+    blender_markers = {
+        ob.nwo.marker_model_group: ob
+        for ob in bpy.data.objects if ob.type == 'EMPTY'
+    }
+
+    def apply_flags(blender_data_event, reference: Reference) -> None:
+        blender_data_event.flag_allow_on_player = reference.allow_on_player
+        blender_data_event.flag_left_arm_only = reference.left_arm_only
+        blender_data_event.flag_right_arm_only = reference.right_arm_only
+        blender_data_event.flag_first_person_only = reference.first_person_only
+        blender_data_event.flag_third_person_only = reference.third_person_only
+        blender_data_event.flag_forward_only = reference.forward_only
+        blender_data_event.flag_reverse_only = reference.reverse_only
+        blender_data_event.flag_fp_no_aged_weapons = reference.fp_no_aged_weapons
+
+    event_count = 0
+    for name, animation_events in events_by_animation.items():
+        blender_animation = blender_animations.get(name.replace(':', ' '))
+        if blender_animation is None:
+            blender_animation = blender_animations.get(name)
+        if blender_animation is None or not animation_events:
+            continue
+        utils.print_bullet(f'Getting events for {blender_animation.name}')
+        remove = [index for index, event in enumerate(blender_animation.animation_events)
+                  if event.event_type == FRAME_EVENT_TYPE]
+        for index in reversed(remove):
+            blender_animation.animation_events.remove(index)
+
+        for event in sorted(animation_events, key=lambda value: value.frame):
+            blender_event = blender_animation.animation_events.add()
+            blender_event.frame_frame = blender_animation.frame_start + event.frame
+            if event.end_frame > event.frame:
+                blender_event.multi_frame = 'range'
+                blender_event.frame_range = blender_animation.frame_start + event.end_frame
+            blender_event.frame_name = event.type
+            blender_event.event_id = event.unique_id
+            data_events = event.sound_events + event.effect_events + event.dialogue_events
+            data_events.sort(key=lambda value: value.frame_offset)
+            for data_event in data_events:
+                blender_data_event = blender_event.event_data.add()
+                blender_data_event.frame_offset = data_event.frame_offset
+                if isinstance(data_event, SoundEvent):
+                    blender_data_event.data_type = 'SOUND'
+                    blender_data_event.marker = blender_markers.get(data_event.marker_name)
+                    blender_data_event.event_sound_tag = data_event.sound_reference.tag
+                    apply_flags(blender_data_event, data_event.sound_reference)
+                elif isinstance(data_event, EffectEvent):
+                    blender_data_event.data_type = 'EFFECT'
+                    blender_data_event.marker = blender_markers.get(data_event.marker_name)
+                    blender_data_event.event_effect_tag = data_event.effect_reference.tag
+                    apply_flags(blender_data_event, data_event.effect_reference)
+                    blender_data_event.damage_effect_reporting_type = data_event.damage_effect_reporting_type
+                else:
+                    blender_data_event.data_type = 'DIALOGUE'
+                    blender_data_event.dialogue_event = data_event.dialogue_type
+        event_count += len(animation_events)
+    return event_count
+
 
 class FrameEventListTag(BlenderTag, TagDocument):
     """Native event-list reads and edits; shared graph readers remain separate."""
@@ -455,16 +537,19 @@ class FrameEventListTag(BlenderTag, TagDocument):
             name = self.value(row, 'animation name')
             raise NotImplementedError(f'{self.path}: script events for {name!r} have no Blender mapping')
 
-    def collect_events(self):
+    def collect_events(self, animation_names: set[str] | None = None):
         references = {kind: [self._read_reference(e, kind) for e in self._root_block(kind + ' references')]
                       for kind in ('sound', 'effect')}
         result = {}
         for row in self._root_block('frame events'):
             name = self.value(row, 'animation name')
-            animation = self.scene_nwo.animations.get(name.replace(':', ' '))
-            if animation is None:
-                animation = self.scene_nwo.animations.get(name)
-            if animation is None:
+            if animation_names is None:
+                animation = self.scene_nwo.animations.get(name.replace(':', ' '))
+                if animation is None:
+                    animation = self.scene_nwo.animations.get(name)
+                if animation is None:
+                    continue
+            elif name not in animation_names and name.replace(':', ' ') not in animation_names:
                 continue
             self._check_scripts(row)
             events = []
@@ -510,17 +595,5 @@ class FrameEventListTag(BlenderTag, TagDocument):
                     else:
                         raise ValueError(f'{self.path}: invalid frame event index {index}')
                     getattr(target, kind + '_events').append(record)
-            ordered = sorted(events, key=lambda event: event.frame, reverse=True)
-            collapsed = []
-            end = ordered[0].frame if ordered else 0
-            for i, current in enumerate(ordered):
-                following = ordered[i + 1] if i + 1 < len(ordered) else None
-                if (following is not None and following.frame == current.frame - 1 and
-                        current.type == following.type and
-                        not (current.sound_events or current.effect_events or current.dialogue_events)):
-                    continue
-                current.end_frame = end
-                collapsed.append(current)
-                end = following.frame if following is not None else 0
-            result[name] = collapsed
+            result[name] = collapse_events(events)
         return result

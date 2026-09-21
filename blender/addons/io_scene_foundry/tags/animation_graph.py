@@ -12,6 +12,8 @@ from .blender import BlenderTag
 
 if TYPE_CHECKING:
     import blam_tags
+    import bpy
+    from .frame_event_list import AnimationEvent
 
 
 @dataclass(frozen=True)
@@ -30,6 +32,13 @@ class AnimationGraphEventName:
 class AnimationGraphEventAnimation:
     name: AnimationGraphEventName
     frame_count: int
+
+
+@dataclass(frozen=True)
+class AnimationGraphIkChain:
+    name: str
+    start_node: str
+    effector_node: str
 
 
 class AnimationGraphIkChainInput(Protocol):
@@ -193,6 +202,117 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 usages[name] = int(self.value(element, 'node to use'))
         return usages
 
+    def ik_chains(self) -> list[AnimationGraphIkChain]:
+        field = self._definitions().field('ik chains')
+        block = None if field is None else field.as_block()
+        if block is None:
+            return []
+        node_names = self.get_nodes()
+        chains: list[AnimationGraphIkChain] = []
+        seen: set[str] = set()
+        for index, element in enumerate(block):
+            name = str(self.value(element, 'name'))
+            if name in seen:
+                continue
+            seen.add(name)
+            start = int(self.value(element, 'start node'))
+            effector = int(self.value(element, 'effector node'))
+            if not 0 <= start < len(node_names) or not 0 <= effector < len(node_names):
+                raise ValueError(
+                    f'{self.path}: IK chain {index} has invalid node indices '
+                    f'{start}, {effector}')
+            chains.append(AnimationGraphIkChain(name, node_names[start], node_names[effector]))
+        return chains
+
+    @staticmethod
+    def _ik_target_bone_name(chain_name: str, target_kind: str) -> str:
+        return f'{chain_name}_{target_kind}_target'
+
+    def _ensure_ik_target_bones(
+        self,
+        armature: bpy.types.Object,
+        target_helpers: list[tuple[str, str]],
+    ) -> None:
+        import bpy
+        from .. import utils
+
+        if armature is None or armature.type != 'ARMATURE' or not target_helpers:
+            return
+        unique_helpers = list(dict.fromkeys(target_helpers))
+        missing: list[tuple[str, str, str]] = []
+        for chain_name, target_kind in unique_helpers:
+            bone_name = self._ik_target_bone_name(chain_name, target_kind)
+            existing = armature.data.bones.get(bone_name)
+            if existing is None:
+                missing.append((chain_name, target_kind, bone_name))
+            else:
+                existing.use_deform = False
+        if not missing:
+            return
+
+        context = bpy.context
+        previous_active = utils.get_active_object()
+        previous_mode = context.mode
+        try:
+            utils.set_object_mode(context)
+            utils.set_active_object(armature)
+            if not bpy.ops.object.mode_set.poll():
+                return
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+            edit_bones = armature.data.edit_bones
+            if not edit_bones:
+                raise ValueError(f'{self.path}: cannot create IK helpers without a root bone')
+            root_bone = edit_bones[0]
+            for _, _, bone_name in missing:
+                if edit_bones.get(bone_name) is not None:
+                    continue
+                helper = edit_bones.new(bone_name)
+                helper.head = root_bone.head
+                helper.tail = root_bone.tail
+                helper.roll = root_bone.roll
+                helper.use_deform = False
+                helper.parent = root_bone
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            for _, _, bone_name in missing:
+                bone = armature.data.bones.get(bone_name)
+                if bone is not None:
+                    bone.use_deform = False
+        finally:
+            if context.mode != 'OBJECT':
+                utils.set_object_mode(context)
+            if previous_active is not None and previous_active.name in bpy.data.objects:
+                utils.set_active_object(previous_active)
+            if previous_active is not None and previous_mode != 'OBJECT':
+                utils.restore_mode(previous_mode)
+
+    def ik_chains_to_blender(self, armature: bpy.types.Object) -> int:
+        from .. import utils
+
+        records = self.ik_chains()
+        node_names = self.get_nodes()
+        node_bones = {
+            node: bone
+            for bone in armature.pose.bones
+            for node in node_names
+            if utils.remove_node_prefix(bone.name) == utils.remove_node_prefix(node)
+        }
+        helpers: list[tuple[str, str]] = []
+        for record in records:
+            start_bone = node_bones.get(record.start_node)
+            effector_bone = node_bones.get(record.effector_node)
+            if start_bone is None or effector_bone is None:
+                raise ValueError(
+                    f'{self.path}: IK chain {record.name!r} nodes are absent from the armature')
+            chain = self.scene_nwo.ik_chains.get(record.name)
+            if chain is None:
+                chain = self.scene_nwo.ik_chains.add()
+            chain.name = record.name
+            chain.start_node = start_bone.name
+            chain.effector_node = effector_bone.name
+            helpers.extend(((record.name, 'proxy'), (record.name, 'pole')))
+        self._ensure_ik_target_bones(armature, helpers)
+        return len(records)
+
     def parent_graph(self) -> TagReference | None:
         return self.reference(self._definitions(), 'parent animation graph')
 
@@ -212,6 +332,126 @@ class AnimationGraphTag(BlenderTag, TagDocument):
         with FrameEventListTag(path=event_list_path) as events:
             events.from_blender(self.event_animations(), blender_animations)
             self.set_reference(definitions, 'imported events', events.tag_path)
+
+    @staticmethod
+    def _event_enum(value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError(f'Unknown animation-event enum value {value!r}')
+        return value.partition('{')[0].strip().replace('_', ' ')
+
+    def _event_reference(self, element: blam_tags.TagStruct, kind: str):
+        from .frame_event_list import FrameEventListTag, Reference
+
+        reference = Reference()
+        path = self.reference(element, kind)
+        reference.tag = path.RelativePathWithExtension if path is not None else ''
+        flags = self.required_field(element, 'flags')
+        options = flags.options()
+        available = set() if options is None else set(options.names)
+        for attribute, flag_name in FrameEventListTag.reference_flags:
+            setattr(reference, attribute,
+                    flags.get_flag(flag_name) if flag_name in available else False)
+        if self.corinth:
+            model = self.reference(element, 'model')
+            reference.model_tag = model.RelativePathWithExtension if model is not None else ''
+            reference.variant = str(self.value(element, 'variant'))
+        return reference
+
+    def inline_events(self) -> dict[str, list[AnimationEvent]]:
+        from .frame_event_list import (
+            AnimationEvent, DialogueEvent, EffectEvent, SoundEvent,
+            collapse_events,
+        )
+        from .. import utils
+
+        definitions = self._definitions()
+        references = {
+            kind: [self._event_reference(element, kind)
+                   for element in self.block(definitions, kind + ' references')]
+            for kind in ('sound', 'effect')
+        }
+        result: dict[str, list[AnimationEvent]] = {}
+        for animation in self.block(definitions, 'animations'):
+            name = str(self.value(animation, 'name'))
+            holder = animation
+            if animation.field('frame events') is None:
+                shared_field = animation.field('shared animation data')
+                shared = None if shared_field is None else shared_field.as_block()
+                if shared is None or not len(shared):
+                    result[name] = []
+                    continue
+                holder = shared[0]
+
+            events: list[AnimationEvent] = []
+            for element in self.block(holder, 'frame events'):
+                event = AnimationEvent()
+                event.frame = utils.blender_frame(int(self.value(element, 'frame')))
+                event.end_frame = event.frame
+                event.type = self._event_enum(self.value(element, 'type'))
+                if event.type in {'jetpack closed', 'jetpack open', 'sound event', 'effect event'}:
+                    event.type = 'none'
+                events.append(event)
+
+            unbound: AnimationEvent | None = None
+            for kind, cls in (
+                ('sound', SoundEvent), ('effect', EffectEvent),
+                ('dialogue', DialogueEvent),
+            ):
+                for element in self.block(holder, kind + ' events'):
+                    record = cls()
+                    record.frame_offset = int(self.value(element, 'frame'))
+                    if kind == 'dialogue':
+                        record.dialogue_type = self._event_enum(
+                            self.value(element, 'dialogue event'))
+                    else:
+                        reference_index = int(self.value(element, kind))
+                        if reference_index < 0:
+                            continue
+                        if reference_index >= len(references[kind]):
+                            raise ValueError(
+                                f'{self.path}: invalid {kind} reference index '
+                                f'{reference_index} in animation {name!r}')
+                        setattr(record, kind + '_reference', references[kind][reference_index])
+                        record.marker_name = str(self.value(element, 'marker name'))
+                        if kind == 'effect' and element.field('damage effect reporting type') is not None:
+                            record.damage_effect_reporting_type = self._event_enum(
+                                self.value(element, 'damage effect reporting type'))
+                    if unbound is None:
+                        unbound = AnimationEvent()
+                        events.append(unbound)
+                    getattr(unbound, kind + '_events').append(record)
+            result[name] = collapse_events(events)
+        return result
+
+    def events_to_blender(self, imported_animations) -> int:
+        from .frame_event_list import FrameEventListTag, apply_event_map_to_blender
+        from .. import utils
+
+        if not imported_animations:
+            return 0
+        events = self.inline_events()
+        reference_field = self._definitions().field('imported events')
+        event_list = self.frame_event_list()
+        if reference_field is not None:
+            if event_list is None:
+                utils.print_warning('Animation graph contains no reference to a frame event list')
+            elif not self.path_exists(event_list):
+                utils.print_warning(
+                    f'Frame events list tag does not exist: {event_list.Filename}')
+            else:
+                animation_names = {
+                    animation.name for animation in imported_animations
+                    if animation.export_this
+                }
+                with FrameEventListTag(path=event_list) as external:
+                    external_events = external.collect_events(animation_names)
+                for name, list_events in external_events.items():
+                    graph_events = events.get(name, [])
+                    events[name] = list_events + [
+                        event for event in graph_events
+                        if not any(event == external_event for external_event in list_events)
+                    ]
+        return apply_event_map_to_blender(events, imported_animations)
 
     @staticmethod
     def _blend_screen_settings(

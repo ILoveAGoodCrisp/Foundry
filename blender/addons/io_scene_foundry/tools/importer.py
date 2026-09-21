@@ -3577,6 +3577,12 @@ class NWOImporter:
             do_reset = False
             with AnimationGraphTag(path=mover.tag_path) as graph:
                 forced_compression_value, do_reset = graph.force_uncompressed_for_import()
+                if self.graph_import_ik_chains:
+                    if armature == self.scene_nwo.main_armature or self.scene_nwo.main_armature is None:
+                        self.scene_nwo.main_armature = armature
+                        utils.print_bullet("Importing IK Chains")
+                        count = graph.ik_chains_to_blender(armature)
+                        utils.print_bullet(f"Added / Updated {count} IK Chains")
                 match forced_compression_value:
                     case 0:
                         self.scene_nwo.forced_animation_compression = 'none'
@@ -3589,11 +3595,6 @@ class NWOImporter:
                         
             with AnimationTag(path=mover.tag_path) as graph:
                 utils.print_section(f"Importing Animation Graph: {graph.tag_path.ShortNameWithExtension}")
-                if self.graph_import_ik_chains:
-                    if armature == self.scene_nwo.main_armature or self.scene_nwo.main_armature is None:
-                        self.scene_nwo.main_armature = armature
-                        utils.print_bullet("Importing IK Chains")
-                        graph.ik_chains_to_blender(armature)
                 if self.graph_import_animations:
                     utils.print_bullet("Importing Animations")
                     if self.corinth and self.graph_import_pca_data:
@@ -3627,11 +3628,12 @@ class NWOImporter:
                 if self.graph_generate_renames:
                     utils.print_bullet("Generating Animation Renames")
                     graph.generate_renames(filter)
-                if self.graph_import_events:
-                    utils.print_bullet("Importing Frame Events")
-                    imported_animations = self.scene_nwo.animations[imported_animation_start:]
+            if self.graph_import_events:
+                utils.print_bullet("Importing Frame Events")
+                imported_animations = self.scene_nwo.animations[imported_animation_start:]
+                with AnimationGraphTag(path=mover.tag_path) as graph:
                     count = graph.events_to_blender(imported_animations)
-                    utils.print_bullet(f"Imported {count} frame events")
+                utils.print_bullet(f"Imported {count} frame events")
 
             if do_reset:
                 with AnimationGraphTag(path=mover.tag_path) as graph:
