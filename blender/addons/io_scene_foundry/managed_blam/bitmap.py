@@ -121,6 +121,7 @@ BITMAP_TYPE_NAMES = {
     0: "2d texture",
     1: "3d texture",
     2: "cube map",
+    3: "array",
 }
 
 UNCOMPRESSED_BITMAP_FORMAT_NAMES = {
@@ -202,6 +203,28 @@ COMPRESSED_BITMAP_FORMAT_NAMES = {
 
 SUPPORTED_BITMAP_FORMAT_NAMES = dict(UNCOMPRESSED_BITMAP_FORMAT_NAMES)
 SUPPORTED_BITMAP_FORMAT_NAMES.update(COMPRESSED_BITMAP_FORMAT_NAMES)
+
+EIGHT_BYTE_BLOCK_BITMAP_FORMATS = {
+    BITMAP_FORMAT_DXT1,
+    BITMAP_FORMAT_DXT3A,
+    BITMAP_FORMAT_DXT5A,
+    BITMAP_FORMAT_DXT3A_1111,
+    BITMAP_FORMAT_CTX1,
+    BITMAP_FORMAT_DXT3A_ALPHA,
+    BITMAP_FORMAT_DXT3A_MONO,
+    BITMAP_FORMAT_DXT5A_ALPHA,
+    BITMAP_FORMAT_DXT5A_MONO,
+}
+
+SIXTEEN_BYTE_BLOCK_BITMAP_FORMATS = {
+    BITMAP_FORMAT_DXT3,
+    BITMAP_FORMAT_DXT5,
+    BITMAP_FORMAT_DXN,
+    BITMAP_FORMAT_DXN_MONO_ALPHA,
+    BITMAP_FORMAT_DXT5_RED,
+    BITMAP_FORMAT_DXT5_GREEN,
+    BITMAP_FORMAT_DXT5_BLUE,
+}
 
 def clear_path_cache():
     global path_cache
@@ -514,7 +537,8 @@ class BitmapTag(BlenderTag, TagDocument):
         bitmap_type = self._select_int(bitmap, 'type')
         bitmap_format = self._select_int(bitmap, 'format', -1)
         pixels_offset = self._select_int(bitmap, 'pixels offset', -1)
-        pixels_size = self._select_int(bitmap, 'pixels size', -1)
+        pixels_size = self._bitmap_base_pixel_size(
+            width, height, bitmap_format, bitmap_type)
         if bitmap_type != 0 or width <= 0 or height <= 0:
             return None
         processed_data = bytes(self.required_field(self.tag.root(), 'processed pixel data').value)
@@ -945,6 +969,36 @@ class BitmapTag(BlenderTag, TagDocument):
             return int(field.value)
         except (TypeError, ValueError):
             return default
+
+    @staticmethod
+    def _bitmap_level_byte_size(width: int, height: int, bitmap_format: int) -> int:
+        """Calculate one surface's byte count instead of trusting tag metadata."""
+        if width <= 0 or height <= 0:
+            return 0
+        bytes_per_pixel = UNCOMPRESSED_BITMAP_BYTES_PER_PIXEL.get(bitmap_format)
+        if bytes_per_pixel is not None:
+            return width * height * bytes_per_pixel
+        if bitmap_format in EIGHT_BYTE_BLOCK_BITMAP_FORMATS:
+            block_bytes = 8
+        elif bitmap_format in SIXTEEN_BYTE_BLOCK_BITMAP_FORMATS:
+            block_bytes = 16
+        else:
+            return 0
+        return max(1, (width + 3) // 4) * max(1, (height + 3) // 4) * block_bytes
+
+    @classmethod
+    def _bitmap_base_pixel_size(cls, width: int, height: int,
+                                bitmap_format: int, bitmap_type: int,
+                                depth: int = 1) -> int:
+        """Return base-mip bytes, including every cube face or array layer.
+
+        Real Reach tags can leave ``pixels size`` at zero while carrying a
+        complete processed-data blob. blam-tags and Baboon derive this size
+        from the storage format and dimensions; Foundry follows that rule.
+        """
+        surface_size = cls._bitmap_level_byte_size(width, height, bitmap_format)
+        surface_count = 6 if bitmap_type == 2 else max(1, depth) if bitmap_type == 3 else 1
+        return surface_size * surface_count
 
     @staticmethod
     def _expand_bits(values, bits: int):
@@ -1728,15 +1782,19 @@ class BitmapTag(BlenderTag, TagDocument):
     def _bitmap_extraction_details(self, bitmap_element, frame_index: int) -> str:
         width = self._select_int(bitmap_element, "ShortInteger:width")
         height = self._select_int(bitmap_element, "ShortInteger:height")
+        depth = self._select_int(bitmap_element, "CharInteger:depth", 1)
         bitmap_type = self._select_int(bitmap_element, "CharEnum:type")
         bitmap_format = self._select_int(bitmap_element, "ShortEnum:format", -1)
         pixels_offset = self._select_int(bitmap_element, "LongInteger:pixels offset", -1)
         pixels_size = self._select_int(bitmap_element, "LongInteger:pixels size", -1)
+        resolved_size = self._bitmap_base_pixel_size(
+            width, height, bitmap_format, bitmap_type, depth)
         return (
             f"path={self.tag_path.RelativePath}, frame={frame_index}, "
             f"type={bitmap_type} ({self._bitmap_type_name(bitmap_type)}), "
             f"format={bitmap_format} ({self._bitmap_format_name(bitmap_format)}), "
-            f"size={width}x{height}, pixels offset={pixels_offset}, pixels size={pixels_size}"
+            f"size={width}x{height}x{depth}, pixels offset={pixels_offset}, "
+            f"declared pixels size={pixels_size}, resolved base size={resolved_size}"
         )
 
     def _save_single_raw_tiff(self, frame_index: int, suffix: str, convert_color_space: bool) -> str:
@@ -1750,13 +1808,15 @@ class BitmapTag(BlenderTag, TagDocument):
         bitmap_element = bitmap_elements[frame_index]
         width = self._select_int(bitmap_element, "ShortInteger:width")
         height = self._select_int(bitmap_element, "ShortInteger:height")
+        depth = self._select_int(bitmap_element, "CharInteger:depth", 1)
         bitmap_type = self._select_int(bitmap_element, "CharEnum:type")
         bitmap_format = self._select_int(bitmap_element, "ShortEnum:format", -1)
         pixels_offset = self._select_int(bitmap_element, "LongInteger:pixels offset", -1)
-        pixels_size = self._select_int(bitmap_element, "LongInteger:pixels size", -1)
+        pixels_size = self._bitmap_base_pixel_size(
+            width, height, bitmap_format, bitmap_type, depth)
         details = self._bitmap_extraction_details(bitmap_element, frame_index)
 
-        if bitmap_type not in {0, 2}:
+        if bitmap_type not in {0, 2, 3}:
             raise BitmapExtractionError(f"Unsupported bitmap type for new extraction: {details}")
         if bitmap_type == 2 and width != height:
             raise BitmapExtractionError(f"Cubemap faces must be square for new extraction: {details}")
@@ -1773,7 +1833,8 @@ class BitmapTag(BlenderTag, TagDocument):
                 f"processed data length={len(processed_data)}"
             )
 
-        decode_height = height * 6 if bitmap_type == 2 else height
+        surface_count = 6 if bitmap_type == 2 else max(1, depth) if bitmap_type == 3 else 1
+        decode_height = height * surface_count
         rgba = self._decode_bitmap_rgba(width, decode_height, bitmap_format, processed_data[pixels_offset:end])
         if rgba is None:
             raise BitmapExtractionError(f"Failed to decode bitmap pixels for new extraction: {details}")

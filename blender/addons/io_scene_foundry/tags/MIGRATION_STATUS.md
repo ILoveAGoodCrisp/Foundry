@@ -51,6 +51,14 @@ Classic H1/H2 loose tags are a confirmed Python entry-point gap: real HCE and H2
 bipeds fail their container signatures, but Foundry now reports the parser error
 and exits that import cleanly.
 
+Bitmap extraction now derives base-mip storage size from the image dimensions
+and format instead of trusting the tag's `pixels size` field. A cross-kit scan
+found this field set to zero on otherwise valid H3, ODST, Reach, H4 and H2AMP
+images across compressed, uncompressed, HDR and normal-map formats. The reported
+Reach `magnum_diffuse.bitmap` now extracts as 512x512 from both HREK and HR3EK.
+Smoke extraction also passed DXT1, DXT5, DXN, A8, V8U8, an H3 cubemap and an H4
+three-layer texture array; arrays are emitted as a vertical layer strip.
+
 Latest integration: cinematic import and the top-level cinematic writer now use
 native root, scene and scene-data entry points. The live scene wrapper and its
 event adapters now reside in `tags`; obsolete `SelectField` readers/writers and
