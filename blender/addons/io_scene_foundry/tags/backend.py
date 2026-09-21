@@ -62,6 +62,10 @@ class TagReference:
     def ShortName(self) -> str:
         return Path(self.RelativePath).name
 
+    @property
+    def ShortNameWithExtension(self) -> str:
+        return f'{self.ShortName}.{self.Extension}'
+
     def ToString(self) -> str:
         return self.RelativePathWithExtension
 

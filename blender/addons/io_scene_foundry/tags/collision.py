@@ -1,7 +1,14 @@
 """Detached collision-model geometry, with bounded surface-loop traversal."""
 from types import SimpleNamespace as Record
+from dataclasses import dataclass
 from math import isfinite
 from .backend import TagDocument
+
+
+@dataclass(frozen=True, slots=True)
+class CollisionMaterialRecord:
+    index: int
+    name: str
 
 
 class CollisionDocument(TagDocument):
@@ -10,7 +17,8 @@ class CollisionDocument(TagDocument):
     def read_collision(self):
         root = self.tag.root()
         nodes = [self.value(e, 'name') for e in self.block(root, 'nodes')]
-        materials = [Record(index=i, name=self.value(e, 'name')) for i, e in enumerate(self.block(root, 'materials'))]
+        materials = [CollisionMaterialRecord(index=i, name=self.value(e, 'name'))
+                     for i, e in enumerate(self.block(root, 'materials'))]
         def bone(index):
             if index < 0 or index >= len(nodes):
                 raise ValueError(f'Collision node index {index} is out of range')

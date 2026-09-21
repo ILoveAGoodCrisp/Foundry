@@ -450,6 +450,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 structure_meta_path = Path(structure_meta_data.Filename)
                 if structure_meta_path.exists():
                     utils.print_step("Importing Structure Meta")
+                    layer = utils.add_permutation("meta", utils.SetType.SCENARIO)
                     meta_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_meta")
                     meta_collection.nwo.type = "permutation"
                     meta_collection.nwo.permutation = layer

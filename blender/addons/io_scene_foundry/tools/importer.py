@@ -3088,6 +3088,8 @@ class NWOImporter:
                 
             with utils.TagImportMover(self.tags_dir, file) as mover:
                 with ObjectTag(path=mover.tag_path, raise_on_error=False) as obj:
+                    if not obj.valid:
+                        continue
                     if is_game_object:
                         if game_object.nwo.marker_game_instance_tag_variant_name.strip():
                             self.tag_variant = game_object.nwo.marker_game_instance_tag_variant_name

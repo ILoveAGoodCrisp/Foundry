@@ -20,6 +20,37 @@ Measured as dependency replacement, the migration is now 100%: the add-on has no
 ManagedBlam tag-access path to fall back to. This does not mean every workflow has
 completed visual or editing-kit acceptance.
 
+## Editing-kit import acceptance (2026-09-22)
+
+A Blender 5.1 background sweep now covers H3, ODST, Reach, H4 and H2AMP with
+real files from the local editing kits. All five profiles imported representative
+bipeds, weapons, scenery, particle models and scenario structure BSPs. The object
+set comprised 16 import invocations (15 with geometry and one valid model-less
+cinematic anchor); the BSP set included the 531-object ODST `c100` sample. H3,
+H4 and H2AMP structure-design samples also passed.
+
+The sweep fixed six concrete native-integration bugs: tag references now expose
+their filename with extension; collision materials are immutable and hashable;
+older render models tolerate absent sky-only flags; empty render parts are
+skipped; ODST's direct triangle/section BSP surface mappings are supported; and
+H4/H2AMP structure metadata receives its own initialized collection layer. An
+invalid object document now stops cleanly rather than being dereferenced after a
+parse failure.
+
+The exact reported Reach Elite biped imports render, collision and physics
+geometry and reads its animation graph and IK chains. A full action import was
+allowed to decode hundreds of actions without an exception before the long smoke
+run was stopped; exhaustive action and visual comparison remains part of final
+acceptance.
+
+Two structure-design samples continue to raise their existing explicit native
+conversion errors: ODST `h100_design_000` needs direction/angle water conversion,
+and Reach `cache_build_full_test/default` needs rain-blocker render geometry.
+Their fields parse successfully and both are tracked in the limitations ledger.
+Classic H1/H2 loose tags are a confirmed Python entry-point gap: real HCE and H2
+bipeds fail their container signatures, but Foundry now reports the parser error
+and exits that import cleanly.
+
 Latest integration: cinematic import and the top-level cinematic writer now use
 native root, scene and scene-data entry points. The live scene wrapper and its
 event adapters now reside in `tags`; obsolete `SelectField` readers/writers and

@@ -276,9 +276,15 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
             field = root.field(name)
             return default if field is None else float(field.value)
 
+        def optional_flag(name: str) -> bool:
+            try:
+                return bool(flags.get_flag(name))
+            except KeyError:
+                return False
+
         return RenderModelSkyData(
-            is_sky=flags.get_flag('this is supposed to be a sky'),
-            sun_as_vmf_light=flags.get_flag('sun as vmf light'),
+            is_sky=optional_flag('this is supposed to be a sky'),
+            sun_as_vmf_light=optional_flag('sun as vmf light'),
             lights=tuple(lights),
             sun=sun,
             sun_bounce_scale=optional_real('sun 1st bounce scaler', 1.0),

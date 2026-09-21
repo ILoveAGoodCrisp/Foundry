@@ -3408,18 +3408,22 @@ class Mesh:
         self.temp_meshes = temp_meshes
         self.instances = instances
         self.real_mesh_index = real_mesh_index
+        self._get_raw_mesh_data()
 
         if instances:
             for instance in instances:
                 utils.print_step(instance.name)
                 subpart = self.subparts_by_index.get(instance.index)
-                if subpart is None:
+                if (subpart is None or
+                        not self.triangle_indices_by_subpart.get(subpart.index)):
                     continue
                 ob = self._create_mesh(instance.name, parent, nodes, subpart, instance.bone, instance.matrix, is_io, collision_info=collision_info)
                 ob.scale = Vector.Fill(3, instance.scale)
                 instance.ob = ob
                 objects.append(ob)
         else:
+            if not self.all_triangle_indices:
+                return objects
             if self.permutation:
                 name = f"{self.permutation.region.name}:{self.permutation.name}"
                 utils.print_step(name)

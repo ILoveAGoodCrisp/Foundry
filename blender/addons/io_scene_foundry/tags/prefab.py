@@ -553,19 +553,32 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
         mappings = mappings_field.as_block()
         if surfaces is None or mappings is None:
             raise TypeError(f'{self.path}: structure surface mappings are not blocks')
-        values = tuple(int(self.value(element, 'manual byteswarp1'))
-                       for element in mappings)
+        packed_values: list[int] = []
+        direct_values: list[tuple[int, int]] = []
+        for element in mappings:
+            packed = element.field('manual byteswarp1')
+            if packed is not None:
+                packed_values.append(int(packed.value))
+            else:
+                direct_values.append((
+                    int(self.value(element, 'triangle_index')),
+                    int(self.value(element, 'section_index')),
+                ))
+        value_count = len(packed_values) or len(direct_values)
         records = []
         for index, surface in enumerate(surfaces):
             first = int(self.value(
                 surface, 'first_structure_surface_to_triangle_mapping_index'))
             count = int(self.value(
                 surface, 'structure_surface_to_triangle_mapping_count'))
-            if first < 0 or count < 0 or first + count > len(values):
+            if first < 0 or count < 0 or first + count > value_count:
                 raise ValueError(
                     f'{self.path}: structure surface {index} has an invalid triangle mapping range')
             records.append(StructureBspSurfaceMapping(
-                index, values[first:first + count]))
+                index,
+                tuple(packed_values[first:first + count]),
+                tuple(direct_values[first:first + count]),
+            ))
         return records
 
     def cluster_mesh_indices(self) -> list[int]:
