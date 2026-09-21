@@ -32,7 +32,7 @@ from subprocess import Popen, check_call, PIPE
 import threading
 import queue
 
-from .project import GAME_INFO, identify_game
+from .project import ExternalProject, GAME_INFO, external_project_from_tag, identify_game
 from . import foundry_output
 from .tools.node_tree_arrange import arrange
 from .constants import OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR, css_colors
@@ -66,6 +66,8 @@ zero_vector = Vector.Fill(3, 0)
 ###########
 
 foundry_output_state = True
+
+_external_project: ExternalProject | None = None
 
 hit_target = False
 
@@ -2492,6 +2494,8 @@ def current_project_valid():
     return bool(project)
 
 def get_project(project_name=None):
+    if _external_project is not None:
+        return _external_project
     if project_name is None:
         project_name = get_scene_props().scene_project
     
@@ -2504,18 +2508,36 @@ def get_project(project_name=None):
         return projects[0]
 
 def switch_project_from_filepath(context: bpy.types.Context, path: Path) -> None:
-    """Select the configured project containing an absolute tag path."""
-    path = Path(path)
+    """Use the configured or ephemeral project containing an absolute tag path."""
+    global _external_project
+    path = Path(path).resolve()
     for project in get_prefs().projects:
         try:
-            path.relative_to(Path(project.project_path))
+            path.relative_to(Path(project.tags_directory).resolve())
         except ValueError:
             continue
+        _external_project = None
         nwo = get_scene_props()
         if nwo.scene_project != project.name:
             nwo.scene_project = project.name
             print(f"Project changed to {project.name} to read {path}")
         return
+
+    if not path.is_file() or not any(
+            parent.name.casefold() == 'tags' for parent in path.parents):
+        _external_project = None
+        return
+
+    _external_project = external_project_from_tag(path)
+    print(
+        f"Using {_external_project.project_name} as a temporary project to read {path} "
+        f"({_external_project.game})"
+    )
+
+
+def clear_external_project() -> None:
+    global _external_project
+    _external_project = None
     
 def get_project_from_path(path: str):
     projects = get_prefs().projects

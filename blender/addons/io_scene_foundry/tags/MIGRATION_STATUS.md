@@ -59,6 +59,16 @@ Reach `magnum_diffuse.bitmap` now extracts as 512x512 from both HREK and HR3EK.
 Smoke extraction also passed DXT1, DXT5, DXN, A8, V8U8, an H3 cubemap and an H4
 three-layer texture array; arrays are emitted as a vertical layer strip.
 
+Tag imports no longer require the owning editing kit to be registered as a
+Foundry project. For an absolute path under a `tags` directory, Foundry first
+asks blam-tags for the container game. Classic H1/H2 containers identify their
+title directly; the shared H3+ container cannot distinguish H3, ODST, Reach,
+H4 or H2AMP, so Foundry walks upward to `tool.exe` and reads its file
+description. The resulting tags/data roots and game are held in an ephemeral
+import context and are never added to preferences. With the configured project
+list empty, real tags from all five H3+ kits resolved to the correct title and
+the external Reach Elite imported 102 objects from its original location.
+
 Latest integration: cinematic import and the top-level cinematic writer now use
 native root, scene and scene-data entry points. The live scene wrapper and its
 event adapters now reside in `tags`; obsolete `SelectField` readers/writers and

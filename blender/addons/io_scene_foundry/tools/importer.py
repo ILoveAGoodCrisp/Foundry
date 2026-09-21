@@ -2127,6 +2127,7 @@ class NWO_Import(bpy.types.Operator):
             bpy.ops.ed.undo()
         
         clear_cache()
+        utils.clear_external_project()
         return {'FINISHED'}
     
     def link_anchor(self, context, objects):
@@ -4869,6 +4870,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
+        utils.switch_project_from_filepath(context, Path(self.filepath))
         scene_nwo = utils.get_scene_props()
         global checked_asset_once
         if not self.force_no_setup_as_asset and not self.setup_as_asset and not utils.valid_nwo_asset(context) and not checked_asset_once:
@@ -4943,6 +4945,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 return context.window_manager.invoke_props_dialog(self, width=500)
         else:
             return self.execute(context)
+
+    def cancel(self, context):
+        utils.clear_external_project()
     
     def draw(self, context):
         layout = self.layout
@@ -5065,21 +5070,25 @@ class NWO_OT_ImportBitmap(bpy.types.Operator):
     def execute(self, context):
         if Path(self.filepath).suffix != '.bitmap':
             return {'CANCELLED'}
-        
-        clear_path_cache()
-        importer = NWOImporter(context, [self.filepath], ['bitmap'])
-        extracted_bitmaps = importer.extract_bitmaps([self.filepath], 'tiff')
-        images = importer.load_bitmaps(extracted_bitmaps, False)
-        if images:
-            if context.area.type == 'IMAGE_EDITOR':
-                context.area.spaces.active.image = images[0]
-            elif context.area.type == 'NODE_EDITOR' and context.material:
-                tree = context.material.node_tree
-                node = tree.nodes.new("ShaderNodeTexImage")
-                node.image = images[0]
-                for n in tree.nodes: n.select = False
-                node.select = True
-                node.location = context.region.view2d.region_to_view(self.mouse_x, self.mouse_y)
+
+        utils.switch_project_from_filepath(context, Path(self.filepath))
+        try:
+            clear_path_cache()
+            importer = NWOImporter(context, [self.filepath], ['bitmap'])
+            extracted_bitmaps = importer.extract_bitmaps([self.filepath], 'tiff')
+            images = importer.load_bitmaps(extracted_bitmaps, False)
+            if images:
+                if context.area.type == 'IMAGE_EDITOR':
+                    context.area.spaces.active.image = images[0]
+                elif context.area.type == 'NODE_EDITOR' and context.material:
+                    tree = context.material.node_tree
+                    node = tree.nodes.new("ShaderNodeTexImage")
+                    node.image = images[0]
+                    for n in tree.nodes: n.select = False
+                    node.select = True
+                    node.location = context.region.view2d.region_to_view(self.mouse_x, self.mouse_y)
+        finally:
+            utils.clear_external_project()
                     
         return {"FINISHED"}
     
