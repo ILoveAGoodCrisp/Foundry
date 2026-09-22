@@ -95,6 +95,34 @@ def _child_animation_parent_asset_path(scene_nwo) -> Path | None:
     return None
 
 
+def _export_tool_path(scene_nwo) -> Path:
+    project = utils.get_project(scene_nwo.scene_project)
+    if project is None:
+        return Path()
+
+    tool_type = "tool" if project.game == "halo1" else utils.get_tool_type()
+    return Path(project.project_path, tool_type).with_suffix(".exe")
+
+
+def _export_project_error(scene_nwo) -> str | None:
+    """Validate the parts of an editing kit required by this export format."""
+    if not utils.uses_legacy_export(scene_nwo.scene_project):
+        return validate_ek()
+
+    project_path = get_project_path()
+    if not project_path or not Path(project_path).exists():
+        return f"{scene_nwo.scene_project} Editing Kit path invalid"
+
+    data_path = get_data_path()
+    if not data_path or not Path(data_path).exists():
+        return f"Editing Kit data folder not found. Please ensure your {scene_nwo.scene_project} directory has a 'data' folder"
+
+    if not _export_tool_path(scene_nwo).exists():
+        return f"Tool not found, please check that you have tool.exe within your {scene_nwo.scene_project} directory"
+
+    return None
+
+
 class NWO_ExportScene(Operator, ExportHelper):
     bl_idname = "nwo.export_scene"
     bl_label = "Export Asset"
@@ -114,11 +142,11 @@ class NWO_ExportScene(Operator, ExportHelper):
     @classmethod
     def poll(cls, context):
         scene_nwo = utils.get_scene_props()
-        return utils.current_project_valid() and not validate_ek() and scene_nwo.asset_type != 'resource' and (utils.nwo_asset_type() == 'single_animation' or _is_child_animation_export(scene_nwo) or not scene_nwo.is_child_asset)
+        return utils.current_project_valid() and not _export_project_error(scene_nwo) and scene_nwo.asset_type != 'resource' and (utils.nwo_asset_type() == 'single_animation' or _is_child_animation_export(scene_nwo) or not scene_nwo.is_child_asset)
     
     @classmethod
     def description(cls, context, properties):
-        d = validate_ek()
+        d = _export_project_error(utils.get_scene_props())
         if d is not None:
             return "Export Unavaliable: " + d
         
@@ -126,19 +154,34 @@ class NWO_ExportScene(Operator, ExportHelper):
         super().__init__(*args, **kwargs)
         # SETUP #
         self.game_path_not_set = False
+        nwo = utils.get_scene_props()
+        legacy = utils.uses_legacy_export(nwo.scene_project)
+        self.game_path_not_set = _export_project_error(nwo) is not None
         if utils.nwo_asset_type() == 'single_animation':
             if not bpy.data.filepath:
                 return
-            name = Path(bpy.data.filepath).with_suffix("").name
-            parent = Path(bpy.data.filepath).parent.parent
-            export = Path(parent, "export", "animations", name).with_suffix(".gr2")
-            self.filepath = str(export)
+            if legacy:
+                asset_path = Path(bpy.data.filepath).parent.parent
+                self.filepath = str(asset_path / f"{asset_path.name}.asset")
+            else:
+                name = Path(bpy.data.filepath).with_suffix("").name
+                parent = Path(bpy.data.filepath).parent.parent
+                export = Path(parent, "export", "animations", name).with_suffix(".gr2")
+                self.filepath = str(export)
             return
 
-        nwo = utils.get_scene_props()
         data_dir = get_data_path()
 
-        if Path(get_tool_path()).with_suffix(".exe").exists():
+        if legacy:
+            asset_path = utils.get_export_props().legacy_asset_path
+            if asset_path:
+                asset_path = Path(asset_path)
+                self.filepath = str(asset_path / f"{asset_path.name}.asset")
+            elif data_dir:
+                self.filepath = str(Path(data_dir, "halo", "halo.asset"))
+            return
+
+        if _export_tool_path(nwo).exists():
             # get sidecar path from users EK data path + internal path
             sidecar_filepath = str(Path(data_dir, nwo.sidecar_path))
             if not sidecar_filepath.endswith(".sidecar.xml"):
@@ -171,12 +214,13 @@ class NWO_ExportScene(Operator, ExportHelper):
             self.game_path_not_set = True
             
     def export_invalid(self, asset_path):
+        nwo = utils.get_scene_props()
+        tool_missing = not _export_tool_path(nwo).exists()
         if (
            # not check_path(self.filepath)
-            not file_exists(f"{get_tool_path()}.exe")
+            tool_missing
             or asset_path.lower() + os.sep == get_data_path().lower()
         ):  # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
-            nwo = utils.get_scene_props()
             game = nwo.scene_project
             if get_project_path() is None or get_project_path() == "":
                 ctypes.windll.user32.MessageBoxW(
@@ -185,7 +229,7 @@ class NWO_ExportScene(Operator, ExportHelper):
                     f"Invalid {game} Project Path",
                     0,
                 )
-            elif not file_exists(f"{get_tool_path()}.exe"):
+            elif tool_missing:
                 ctypes.windll.user32.MessageBoxW(
                     0,
                     f"{game} Tool not found. Could not find {game} tool or tool_fast. Please check your {game} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {game} editing kit directory.",
@@ -228,9 +272,10 @@ class NWO_ExportScene(Operator, ExportHelper):
         
         scene_nwo.export_in_progress = True
         if self.game_path_not_set:
+            error = _export_project_error(scene_nwo)
             self.report(
                 {"WARNING"},
-                f"Unable to export. Your {scene_nwo.scene_project} path must be set in preferences",
+                f"Unable to export. {error or f'Your {scene_nwo.scene_project} path must be set in preferences'}",
             )
             return {"CANCELLED"}
         
@@ -264,7 +309,7 @@ class NWO_ExportScene(Operator, ExportHelper):
             asset_name = ""
             asset_path = ""
             
-            if scene_nwo.is_child_asset and scene_nwo.parent_sidecar:
+            if not legacy and scene_nwo.is_child_asset and scene_nwo.parent_sidecar:
                 par_sidecar = Path(utils.get_data_path(), scene_nwo.parent_sidecar)
                 if par_sidecar.exists():
                     sidecar_path_full = str(par_sidecar)
@@ -355,8 +400,11 @@ class NWO_ExportScene(Operator, ExportHelper):
                         
                         coll_asset_path = Path(asset_path, coll_asset_name)
                         
-                        coll_sidecar_path_full = str(Path(coll_asset_path, coll_asset_name).with_suffix(".sidecar.xml"))
-                        coll_sidecar_path = str(Path(coll_sidecar_path_full).relative_to(get_data_path()))
+                        if legacy:
+                            coll_sidecar_path_full = coll_sidecar_path = ""
+                        else:
+                            coll_sidecar_path_full = str(Path(coll_asset_path, coll_asset_name).with_suffix(".sidecar.xml"))
+                            coll_sidecar_path = str(Path(coll_sidecar_path_full).relative_to(get_data_path()))
                         
                         export_asset(context, coll_sidecar_path_full, coll_sidecar_path, coll_asset_name, str(coll_asset_path), scene_nwo, scene_nwo_export, is_corinth(context), False, False, coll_layer)
                     

@@ -153,7 +153,7 @@ class LegacyExportScene(ExportScene):
                 outputs.append((Path(self.asset_path, 'animations', filename(animation.name.replace(':', ' ')) + self.animation_extension(animation)), self.jma_text(animation)))
         if self.external_animations:
             raise ValueError('Legacy export of external animation files is not implemented; open their source asset to export JMA')
-        if self.sidecar.animation_composites:
+        if self.animation_composites:
             raise ValueError('JMA cannot encode animation composites; export the individual source animations')
         if not outputs:
             raise ValueError('No JMS, ASS or JMA data matched the export selection')

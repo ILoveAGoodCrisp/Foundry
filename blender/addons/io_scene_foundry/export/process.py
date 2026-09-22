@@ -86,6 +86,7 @@ class ExportScene:
     '''Scene to hold all the export objects'''
     def __init__(self, context: bpy.types.Context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings, start_scene):
         self.context = context
+        self.legacy_export = utils.uses_legacy_export(scene_settings.scene_project)
         self.asset_type = AssetType[asset_type.upper()]
         self.supports_bsp = self.asset_type.supports_bsp
         self.asset_name = asset_name
@@ -116,7 +117,7 @@ class ExportScene:
         self.project_root = self.tags_dir.parent
         
         os.chdir(self.project_root)
-        self.granny = None if getattr(self, 'legacy_export', False) else Granny(Path(self.project_root, "granny2_x64.dll"), self.corinth)
+        self.granny = None if self.legacy_export else Granny(Path(self.project_root, "granny2_x64.dll"), self.corinth)
         
         self.forward = scene_settings.forward_direction
         self.from_halo_scale = 1 if scene_settings.scale == 'max' else 0.03048
@@ -163,10 +164,12 @@ class ExportScene:
         #         self.parent_asset_path_relative = parent_relative
         #         self.parent_asset_name = parent_relative.name
                 
-        self.sidecar = (SimpleNamespace(lods=set(), animation_composites=[],
-                                        reach_world_animations=[], pose_overlays=[])
-                        if getattr(self, 'legacy_export', False)
+        self.sidecar = (None if self.legacy_export
                         else Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context, self.tags_dir))
+        self.lods = set() if self.sidecar is None else self.sidecar.lods
+        self.animation_composites = [] if self.sidecar is None else self.sidecar.animation_composites
+        self.reach_world_animations = set() if self.sidecar is None else self.sidecar.reach_world_animations
+        self.pose_overlays = set() if self.sidecar is None else self.sidecar.pose_overlays
         
         self.has_frame_events = False
         
@@ -1188,7 +1191,7 @@ class ExportScene:
             case AssetType.DECORATOR_SET:
                 mesh_type = '_connected_geometry_mesh_type_decorator'
                 lod = decorator_int(ob)
-                self.sidecar.lods.add(lod)
+                self.lods.add(lod)
                 props["bungie_mesh_decorator_lod"] = lod
                     
             case AssetType.PREFAB | AssetType.MULTI_PREFAB:
@@ -1922,7 +1925,7 @@ class ExportScene:
                     if animation.name in animation_names:
                         self.warnings.append(f"Duplicate animation name found: {animation.name} [index {idx}]. Skipping animation")
                     elif animation.animation_type == 'composite':
-                        self.sidecar.animation_composites.append(animation)
+                        self.animation_composites.append(animation)
                     elif animation.external:
                         if len(animation.gr2_path.strip()) > 2:
                             rel_path = utils.relative_path(animation.gr2_path)
@@ -1968,7 +1971,7 @@ class ExportScene:
                 for phase_set in getattr(parent, "phase_sets", []):
                     gather_composite_animation_names(phase_set)
 
-            for composite in self.sidecar.animation_composites:
+            for composite in self.animation_composites:
                 for blend_axis in composite.blend_axis:
                     gather_composite_animation_names(blend_axis)
 
@@ -2618,6 +2621,8 @@ class ExportScene:
             return Path(self.models_export_dir, f"{self.asset_name}_{name}.gr2")
         
     def write_sidecar(self):
+        if self.sidecar is None:
+            raise RuntimeError("Legacy exports do not use sidecars")
         print("\n\nWriting Sidecar")
         print("-----------------------------------------------------------------------\n")
         self.sidecar.has_armature = bool(self.virtual_scene.skeleton_node)
@@ -2978,10 +2983,10 @@ class ExportScene:
                 with ObjectTag(path=expected_weapon_path) as weapon:
                     weapon.set_fp_weapon_render_model(render_path)
         
-        if self.has_animations and self.sidecar.reach_world_animations:
-            self.print_post(f"--- Setting up {len(self.sidecar.reach_world_animations)} world relative animation{'s' if len(self.sidecar.reach_world_animations) > 1 else ''}")
+        if self.has_animations and self.reach_world_animations:
+            self.print_post(f"--- Setting up {len(self.reach_world_animations)} world relative animation{'s' if len(self.reach_world_animations) > 1 else ''}")
             with AnimationGraphTag() as animation:
-                animation.set_world_animations(self.sidecar.reach_world_animations)
+                animation.set_world_animations(self.reach_world_animations)
 
         if self.has_animations and self.suspension_animations:
             self.print_post(f"--- Writing vehicle suspension data for {len(self.suspension_animations)} suspension animation{'s' if len(self.suspension_animations) > 1 else ''}")
@@ -3008,10 +3013,10 @@ class ExportScene:
             with AnimationGraphTag() as animation:
                 animation.events_from_blender()
 
-        if self.has_animations and self.sidecar.pose_overlays:
+        if self.has_animations and self.pose_overlays:
             with AnimationGraphTag() as animation:
-                self.print_post(f"--- Updating animation blend screens for {len(self.sidecar.pose_overlays)} pose overlay animation{'s' if len(self.sidecar.pose_overlays) > 1 else ''}")
-                animation.setup_blend_screens(self.sidecar.pose_overlays)
+                self.print_post(f"--- Updating animation blend screens for {len(self.pose_overlays)} pose overlay animation{'s' if len(self.pose_overlays) > 1 else ''}")
+                animation.setup_blend_screens(self.pose_overlays)
                     
         if self.asset_type == AssetType.SCENARIO:
             if self.setup_scenario or self.export_settings.create_debug_zone_set:
