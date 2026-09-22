@@ -3549,6 +3549,12 @@ class AnimationTag(AnimationGraphTag):
             append_final_frame(animation_data)
             movement = self._native_animation_movement(tag_animation, native_pose)
             if movement is not None:
+                if getattr(self, '_reach_pedestal_node', None) is not None:
+                    self._reach_unmoved_roots[id(animation_data)] = [
+                        Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
+                        for translation, rotation, scale in zip(
+                            animation_data.translations[0], animation_data.rotations[0], animation_data.scales[0])
+                    ]
                 apply_movement_data(
                     animation_data,
                     self._movement_data_from_second_frame(
@@ -3568,6 +3574,15 @@ class AnimationTag(AnimationGraphTag):
             for node, matrix in zip(nodes, frame_matrices):
                 matrix = import_transform.armature_bone_matrix(matrix, root=node.parent is None)
                 frame_transforms[node] = matrix
+            pedestal_node = getattr(self, '_reach_pedestal_node', None)
+            if pedestal_node is not None:
+                from ..tools.animation.legacy_import import split_root_movement
+                root = nodes[0]
+                unmoved_roots = self._reach_unmoved_roots.get(id(animation_data))
+                unmoved = (import_transform.armature_bone_matrix(unmoved_roots[frame_index - 1], root=True)
+                           if unmoved_roots else frame_transforms[root])
+                frame_transforms[pedestal_node], frame_transforms[root] = split_root_movement(
+                    frame_transforms[root], unmoved, self._reach_pedestal_rest)
             transforms[frame_index] = frame_transforms
         return transforms
         
@@ -3611,11 +3626,23 @@ class AnimationTag(AnimationGraphTag):
         import_pca=False,
         scale_animations_to_skeleton=False,
         metadata: AnimationGraphImportMetadata | None = None,
+        convert_to_reach=False,
+        legacy_blend_screens=None,
     ):
         if metadata is None:
             raise ValueError('Native animation graph metadata is required')
         self._native_node_usages = metadata.node_usages
         self.scale_animations_to_skeleton = scale_animations_to_skeleton
+        self._reach_conversion = convert_to_reach
+        self._reach_pedestal_node = None
+        self._reach_unmoved_roots = {}
+        reach_bones = None
+        if convert_to_reach:
+            from ..tools.animation.legacy_import import prepare_reach_skeleton
+            reach_bones = prepare_reach_skeleton(armature)
+            if metadata.nodes and utils.remove_node_prefix(metadata.nodes[0].name).lower() != 'pedestal':
+                self._reach_pedestal_node = Node(reach_bones['pedestal'])
+                self._reach_pedestal_rest = armature.data.bones[reach_bones['pedestal']].matrix_local.copy()
         actions = []
         animations = []
         if self.block_animations.Elements.Count < 1:
@@ -3791,7 +3818,7 @@ class AnimationTag(AnimationGraphTag):
                     transforms,
                     armature,
                     action,
-                    native_nodes,
+                    [*native_nodes, self._reach_pedestal_node] if self._reach_pedestal_node else native_nodes,
                     overlay_defaults,
                     defaults if model is not None else None,
                     {},
@@ -3811,6 +3838,20 @@ class AnimationTag(AnimationGraphTag):
                         f'Missing native settings for animation '
                         f'{tag_animation.name.tag_name!r}')
                 self._add_animation_settings(tag_animation, blender_animation, settings)
+                if reach_bones:
+                    armature.animation_data.action = action
+                    armature.animation_data.action_slot = slot
+                    source_names = {utils.remove_node_prefix(name).lower() for name in node_names}
+                    for name in ('aim_yaw', 'aim_pitch'):
+                        if name not in source_names:
+                            bone = armature.pose.bones[reach_bones[name]]
+                            bone.matrix_basis = Matrix.Identity(4)
+                            bone.keyframe_insert(data_path='rotation_quaternion', frame=1)
+                if reach_bones and legacy_blend_screens:
+                    record = legacy_blend_screens.get(tag_animation.name.tag_name)
+                    if record is not None:
+                        from ..tools.animation.legacy_import import convert_blend_screen
+                        convert_blend_screen(armature, blender_animation, action, slot, record, reach_bones)
 
         if self.corinth and import_pca:
             pca_groups = {}
@@ -3850,16 +3891,17 @@ class AnimationTag(AnimationGraphTag):
             node.pose_bone = armature_bone_names.get(utils.remove_node_prefix(node.name))
             if node.pose_bone is None:
                 continue
-            node.fc_loc_x = fcurves.new(data_path=f'pose.bones["{node.name}"].location', index=0)
-            node.fc_loc_y = fcurves.new(data_path=f'pose.bones["{node.name}"].location', index=1)
-            node.fc_loc_z = fcurves.new(data_path=f'pose.bones["{node.name}"].location', index=2)
-            node.fc_rot_w = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=0)
-            node.fc_rot_x = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=1)
-            node.fc_rot_y = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=2)
-            node.fc_rot_z = fcurves.new(data_path=f'pose.bones["{node.name}"].rotation_quaternion', index=3)
-            node.fc_sca_x = fcurves.new(data_path=f'pose.bones["{node.name}"].scale', index=0)
-            node.fc_sca_y = fcurves.new(data_path=f'pose.bones["{node.name}"].scale', index=1)
-            node.fc_sca_z = fcurves.new(data_path=f'pose.bones["{node.name}"].scale', index=2)
+            bone_path = node.pose_bone.path_from_id()
+            node.fc_loc_x = fcurves.new(data_path=f'{bone_path}.location', index=0)
+            node.fc_loc_y = fcurves.new(data_path=f'{bone_path}.location', index=1)
+            node.fc_loc_z = fcurves.new(data_path=f'{bone_path}.location', index=2)
+            node.fc_rot_w = fcurves.new(data_path=f'{bone_path}.rotation_quaternion', index=0)
+            node.fc_rot_x = fcurves.new(data_path=f'{bone_path}.rotation_quaternion', index=1)
+            node.fc_rot_y = fcurves.new(data_path=f'{bone_path}.rotation_quaternion', index=2)
+            node.fc_rot_z = fcurves.new(data_path=f'{bone_path}.rotation_quaternion', index=3)
+            node.fc_sca_x = fcurves.new(data_path=f'{bone_path}.scale', index=0)
+            node.fc_sca_y = fcurves.new(data_path=f'{bone_path}.scale', index=1)
+            node.fc_sca_z = fcurves.new(data_path=f'{bone_path}.scale', index=2)
             valid_nodes.append(node)
             
         bone_dict = {}
@@ -3878,7 +3920,11 @@ class AnimationTag(AnimationGraphTag):
         
         bone_base_matrices = {}
         for bone in bones_ordered:
-            if bone.parent:
+            if getattr(self, '_reach_conversion', False) or getattr(self, '_reach_pedestal_node', None) is not None:
+                rest = bone.bone.matrix_local
+                bone_base_matrices[bone] = (bone.parent.bone.matrix_local.inverted_safe() @ rest
+                                            if bone.parent else rest.copy())
+            elif bone.parent:
                 bone_base_matrices[bone] = bone.parent.matrix.inverted_safe() @ bone.matrix
             else:
                 bone_base_matrices[bone] = bone.matrix
@@ -3886,6 +3932,9 @@ class AnimationTag(AnimationGraphTag):
         node_indices = {node: index for index, node in enumerate(nodes)}
         node_usages = node_usages or {}
         root_motion_node_indices = {0}
+        reach_pedestal = getattr(self, '_reach_pedestal_node', None)
+        if reach_pedestal in node_indices:
+            root_motion_node_indices.add(node_indices[reach_pedestal])
         pedestal_index = node_usages.get("pedestal")
         if pedestal_index is not None:
             root_motion_node_indices.add(pedestal_index)

@@ -413,7 +413,7 @@ class PoseBuilder:
                 to_remove_indexes.append(idx)
                 
         for idx in reversed(to_remove_indexes):
-            animation.events.remove(idx)
+            animation.animation_events.remove(idx)
             
 def pose_overlay_armature_validate(armature: bpy.types.Object, nwo, report):
     if not armature.animation_data:

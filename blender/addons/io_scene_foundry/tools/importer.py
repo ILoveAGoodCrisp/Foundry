@@ -236,6 +236,12 @@ def draw_import_template(operator, layout):
     row = layout.row()
     row.prop(operator, "import_template", text="Template")
 
+def draw_reach_animation_conversion(operator, layout):
+    row = layout.row()
+    row.enabled = operator.graph_import_animations
+    row.prop(operator, "graph_convert_to_reach")
+
+
 def draw_animation_graph_import_options(operator, layout, corinth, include_generate_frames=False):
     box = layout.box()
     box.prop(operator, "tag_animation")
@@ -243,6 +249,7 @@ def draw_animation_graph_import_options(operator, layout, corinth, include_gener
     col.enabled = operator.tag_animation
     col.prop(operator, "tag_animation_filter")
     col.prop(operator, "graph_import_animations")
+    draw_reach_animation_conversion(operator, col)
     row = col.row()
     row.enabled = operator.tag_animation and operator.graph_import_animations
     row.prop(operator, "graph_bake_to_control_rig")
@@ -262,6 +269,7 @@ def draw_animation_graph_import_options(operator, layout, corinth, include_gener
 def draw_graph_import_options(operator, layout, corinth):
     layout.prop(operator, "tag_animation_filter")
     layout.prop(operator, "graph_import_animations")
+    draw_reach_animation_conversion(operator, layout)
     row = layout.row()
     row.enabled = operator.graph_import_animations
     row.prop(operator, "graph_bake_to_control_rig")
@@ -1190,6 +1198,12 @@ class NWO_Import(bpy.types.Operator):
         description="Filter for the animations to import. Animations that don't contain the specified strings (space or colon delimited) will be skipped"
     )
     
+    graph_convert_to_reach: bpy.props.BoolProperty(
+        name="Convert to Reach+ Animation Style",
+        description="Add pedestal and aim bones, move movement data to the pedestal, and convert legacy blend screens",
+        default=False,
+    )
+
     graph_import_animations: bpy.props.BoolProperty(
         name="Import Animations",
         default=True,
@@ -1347,6 +1361,7 @@ class NWO_Import(bpy.types.Operator):
                     
                 importer = NWOImporter(context, filepaths, scope_list)
                 importer.graph_bake_to_control_rig = self.graph_bake_to_control_rig
+                importer.graph_convert_to_reach = self.graph_convert_to_reach
                 switch_blender_scene = None
                 
                 mouse_matrix = utils.matrix_from_mouse(self.mouse_x, self.mouse_y)
@@ -2485,6 +2500,7 @@ class NWOImporter:
         self.tag_physics = False
         self.graph_scale_animations_to_skeleton = False
         self.tag_animation = False
+        self.graph_convert_to_reach = False
         self.graph_import_animations = False
         self.graph_bake_to_control_rig = True
         self.graph_import_pca_data = False
@@ -3581,6 +3597,8 @@ class NWOImporter:
             with AnimationGraphTag(path=mover.tag_path) as graph:
                 forced_compression_value, do_reset = graph.force_uncompressed_for_import()
                 graph_metadata = graph.import_metadata()
+                convert_to_reach = self.graph_convert_to_reach and graph.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
+                legacy_blend_screens = graph.blend_screens() if convert_to_reach else {}
                 if self.graph_import_ik_chains:
                     if armature == self.scene_nwo.main_armature or self.scene_nwo.main_armature is None:
                         self.scene_nwo.main_armature = armature
@@ -3609,6 +3627,8 @@ class NWOImporter:
                             import_pca=True,
                             scale_animations_to_skeleton=self.graph_scale_animations_to_skeleton,
                             metadata=graph_metadata,
+                            convert_to_reach=convert_to_reach,
+                            legacy_blend_screens=legacy_blend_screens,
                         )
                         if result is not None:
                             actions, animations, pca_animations, pca_groups, pca_path = result
@@ -3627,6 +3647,8 @@ class NWOImporter:
                             import_pca=False,
                             scale_animations_to_skeleton=self.graph_scale_animations_to_skeleton,
                             metadata=graph_metadata,
+                            convert_to_reach=convert_to_reach,
+                            legacy_blend_screens=legacy_blend_screens,
                         )
                         if result is not None:
                             actions, animations = result
@@ -4740,6 +4762,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="Import object tag attachments. Currently supports lights and cheap lights"
     )
     
+    graph_convert_to_reach: bpy.props.BoolProperty(
+        name="Convert to Reach+ Animation Style",
+        description="Add pedestal and aim bones, move movement data to the pedestal, and convert legacy blend screens",
+        default=False,
+    )
+
     graph_import_animations: bpy.props.BoolProperty(
         name="Import Animations",
         default=True,

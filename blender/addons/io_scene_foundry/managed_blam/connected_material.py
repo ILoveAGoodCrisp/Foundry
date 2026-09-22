@@ -9,6 +9,8 @@ from .. import utils
 import bpy
 
 if TYPE_CHECKING:
+    from blam_tags import TagStruct
+    from ..tags.backend import TagDocument
     from ..tags.field_view import NativeTagStruct as TagFieldBlockElement
 
 # OPTIONS
@@ -940,14 +942,15 @@ class Function:
             self.clamp_max = editor.ClampRangeMax
             
     
-    def from_native_object(self, document, element):
+    def from_native_object(self, document: TagDocument, element: TagStruct) -> None:
         """Read object metadata and a detached native function editor."""
         self._read_native_mapping(document, element, 'default function')
         self.is_object_function = True
         self.input = document.value(element, 'import name')
         self.uses_input = bool(self.input)
         self.input = self.input or 'one'
-        self.range = document.value(element, 'ranged interpolation name')
+        range_field = element.field('ranged interpolation name')
+        self.range = range_field.value if range_field is not None else ''
         self.turn_off_with = document.value(element, 'turn off with')
         self.scale_by = document.value(element, 'scale by')
         self.min_value = document.value(element, 'min value')

@@ -481,6 +481,10 @@ It exposes basic, periodic, exponent, transition and MultiSpline editor graphs.
 Object-function node creation now uses it. Unsupported editor shapes raise before
 any nodes are created. A read-only sample across 60 H3+ object tags decoded and
 round-tripped 266 functions; two unknown transition indices remain unsupported.
+H3 and ODST object-function records omit Reach's ranged-interpolation-name field;
+the native converter now preserves those functions with no range dependency. The
+reported ODST Hunter biped completed a Blender 5.2 render, collision and physics
+import with 61 objects after this older-layout correction.
 The binding now also writes master types, color graph types, colors and scalar
 clamp ranges. Shader/material/decal wrappers use native documents, and a real H3
 animated shader parameter was decoded, changed, saved and reopened successfully.
