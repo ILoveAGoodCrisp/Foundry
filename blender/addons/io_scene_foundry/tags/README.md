@@ -92,6 +92,8 @@ python blender/build_blam_tags.py G:\Halo\Modding\OtherProjects\blam-tags
 
 The build uses a temporary source copy, stages the Windows abi3 wheel, registers
 it in the extension manifest, and copies schemas needed by migrated workflows.
+Every generated Halo 1 and Halo 2 group schema is staged because classic loose
+tags do not embed their own layout; later games retain the curated workflow set.
 The source checkout is not modified. Use `--schemas-only` to refresh generated
 assets without rebuilding the unchanged wheel.
 
@@ -146,10 +148,12 @@ unverified.
 
 ## Remaining binding work
 
-The current Python `TagFile.read` calls the MCC reader. Classic CE/H2 loose tags
-need the Rust classic reader/creator exposed in Python. The camera wrapper
-explicitly reports that capability gap. Creating an MCC container from an H1/H2
-schema does not prove classic editing-kit compatibility.
+Classic CE/H2 loose tags use `TagFile.read_classic(path, schema_path)`, which
+preserves their engine, header and container when saving. Foundry selects this
+entry point for H1/H2 documents and identifies their game from the classic header.
+`TagFile.new(schema)` still creates an MCC container, so Foundry deliberately
+rejects creation of new classic tags until blam-tags exposes an explicit classic
+creation API. Broad H1/H2 Blender workflow acceptance is also still required.
 
 Animation pose decoding and the shader function operations used by Foundry are
 exposed in the local wheel. The function editor can change master/color graph

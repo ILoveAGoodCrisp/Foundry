@@ -114,16 +114,24 @@ class TagDocument:
         except ImportError as exc:
             raise RuntimeError('blam-tags is unavailable. Install Foundry with its blam-tags wheel.') from exc
         self.tag_is_new: bool = not self.system_path.exists()
+        schema = self.definitions / self.definitions_profile / (self.system_path.suffix[1:] + '.json')
         if self.tag_is_new:
             if must_exist:
                 raise FileNotFoundError(self.system_path)
-            schema = self.definitions / self.definitions_profile / (self.system_path.suffix[1:] + '.json')
+            if game in {'halo1', 'halo2'}:
+                raise NotImplementedError(
+                    f'Creating new classic {game} tags is not supported yet: {self.system_path}')
             if not schema.is_file():
                 raise FileNotFoundError(f'Missing blam-tags schema: {schema}')
             self._tag = self.api.TagFile.new(schema)
             self.tag_has_changes = True
         else:
-            self._tag = self.api.TagFile.read(self.system_path)
+            if game in {'halo1', 'halo2'}:
+                if not schema.is_file():
+                    raise FileNotFoundError(f'Missing blam-tags schema: {schema}')
+                self._tag = self.api.TagFile.read_classic(self.system_path, schema)
+            else:
+                self._tag = self.api.TagFile.read(self.system_path)
         self.valid = True
 
     @property
@@ -230,10 +238,6 @@ class CameraTrackDocument(TagDocument):
     def __init__(self, path: TagPathInput, *, tags_root: str | PathLike[str],
                  game: str, must_exist: bool = False, always_save: bool = False,
                  definitions: str | PathLike[str] | None = None) -> None:
-        if game in {'halo1', 'halo2'}:
-            raise NotImplementedError(
-                'The camera-track pilot supports H3 through H2AMP. H1/H2 need '
-                'Python bindings for classic tag reading and creation first.')
         super().__init__(path, tags_root=tags_root, game=game,
                          extension='camera_track', must_exist=must_exist,
                          always_save=always_save, definitions=definitions)

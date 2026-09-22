@@ -47,9 +47,15 @@ Two structure-design samples continue to raise their existing explicit native
 conversion errors: ODST `h100_design_000` needs direction/angle water conversion,
 and Reach `cache_build_full_test/default` needs rain-blocker render geometry.
 Their fields parse successfully and both are tracked in the limitations ledger.
-Classic H1/H2 loose tags are a confirmed Python entry-point gap: real HCE and H2
-bipeds fail their container signatures, but Foundry now reports the parser error
-and exits that import cleanly.
+Classic H1/H2 loose tags now cross the Python boundary through the Rust classic
+reader/writer. Real HCE Captain and H2 Brute bipeds open with the correct engine,
+group and schema and serialize byte-for-byte identically without edits. Foundry
+also identifies these titles directly from all known classic header signatures.
+The schema staging step now includes every generated H1/H2 group instead of the
+H3+-focused subset. A one-real-file-per-group sweep opened 75 H1 and 96 H2 tag
+groups. The only parser failure was a Halo 2 V3 `style` variant affecting 9 of 50
+sampled style tags; it is recorded as READ-004. Broad Blender import acceptance
+and new classic-tag creation remain unfinished.
 
 Bitmap extraction now derives base-mip storage size from the image dimensions
 and format instead of trusting the tag's `pixels size` field. A cross-kit scan
@@ -470,10 +476,11 @@ capability does not yet imply Foundry can call it through Python.
 1. Run representative complete imports/exports against each H3+ editing kit and compare the resulting Blender data visually.
 2. Close the specialized composite-animation, bitmap-format and resource-layout gaps found by that review.
 3. Complete the remaining specialized geometry and scenario/cinematic acceptance work.
-4. Expose and validate classic H1/H2 loose-tag loading separately from the completed MCC dependency replacement.
+4. Continue classic H1/H2 Blender import acceptance now that loose-tag loading and preserved-container saving are exposed.
 
-H1/H2 classic tag loading/creation through Python is a separate requirement for
-the all-MCC goal. It must be validated independently of H3+ MCC tag support.
+H1/H2 classic loading and saving of existing files are now exposed through
+Python and validated on one real biped from each kit. New-tag creation and broad
+workflow acceptance remain separate requirements for the all-MCC goal.
 Removing Python.NET entirely also requires replacing the Foundation plugin
 installer's separate .NET assembly inspection in `tools/halo_launcher.py`.
 

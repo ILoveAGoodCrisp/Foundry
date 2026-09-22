@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -48,7 +49,10 @@ def stage_schemas(source, addon):
     for profile in PROFILES:
         destination = addon / 'tags/definitions' / profile
         destination.mkdir(parents=True, exist_ok=True)
-        for name in SCHEMAS:
+        names = set(SCHEMAS)
+        if profile in {'haloce_mcc', 'halo2_mcc'}:
+            names.update(path.name for path in (source / 'definitions' / profile).glob('*.json'))
+        for name in sorted(names):
             schema = source / 'definitions' / profile / name
             if not schema.is_file():
                 if name in ('camera_track.json', '_meta.json'):
@@ -69,7 +73,7 @@ import sys
 sys.path.insert(0, sys.argv[1])
 import blam_tags as api
 required = {
-    'TagFile': ('read', 'new', 'write_atomic', 'particle_meshes',
+    'TagFile': ('read', 'read_classic', 'new', 'write_atomic', 'particle_meshes',
                 'render_model_meshes', 'sbsp_render_meshes', 'animation_pose'),
     'TagField': ('options', 'as_array', 'copy_value_from'),
     'TagBlock': ('copy_from',),
@@ -127,9 +131,9 @@ def main():
         manifest = addon / 'blender_manifest.toml'
         text = manifest.read_text()
         entry = f'  "./wheels/{wheel.name}",'
-        if entry not in text:
-            text = text.replace('wheels = [', 'wheels = [\n' + entry)
-            manifest.write_text(text)
+        text = re.sub(r'(?m)^  "\./wheels/blam_tags-[^"]+",?\r?\n', '', text)
+        text = text.replace('wheels = [', 'wheels = [\n' + entry, 1)
+        manifest.write_text(text)
         print(f'Staged {wheel.name} and {len(hashes)} schema assets for migrated features.')
 
 

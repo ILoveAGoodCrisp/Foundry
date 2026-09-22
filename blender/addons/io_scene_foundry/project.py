@@ -79,6 +79,17 @@ def identify_game(tool_path):
 def identify_game_from_tag(path: str | Path) -> str | None:
     """Return a title only when the tag container identifies it unambiguously."""
     try:
+        with Path(path).open('rb') as stream:
+            stream.seek(60)
+            signature = stream.read(4)
+    except OSError:
+        return None
+    if signature == b'blam':
+        return 'halo1'
+    if signature in {b'lbma', b'BMAL', b'BALM', b'!MLB'}:
+        return 'halo2'
+
+    try:
         import blam_tags
 
         tag = blam_tags.TagFile.read(path)
