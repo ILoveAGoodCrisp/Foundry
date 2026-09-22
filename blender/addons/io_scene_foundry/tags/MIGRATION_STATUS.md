@@ -857,3 +857,13 @@ Warthog imported render LODs, collision and physics as 472 objects/401 meshes.
 A separate metadata sweep opened 429 HCE and 804 H2 biped, vehicle, weapon and
 scenery tags and read their inherited object records, model references, variants,
 attachments, change colors and weapon metadata with no failures.
+
+Classic shader acceptance now builds Blender node trees for all 1,412 genuine HCE
+shader-family tags in the local kit, covering model, environment, glass, water,
+meter, plasma, Chicago and generic families. It also builds all 3,107 H2 shader
+tags across the kit. H1 model shaders now apply their authored detail map and UV
+scale using double-biased multiplication. H2 shaders now combine primary and
+secondary detail maps, carry their authored UV scales, apply separate alpha maps
+and constant opacity, and recognize `emissive_color` alongside the older
+`self_illum_color` name. This is broad construction acceptance; environment-map,
+change-color and exact blend-template parity still need visual review.

@@ -1464,10 +1464,11 @@ class ShaderTag(BlenderTag, TagDocument):
                 image_node.image.colorspace_settings.name = 'Non-Color'
             return image_node
 
-        base = bump = emission = None
+        base = bump = emission = detail = None
         if shader_type == 'shader_model':
             maps = child(root, 'maps')
             base = bitmap(maps, 'base map')
+            detail = bitmap(maps, 'detail map')
         elif shader_type == 'shader_environment':
             base = bitmap(child(root, 'diffuse'), 'base map')
             bump = bitmap(child(root, 'bump'), 'bump map', non_color=True)
@@ -1495,7 +1496,32 @@ class ShaderTag(BlenderTag, TagDocument):
 
         if base is not None:
             base.location = (-520, 160)
-            tree.links.new(base.outputs['Color'], bsdf.inputs['Base Color'])
+            base_color = base.outputs['Color']
+            if detail is not None:
+                detail.location = (-520, -40)
+                detail_scale = float(self.value(maps, 'detail map scale'))
+                detail_v_scale = float(self.value(maps, 'detail map v scale'))
+                if detail_scale:
+                    texture = nodes.new(type='ShaderNodeTexCoord')
+                    texture.location = (-1050, -40)
+                    mapping = nodes.new(type='ShaderNodeMapping')
+                    mapping.location = (-820, -40)
+                    mapping.inputs['Scale'].default_value = (
+                        detail_scale, detail_v_scale or detail_scale, 1.0)
+                    tree.links.new(texture.outputs['UV'], mapping.inputs['Vector'])
+                    tree.links.new(mapping.outputs['Vector'], detail.inputs['Vector'])
+                multiply = nodes.new(type='ShaderNodeVectorMath')
+                multiply.operation = 'MULTIPLY'
+                multiply.location = (-250, 100)
+                double = nodes.new(type='ShaderNodeVectorMath')
+                double.operation = 'SCALE'
+                double.inputs['Scale'].default_value = 2.0
+                double.location = (-60, 100)
+                tree.links.new(base.outputs['Color'], multiply.inputs[0])
+                tree.links.new(detail.outputs['Color'], multiply.inputs[1])
+                tree.links.new(multiply.outputs['Vector'], double.inputs['Vector'])
+                base_color = double.outputs['Vector']
+            tree.links.new(base_color, bsdf.inputs['Base Color'])
             if transparent:
                 tree.links.new(base.outputs['Alpha'], bsdf.inputs['Alpha'])
         if bump is not None:
@@ -1543,6 +1569,10 @@ class ShaderTag(BlenderTag, TagDocument):
             value = self.value(element, 'const color')
             return (value.red, value.green, value.blue, 1.0)
 
+        def real(name: str, default: float = 0.0) -> float:
+            element = parameters.get(name)
+            return default if element is None else float(self.value(element, 'const value'))
+
         def image(name: str, *, non_color=False):
             element = parameters.get(name)
             if element is None:
@@ -1559,14 +1589,55 @@ class ShaderTag(BlenderTag, TagDocument):
                 image_node.image.colorspace_settings.name = 'Non-Color'
             return image_node
 
+        alpha_map = image('alpha_blend_map')
         base = image('base_map')
         if base is None:
-            base = image('alpha_blend_map') or image('self_illum_map')
+            base = alpha_map or image('self_illum_map')
         if base is not None:
             base.location = (-520, 160)
-            tree.links.new(base.outputs['Color'], bsdf.inputs['Base Color'])
-            if transparent:
-                tree.links.new(base.outputs['Alpha'], bsdf.inputs['Alpha'])
+            base_color = base.outputs['Color']
+            detail_nodes = [node for node in (image('detail_map'), image('secondary_detail_map'))
+                            if node is not None]
+            for index, detail in enumerate(detail_nodes):
+                detail.location = (-520, -40 - index * 180)
+                prefix = 'detail' if index == 0 else 'secondary_detail'
+                scale_x = real(f'{prefix}_scale_x', 1.0) or 1.0
+                scale_y = real(f'{prefix}_scale_y', scale_x) or scale_x
+                if scale_x != 1.0 or scale_y != 1.0:
+                    texture = nodes.new(type='ShaderNodeTexCoord')
+                    texture.location = (-1050, detail.location.y)
+                    mapping = nodes.new(type='ShaderNodeMapping')
+                    mapping.location = (-820, detail.location.y)
+                    mapping.inputs['Scale'].default_value = (scale_x, scale_y, 1.0)
+                    tree.links.new(texture.outputs['UV'], mapping.inputs['Vector'])
+                    tree.links.new(mapping.outputs['Vector'], detail.inputs['Vector'])
+                multiply = nodes.new(type='ShaderNodeVectorMath')
+                multiply.operation = 'MULTIPLY'
+                multiply.location = (-250 + index * 180, 160)
+                double = nodes.new(type='ShaderNodeVectorMath')
+                double.operation = 'SCALE'
+                double.inputs['Scale'].default_value = 2.0
+                double.location = (-70 + index * 180, 160)
+                tree.links.new(base_color, multiply.inputs[0])
+                tree.links.new(detail.outputs['Color'], multiply.inputs[1])
+                tree.links.new(multiply.outputs['Vector'], double.inputs['Vector'])
+                base_color = double.outputs['Vector']
+            tree.links.new(base_color, bsdf.inputs['Base Color'])
+
+        if transparent:
+            alpha_source = alpha_map or base
+            opacity = real('alpha_blend_opacity', 1.0)
+            if alpha_source is None:
+                bsdf.inputs['Alpha'].default_value = opacity
+            elif opacity == 1.0:
+                tree.links.new(alpha_source.outputs['Alpha'], bsdf.inputs['Alpha'])
+            else:
+                multiply_alpha = nodes.new(type='ShaderNodeMath')
+                multiply_alpha.operation = 'MULTIPLY'
+                multiply_alpha.inputs[1].default_value = opacity
+                multiply_alpha.location = (-100, -420)
+                tree.links.new(alpha_source.outputs['Alpha'], multiply_alpha.inputs[0])
+                tree.links.new(multiply_alpha.outputs[0], bsdf.inputs['Alpha'])
 
         bump = image('bump_map', non_color=True)
         if bump is not None:
@@ -1592,7 +1663,7 @@ class ShaderTag(BlenderTag, TagDocument):
             if strength is not None:
                 strength.default_value = max(float(self.value(parameters.get('emissive_power'), 'const value'))
                                              if parameters.get('emissive_power') is not None else 1.0, 1.0)
-        elif (emission_color := color('self_illum_color')) is not None and emission_input is not None:
+        elif (emission_color := color('self_illum_color') or color('emissive_color')) is not None and emission_input is not None:
             emission_input.default_value = emission_color
             
     def _option_value_from_index(self, index):
