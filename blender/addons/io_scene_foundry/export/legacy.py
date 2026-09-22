@@ -17,6 +17,7 @@ from mathutils import Matrix, Quaternion, Vector
 
 from .process import ExportScene
 from .legacy_materials import material_variant
+from .shader_collections import ShaderCollections
 from ..legacy import jms_format as jms
 from ..legacy import ass_format as ass
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, node_checksum, write_jms, write_ass
@@ -83,6 +84,7 @@ class LegacyExportScene(ExportScene):
             raise
         self.target_game = utils.get_project(self.scene_settings.scene_project).game
         self.jms_version, self.ass_version, self.jma_version = VERSIONS[self.target_game]
+        self.shader_collections = ShaderCollections(self.tags_dir, self.target_game)
         self.granny_textures = False
 
     def export_legacy(self, single_animation=False):
@@ -157,6 +159,8 @@ class LegacyExportScene(ExportScene):
             raise ValueError('No JMS, ASS or JMA data matched the export selection')
         if len({str(path).casefold() for path, _ in outputs}) != len(outputs):
             raise ValueError('Legacy output names collide; rename the affected BSP, permutation or animation')
+        if self.shader_collections.dirty:
+            outputs.append((self.shader_collections.path, self.shader_collections.text()))
         write_outputs(outputs)
 
     def write_tags(self, single_animation=False):
@@ -254,7 +258,8 @@ class LegacyExportScene(ExportScene):
                     gm = globals_[gm]
                 if self.supports_bsp:
                     gm = 'default'  # Pre-H4 BSP surface types are resolved from shaders.
-                shader = Path(mat.shader_path).name if mat.shader_path not in {'override', 'shaders\\invalid'} else mat.name
+                shader = (self.shader_collections.material_name(mat.shader_path)
+                          if mat.shader_path not in {'override', 'shaders\\invalid'} else mat.name)
                 name, lighting = material_variant(shader, props, gm,
                     asset.version if isinstance(asset, ass.ASS) else None)
                 if node.tag_type in {'collision', 'physics'}:
