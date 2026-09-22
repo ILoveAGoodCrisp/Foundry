@@ -20,13 +20,13 @@ Measured as dependency replacement, the migration is now 100%: the add-on has no
 ManagedBlam tag-access path to fall back to. This does not mean every workflow has
 completed visual or editing-kit acceptance.
 
-**H1/H2 feature-parity estimate: about 85%.** Core loose-tag loading/saving,
+**H1/H2 feature-parity estimate: about 87%.** Core loose-tag loading/saving,
 object/model geometry, all H2 LODs, collision/physics, classic animation decoding,
 bitmap and cubemap extraction, broad shader construction, scenario metadata,
 native legacy export dispatch, and scenario BSP render/collision geometry are
-connected. The remaining work is concentrated in classic BSP auxiliary objects
-and material references, legacy animation-event authoring, less common resource
-layouts, and broad visual/editing-kit acceptance.
+connected. The remaining work is concentrated in legacy animation-event
+authoring, less common resource layouts, H2 weather-volume representation, and
+broad visual/editing-kit acceptance.
 
 ## Editing-kit import acceptance (2026-09-22)
 
@@ -496,7 +496,7 @@ its mass update was verified by reopening a temporary physics tag.
 | Area | Post-removal acceptance work |
 | --- | --- |
 | Functions, shaders and lights | Shader/material/decal lifecycle, ordinary fields and the function edits currently used by shader authoring are native. Finish broad node-graph and light visual acceptance. |
-| Geometry and resources | Complete acceptance of native render-model and structure-BSP import, including H1/H2 BSP material references and H2 markers/environment objects, then port the remaining decorator, polyart and specialized resource paths. Render-model geometry, BSP render/collision geometry and particle-model import are native. |
+| Geometry and resources | Complete acceptance of native render-model and structure-BSP import, including the H2 weather-volume representation, then port the remaining decorator, polyart and specialized resource paths. Render-model geometry, BSP render/collision/portal geometry, markers, environment objects and particle-model import are native. |
 | Animation | Native decoding, pose composition, graph metadata/edits, frame events and PCA metadata are connected. Finish broad action-level visual acceptance and specialized composite cases. |
 | Bitmaps | Review the native/Python extraction path across formats, mipmaps, cubemaps and material texture use; complete any resource layouts not represented by processed pixel data. |
 | Scenarios and cinematics | Port remaining BSP/structure editors, lighting-info export and referenced-resource workflows. Scenario object/decal/decorator import, cinematic scene/data import and writing, template/global scenario export and common scenario/cubemap/decorator edits are native. |
@@ -510,7 +510,7 @@ can use them.
 
 ## Recommended implementation order
 
-1. Finish classic BSP material references, H2 markers/environment objects and legacy animation-event authoring.
+1. Finish legacy animation-event authoring and decide how decoded H2 weather polyhedra map to Foundry's Blender properties.
 2. Run representative complete imports/exports against H1 and H2 editing kits and compare the resulting Blender data visually and in Tool.
 3. Run the same acceptance pass against each H3+ editing kit.
 4. Close specialized composite-animation, bitmap-format, resource-layout and scenario/cinematic gaps found by that review.
@@ -922,10 +922,11 @@ render/collision/helper classification; it does not route classic tags through
 the H3+ `render geometry` resource layout. A Blender 5.1 background import of the
 real HCE Wizard BSP produced one structure mesh and one collision mesh (13,622
 vertices / 5,804 polygons total). The real H2 Zanzibar BSP produced 117 placed
-structure objects plus one collision mesh (94,187 vertices / 34,313 polygons
-total). Portal and weather helper geometry is decoded but currently omitted;
-classic BSP material references, markers and environment-object cross-references
-still need their Blender conversions.
+structure objects, 125 portals and one collision mesh. A second H2 sample,
+`01outro_bsp`, produced five structure markers and one referenced
+environment-object marker. Classic BSP materials now carry their complete tag
+paths and group extensions into Blender rather than requiring a basename search.
+H2 weather-polyhedron helper geometry is decoded but currently omitted.
 
 Classic object acceptance now covers representative H1 and H2 weapons, vehicles
 and scenery as well as bipeds. H1 positional object functions retain their input

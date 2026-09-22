@@ -236,10 +236,12 @@ class ClassicBspInstance(TypedDict):
     translation: tuple[float, float, float]
     scale: float
     mesh_type: str
+    reference: str
 
 
 class ClassicBspScene(TypedDict):
     materials: list[str]
+    material_paths: list[str]
     objects: list[dict[str, object] | None]
     instances: list[ClassicBspInstance]
 
@@ -283,7 +285,7 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
 
     def classic_render_scene(
         self,
-    ) -> tuple[list[str], list[StructureBspRenderMesh | None], list[ClassicBspInstance]]:
+    ) -> tuple[list[str], list[str], list[StructureBspRenderMesh | None], list[ClassicBspInstance]]:
         """Decode a complete H1/H2 BSP scene through the native classic extractor."""
         decoder = getattr(self.tag, 'classic_sbsp_scene', None)
         if decoder is None:
@@ -294,7 +296,7 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
             None if mesh is None else self._render_mesh_record(index, mesh)
             for index, mesh in enumerate(scene['objects'])
         ]
-        return scene['materials'], meshes, scene['instances']
+        return scene['materials'], scene['material_paths'], meshes, scene['instances']
 
     def _set_vector(self, element, name, values):
         field = self.required_field(element, name)

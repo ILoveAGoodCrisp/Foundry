@@ -19,13 +19,17 @@ from .prefab import ScenarioStructureBspMetadataTag, StructureBspHavokGeometry
 class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
     tag_ext = 'scenario_structure_bsp'
 
-    def _classic_render_objects(self, collection: bpy.types.Collection) -> list[bpy.types.Object]:
-        material_names, mesh_records, instances = self.classic_render_scene()
+    def _classic_render_objects(
+        self, collection: bpy.types.Collection,
+    ) -> tuple[list[bpy.types.Object], list[bpy.types.Object]]:
+        material_names, material_paths, mesh_records, instances = self.classic_render_scene()
         materials = {}
-        for index, name in enumerate(material_names):
+        for index, (name, shader_path) in enumerate(zip(material_names, material_paths, strict=True)):
             material = bpy.data.materials.get(name)
             if material is None:
                 material = bpy.data.materials.new(name)
+            if shader_path:
+                material.nwo.shader_path = shader_path
             materials[index] = material
 
         source_objects: dict[int, list[bpy.types.Object]] = {}
@@ -36,6 +40,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 None, None, name=f'classic_bsp_mesh:{index}')
 
         objects: list[bpy.types.Object] = []
+        game_objects: list[bpy.types.Object] = []
         for instance in instances:
             name = instance['name']
             mesh_type = instance['mesh_type']
@@ -49,6 +54,19 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 Quaternion((w, x, y, z)),
                 Vector.Fill(3, instance['scale']),
             )
+            if mesh_type in {'marker', 'environment'}:
+                ob = bpy.data.objects.new(name=name, object_data=None)
+                ob.empty_display_type = 'ARROWS'
+                ob.matrix_world = import_transform.marker_matrix(transform)
+                if mesh_type == 'marker':
+                    ob.empty_display_size *= (1 / 0.03048) * import_transform.scale_factor()
+                else:
+                    ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+                    ob.nwo.marker_game_instance_tag_name = instance['reference']
+                    game_objects.append(ob)
+                collection.objects.link(ob)
+                objects.append(ob)
+                continue
             for source in sources:
                 ob = source.copy()
                 ob.data = source.data
@@ -57,6 +75,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 ob.data.nwo.mesh_type = (
                     '_connected_geometry_mesh_type_collision'
                     if mesh_type == 'collision'
+                    else '_connected_geometry_mesh_type_portal'
+                    if mesh_type == 'portal'
                     else '_connected_geometry_mesh_type_structure'
                 )
                 collection.objects.link(ob)
@@ -65,7 +85,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         for sources in source_objects.values():
             for source in sources:
                 bpy.data.objects.remove(source)
-        return objects
+        return objects, game_objects
     
     def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1, import_havok=False, skip_structure_merge=False):
         
@@ -80,7 +100,9 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
 
         if self.game in {'halo1', 'halo2'}:
             if import_geometry:
-                objects.extend(self._classic_render_objects(collection))
+                classic_objects, classic_game_objects = self._classic_render_objects(collection)
+                objects.extend(classic_objects)
+                game_objects.extend(classic_game_objects)
             return objects, game_objects, bvh
 
         def new_structure_collection():
