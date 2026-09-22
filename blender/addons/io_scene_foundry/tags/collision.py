@@ -95,7 +95,7 @@ class CollisionDocument(TagDocument):
         spheres = []
         for index, element in enumerate(self.block(root, 'pathfinding spheres')):
             node = self.value(element, 'node')
-            flags = self.field(element, 'flags')
+            flags = element.field('flags')
             def sphere_flag(name: str) -> bool:
                 if flags is None:
                     return False

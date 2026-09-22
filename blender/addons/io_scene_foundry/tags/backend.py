@@ -181,6 +181,8 @@ class TagDocument:
         if value is None:
             return None
         group, path = cast(tuple[int, str], value)
+        if not path:
+            return None
         group = self.api.format_group_tag(group)
         extension = group_names(str(self.definitions / PROFILES[self.game] / '_meta.json')).get(group)
         if extension is None:

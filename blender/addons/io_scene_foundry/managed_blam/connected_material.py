@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from enum import Enum
+import math
+import struct
 from typing import TYPE_CHECKING
 
 from ..tools.node_tree_arrange import arrange
@@ -963,6 +965,138 @@ class Function:
                 setattr(self, attribute, flags.get_flag(name))
             except KeyError:
                 setattr(self, attribute, False)
+
+    def _read_halo2_legacy_mapping(self, data: bytes) -> None:
+        """Decode Halo 2's 20-byte mapping header and optional compact data."""
+        if len(data) < 20:
+            raise ValueError(f'Halo 2 mapping data is too short: {len(data)} bytes')
+        function_type, output_type, exponent = data[0], data[1], data[2]
+        if output_type in {2, 3, 4, 0x20, 0x40, 0x80}:
+            raise ValueError('Halo 2 color-output object functions are not implemented')
+
+        self.clamp_min = struct.unpack_from('<f', data, 4)[0]
+        self.clamp_max = struct.unpack_from('<f', data, 8)[0]
+        self.graph_count = 1
+
+        if function_type == 1:
+            self.master_type = FunctionEditorMasterType.Basic
+            return
+
+        if function_type == 3:
+            self.master_type = FunctionEditorMasterType.Periodic
+            periodic_names = (
+                'one', 'zero', 'cosine', 'cosine (variable period)',
+                'diagonal wave', 'diagonal wave (variable period)',
+                'slide', 'slide (variable period)', 'noise', 'jitter',
+                'wander', 'spark',
+            )
+            if exponent >= len(periodic_names):
+                raise ValueError(f'Unknown Halo 2 periodic function index: {exponent}')
+            self.periodic_functions = [periodic_names[exponent]]
+            frequency_offset = 20 if len(data) >= 52 else 12
+            phase_offset = 24 if len(data) >= 52 else 16
+            self.frequencies = [struct.unpack_from('<f', data, frequency_offset)[0]]
+            self.phases = [struct.unpack_from('<f', data, phase_offset)[0]]
+            self.mins = [self.clamp_min]
+            self.maxes = [self.clamp_max]
+            return
+
+        if function_type == 4:
+            if len(data) < 28:
+                raise ValueError(f'Halo 2 linear mapping data is too short: {len(data)} bytes')
+            slope, offset = struct.unpack_from('<2f', data, 20)
+            self.master_type = FunctionEditorMasterType.Curve
+            segment = Segment(0, 0)
+            segment.type = FunctionEditorSegmentType.Linear
+            for index, value in enumerate((0.0, 1.0)):
+                point = ControlPoint(0, index)
+                point.x = value
+                point.y = slope * value + offset
+                segment.control_points.append(point)
+            self.graph_segments = [[segment]]
+            return
+
+        if function_type == 5:
+            if len(data) < 100:
+                raise ValueError(f'Halo 2 linear-key mapping data is too short: {len(data)} bytes')
+            graph_points = [struct.unpack_from('<2f', data, 20 + index * 8)
+                            for index in range(4)]
+            segments = []
+            point_index = 0
+            for segment_index, (start, end) in enumerate(zip(graph_points, graph_points[1:])):
+                if end[0] <= start[0]:
+                    continue
+                segment = Segment(0, segment_index)
+                segment.type = FunctionEditorSegmentType.Linear
+                for coordinates in (start, end):
+                    point = ControlPoint(0, point_index)
+                    point.x, point.y = coordinates
+                    segment.control_points.append(point)
+                    point_index += 1
+                point_index -= 1
+                segments.append(segment)
+            if not segments:
+                raise ValueError('Halo 2 linear-key mapping has no increasing control points')
+            self.master_type = FunctionEditorMasterType.Curve
+            self.graph_segments = [segments]
+            return
+
+        if function_type == 7:
+            if len(data) < 36:
+                raise ValueError(f'Halo 2 spline mapping data is too short: {len(data)} bytes')
+            i, j, k, l = struct.unpack_from('<4f', data, 20)
+
+            class LegacySplineEditor:
+                def evaluate_shape(self, value: float, _graph: float) -> float:
+                    return ((i * value + j) * value + k) * value + l
+
+            self.master_type = FunctionEditorMasterType.Curve
+            self.editor = LegacySplineEditor()
+            segment = Segment(0, 0)
+            segment.type = FunctionEditorSegmentType.Spline
+            for index, value in enumerate((0.0, 1.0)):
+                point = ControlPoint(0, index)
+                point.x = value
+                point.y = self.editor.evaluate_shape(value, 0.0)
+                segment.control_points.append(point)
+            self.graph_segments = [[segment]]
+            return
+
+        if function_type not in {0, 2}:
+            raise ValueError(f'Unknown Halo 2 mapping function type: {function_type}')
+
+        class LegacyTransitionEditor:
+            def evaluate_shape(self, value: float, _graph: float) -> float:
+                value = max(0.0, min(1.0, value))
+                match exponent:
+                    case 1:
+                        return value * value
+                    case 2:
+                        return value * value * value
+                    case 3:
+                        return math.sqrt(value)
+                    case 4:
+                        return value ** (1.0 / 3.0)
+                    case 5:
+                        return (1.0 - math.cos(value * math.pi)) * 0.5
+                    case 6:
+                        return 0.0
+                    case 7:
+                        return 1.0
+                return value
+
+        self.master_type = FunctionEditorMasterType.Curve
+        self.editor = LegacyTransitionEditor()
+        segment = Segment(0, 0)
+        segment.type = (FunctionEditorSegmentType.Spline
+                        if function_type == 2 else FunctionEditorSegmentType.Linear)
+        for index, value in enumerate((0.0, 1.0)):
+            point = ControlPoint(0, index)
+            point.x = value
+            point.y = self.editor.evaluate_shape(value, 0.0)
+            segment.control_points.append(point)
+        self.graph_segments = [[segment]]
+
     def from_native_light(self, document, element):
         """Read a light mapping and its input/output modifier metadata."""
         from ..tags.metadata import enum_index
@@ -987,9 +1121,23 @@ class Function:
         mapping = mapping_field.as_struct()
         if mapping is None:
             raise ValueError(f'{name}: missing mapping struct')
-        data = next((field.value for field in mapping.fields() if field.type_name == 'data'), None)
+        data = next((field.as_data() for field in mapping.fields()
+                     if field.type_name == 'data'), None)
+        halo2_legacy = False
+        if data is None:
+            # Classic Halo 2 stores mapping bytes as a block of byte elements
+            # instead of a modern data field.
+            data_field = mapping.field('data')
+            data_block = None if data_field is None else data_field.as_block()
+            if data_block is not None:
+                halo2_legacy = True
+                data = bytes(int(document.value(element, 'Value')) & 0xFF
+                             for element in data_block)
         if data is None:
             raise ValueError(f'{name}: missing mapping data')
+        if document.game == 'halo2' and halo2_legacy:
+            self._read_halo2_legacy_mapping(data)
+            return
         self.editor = TagFunctionEditor(data)
         self.native_function_type = data[0]
         description = self.editor.describe()

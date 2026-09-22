@@ -841,3 +841,19 @@ Region and Permutation for Halo 2 projects; L5 is the default and L6 is reserved
 for cinematic geometry. Legacy JMS import/export carries the same LOD value.
 A Blender 5.1 background import of the real H2 Brute render model decoded 18
 permutations and produced 108 meshes, six per permutation, with all L1-L6 labels.
+
+Classic object acceptance now covers representative H1 and H2 weapons, vehicles
+and scenery as well as bipeds. H1 positional object functions retain their input
+dependencies without assuming Halo 2's named function fields. H1 object physics
+metadata is no longer mistaken for a geometric physics-model tag, and its
+collision material flags read through the native field handle. Halo 2 empty tag
+references no longer acquire a bogus extension from unused group bytes. Its
+classic 20-byte object-function layout now decodes identity, constant, transition,
+periodic, linear, linear-key and spline curves directly. A full scan opened all
+296 H2 biped, vehicle, weapon and scenery tags in the local kit and decoded 144
+candidate object functions without an error. Blender 5.1 imports completed HCE
+Pistol and Warthog plus H2 Magnum, Warthog and Elite Jetpack samples; the H2
+Warthog imported render LODs, collision and physics as 472 objects/401 meshes.
+A separate metadata sweep opened 429 HCE and 804 H2 biped, vehicle, weapon and
+scenery tags and read their inherited object records, model references, variants,
+attachments, change colors and weapon metadata with no failures.

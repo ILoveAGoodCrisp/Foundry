@@ -73,10 +73,14 @@ class ObjectDocument(TagDocument):
         return ref.Filename if ref else None
 
     def get_halo1_model_paths(self, optional_tag_root: str | Path | None = None) -> tuple[str, str, str, str]:
-        """Return the direct render/collision/animation/physics references stored by H1 objects."""
+        """Return H1 render, collision and animation references.
+
+        H1's ``physics`` reference is an object-properties tag, not the geometric
+        ``physics_model`` consumed by the Blender physics importer.
+        """
         struct = self.object_struct()
         paths = []
-        for name in ('model', 'collision model', 'animation graph', 'physics'):
+        for name in ('model', 'collision model', 'animation graph'):
             reference = self.reference(struct, name)
             if reference is None or not reference.RelativePath:
                 paths.append('')
@@ -84,7 +88,7 @@ class ObjectDocument(TagDocument):
                 paths.append(reference.Filename)
             else:
                 paths.append(str(Path(optional_tag_root) / reference.RelativePathWithExtension))
-        return paths[0], paths[1], paths[2], paths[3]
+        return paths[0], paths[1], paths[2], ''
 
     def set_model_tag_path(self, path):
         self.reference_model.Path = path
@@ -135,6 +139,8 @@ class ObjectDocument(TagDocument):
 
     def get_uses_tether(self, find_weapon=False):
         def read(doc):
+            if doc.game == 'halo1':
+                return False
             for trigger in doc.block(doc.tag.root(), 'new triggers'):
                 value = doc.value(trigger, 'behavior')
                 if (value == 3 and doc.game not in {'halo3', 'halo3odst'}) or str(value).split('#', 1)[0] == 'latch-tether':

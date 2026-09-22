@@ -11,6 +11,22 @@ class ObjectTag(BlenderTag, ObjectDocument):
 
     def functions_to_blender(self):
         from ..managed_blam.connected_material import Function, game_functions
+        if self.game == 'halo1':
+            # Halo 1 stores four positional object functions rather than the
+            # named mapping functions introduced in Halo 2. Its current shader
+            # converter does not consume these mappings, but retain their
+            # authored input dependencies for Blender object properties.
+            object_struct = self.object_struct()
+            result = {}
+            for index, element in enumerate(self.block(object_struct, 'functions')):
+                usage = str(self.value(element, 'usage')).strip()
+                if not usage:
+                    continue
+                input_field = object_struct.field(f'{chr(97 + index)} in') if index < 4 else None
+                input_name = '' if input_field is None else str(input_field.value).strip()
+                result[usage] = ([] if not input_name or input_name == 'none'
+                                 else [input_name])
+            return result
         candidates = [e for e in self.block(self.object_struct(), 'functions')
                       if self.value(e, 'export name').strip()
                       and self.value(e, 'export name') != self.value(e, 'import name')
