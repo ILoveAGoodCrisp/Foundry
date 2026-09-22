@@ -1,6 +1,7 @@
 """Native scenario metadata and lightweight editor operations."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
@@ -68,7 +69,93 @@ class ScenarioDecoratorSet:
     placements: tuple[ScenarioDecoratorPlacement, ...]
 
 
-class ScenarioMetadataTag(BlenderTag, TagDocument):
+class ScenarioDocument(TagDocument):
+    """Game-independent scenario operations used by import and export."""
+
+    def _set_value(self, struct, name: str, value: object) -> None:
+        self.required_field(struct, name).set(value)
+        self.tag_has_changes = True
+
+    def ensure_structure_bsps(self, paths: Iterable[TagPathInput]) -> None:
+        """Append missing structure BSP references while preserving existing entries."""
+        block = self.block(self.tag.root(), 'structure bsps')
+        existing = {
+            reference.RelativePath.casefold()
+            for element in block
+            if (reference := self.reference(element, 'structure bsp')) is not None
+        }
+        for path in paths:
+            reference = self.reference_from_path(path)
+            key = reference.RelativePath.casefold()
+            if key in existing:
+                continue
+            index = block.add()
+            self.set_reference(block[index], 'structure bsp', reference)
+            existing.add(key)
+
+    def scenario_type(self) -> int:
+        field = self.required_field(self.tag.root(), 'type')
+        value = field.value
+        if isinstance(value, int):
+            return value
+        normalized = str(value).strip().casefold().replace('_', ' ')
+        options = field.options()
+        if options is not None:
+            for index, name in enumerate(options.names):
+                if name.strip().casefold().replace('_', ' ') == normalized:
+                    return index
+        raise ValueError(f'{self.path}: unknown scenario type {value!r}')
+
+    read_scenario_type = scenario_type
+
+    def set_scenario_type(self, value: str | int) -> None:
+        if self.game == 'halo1' and isinstance(value, str):
+            value = {'solo': 'singleplayer', 'main menu': 'user interface'}.get(
+                value, value)
+        self._set_value(self.tag.root(), 'type', value)
+
+    def create_default_profile(self) -> None:
+        root = self.tag.root()
+        self.block(root, 'player starting locations').add()
+
+        profiles = self.block(root, 'player starting profile')
+        profile_index = profiles.add()
+        profile = profiles[profile_index]
+        self._set_value(profile, 'name', 'default_single')
+
+        defaults: dict[str, TagReference] = {}
+        object_types_path = self.tags_root / 'multiplayer/globals.multiplayer_object_type_list'
+        if object_types_path.is_file():
+            with TagDocument(object_types_path, tags_root=self.tags_root,
+                             game=self.game, must_exist=True) as object_types:
+                block = object_types.block(object_types.tag.root(), 'object types')
+                wanted = {
+                    'assault_rifle': 'primary weapon',
+                    'magnum': 'secondary weapon',
+                    'sprint_equipment': 'starting equipment',
+                }
+                for element in block:
+                    field = wanted.get(object_types.value(element, 'name'))
+                    if field is not None:
+                        reference = object_types.reference(element, 'object')
+                        if reference is not None:
+                            defaults[field] = reference
+
+        for name in ('primary weapon', 'secondary weapon'):
+            reference = defaults.get(name)
+            if reference is None:
+                continue
+            self.set_reference(profile, name, reference)
+            prefix = 'primary' if name.startswith('primary') else 'secondary'
+            self._set_value(profile, f'{prefix}rounds loaded', -1)
+            self._set_value(profile, f'{prefix}rounds total', -1)
+        equipment = profile.field('starting equipment')
+        if equipment is not None and defaults.get('starting equipment') is not None:
+            self.set_reference(profile, 'starting equipment', defaults['starting equipment'])
+        self.tag_has_changes = True
+
+
+class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
     tag_ext = 'scenario'
 
     OBJECT_BLOCKS = (
@@ -106,10 +193,6 @@ class ScenarioMetadataTag(BlenderTag, TagDocument):
         ('chocalate mountain', 'chocolate_mountain_new'),
     )
 
-    def _set_value(self, struct, name, value):
-        self.required_field(struct, name).set(value)
-        self.tag_has_changes = True
-
     def _blocks(self):
         root = self.tag.root()
         designs_field = root.field('structure designs')
@@ -137,56 +220,6 @@ class ScenarioMetadataTag(BlenderTag, TagDocument):
     @staticmethod
     def _active_indices(mask, count):
         return {index for index in range(min(count, 32)) if int(mask) & (1 << index)}
-
-    def scenario_type(self):
-        return self.value(self.tag.root(), 'type')
-
-    read_scenario_type = scenario_type
-
-    def set_scenario_type(self, value):
-        self._set_value(self.tag.root(), 'type', value)
-
-    def create_default_profile(self):
-        root = self.tag.root()
-        locations = self.block(root, 'player starting locations')
-        locations.add()
-
-        profiles = self.block(root, 'player starting profile')
-        profile_index = profiles.add()
-        profiles = self.block(root, 'player starting profile')
-        profile = profiles[profile_index]
-        self._set_value(profile, 'name', 'default_single')
-
-        defaults = {}
-        object_types_path = self.tags_root / 'multiplayer/globals.multiplayer_object_type_list'
-        if object_types_path.is_file():
-            with TagDocument(object_types_path, tags_root=self.tags_root,
-                             game=self.game, must_exist=True) as object_types:
-                block = object_types.block(object_types.tag.root(), 'object types')
-                wanted = {
-                    'assault_rifle': 'primary weapon',
-                    'magnum': 'secondary weapon',
-                    'sprint_equipment': 'starting equipment',
-                }
-                for element in block:
-                    field = wanted.get(object_types.value(element, 'name'))
-                    if field is not None:
-                        reference = object_types.reference(element, 'object')
-                        if reference is not None:
-                            defaults[field] = reference
-
-        for name in ('primary weapon', 'secondary weapon'):
-            reference = defaults.get(name)
-            if reference is None:
-                continue
-            self.set_reference(profile, name, reference)
-            prefix = 'primary' if name.startswith('primary') else 'secondary'
-            self._set_value(profile, f'{prefix}rounds loaded', -1)
-            self._set_value(profile, f'{prefix}rounds total', -1)
-        equipment = profile.field('starting equipment')
-        if equipment is not None and defaults.get('starting equipment') is not None:
-            self.set_reference(profile, 'starting equipment', defaults['starting equipment'])
-        self.tag_has_changes = True
 
     @staticmethod
     def _optional_block(struct, name):
@@ -291,14 +324,23 @@ class ScenarioMetadataTag(BlenderTag, TagDocument):
         return names
 
     def get_sky_indices(self):
-        _, bsps, _ = self._blocks()
-        return [self.value(element, 'default sky') for element in bsps]
+        root, bsps, _ = self._blocks()
+        skies = self._optional_block(root, 'skies')
+        fallback = 0 if skies is not None and len(skies) else -1
+        return [
+            self.value(element, 'default sky')
+            if element.field('default sky') is not None else fallback
+            for element in bsps
+        ]
 
     def _zone_mask(self, zone_set, name):
         if not zone_set:
             return None
         root = self.tag.root()
-        for element in self.block(root, 'zone sets'):
+        zone_sets = self._optional_block(root, 'zone sets')
+        if zone_sets is None:
+            return None
+        for element in zone_sets:
             if self.value(element, 'name') == zone_set:
                 return int(self.value(element, name))
         return None
@@ -333,7 +375,10 @@ class ScenarioMetadataTag(BlenderTag, TagDocument):
 
     def zone_set_names(self) -> list[str]:
         root = self.tag.root()
-        return [name for element in self.block(root, 'zone sets')
+        zone_sets = self._optional_block(root, 'zone sets')
+        if zone_sets is None:
+            return []
+        return [name for element in zone_sets
                 if isinstance(name := self.value(element, 'name'), str)]
 
     def required_resources(self) -> TagReference | None:
@@ -421,12 +466,15 @@ class ScenarioMetadataTag(BlenderTag, TagDocument):
 
     def get_zone_sets_dict(self):
         root, bsps, _ = self._blocks()
+        zone_sets = self._optional_block(root, 'zone sets')
+        if zone_sets is None:
+            return {}
         bsp_names = []
         for element in bsps:
             reference = self.reference(element, 'structure bsp')
             bsp_names.append(reference.ShortName if reference is not None else '')
         result = {}
-        for element in self.block(root, 'zone sets'):
+        for element in zone_sets:
             mask = self.value(element, 'bsp zone flags')
             result[self.value(element, 'name')] = [
                 bsp_names[index] for index in self._active_indices(mask, len(bsps))
@@ -741,12 +789,16 @@ class ScenarioMetadataTag(BlenderTag, TagDocument):
         element = self._bsp(bsp_name)
         if element is None:
             return None
-        size = self.required_field(element, 'size class').options()
-        result = {'Lightmapper Size Class': size.current_name if size else str(self.value(element, 'size class'))}
+        size_field = element.field('size class')
+        if size_field is None:
+            return None
+        size = size_field.options()
+        result = {'Lightmapper Size Class': size.current_name if size else str(size_field.value)}
         if self.corinth:
             refinement = self.required_field(element, 'refinement size class').options()
             result['Lightmapper Refinement Class'] = refinement.current_name if refinement else str(self.value(element, 'refinement size class'))
-        sky_index = self.value(element, 'default sky')
+        sky_field = element.field('default sky')
+        sky_index = sky_field.value if sky_field is not None else -1
         if sky_index < 0:
             result['Default Sky'] = 'None'
         else:
@@ -759,6 +811,8 @@ class ScenarioMetadataTag(BlenderTag, TagDocument):
             return None
         _, bsps, _ = self._blocks()
         if not 0 <= bsp_index < len(bsps):
+            return None
+        if bsps[bsp_index].field('structure lighting_info') is None:
             return None
         reference = self.reference(bsps[bsp_index], 'structure lighting_info')
         return Path(reference.Filename) if self.path_exists(reference) else None

@@ -26,6 +26,7 @@ from ..legacy import ass_format as ass
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, node_checksum, write_jms, write_ass
 from ..tags.backend import TagDocument
 from ..tags.object import ObjectDocument
+from ..tags.scenario import ScenarioDocument
 from .. import utils
 
 
@@ -250,6 +251,7 @@ class LegacyExportScene(ExportScene):
                     event_level=self.export_settings.event_level,
                     **halo1_tool_options,
                 )
+            self.write_classic_scenario_tag(structure_sources)
             return
         if not animation_only:
             if self.target_game == 'halo1':
@@ -327,6 +329,11 @@ class LegacyExportScene(ExportScene):
             raise FileNotFoundError(
                 f'Model compilation did not create the expected tag: {model_path}')
 
+        if (self.asset_type.name == 'SKY'
+                and self.target_game in {'halo1', 'halo2'}):
+            self.write_classic_sky_tag(model_path)
+            return
+
         outputs = {'scenery'} if self.asset_type.name == 'SKY' else {
             tag_type for tag_type in self.object_tag_types
             if getattr(self.scene_settings, 'output_' + tag_type, False)
@@ -361,6 +368,53 @@ class LegacyExportScene(ExportScene):
                 else:
                     tag.set_model_tag_path(model_reference)
             print(f'--- Wrote {destination}')
+
+    def write_classic_scenario_tag(self, structure_sources: list[Path]) -> None:
+        """Create/update an H1/H2 scenario with its compiled BSP references."""
+        destination = Path(
+            self.tags_dir, self.asset_path_relative, self.asset_name
+        ).with_suffix('.scenario')
+        is_new = not destination.is_file()
+        bsp_paths: list[Path] = []
+        for source in structure_sources:
+            bsp = Path(
+                self.tags_dir, self.asset_path_relative, source.stem
+            ).with_suffix('.scenario_structure_bsp')
+            if not bsp.is_file():
+                raise FileNotFoundError(
+                    f'Structure compilation did not create the expected tag: {bsp}')
+            bsp_paths.append(Path(utils.relative_path(bsp)))
+
+        with ScenarioDocument(
+            destination, tags_root=self.tags_dir, game=self.target_game
+        ) as scenario:
+            scenario.ensure_structure_bsps(bsp_paths)
+            if is_new:
+                scenario.create_default_profile()
+                scenario.set_scenario_type(self.scene_settings.scenario_type)
+        print(f'--- Wrote {destination}')
+
+    def write_classic_sky_tag(self, model_path: Path) -> None:
+        """Create/update the distinct H1/H2 sky tag reference layout."""
+        destination = model_path.with_suffix('.sky')
+        with TagDocument(destination, tags_root=self.tags_dir,
+                         game=self.target_game) as tag:
+            root = tag.tag.root()
+            if self.target_game == 'halo1':
+                tag.set_reference(root, 'model', utils.relative_path(model_path))
+                animation = model_path.with_suffix('.model_animations')
+            else:
+                render_model = model_path.with_suffix('.render_model')
+                if not render_model.is_file():
+                    raise FileNotFoundError(
+                        f'Sky compilation did not create the expected tag: {render_model}')
+                tag.set_reference(root, 'render model',
+                                  utils.relative_path(render_model))
+                animation = model_path.with_suffix('.model_animation_graph')
+            if animation.is_file():
+                tag.set_reference(root, 'animation graph',
+                                  utils.relative_path(animation))
+        print(f'--- Wrote {destination}')
 
     def create_event_objects(self, animation):
         if animation.animation_events:
@@ -399,7 +453,8 @@ class LegacyExportScene(ExportScene):
                 shader = (self.shader_collections.material_name(mat.shader_path)
                           if mat.shader_path not in {'override', 'shaders\\invalid'} else mat.name)
                 name, lighting = material_variant(shader, props, gm,
-                    asset.version if isinstance(asset, ass.ASS) else None)
+                    asset.version if isinstance(asset, ass.ASS) else None,
+                    self.target_game)
                 if node.tag_type in {'collision', 'physics'}:
                     name = gm  # Physics/collision material names are surface types, not display shaders.
                 permutation = node.permutation or 'default'

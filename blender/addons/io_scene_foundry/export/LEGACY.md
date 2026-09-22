@@ -45,6 +45,8 @@ ladder, breakable, precise positions, shadow/lightmap exclusion, portal flags,
 decal offset and slip surfaces. ASS 7 also writes lighting records. Default Low
 lightmap resolution does not add a name override. Collision and physics use
 surface material names; pre-H4 BSPs keep shader-derived surface types.
+The H1 JMS dialect omits the later precise-position `)` material suffix because
+H1 Tool treats it as part of the shader name rather than as a surface flag.
 
 Text serializers reuse the importer's Blender-independent asset models. Output
 is staged in temporary files and JMS/ASS files are parsed back before any existing
@@ -54,7 +56,10 @@ batch is not a filesystem-wide atomic transaction.
 ## Tag writing
 
 Full and Tags Only exports support H1 through ODST model, sky, and animation
-assets. H1 and H2 scenario exports also compile each structure BSP. H2–ODST run the editing kit's `bulk-import-model-folder` workflow over
+assets. H1 and H2 scenario exports compile each structure BSP and create or
+update the parent `.scenario` tag with the compiled BSP references. Existing
+scenario contents and existing BSP entries are preserved; a new scenario also
+receives its selected scenario type and a default player start/profile. H2–ODST run the editing kit's `bulk-import-model-folder` workflow over
 the JMS/ASS source tree; H2 always uses its standard command because that kit
 does not provide the H3 draft variant. H1 dispatches its separate `model`,
 `collision-geometry`, and `physics` commands according to the available source
@@ -74,6 +79,10 @@ physics references; configured
 tag templates are copied before those references are written. Tags Only reuses
 the source files already in the asset folder; Full Export writes fresh
 intermediates before compiling them.
+H1 and H2 Sky assets create their native `.sky` tag rather than a scenery tag:
+H1 writes gbxmodel/model-animations references, while H2 writes
+render-model/model-animation-graph references. Existing sky lighting and fog
+settings remain intact.
 
 ## Current limits
 

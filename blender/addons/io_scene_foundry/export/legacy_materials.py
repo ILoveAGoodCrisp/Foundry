@@ -2,7 +2,8 @@
 from math import degrees
 
 
-def material_variant(shader, props, global_material='default', ass_version=None):
+def material_variant(shader, props, global_material='default', ass_version=None,
+                     target_game=None):
     def get(name, default=0):
         return props.get('bungie_' + name, default)
 
@@ -21,7 +22,8 @@ def material_variant(shader, props, global_material='default', ass_version=None)
     flags = [sides in {2, 3, 4, 5, 6, 7}, sides == 1, sides in {3, 5, 7},
              mode == 1, mode == 2, mode == 3, get('mesh_type') == 15,
              bool(get('ladder')), mode == 6, False, bool(get('no_shadow')),
-             mode == 4, mode == 5, bool(get('precise_position')), False,
+             mode == 4, mode == 5,
+             bool(get('precise_position')) and target_game != 'halo1', False,
              bool(get('portal_one_way')), bool(get('portal_door')), bool(get('portal_vis_blocker')),
              bool(get('no_lightmap')), False, bool(get('decal_offset')), bool(get('slip_surface'))]
     suffixes = ('%', '#', '?', '!', '@', '*', '$', '^', '-', '&', '=', '', ';', ')', '', '<', '|', '~', '{', '}', '[', ']')

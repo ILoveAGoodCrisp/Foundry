@@ -864,8 +864,13 @@ H1 tag compilation now always invokes `tool.exe`, so selecting `tool_fast` in
 Foundry no longer breaks an H1 export. H1 Tool reads its shader-class question
 directly from the Windows console, so Foundry now prevents the prompt by creating
 missing material tags first. Model-family compilation creates `shader_model`,
-while scenario structure compilation creates `shader_environment`. H1 and H2 scenario exports now dispatch one
-`structure` command per exported BSP source.
+while scenario structure compilation creates `shader_environment`. H1 and H2
+scenario exports now dispatch one `structure` command per exported BSP source,
+then use blam-tags to create or update the parent `.scenario` and append any
+missing compiled BSP references without replacing existing scenario data. New
+classic scenarios also receive the selected scenario type and a default player
+start/profile; this now applies to H1 even though its animation-graph
+preprocessing remains intentionally separate.
 
 Legacy export now canonicalizes the resolved asset destination before handing it
 to the backend. The initial `data\\halo\\halo.asset` fallback no longer overrides
@@ -881,6 +886,31 @@ legacy Tool commands continue to consume JMS/ASS/JMA sources directly.
 Asset-marker resolution remains read-only in the export operator constructor;
 Blender disallows Scene ID writes in that context. The resolved path is applied
 and persisted during operator execution instead, including Quick Export.
+
+H1 JMS material generation no longer emits the later precise-position `)`
+suffix. H1 Tool interpreted that character as part of the shader name and could
+create tags such as `invalid).shader_model`; new H1 sources now resolve the
+intended `invalid.shader_model` name.
+
+Classic Sky export now writes the correct `.sky` group through blam-tags. H1
+updates its gbxmodel and optional model-animations references; H2 updates its
+render-model and optional model-animation-graph references. Existing sky
+radiosity, fog, shader-function and light data is preserved.
+
+Classic scenario metadata now treats zone sets, per-BSP default skies and
+structure-lighting references as layout-dependent fields. H1/H2 scenario import
+can enumerate its BSPs and skies without requiring the later zone-set records;
+H1 uses the first available sky where its BSP reference has no default-sky
+field. Scenario type enum names are normalized to Foundry's existing numeric
+campaign/multiplayer/main-menu contract.
+
+The next classic scenario dependency is isolated in blam-tags: its current
+`sbsp_render_meshes` binding follows the H3+ `render geometry` resource layout.
+Real HCE Wizard and H2 Zanzibar BSP probes reach the binding but report the
+missing `render geometry/per mesh temporary` field. H1/H2 need a decoder over
+their root lightmap/cluster/material blocks before Foundry can allocate classic
+BSP geometry in Blender; the concrete failure is recorded in
+`BLAM_TAGS_LIMITATIONS.md`.
 
 Classic object acceptance now covers representative H1 and H2 weapons, vehicles
 and scenery as well as bipeds. H1 positional object functions retain their input
