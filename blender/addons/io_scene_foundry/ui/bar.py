@@ -357,7 +357,7 @@ def draw_game_launcher_pruning(scene_nwo_halo_launcher, col):
 
 
 class NWO_HaloLauncherFoundationSettings(bpy.types.Panel):
-    bl_label = "Foundation Settings"
+    bl_label = "Tag Editor Settings"
     bl_idname = "NWO_PT_HaloLauncherFoundationSettings"
     bl_space_type = "VIEW_3D"
     bl_region_type = "HEADER"

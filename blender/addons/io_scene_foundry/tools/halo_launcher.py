@@ -42,6 +42,14 @@ OMAHA_FOUNDATION_VERSION = "1.903.0.0"
 MIDNIGHT_FOUNDATION_VERSION = "1.890.0.0"
 GROUNDHOG_FOUNDATION_VERSION = "1.41.0.0"
 
+GUERILLA_GAMES = {"Halo1", "Halo2", "Halo3", "Halo3ODST"}
+
+
+def tag_editor_executable(context=None):
+    """Return the tag editor used by the active project's generation."""
+    return "guerilla.exe" if project_game_for_mcc(context) in GUERILLA_GAMES else "Foundation.exe"
+
+
 def _install_foundation_plugin(project_path, plugin_path, plugins_xml):
     try:
         import clr
@@ -147,7 +155,7 @@ def foundation_plugin_update():
 class NWO_OpenFoundationTag(bpy.types.Operator):
     bl_idname = "nwo.open_foundation_tag"
     bl_label = "Open in Tag Editor"
-    bl_description = "Opens the specified tag in Foundation"
+    bl_description = "Opens the specified tag in the current project's tag editor"
 
     tag_path : bpy.props.StringProperty()
     
@@ -158,7 +166,12 @@ class NWO_OpenFoundationTag(bpy.types.Operator):
     def execute(self, context):
         full_tag_path = Path(get_tags_path(), relative_path(self.tag_path))
         if full_tag_path.exists():
-            run_ek_cmd(["foundation", "/dontloadlastopenedwindows", full_tag_path], True)
+            executable = tag_editor_executable(context)
+            launch_args = [executable]
+            if executable == "Foundation.exe":
+                launch_args.append("/dontloadlastopenedwindows")
+            launch_args.append(full_tag_path)
+            run_ek_cmd(launch_args, True)
         else:
             self.report({"WARNING"}, "Tag does not exist")
         return {"FINISHED"}
@@ -171,12 +184,14 @@ def get_tag_if_exists(asset_path, asset_name, type, extra=""):
     else:
         return ""
 
-def launch_foundation(settings, context, report):
+def launch_tag_editor(settings, context, report):
     scene_nwo = get_scene_props()
-    launch_args = ["Foundation.exe"]
+    executable = tag_editor_executable(context)
+    launch_args = [executable]
     # set the launch args
     if settings.foundation_default == "asset" and valid_nwo_asset(context):
-        launch_args.append("/dontloadlastopenedwindows")
+        if executable == "Foundation.exe":
+            launch_args.append("/dontloadlastopenedwindows")
         asset_path = scene_nwo.asset_directory
         asset_path_full = Path(get_tags_path(), asset_path)
         asset_name = scene_nwo.asset_name
@@ -340,13 +355,21 @@ def launch_foundation(settings, context, report):
                     get_tag_if_exists(asset_path, asset_name, "cinematic")
                 )
 
-    # first, get and set the project so we can avoid the Foundation prompt
-    foundation_plugin_update()
-    # report({'INFO'}, "Installed Foundry Plugin for Foundation")
+    if executable == "Foundation.exe":
+        # Install the plugin before launch and start its companion tag watcher.
+        foundation_plugin_update()
     run_ek_cmd(launch_args, True)
-    run_ek_cmd([os.path.join("bin", "tools", "bonobo", "TagWatcher.exe")], True)
+    if executable == "Foundation.exe":
+        run_ek_cmd([os.path.join("bin", "tools", "bonobo", "TagWatcher.exe")], True)
 
     return {"FINISHED"}
+
+
+# Kept for callers using the old Python helper name. The Blender operator ID also
+# remains nwo.launch_foundation so existing keymaps and saved workspaces continue
+# to work.
+launch_foundation = launch_tag_editor
+
 
 def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, report=None):
     asset_path = scene_nwo.asset_directory
@@ -688,19 +711,17 @@ def scenario_is_firefight(scenario_path):
         return scenario.survival_mode()
     
 class NWO_HaloLauncher_Foundation(bpy.types.Operator):
-    """Launches Foundation"""
+    """Launches the current project's tag editor"""
 
     bl_idname = "nwo.launch_foundation"
-    bl_label = "Foundation"
+    bl_label = "Tag Editor"
     
     @classmethod
     def poll(cls, context):
         return current_project_valid()
 
     def execute(self, context):
-        from .halo_launcher import launch_foundation
-
-        launch_foundation(get_launcher_props(), context, self.report)
+        launch_tag_editor(get_launcher_props(), context, self.report)
         return {'FINISHED'}
 
 
@@ -901,7 +922,7 @@ class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
 
     foundation_default: bpy.props.EnumProperty(
         name="Tags",
-        description="Select whether Foundation should open with the last opended windows, or open to the selected asset tags",
+        description="Select whether the tag editor should use its default workspace, or open the selected asset tags",
         default="asset",
         options=set(),
         items=[
