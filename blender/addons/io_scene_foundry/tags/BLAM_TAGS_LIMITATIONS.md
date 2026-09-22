@@ -23,7 +23,6 @@ unfinished migration work, not the intended workaround.
 
 | ID | Games / data | Failure and evidence | Layer / current workaround | Resolution needed |
 | --- | --- | --- | --- | --- |
-| READ-004 | Halo 2 V3 `style` tags | A one-file-per-group classic sweep opened 96 other H2 groups, but 9 of 50 real `style` tags fail with `unexpected EOF reading h2 block header: need 16 bytes, have 0`. Reproductions include `ai/all.style`, `ai/bunkering.style`, `ai/guarding.style`, `ai/harrassing.style`, `ai/hunting.style`, `ai/no_vehicle_for_you.style`, `ai/relaxing.style`, `ai/retreating.style`, and `objects/characters/monitor/ai/monitor.style`. All use the raw `BALM` Halo 2 V3 signature; 41 other style tags parse. | Rust classic parser/layout-version handling. No ManagedBlam fallback. | Identify which populated/truncated block in these V3 files lacks the expected 16-byte header and preserve its actual representation. |
 | READ-003 | Tag-function editor descriptions: unknown transition functions | The Python describe path raises `unknown transition function` when the transition index has no text mapping. Earlier read-only sampling found two such functions among 266 functions from 60 object tags. Exact asset paths were not retained in this record and must be captured on reproduction. Raw payload reading/round-trip succeeded; semantic description did not. | Function decoding/binding. Unsupported object-function conversion now raises an explicit error; the legacy editor fallback has been removed. | Reproduce and record tag path, field and index; support the missing transition or expose a lossless representation usable by Foundry. |
 
 ### Evidence locations
@@ -38,7 +37,7 @@ unfinished migration work, not the intended workaround.
 
 | Area | What remains |
 | --- | --- |
-| Classic H1/H2 authoring | Existing loose tags use the schema-driven classic reader/writer and preserve their container on save. Representative HCE Captain/Pistol/Warthog and H2 Brute/Magnum/Warthog/Elite-Jetpack imports now complete the applicable render, collision and H2 physics paths. H1 legacy animation paths and aliases are reconstructed from its positional tables; all 213 HCE animation graphs resolved 10,061 authored paths in Blender. Unfiltered native decoding passed all 22 HCE Captain and 406 H2 Brute animations (14,013 composed frames). Metadata sweeps opened 429 HCE and 804 H2 biped, vehicle, weapon and scenery tags without a failure. A focused scan decoded all 144 candidate object functions from 296 H2 tags, including classic linear-key and spline payloads. Blender node construction also completed for all 1,412 HCE shader-family tags and all 3,107 H2 shaders; detail/multiply maps, UV scales, H1/H2 change colors, H2 alpha opacity and common emissive colors are connected. Classic cubemap references use Blender environment textures with reflection coordinates; H1 multipurpose masks and perpendicular/parallel reflection controls and H2 normal/glancing reflection controls are connected. H1 alpha-test flags and H2 alpha-test templates/maps now use the dithered Blender path. Creating a brand-new classic tag remains disabled because `TagFile.new(schema)` creates the MCC container; blam-tags needs an explicit classic creation API. Broad visual acceptance, exact additive/subtractive/multiply blend behavior and less common tag families remain. |
+| Classic H1/H2 authoring | Existing loose tags use the schema-driven classic reader/writer and preserve their container on save. Representative HCE Captain/Pistol/Warthog and H2 Brute/Magnum/Warthog/Elite-Jetpack imports now complete the applicable render, collision and H2 physics paths. H1 legacy animation paths and aliases are reconstructed from its positional tables; all 213 HCE animation graphs resolved 10,061 authored paths in Blender. Unfiltered native decoding passed all 22 HCE Captain and 406 H2 Brute animations (14,013 composed frames). Metadata sweeps opened 429 HCE and 804 H2 biped, vehicle, weapon and scenery tags without a failure. A focused scan decoded all 144 candidate object functions from 296 H2 tags, including classic linear-key and spline payloads. Blender node construction also completed for all 1,412 HCE shader-family tags and all 3,107 H2 shaders; detail/multiply maps, UV scales, H1/H2 change colors, H2 alpha opacity and common emissive colors are connected. Classic cubemap references use Blender environment textures with reflection coordinates; H1 multipurpose masks and perpendicular/parallel reflection controls and H2 normal/glancing reflection controls are connected. H1 alpha-test flags and H2 alpha-test templates/maps now use the dithered Blender path. Fresh classic creation now uses `TagFile.new_classic(schema, game)`. H1/H2 biped defaults round-trip byte-exactly, and Foundry camera-track creation plus block editing survives save/reopen for both games. Broad visual acceptance, exact additive/subtractive/multiply blend behavior and less common tag families remain. |
 | Structure-lighting projected textures | Native bitmap conversion is not implemented. Import refuses existing gobo/gel references before allocating lights. Seven of 60 sampled tags hit this gap, including Reach `foundry/scenarios/a50/default.scenario_structure_lighting_info`, H4 `cinematics/cin_m031_didact/lights/cin_m031_didact_020/cin_m031_didact_020_lighting_segment.scenario_structure_lighting_info`, and H2AMP `levels/sway/ca_ascension/ca_ascension_bsp01.scenario_structure_lighting_info`. The references themselves read correctly. |
 | Structure-lighting animated functions | The current converter supports constant scalar functions. Two sampled H4 tags contain other function shapes: `cinematics/cin_m020_crater/lights/cin_m020_crater_000/cin_m020_crater_000_lighting.scenario_structure_lighting_info` and `cinematics/cin_m021_tower/lights/cin_m021_tower_010/lighting_segment.scenario_structure_lighting_info`. Their native function descriptions are readable; Blender conversion raises explicitly. |
 | Older structure-lighting instance layout | Reach kit `_temp/s3d_avalanche.scenario_structure_lighting_info` contains only definition index, origin, forward and up in each instance; it lacks later fields including gel reference. Its definition uses `hotspot falloff size` instead of the current cutoff name. Native parsing succeeds; the older-layout converter is unimplemented. |
@@ -56,6 +55,15 @@ unfinished migration work, not the intended workaround.
 
 ## Resolved read limitations
 
+### READ-004 — Halo 2 V3 `style` blocks (resolved 2026-09-22)
+
+Some V3 style roots retain a stale inline count of one for an empty `special
+movement` block. The following header belongs to the behavior-list block and
+declares 128 elements, exceeding the special-movement schema maximum of one.
+The classic reader now leaves an impossible header for the following field and
+treats the stale block as empty. All 50 H2EK style tags open and serialize
+byte-for-byte identically, including the nine former failures.
+
 ### READ-002 — classic H1/H2 Python loading (resolved 2026-09-22)
 
 The Python binding now exposes `TagFile.read_classic(path, schema_path)`, and
@@ -63,8 +71,8 @@ Foundry selects it for H1/H2 documents after identifying the title directly from
 the classic header. Real `HCEEK/tags/characters/captain/captain.biped` and
 `H2EK/tags/objects/characters/brute/brute.biped` files opened as `HaloCe` and
 `Halo2V4`; both serialized byte-for-byte identically without edits. This resolves
-the Python entry-point failure. It does not establish broad Blender import parity
-or support creating new classic tags.
+the Python entry-point failure. Fresh classic creation is now also available
+through `TagFile.new_classic`; broad Blender import parity remains separate.
 
 ### READ-001 — fixed-array Python access (resolved 2026-09-18)
 

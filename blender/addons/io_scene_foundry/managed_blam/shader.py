@@ -1447,6 +1447,13 @@ class ShaderTag(BlenderTag, TagDocument):
             field = struct.field(name)
             return field.as_struct() if field is not None else None
 
+        def enum_name(struct, name: str, default: str = '') -> str:
+            field = None if struct is None else struct.field(name)
+            options = None if field is None else field.options()
+            if options is None or options.current_name is None:
+                return default
+            return options.current_name.casefold()
+
         alpha_tested = False
         if transparent:
             properties = child(root, 'properties')
@@ -1480,9 +1487,13 @@ class ShaderTag(BlenderTag, TagDocument):
             return image_node
 
         base = bump = emission = detail = multipurpose = environment = None
+        detail_layers = []
+        material_color = None
         change_color_source = ''
         self_illumination = None
         reflection_properties = None
+        reflection_color_properties = None
+        reflection_brightness_scale = 1.0
         reflection_mask = None
         xbox_multipurpose_order = False
         if shader_type == 'shader_model':
@@ -1495,6 +1506,7 @@ class ShaderTag(BlenderTag, TagDocument):
             self_illumination = child(root, 'self-illumination')
             reflection = child(root, 'reflection')
             reflection_properties = child(reflection, 'cube map properties')
+            reflection_color_properties = reflection_properties
             environment = bitmap(reflection, 'cube map')
             properties = child(root, 'properties')
             flags = None if properties is None else properties.field('flags')
@@ -1504,12 +1516,44 @@ class ShaderTag(BlenderTag, TagDocument):
                 except KeyError:
                     pass
         elif shader_type == 'shader_environment':
-            base = bitmap(child(root, 'diffuse'), 'base map')
+            diffuse = child(root, 'diffuse')
+            base = bitmap(diffuse, 'base map')
+            detail_function = enum_name(diffuse, 'detail map function', 'double biased multiply')
+            micro_function = enum_name(diffuse, 'micro detail map function', detail_function)
+            for map_name, scale_name, function in (
+                    ('primary detail map', 'primary detail map scale', detail_function),
+                    ('secondary detail map', 'secondary detail map scale', detail_function),
+                    ('micro detail map', 'micro detail map scale', micro_function)):
+                detail_node = bitmap(diffuse, map_name)
+                if detail_node is not None:
+                    detail_layers.append((
+                        detail_node, float(self.value(diffuse, scale_name)) or 1.0, function))
+            if diffuse is not None and diffuse.field('material color') is not None:
+                value = self.value(diffuse, 'material color')
+                material_color = (value.red, value.green, value.blue, 1.0)
             bump = bitmap(child(root, 'bump'), 'bump map', non_color=True)
             emission = bitmap(child(root, 'self-illumination'), 'map')
+            reflection_properties = child(root, 'reflection')
+            reflection_color_properties = child(root, 'specular')
+            environment = bitmap(reflection_properties, 'reflection cube map')
+            if (reflection_color_properties is not None and
+                    reflection_color_properties.field('brightness') is not None):
+                reflection_brightness_scale = float(
+                    self.value(reflection_color_properties, 'brightness'))
         elif shader_type == 'shader_transparent_glass':
-            base = bitmap(child(root, 'diffuse'), 'diffuse map')
-            bump = bitmap(child(root, 'reflection'), 'bump map', non_color=True)
+            diffuse = child(root, 'diffuse')
+            base = bitmap(diffuse, 'diffuse map')
+            glass_detail = bitmap(diffuse, 'diffuse detail map')
+            if glass_detail is not None:
+                detail_layers.append((
+                    glass_detail,
+                    float(self.value(diffuse, 'diffuse detail map scale')) or 1.0,
+                    'double biased multiply'))
+            reflection = child(root, 'reflection')
+            bump = bitmap(reflection, 'bump map', non_color=True)
+            reflection_properties = child(reflection, 'reflection map properties')
+            reflection_color_properties = reflection_properties
+            environment = bitmap(reflection, 'reflection map')
         elif shader_type == 'shader_transparent_meter':
             base = bitmap(child(root, 'properties'), 'map')
         elif shader_type == 'shader_transparent_plasma':
@@ -1555,6 +1599,58 @@ class ShaderTag(BlenderTag, TagDocument):
                 tree.links.new(detail.outputs['Color'], multiply.inputs[1])
                 tree.links.new(multiply.outputs['Vector'], double.inputs['Vector'])
                 base_color = double.outputs['Vector']
+
+            for index, (detail_node, scale, function) in enumerate(detail_layers):
+                detail_node.location = (-520, -40 - index * 180)
+                if scale != 1.0:
+                    texture = nodes.new(type='ShaderNodeTexCoord')
+                    texture.location = (-1050, detail_node.location.y)
+                    mapping = nodes.new(type='ShaderNodeMapping')
+                    mapping.location = (-820, detail_node.location.y)
+                    mapping.inputs['Scale'].default_value = (scale, scale, 1.0)
+                    tree.links.new(texture.outputs['UV'], mapping.inputs['Vector'])
+                    tree.links.new(mapping.outputs['Vector'], detail_node.inputs['Vector'])
+
+                detail_color = detail_node.outputs['Color']
+                if function == 'double biased add':
+                    double_detail = nodes.new(type='ShaderNodeVectorMath')
+                    double_detail.operation = 'SCALE'
+                    double_detail.inputs['Scale'].default_value = 2.0
+                    double_detail.location = (-250 + index * 180, -40)
+                    subtract_one = nodes.new(type='ShaderNodeVectorMath')
+                    subtract_one.operation = 'ADD'
+                    subtract_one.inputs[1].default_value = (-1.0, -1.0, -1.0)
+                    subtract_one.location = (-70 + index * 180, -40)
+                    tree.links.new(detail_color, double_detail.inputs['Vector'])
+                    tree.links.new(double_detail.outputs['Vector'], subtract_one.inputs[0])
+                    combine = nodes.new(type='ShaderNodeVectorMath')
+                    combine.operation = 'ADD'
+                    tree.links.new(base_color, combine.inputs[0])
+                    tree.links.new(subtract_one.outputs['Vector'], combine.inputs[1])
+                else:
+                    combine = nodes.new(type='ShaderNodeVectorMath')
+                    combine.operation = 'MULTIPLY'
+                    tree.links.new(base_color, combine.inputs[0])
+                    tree.links.new(detail_color, combine.inputs[1])
+                    if function == 'double biased multiply':
+                        double_color = nodes.new(type='ShaderNodeVectorMath')
+                        double_color.operation = 'SCALE'
+                        double_color.inputs['Scale'].default_value = 2.0
+                        double_color.location = (110 + index * 180, -40)
+                        tree.links.new(combine.outputs['Vector'], double_color.inputs['Vector'])
+                        base_color = double_color.outputs['Vector']
+                        continue
+                combine.location = (110 + index * 180, -40)
+                base_color = combine.outputs['Vector']
+
+            if material_color is not None:
+                tint = nodes.new(type='ShaderNodeRGB')
+                tint.outputs['Color'].default_value = material_color
+                multiply_material = nodes.new(type='ShaderNodeVectorMath')
+                multiply_material.operation = 'MULTIPLY'
+                tree.links.new(base_color, multiply_material.inputs[0])
+                tree.links.new(tint.outputs['Color'], multiply_material.inputs[1])
+                base_color = multiply_material.outputs['Vector']
 
             if multipurpose is not None:
                 multipurpose.location = (-520, -380)
@@ -1632,12 +1728,19 @@ class ShaderTag(BlenderTag, TagDocument):
                     if reflection_properties.field('parallel brightness') is not None:
                         parallel_brightness = float(
                             self.value(reflection_properties, 'parallel brightness'))
-                    if reflection_properties.field('perpendicular tint color') is not None:
-                        value = self.value(reflection_properties, 'perpendicular tint color')
-                        perpendicular_tint = (value.red, value.green, value.blue, 1.0)
-                    if reflection_properties.field('parallel tint color') is not None:
-                        value = self.value(reflection_properties, 'parallel tint color')
-                        parallel_tint = (value.red, value.green, value.blue, 1.0)
+                if reflection_color_properties is not None:
+                    for field_name in ('perpendicular tint color', 'perpendicular color'):
+                        if reflection_color_properties.field(field_name) is not None:
+                            value = self.value(reflection_color_properties, field_name)
+                            perpendicular_tint = (value.red, value.green, value.blue, 1.0)
+                            break
+                    for field_name in ('parallel tint color', 'parallel color'):
+                        if reflection_color_properties.field(field_name) is not None:
+                            value = self.value(reflection_color_properties, field_name)
+                            parallel_tint = (value.red, value.green, value.blue, 1.0)
+                            break
+                perpendicular_brightness *= reflection_brightness_scale
+                parallel_brightness *= reflection_brightness_scale
 
                 facing = nodes.new(type='ShaderNodeLayerWeight')
                 facing.location = (-280, 660)

@@ -1,7 +1,7 @@
 """Typed blam-tags lifecycle without Blender or ManagedBlam dependencies."""
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 import importlib
 import json
@@ -31,6 +31,12 @@ class RelativeTagPath(Protocol):
 
     @property
     def RelativePathWithExtension(self) -> str: ...
+
+
+class ArrayValue(Protocol):
+    """Native blam-tags numeric value that exposes its components."""
+
+    def to_array(self) -> Sequence[float]: ...
 
 
 TagPathInput = str | PathLike[str] | RelativeTagPath
@@ -118,11 +124,13 @@ class TagDocument:
         if self.tag_is_new:
             if must_exist:
                 raise FileNotFoundError(self.system_path)
-            if game in {'halo1', 'halo2'}:
-                raise NotImplementedError(
-                    f'Creating new classic {game} tags is not supported yet: {self.system_path}')
             if not schema.is_file():
                 raise FileNotFoundError(f'Missing blam-tags schema: {schema}')
+            if game in {'halo1', 'halo2'}:
+                self._tag = self.api.TagFile.new_classic(schema, game)
+                self.tag_has_changes = True
+                self.valid = True
+                return
             self._tag = self.api.TagFile.new(schema)
             self.tag_has_changes = True
         else:
@@ -249,10 +257,8 @@ class CameraTrackDocument(TagDocument):
         points: list[ControlPoint] = []
         for index in range(len(block)):
             element = block[index]
-            position = cast(blam_tags.RealPoint3d,
-                            self.required_field(element, 'position').value)
-            orientation = cast(blam_tags.RealQuaternion,
-                               self.required_field(element, 'orientation').value)
+            position = cast(ArrayValue, self.required_field(element, 'position').value)
+            orientation = cast(ArrayValue, self.required_field(element, 'orientation').value)
             points.append((tuple(position.to_array()), tuple(orientation.to_array())))
         return points
 

@@ -53,8 +53,8 @@ group and schema and serialize byte-for-byte identically without edits. Foundry
 also identifies these titles directly from all known classic header signatures.
 The schema staging step now includes every generated H1/H2 group instead of the
 H3+-focused subset. A one-real-file-per-group sweep opened 75 H1 and 96 H2 tag
-groups. The only parser failure was a Halo 2 V3 `style` variant affecting 9 of 50
-sampled style tags; it is recorded as READ-004. Broad Blender import acceptance
+groups. The former Halo 2 V3 `style` failure is resolved: all 50 style tags now
+open and round-trip byte-for-byte. Broad Blender import acceptance
 has now begun with full representative object imports. The HCE Captain biped
 completed render and collision geometry, four shader-model materials and their
 bitmaps, three filtered idle animations and six frame events (29 objects, 18
@@ -63,8 +63,14 @@ physics geometry, eight referenced shader material builds and classic bitmap
 extraction including P8 bump data, dozens of filtered idle animations, 104
 renames and 68 frame events (75 objects, 46 meshes and 12 materials). These
 paths use native classic resource decoders exposed by blam-tags. Broad
-tag-family and visual acceptance, an unfiltered full-graph pass, complete H1
-shader fidelity and new classic-tag creation remain unfinished. H1 legacy
+tag-family and visual acceptance, an unfiltered full-graph pass and complete H1
+shader fidelity remain unfinished. Fresh H1/H2 classic-tag creation now uses
+the explicit `TagFile.new_classic(schema, game)` API. H2 creation emits its
+required versioned root block header, and classic defaults use the engine's byte
+order throughout their nested field tree. H1 and H2 biped tags survive an
+unchanged byte-exact reopen/save cycle; Foundry camera-track documents also
+survive create, block edit, save and reopen with their authored control point.
+H1 legacy
 animation paths are now reconstructed directly from its positional object,
 seat, weapon, vehicle, device, first-person and unit-damage tables. A Blender
 sweep opened all 213 HCE `model_animations` tags and resolved 10,061 authored
