@@ -163,7 +163,9 @@ class ExportScene:
         #         self.parent_asset_path_relative = parent_relative
         #         self.parent_asset_name = parent_relative.name
                 
-        self.sidecar = (SimpleNamespace(lods=set(), animation_composites=[]) if getattr(self, 'legacy_export', False)
+        self.sidecar = (SimpleNamespace(lods=set(), animation_composites=[],
+                                        reach_world_animations=[], pose_overlays=[])
+                        if getattr(self, 'legacy_export', False)
                         else Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context, self.tags_dir))
         
         self.has_frame_events = False

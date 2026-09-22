@@ -26,6 +26,11 @@ per BSP. H1 structures use JMS; later structures use ASS. Model permutations
 containing instanced objects use ASS on supported games, including bone palettes
 and region/permutation material variants.
 
+Every JMS contains a skeleton. When the Blender scene has no armature, Foundry
+writes one identity bone named `implied_root_node` and binds otherwise unparented
+vertices, markers, collision records, and physics records to that serialized
+root. The Blender scene itself is not modified.
+
 Resolved mesh and face properties produce deduplicated material variants. The
 adapter reads the face arrays after material sorting, so face overrides stay
 aligned with triangles. Supported flags include sides, collision/render modes,
@@ -39,10 +44,26 @@ is staged in temporary files and JMS/ASS files are parsed back before any existi
 output is replaced. Staging failure leaves existing outputs intact. Replacing a
 batch is not a filesystem-wide atomic transaction.
 
-## First implementation limits
+## Tag writing
 
-- Tool compilation, tags, lightmapping and cache building are not implemented.
-  Full Export writes intermediates and reports this; Tags Only is rejected.
+Full and Tags Only exports for H3 and ODST model, sky, and animation assets run
+the editing kit's documented `bulk-import-model-folder` workflow over the
+JMS/ASS source tree (using its draft variant unless **Light Model (PRT)** is
+enabled). Animation sources are compiled separately with `model-animations`, as
+required by [H3 Tool](https://c20.reclaimers.net/h3/h3-ek/h3-tool/). Native
+`blam-tags` documents perform Foundry's tag pre-processing and post-processing,
+including animation metadata and model template-reference overrides. Selected
+high-level object outputs (such as scenery, crate, biped, vehicle, and weapon)
+are created or updated natively and reference the compiled model tag; configured
+tag templates are copied before those references are written. Tags Only reuses
+the source files already in the asset folder; Full Export writes fresh
+intermediates before compiling them.
+
+## Current limits
+
+- Tag compilation for H1/H2 and non-model H3/ODST asset types is not implemented.
+  Intermediate Files Only remains available for all supported legacy assets.
+  Legacy lightmapping and cache building are not implemented.
 - Physics meshes currently write convex records for H2/H3/ODST; analytic primitive
   shapes and constraints need a dedicated conversion pass. Mixed-material convex
   shapes must be split before export. Constraints and tag references are rejected.

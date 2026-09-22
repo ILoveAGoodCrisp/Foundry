@@ -3,7 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 import sys
 
 ADDONS = Path(__file__).resolve().parents[1] / 'blender/addons'
@@ -19,6 +19,68 @@ from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_legacy_jms_implied_root(self):
+        from mathutils import Matrix
+        from io_scene_foundry.export.legacy import LegacyExportScene
+
+        scene = object.__new__(LegacyExportScene)
+        scene.bones = []
+        scene.bone_index = {}
+        scene.bone_parents = {}
+        scene.jms_version = 8213
+        scene.to_halo_scale = 1
+        scene.export_tag_types = set()
+        asset = scene.jms_asset('default', [], [], 'render')
+        self.assertEqual([node.name for node in asset.nodes], ['implied_root_node'])
+        self.assertEqual(asset.nodes[0].parent, -1)
+        self.assertEqual(asset.nodes[0].transform.rotation, (0, 0, 0, 1))
+        self.assertEqual(asset.nodes[0].transform.translation, (0, 0, 0))
+
+        mesh = SimpleNamespace(
+            positions=[(1, 2, 3)], normals=[(0, 0, 1)], bone_weights=None,
+            bone_indices=None, bone_bindings=[], vertex_colors=[], texcoords=[])
+        node = SimpleNamespace(mesh=mesh, ob=None)
+        vertex, = scene.vertices(
+            node, Matrix.Identity(4), implied_root=True)
+        self.assertEqual(vertex.influences, ((0, 1),))
+
+    def test_h3_legacy_model_tool_dispatch(self):
+        from io_scene_foundry.export.legacy import LegacyExportScene
+
+        with tempfile.TemporaryDirectory() as root:
+            scene = object.__new__(LegacyExportScene)
+            scene.target_game = 'halo3'
+            scene.asset_type = SimpleNamespace(name='MODEL')
+            scene.asset_path = root
+            scene.asset_path_relative = r'objects\test'
+            scene.export_settings = SimpleNamespace(
+                lightmap_structure=False, event_level='WARNING',
+                export_animations='NONE')
+            with patch.object(utils, 'run_tool') as run_tool, \
+                 patch.object(scene, 'write_object_tags') as write_objects:
+                scene.write_tags()
+            run_tool.assert_called_once_with(
+                ['bulk-import-model-folder-draft', r'objects\test'],
+                event_level='WARNING')
+            write_objects.assert_called_once_with()
+
+            scene.export_settings.lightmap_structure = True
+            scene.export_settings.export_animations = 'ALL'
+            animations = Path(root, 'animations')
+            animations.mkdir()
+            (animations / 'any idle.jmm').write_text('source')
+            with patch.object(utils, 'run_tool') as run_tool, \
+                 patch.object(scene, 'write_object_tags'):
+                scene.write_tags()
+            self.assertEqual(run_tool.call_args_list, [
+                call(
+                    ['bulk-import-model-folder', r'objects\test'],
+                    event_level='WARNING'),
+                call(
+                    ['model-animations', r'objects\test'],
+                    event_level='WARNING'),
+            ])
+
     def test_native_particle_model_geometry(self):
         import bpy
         from mathutils import Matrix

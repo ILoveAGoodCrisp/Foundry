@@ -20,6 +20,7 @@ from .legacy_materials import material_variant
 from ..legacy import jms_format as jms
 from ..legacy import ass_format as ass
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, node_checksum, write_jms, write_ass
+from ..tags.object import ObjectDocument
 from .. import utils
 
 
@@ -66,6 +67,12 @@ def write_outputs(outputs):
 
 class LegacyExportScene(ExportScene):
     legacy_export = True
+
+    object_tag_types = (
+        'biped', 'crate', 'creature', 'device_control', 'device_machine',
+        'device_terminal', 'effect_scenery', 'equipment', 'giant', 'scenery',
+        'vehicle', 'weapon',
+    )
 
     def __init__(self, *args, **kwargs):
         self.original_cwd = Path.cwd()
@@ -152,12 +159,73 @@ class LegacyExportScene(ExportScene):
             raise ValueError('Legacy output names collide; rename the affected BSP, permutation or animation')
         write_outputs(outputs)
 
+    def write_tags(self, single_animation=False):
+        """Compile H3/ODST model sources, then let native tag wrappers edit them."""
+        if self.target_game not in {'halo3', 'halo3odst'}:
+            raise ValueError('Tag writing currently requires an H3 or ODST project')
+        if self.asset_type.name not in {'MODEL', 'SKY', 'ANIMATION', 'SINGLE_ANIMATION'}:
+            raise ValueError(
+                f'H3/ODST tag writing is not implemented for {self.asset_type.name.lower()} assets')
+
+        print("\n\nWriting Tags")
+        print("-----------------------------------------------------------------------\n")
+        animation_only = single_animation or self.asset_type.name in {
+            'ANIMATION', 'SINGLE_ANIMATION'}
+        if not animation_only:
+            command = ('bulk-import-model-folder'
+                       if self.export_settings.lightmap_structure
+                       else 'bulk-import-model-folder-draft')
+            utils.run_tool([command, self.asset_path_relative],
+                           event_level=self.export_settings.event_level)
+
+        animation_dir = Path(self.asset_path, 'animations')
+        has_animation_sources = (animation_dir.is_dir() and any(
+            path.is_file() and path.suffix.lower().startswith('.jm')
+            for path in animation_dir.iterdir()))
+        if animation_only or (self.export_settings.export_animations != 'NONE'
+                              and has_animation_sources):
+            utils.run_tool(['model-animations', self.asset_path_relative],
+                           event_level=self.export_settings.event_level)
+        if self.asset_type.name in {'MODEL', 'SKY'}:
+            self.write_object_tags()
+
+    def write_object_tags(self):
+        """Create selected high-level object tags through blam-tags."""
+        model_path = Path(self.tags_dir, self.asset_path_relative,
+                          self.asset_name).with_suffix('.model')
+        if not model_path.is_file():
+            raise FileNotFoundError(
+                f'Model compilation did not create the expected tag: {model_path}')
+
+        outputs = {'scenery'} if self.asset_type.name == 'SKY' else {
+            tag_type for tag_type in self.object_tag_types
+            if getattr(self.scene_settings, 'output_' + tag_type, False)
+        }
+        model_reference = utils.relative_path(model_path)
+        for tag_type in sorted(outputs):
+            destination = model_path.with_suffix('.' + tag_type)
+            template = getattr(self.scene_settings, 'template_' + tag_type, '')
+            if template and not destination.exists():
+                template_path = Path(self.tags_dir, utils.relative_path(template))
+                if template_path.is_file():
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    utils.copy_file(template_path, destination)
+                    print(f'--- Loaded {tag_type} tag template')
+                else:
+                    utils.print_warning(
+                        f'Tag template does not exist: {template_path}')
+
+            with ObjectDocument(destination, tags_root=self.tags_dir,
+                                game=self.target_game) as tag:
+                tag.set_model_tag_path(model_reference)
+            print(f'--- Wrote {destination}')
+
     def create_event_objects(self, animation):
         if animation.animation_events:
             raise ValueError('Legacy animation-event export is not implemented yet')
         return super().create_event_objects(animation)
 
-    def parent_index(self, node):
+    def parent_index(self, node, implied_root=False):
         if node.mesh is not None and len(node.mesh.bone_bindings) == 1 and node.mesh.bone_bindings[0] in self.bone_index:
             return self.bone_index[node.mesh.bone_bindings[0]]
         ob = node.ob
@@ -165,7 +233,7 @@ class LegacyExportScene(ExportScene):
             if ob.parent_type == 'BONE' and ob.parent_bone in self.bone_index:
                 return self.bone_index[ob.parent_bone]
             ob = ob.parent
-        return 0 if self.bones else -1
+        return 0 if self.bones or implied_root else -1
 
     def face_materials(self, node, asset, cache):
         mesh = node.mesh
@@ -201,7 +269,7 @@ class LegacyExportScene(ExportScene):
                 materials[face] = cache[key], region
         return materials
 
-    def vertices(self, node, matrix, weighted=True):
+    def vertices(self, node, matrix, weighted=True, implied_root=False):
         mesh = node.mesh
         normal_matrix = matrix.to_3x3().inverted().transposed()
         vertices = []
@@ -216,8 +284,8 @@ class LegacyExportScene(ExportScene):
                         influences.append((self.bone_index[name], float(weight)))
                 total = sum(w for _, w in influences)
                 influences = [(b, w / total) for b, w in influences]
-            elif weighted and self.bones:
-                influences = [(self.parent_index(node), 1)]
+            elif weighted and (self.bones or implied_root):
+                influences = [(self.parent_index(node, implied_root), 1)]
             normal = normal_matrix @ Vector(mesh.normals[i] if mesh.normals is not None else (0, 0, 1))
             normal.normalize()
             color = tuple(float(c) for c in mesh.vertex_colors[0][i][:3]) if mesh.vertex_colors else None
@@ -227,12 +295,17 @@ class LegacyExportScene(ExportScene):
 
     def jms_asset(self, name, nodes, markers, folder):
         asset = jms.JMS(name=name, version=self.jms_version)
-        for bone in self.bones:
-            parent = self.bone_parents[bone.name]
-            matrix = bone.matrix_world
-            if asset.version < 8205 and parent != -1:
-                matrix = self.bones[parent].matrix_world.inverted() @ matrix
-            asset.nodes.append(jms.Node(bone.name, parent, transform(matrix, self.to_halo_scale, asset.version < 8205)))
+        if self.bones:
+            for bone in self.bones:
+                parent = self.bone_parents[bone.name]
+                matrix = bone.matrix_world
+                if asset.version < 8205 and parent != -1:
+                    matrix = self.bones[parent].matrix_world.inverted() @ matrix
+                asset.nodes.append(jms.Node(bone.name, parent, transform(matrix, self.to_halo_scale, asset.version < 8205)))
+        else:
+            asset.nodes.append(jms.Node(
+                'implied_root_node', -1,
+                jms.Transform((0, 0, 0, 1), (0, 0, 0))))
         asset.checksum = node_checksum(asset.nodes)
         cache = {}
         for node in nodes:
@@ -240,9 +313,9 @@ class LegacyExportScene(ExportScene):
             if folder == 'physics' and self.jms_version >= 8206:
                 if len({m[0] for m in materials.values()}) > 1:
                     raise ValueError(f'{node.name}: split physics shapes with different collision materials into separate objects')
-                parent = self.parent_index(node)
+                parent = self.parent_index(node, implied_root=True)
                 matrix = node.matrix_world
-                if parent != -1:
+                if parent != -1 and self.bones:
                     matrix = self.bones[parent].matrix_world.inverted() @ matrix
                 # Convex records can represent arbitrary evaluated physics meshes.
                 points = tuple(v.position for v in self.vertices(node, matrix, False))
@@ -251,7 +324,8 @@ class LegacyExportScene(ExportScene):
                     jms.Transform((0, 0, 0, 1), (0, 0, 0)), vertices=points))
                 continue
             offset = len(asset.vertices)
-            asset.vertices.extend(self.vertices(node, node.matrix_world))
+            asset.vertices.extend(self.vertices(
+                node, node.matrix_world, implied_root=True))
             for face, triangle in enumerate(node.mesh.indices.reshape((-1, 3))):
                 material, region = materials[face]
                 if region not in asset.regions:
@@ -267,9 +341,9 @@ class LegacyExportScene(ExportScene):
                 if nwo.marker_uses_regions and permutations:
                     if (name in permutations) == (nwo.marker_permutation_type == 'exclude'):
                         continue
-                parent = self.parent_index(node)
+                parent = self.parent_index(node, implied_root=True)
                 matrix = node.matrix_world
-                if parent != -1:
+                if parent != -1 and self.bones:
                     matrix = self.bones[parent].matrix_world.inverted() @ matrix
                 region = node.region or 'default'
                 if region not in asset.regions:
@@ -397,8 +471,10 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
         raise ValueError('JMS/ASS export requires an H1, H2, H3 or ODST project')
     if scene_settings.asset_type not in {'model', 'sky', 'scenario', 'prefab', 'particle_model', 'decorator_set', 'animation', 'single_animation', 'multi_model', 'multi_prefab'}:
         raise ValueError(f'JMS/ASS export does not support {scene_settings.asset_type} assets')
-    if export_settings.export_mode == 'TAGS':
-        raise ValueError('Legacy tag compilation is not implemented. Use the geometry export mode to write JMS/ASS/JMA')
+    write_intermediates = export_settings.export_mode in {'FULL', 'GRANNY'}
+    write_tags = export_settings.export_mode in {'FULL', 'TAGS'}
+    if write_tags and project.game not in {'halo3', 'halo3odst'}:
+        raise ValueError('Tag writing currently requires an H3 or ODST project')
     if not asset_path and single_animation:
         asset_path = str(Path(bpy.data.filepath).parent.parent)
         asset_name = Path(asset_path).name
@@ -413,15 +489,22 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
         export.ready_scene(collection_view_layer)
         export.get_initial_export_objects()
         export.map_halo_properties()
-        # Legacy export uses the prepared bone order because its tags use the older layout.
-        export.create_virtual_tree()
-        export.sample_animations(single_animation)
-        export.export_legacy(single_animation)
-        export.report_warnings()
-        if export_settings.export_mode == 'FULL':
-            utils.print_warning('JMS/ASS/JMA files written. Legacy Tool tag compilation is not implemented yet')
+        if write_intermediates:
+            # Legacy export uses the prepared bone order because its tags use the older layout.
+            export.create_virtual_tree()
+            export.sample_animations(single_animation)
+            export.export_legacy(single_animation)
+            export.report_warnings()
     finally:
         try:
             export.restore_scene()
+        finally:
+            os.chdir(export.original_cwd)
+
+    if write_tags:
+        try:
+            export.preprocess_tags()
+            export.write_tags(single_animation)
+            export.postprocess_tags()
         finally:
             os.chdir(export.original_cwd)
