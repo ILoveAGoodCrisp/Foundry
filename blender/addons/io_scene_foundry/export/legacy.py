@@ -25,6 +25,7 @@ from ..legacy import jms_format as jms
 from ..legacy import ass_format as ass
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, node_checksum, write_jms, write_ass
 from ..tags.backend import TagDocument
+from ..tags.animation_graph import AnimationGraphTag
 from ..tags.object import ObjectDocument
 from ..tags.scenario import ScenarioDocument
 from .. import utils
@@ -285,6 +286,7 @@ class LegacyExportScene(ExportScene):
             utils.run_tool([command, self.asset_path_relative],
                            event_level=self.export_settings.event_level,
                            **halo1_tool_options)
+            self.write_classic_animation_events()
         if self.asset_type.name in {'MODEL', 'SKY'}:
             self.write_object_tags()
 
@@ -416,10 +418,40 @@ class LegacyExportScene(ExportScene):
                                   utils.relative_path(animation))
         print(f'--- Wrote {destination}')
 
+    def write_classic_animation_events(self) -> None:
+        """Apply Blender events after Tool creates the classic animation tag."""
+        extension = ('model_animations' if self.target_game == 'halo1'
+                     else 'model_animation_graph')
+        destination = Path(
+            self.tags_dir, self.asset_path_relative, self.asset_name
+        ).with_suffix('.' + extension)
+        if not destination.is_file():
+            raise FileNotFoundError(
+                f'Animation compilation did not create the expected tag: {destination}')
+        animations = {
+            animation.name: animation.anim
+            for animation in self.virtual_scene.animations
+            if (hasattr(animation, 'legacy_tracks')
+                or bool(animation.anim.animation_events))
+        }
+        if not animations:
+            return
+        with AnimationGraphTag(destination) as graph:
+            count = graph.inline_events_from_blender(animations)
+        print(f'--- Updated inline events for {count} animation(s) in {destination}')
+
     def create_event_objects(self, animation):
-        if animation.animation_events:
-            raise ValueError('Legacy animation-event export is not implemented yet')
-        return super().create_event_objects(animation)
+        unsupported = [
+            event.event_type for event in animation.animation_events
+            if event.event_type != '_connected_geometry_animation_event_type_frame'
+        ]
+        if unsupported:
+            raise ValueError(
+                f'{animation.name}: classic animation tags cannot store event types: '
+                + ', '.join(sorted(set(unsupported))))
+        # JMA has no event channel. Frame events are written into the compiled
+        # tag after Tool finishes, using the original Blender animation data.
+        return [], []
 
     def parent_index(self, node, implied_root=False):
         if node.mesh is not None and len(node.mesh.bone_bindings) == 1 and node.mesh.bone_bindings[0] in self.bone_index:

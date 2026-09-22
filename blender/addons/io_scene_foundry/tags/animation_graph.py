@@ -742,6 +742,259 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             self.set_reference(definitions, 'imported events', events.tag_path)
 
     @staticmethod
+    def _event_key(value: str) -> str:
+        return value.partition('{')[0].strip().replace('_', ' ').casefold()
+
+    def _set_event_enum(self, element: blam_tags.TagStruct,
+                        name: str, value: str) -> None:
+        field = self.required_field(element, name)
+        options = field.options()
+        matches = [] if options is None else [
+            index for index, label in enumerate(options.names)
+            if self._event_key(label) == self._event_key(value)
+        ]
+        if len(matches) != 1:
+            raise ValueError(f'{self.path}: unsupported {name}: {value!r}')
+        field.set(matches[0])
+
+    @staticmethod
+    def _blender_marker_name(data: object) -> str:
+        name = str(getattr(data, 'marker_name', '')).strip()
+        if name:
+            return name
+        marker = getattr(data, 'marker', None)
+        return '' if marker is None else str(marker.nwo.marker_model_group)
+
+    @staticmethod
+    def _classic_reference_key(data: object, kind: str) -> tuple[object, ...]:
+        path = str(getattr(data, f'event_{kind}_tag', '')).strip()
+        if not path:
+            raise ValueError(f'Classic {kind} animation event has no tag path')
+        flags = tuple(bool(getattr(data, 'flag_' + attribute)) for attribute in (
+            'allow_on_player', 'left_arm_only', 'right_arm_only',
+            'first_person_only', 'forward_only', 'reverse_only',
+        ))
+        unsupported = [
+            attribute for attribute in ('third_person_only', 'fp_no_aged_weapons')
+            if bool(getattr(data, 'flag_' + attribute, False))
+        ]
+        if unsupported:
+            raise ValueError(
+                f'Classic {kind} animation references do not support flags: '
+                + ', '.join(name.replace('_', ' ') for name in unsupported))
+        if str(getattr(data, 'event_model', '')).strip() or str(
+                getattr(data, 'variant', '')).strip():
+            raise ValueError(
+                f'Classic {kind} animation references do not support model variants')
+        return (path.replace('/', '\\').casefold(), *flags)
+
+    def _classic_reference_indices(
+        self, kind: str, keys: set[tuple[object, ...]],
+    ) -> dict[tuple[object, ...], int]:
+        from .frame_event_list import FrameEventListTag
+
+        definitions = self._definitions()
+        block = self.block(definitions, kind + ' references')
+        flag_names = FrameEventListTag.reference_flags[:4] + \
+            FrameEventListTag.reference_flags[5:7]
+        existing: dict[tuple[object, ...], int] = {}
+        for index, element in enumerate(block):
+            reference = self.reference(element, kind)
+            path = '' if reference is None else reference.RelativePathWithExtension
+            if self.game == 'halo1':
+                existing.setdefault((path.replace('/', '\\').casefold(),
+                                     *([False] * len(flag_names))), index)
+                continue
+            flags = self.required_field(element, 'flags')
+            options = flags.options()
+            available = set() if options is None else set(options.names)
+            key = (path.replace('/', '\\').casefold(), *(
+                flags.get_flag(flag_name) if flag_name in available else False
+                for _, flag_name in flag_names
+            ))
+            existing.setdefault(key, index)
+        for key in sorted(keys):
+            if key in existing:
+                continue
+            block = self.block(self._definitions(), kind + ' references')
+            index = block.add()
+            element = block[index]
+            self.set_reference(element, kind, str(key[0]))
+            if self.game == 'halo1':
+                existing[key] = index
+                continue
+            flags = self.required_field(element, 'flags')
+            options = flags.options()
+            available = set() if options is None else set(options.names)
+            for (_, flag_name), enabled in zip(flag_names, key[1:]):
+                if flag_name in available:
+                    flags.set_flag(flag_name, bool(enabled))
+            existing[key] = index
+        return existing
+
+    def inline_events_from_blender(
+        self, blender_animations: dict[str, object],
+    ) -> int:
+        """Write the inline event layouts used by Tool for Halo 1 and Halo 2."""
+        from .. import utils
+
+        if self.game not in {'halo1', 'halo2'}:
+            raise NotImplementedError(
+                f'{self.path}: inline event writing is only for Halo 1 and Halo 2')
+
+        animations = self.block(self._definitions(), 'animations')
+        compiled_names = [str(self.value(element, 'name')) for element in animations]
+        name_indices: dict[str, int] = {}
+        for index, name in enumerate(compiled_names):
+            for candidate in (name, name.replace(':', ' '), name.replace(' ', ':')):
+                key = candidate.casefold()
+                if key in name_indices and name_indices[key] != index:
+                    raise ValueError(
+                        f'{self.path}: ambiguous compiled animation name {candidate!r}')
+                name_indices[key] = index
+
+        owned: list[tuple[int, object, dict[str, object]]] = []
+        sound_keys: set[tuple[object, ...]] = set()
+        effect_keys: set[tuple[object, ...]] = set()
+        for supplied_name, blender_animation in blender_animations.items():
+            index = next((name_indices[candidate.casefold()] for candidate in (
+                supplied_name, supplied_name.replace(':', ' '),
+                supplied_name.replace(' ', ':'),
+            ) if candidate.casefold() in name_indices), None)
+            if index is None:
+                raise ValueError(
+                    f'{self.path}: Tool did not create animation {supplied_name!r}')
+            record: dict[str, object] = {
+                'left foot': 0, 'right foot': 0,
+                'frames': [], 'sounds': [], 'effects': [],
+            }
+            for blender_event in blender_animation.animation_events:
+                if blender_event.event_type != '_connected_geometry_animation_event_type_frame':
+                    raise ValueError(
+                        f'{supplied_name}: {blender_event.event_type} cannot be stored '
+                        f'in a {self.game} animation graph')
+                start = utils.game_frame(
+                    blender_event.frame_frame - blender_animation.frame_start)
+                end = (utils.game_frame(
+                    blender_event.frame_range - blender_animation.frame_start)
+                    if blender_event.multi_frame == 'range' else start)
+                if start < 0 or end < start:
+                    raise ValueError(
+                        f'{supplied_name}: invalid animation event frames '
+                        f'{start}..{end}')
+                event_name = self._event_key(blender_event.frame_name)
+                if self.game == 'halo1':
+                    if event_name not in {'none', 'left foot', 'right foot'}:
+                        raise ValueError(
+                            f'{supplied_name}: Halo 1 cannot store frame event '
+                            f'{blender_event.frame_name!r}')
+                    if event_name != 'none':
+                        if start != end:
+                            raise ValueError(
+                                f'{supplied_name}: Halo 1 foot events cannot span a range')
+                        if record[event_name]:
+                            raise ValueError(
+                                f'{supplied_name}: Halo 1 stores only one {event_name} event')
+                        # Halo 1 foot slots are one-based because zero is the
+                        # empty sentinel. Sound-frame indices remain zero-based.
+                        record[event_name] = start + 1
+                elif event_name != 'none':
+                    frames = cast(list[tuple[str, int]], record['frames'])
+                    frames.extend((event_name, frame) for frame in range(start, end + 1))
+
+                for data in blender_event.event_data:
+                    kind = str(data.data_type).casefold()
+                    frame = start + int(data.frame_offset)
+                    if frame < 0:
+                        raise ValueError(
+                            f'{supplied_name}: invalid {kind} event frame {frame}')
+                    if kind not in {'sound', 'effect'}:
+                        raise ValueError(
+                            f'{supplied_name}: {self.game} cannot store {kind} '
+                            f'animation-event data')
+                    if self.game == 'halo1' and kind != 'sound':
+                        raise ValueError(
+                            f'{supplied_name}: Halo 1 cannot store {kind} animation events')
+                    key = self._classic_reference_key(data, kind)
+                    marker = self._blender_marker_name(data)
+                    if self.game == 'halo1':
+                        if marker or any(bool(value) for value in key[1:]):
+                            raise ValueError(
+                                f'{supplied_name}: Halo 1 sound events do not support '
+                                'markers or reference flags')
+                        sounds = cast(list[tuple[tuple[object, ...], int, str]],
+                                      record['sounds'])
+                        if sounds:
+                            raise ValueError(
+                                f'{supplied_name}: Halo 1 stores only one sound event')
+                        sounds.append((key, frame, ''))
+                    elif kind == 'sound':
+                        cast(list[tuple[tuple[object, ...], int, str]],
+                             record['sounds']).append((key, frame, marker))
+                        sound_keys.add(key)
+                    else:
+                        if marker:
+                            raise ValueError(
+                                f'{supplied_name}: Halo 2 effect events do not support markers')
+                        reporting = self._event_key(
+                            str(getattr(data, 'damage_effect_reporting_type', 'unknown')))
+                        if reporting != 'unknown':
+                            raise ValueError(
+                                f'{supplied_name}: Halo 2 effect events do not store a '
+                                'damage reporting type')
+                        cast(list[tuple[tuple[object, ...], int]],
+                             record['effects']).append((key, frame))
+                        effect_keys.add(key)
+                    if self.game == 'halo1':
+                        sound_keys.add(key)
+            owned.append((index, blender_animation, record))
+
+        sound_indices = self._classic_reference_indices('sound', sound_keys)
+        effect_indices = (self._classic_reference_indices('effect', effect_keys)
+                          if self.game == 'halo2' else {})
+        for index, _, record in owned:
+            animation = self.block(self._definitions(), 'animations')[index]
+            if self.game == 'halo1':
+                self.required_field(animation, 'left foot frame index').set(
+                    record['left foot'])
+                self.required_field(animation, 'right foot frame index').set(
+                    record['right foot'])
+                sounds = cast(list[tuple[tuple[object, ...], int, str]],
+                              record['sounds'])
+                self.required_field(animation, 'sound').set(
+                    sound_indices[sounds[0][0]] if sounds else -1)
+                self.required_field(animation, 'sound frame index').set(
+                    sounds[0][1] if sounds else 0)
+                continue
+            for block_name in ('frame events', 'sound events', 'effect events'):
+                self.block(animation, block_name).clear()
+                animation = self.block(self._definitions(), 'animations')[index]
+            for event_name, frame in cast(list[tuple[str, int]], record['frames']):
+                block = self.block(animation, 'frame events')
+                element = block[block.add()]
+                self._set_event_enum(element, 'type', event_name)
+                self.required_field(element, 'frame').set(frame)
+                animation = self.block(self._definitions(), 'animations')[index]
+            for key, frame, marker in cast(
+                    list[tuple[tuple[object, ...], int, str]], record['sounds']):
+                block = self.block(animation, 'sound events')
+                element = block[block.add()]
+                self.required_field(element, 'sound').set(sound_indices[key])
+                self.required_field(element, 'frame').set(frame)
+                self.required_field(element, 'marker name').set(marker)
+                animation = self.block(self._definitions(), 'animations')[index]
+            for key, frame in cast(
+                    list[tuple[tuple[object, ...], int]], record['effects']):
+                block = self.block(animation, 'effect events')
+                element = block[block.add()]
+                self.required_field(element, 'effect').set(effect_indices[key])
+                self.required_field(element, 'frame').set(frame)
+                animation = self.block(self._definitions(), 'animations')[index]
+        if owned:
+            self.tag_has_changes = True
+        return len(owned)
+
+    @staticmethod
     def _event_enum(value: object) -> str:
         if not isinstance(value, str):
             raise ValueError(f'Unknown animation-event enum value {value!r}')
@@ -788,10 +1041,11 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                         ('left foot frame index', 'left foot'),
                         ('right foot frame index', 'right foot')):
                     frame = int(self.value(animation, field_name))
-                    if frame < 0:
+                    # Halo 1 reserves zero for "no foot event".
+                    if frame <= 0:
                         continue
                     event = AnimationEvent()
-                    event.frame = utils.blender_frame(frame)
+                    event.frame = utils.blender_frame(frame - 1)
                     event.end_frame = event.frame
                     event.type = event_type
                     events.append(event)

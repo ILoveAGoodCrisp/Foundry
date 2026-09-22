@@ -20,13 +20,13 @@ Measured as dependency replacement, the migration is now 100%: the add-on has no
 ManagedBlam tag-access path to fall back to. This does not mean every workflow has
 completed visual or editing-kit acceptance.
 
-**H1/H2 feature-parity estimate: about 87%.** Core loose-tag loading/saving,
+**H1/H2 feature-parity estimate: about 89%.** Core loose-tag loading/saving,
 object/model geometry, all H2 LODs, collision/physics, classic animation decoding,
 bitmap and cubemap extraction, broad shader construction, scenario metadata,
-native legacy export dispatch, and scenario BSP render/collision geometry are
-connected. The remaining work is concentrated in legacy animation-event
-authoring, less common resource layouts, H2 weather-volume representation, and
-broad visual/editing-kit acceptance.
+native legacy export dispatch and inline animation-event writing, and scenario BSP
+render/collision geometry are connected. The remaining work is concentrated in
+less common resource layouts, H2 weather-volume representation, and broad
+visual/editing-kit acceptance.
 
 ## Editing-kit import acceptance (2026-09-22)
 
@@ -65,7 +65,7 @@ groups. The former Halo 2 V3 `style` failure is resolved: all 50 style tags now
 open and round-trip byte-for-byte. Broad Blender import acceptance
 has now begun with full representative object imports. The HCE Captain biped
 completed render and collision geometry, four shader-model materials and their
-bitmaps, three filtered idle animations and six frame events (29 objects, 18
+bitmaps and three filtered idle animations (29 objects, 18
 meshes and 7 materials). The H2 Brute biped completed render, collision and
 physics geometry, eight referenced shader material builds and classic bitmap
 extraction including P8 bump data, dozens of filtered idle animations, 104
@@ -510,7 +510,7 @@ can use them.
 
 ## Recommended implementation order
 
-1. Finish legacy animation-event authoring and decide how decoded H2 weather polyhedra map to Foundry's Blender properties.
+1. Decide how decoded H2 weather polyhedra map to Foundry's Blender properties.
 2. Run representative complete imports/exports against H1 and H2 editing kits and compare the resulting Blender data visually and in Tool.
 3. Run the same acceptance pass against each H3+ editing kit.
 4. Close specialized composite-animation, bitmap-format, resource-layout and scenario/cinematic gaps found by that review.
@@ -870,6 +870,16 @@ references through blam-tags. Isolated editing-kit probes produced valid H1
 gbxmodel/collision/physics files and H2 model/render-model files; command-dispatch
 checks cover both games. H1 skips the H2+ graph pre/post-processing pass because
 its animation tag and metadata layout are distinct.
+
+Classic animation events are now written after Tool compiles the JMA sources.
+H1 exports its representable left-foot, right-foot and single-sound slots; H2
+exports inline frame, sound and effect blocks and reuses or appends the graph's
+shared references. Partial animation exports update sampled animations plus any
+unsampled scene animation carrying authored events. Unsupported event kinds,
+reference flags and data fields raise before saving rather than being discarded.
+Save/reopen roundtrips passed against copies of the real HCE Sniper first-person
+graph and H2 Brute graph, including newly appended sound/effect references. H1
+import also now treats its zero foot-frame value as the format's empty sentinel.
 
 H1 tag compilation now always invokes `tool.exe`, so selecting `tool_fast` in
 Foundry no longer breaks an H1 export. H1 Tool reads its shader-class question
