@@ -69,6 +69,15 @@ import context and are never added to preferences. With the configured project
 list empty, real tags from all five H3+ kits resolved to the correct title and
 the external Reach Elite imported 102 objects from its original location.
 
+The drag-and-drop object importer now establishes that ephemeral context before
+reading invoke-time metadata such as variants. With Reach as the only configured
+and selected project, the reported external ODST pod vehicle resolved to H3ODSTEK,
+read all seven variants, and completed a Blender 5.2 import with 74 objects. Its
+six physics bodies use node index `-1`; Foundry now preserves these model-space
+bodies by parenting them to the armature object without assigning a bone. This
+matches blam-tags' JMS physics representation and removes the previous unbound-body
+conversion gap.
+
 Latest integration: cinematic import and the top-level cinematic writer now use
 native root, scene and scene-data entry points. The live scene wrapper and its
 event adapters now reside in `tags`; obsolete `SelectField` readers/writers and
@@ -677,10 +686,9 @@ these older layouts, and MOPP traversal chooses the stored child-reference or li
 field from the actual layout. A regression fixture exercises the older layout in
 an H4 game context. All 47 migration tests pass without initializing ManagedBlam.
 Read-only sampling now decodes 90/100 weapon tags (107 primitives) and 72/100 vehicle
-tags (376 primitives), with no errors or source changes. The remaining vehicle
-fallbacks are 26 tags with unbound bodies and two with serialized Havok shapes.
-Unbound-body placement remains unresolved; complete Blender import validation is
-still outstanding.
+tags (376 primitives), with no errors or source changes. At that stage, 26 vehicle
+tags had unbound bodies and two had serialized Havok shapes; both forms have since
+been connected to the native Blender import path. Broader visual validation remains.
 
 Serialized Havok payloads and per-shape material, friction, restitution and volume
 metadata can now be detached through PhysicsDocument.serialized_shapes. Tests

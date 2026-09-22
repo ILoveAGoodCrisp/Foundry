@@ -41,7 +41,7 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
             raise PhysicsShapesUnsupported(f'Cannot import native physics in {self.system_path}: {exc}') from exc
         else:
             for record in records:
-                if armature is None or record.bone not in armature.pose.bones:
+                if record.bone is not None and (armature is None or record.bone not in armature.pose.bones):
                     raise ValueError(f'Physics primitive requires armature bone {record.bone!r}')
             for record, shape in zip(records, shapes):
                 body = RigidBody.__new__(RigidBody)
@@ -50,8 +50,13 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
                 body.havok_info = record.havok
                 body.to_objects()
                 ob = shape.ob
-                ob.parent, ob.parent_type, ob.parent_bone = armature, 'BONE', record.bone
-                ob.matrix_world = armature.pose.bones[record.bone].matrix @ import_transform.object_matrix(shape.matrix, rotate=False)
+                local_matrix = import_transform.object_matrix(shape.matrix, rotate=False)
+                if record.bone is None:
+                    ob.parent = armature
+                    ob.matrix_world = local_matrix
+                else:
+                    ob.parent, ob.parent_type, ob.parent_bone = armature, 'BONE', record.bone
+                    ob.matrix_world = armature.pose.bones[record.bone].matrix @ local_matrix
                 utils.set_region(ob, record.region, utils.SetType.MODEL)
                 utils.set_permutation(ob, record.permutation, utils.SetType.MODEL)
                 collection.objects.link(ob)

@@ -66,13 +66,12 @@ class PhysicsDocument(TagDocument):
                     havok = self._havok_properties(body)
                     if serialized_records:
                         node_index = self.value(body, 'node')
-                        if node_index == -1:
-                            raise PhysicsShapesUnsupported('Unbound rigid bodies require legacy conversion')
-                        if not 0 <= node_index < len(nodes):
+                        if node_index < -1 or node_index >= len(nodes):
                             raise ValueError('Serialized physics node index is out of range')
+                        bone: str | None = nodes[node_index] if node_index >= 0 else None
                         for record in serialized_records:
                             record.kind, record.index = 'serialized', index
-                            record.node_index, record.bone = node_index, nodes[node_index]
+                            record.node_index, record.bone = node_index, bone
                             record.region, record.permutation = self.value(region, 'name'), self.value(permutation, 'name')
                             record.havok = havok
                             result.append(record)
@@ -94,9 +93,7 @@ class PhysicsDocument(TagDocument):
                         shapes = self.block(root, {'sphere': 'spheres', 'box': 'boxes', 'pill': 'pills', 'polyhedron': 'polyhedra'}[kind])
                         shape_index = self.value(reference, 'shape')
                         node_index = self.value(body, 'node')
-                        if node_index == -1:
-                            raise PhysicsShapesUnsupported('Unbound rigid bodies require legacy conversion')
-                        if not 0 <= shape_index < len(shapes) or not 0 <= node_index < len(nodes):
+                        if not 0 <= shape_index < len(shapes) or node_index < -1 or node_index >= len(nodes):
                             raise ValueError('Physics primitive shape or node index is out of range')
                         sphere = shapes[shape_index]
                         base = self.required_field(sphere, 'base').as_struct()
@@ -147,7 +144,8 @@ class PhysicsDocument(TagDocument):
                             if any(v < 0 or not isfinite(v) for v in extents) or any(not isfinite(v) for row in axes for v in row):
                                 raise ValueError('Invalid physics box dimensions or rotation')
                             geometry = dict(half_extents=extents, axes=axes)
-                        result.append(SimpleNamespace(index=index, node_index=node_index, bone=nodes[node_index],
+                        result.append(SimpleNamespace(index=index, node_index=node_index,
+                            bone=nodes[node_index] if node_index >= 0 else None,
                             region=self.value(region, 'name'), permutation=self.value(permutation, 'name'),
                             name=self.value(base, 'name'), material=materials[material] if 0 <= material < len(materials) else None,
                             kind=kind, material_index=material, radius=radius, translation=translation, havok=havok,

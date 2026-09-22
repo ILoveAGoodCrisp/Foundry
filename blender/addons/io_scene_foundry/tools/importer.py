@@ -4866,11 +4866,21 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             keywords["setup_as_asset"] = False
         keywords['files'] = [{'name': f.name} for f in self.files]
         ensure_import_operator_enum_defaults(keywords)
-        bpy.ops.nwo.foundry_import(**keywords)
+        try:
+            bpy.ops.nwo.foundry_import(**keywords)
+        finally:
+            utils.clear_external_project()
         return {'FINISHED'}
     
     def invoke(self, context, event):
         utils.switch_project_from_filepath(context, Path(self.filepath))
+        try:
+            return self._invoke_with_source_project(context, event)
+        except Exception:
+            utils.clear_external_project()
+            raise
+
+    def _invoke_with_source_project(self, context, event):
         scene_nwo = utils.get_scene_props()
         global checked_asset_once
         if not self.force_no_setup_as_asset and not self.setup_as_asset and not utils.valid_nwo_asset(context) and not checked_asset_once:
