@@ -668,6 +668,7 @@ class Permutation:
         permutation.mesh_count = record.mesh_count
         permutation.clone_name = record.clone_name
         permutation.instance_indices = list(record.instance_indices)
+        permutation.lod_mesh_indices: tuple[tuple[str, int], ...] = record.lod_mesh_indices
         return permutation
 
     def __init__(self, element: TagFieldBlockElement, region: 'Region'):
@@ -678,6 +679,7 @@ class Permutation:
         self.mesh_count = element.SelectField("mesh count").Data
         self.clone_name = ""
         self.instance_indices = []
+        self.lod_mesh_indices: tuple[tuple[str, int], ...] = ()
         if utils.is_corinth():
             self.clone_name = element.SelectField("clone name").GetStringData()
         flags_1 = element.SelectField("instance mask 0-31")

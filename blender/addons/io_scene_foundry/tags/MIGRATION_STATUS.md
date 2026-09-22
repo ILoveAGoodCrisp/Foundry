@@ -832,3 +832,12 @@ module was deleted. It still reuses Blender conversion classes from the
 legacy-named `connected_geometry.py`; separating those helpers and broad editing-kit
 acceptance remain, but opening/importing a render model no longer initializes
 ManagedBlam.
+
+Halo 2 render-model permutations now retain all six classic section references
+instead of selecting one section. The Blender importer creates and labels every
+valid L1-L6 object, including separate semantic LOD objects when multiple levels
+share one section. Object properties expose the hardcoded L1-L6 choice beside
+Region and Permutation for Halo 2 projects; L5 is the default and L6 is reserved
+for cinematic geometry. Legacy JMS import/export carries the same LOD value.
+A Blender 5.1 background import of the real H2 Brute render model decoded 18
+permutations and produced 108 meshes, six per permutation, with all L1-L6 labels.

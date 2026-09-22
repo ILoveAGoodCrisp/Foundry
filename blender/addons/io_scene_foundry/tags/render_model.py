@@ -32,6 +32,7 @@ class RenderModelPermutation:
     mesh_count: int
     clone_name: str
     instance_indices: tuple[int, ...]
+    lod_mesh_indices: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -168,12 +169,23 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
             for region_index, element in enumerate(self.block(self.tag.root(), 'regions')):
                 permutations = []
                 for permutation_index, permutation in enumerate(self.block(element, 'permutations')):
-                    lod_names = (('super high', 'high', 'medium', 'low', 'super low')
-                                 if self.game == 'halo1' else
-                                 ('L1 section index', 'L2 section index', 'L3 section index',
-                                  'L4 section index', 'L5 section index', 'L6 section index'))
-                    lod_indices = [int(self.value(permutation, name)) for name in lod_names]
-                    mesh_index = next((index for index in lod_indices if index >= 0), -1)
+                    if self.game == 'halo1':
+                        lod_indices = [int(self.value(permutation, name)) for name in
+                                       ('super high', 'high', 'medium', 'low', 'super low')]
+                        lod_mesh_indices = ()
+                        mesh_index = next((index for index in lod_indices if index >= 0), -1)
+                    else:
+                        lod_indices = [int(self.value(permutation, f'L{lod} section index'))
+                                       for lod in range(1, 7)]
+                        lod_mesh_indices = tuple(
+                            (f'L{lod}', mesh_index)
+                            for lod, mesh_index in enumerate(lod_indices, start=1)
+                            if mesh_index >= 0
+                        )
+                        mesh_index = next(
+                            (index for lod, index in lod_mesh_indices if lod == 'L5'),
+                            lod_mesh_indices[0][1] if lod_mesh_indices else -1,
+                        )
                     permutations.append(RenderModelPermutation(
                         index=permutation_index,
                         name=str(self.value(permutation, 'name')),
@@ -181,6 +193,7 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
                         mesh_count=1 if mesh_index >= 0 else 0,
                         clone_name='',
                         instance_indices=(),
+                        lod_mesh_indices=lod_mesh_indices,
                     ))
                 records.append(RenderModelRegion(
                     index=region_index,

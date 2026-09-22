@@ -265,12 +265,15 @@ class LegacyExportScene(ExportScene):
                 if node.tag_type in {'collision', 'physics'}:
                     name = gm  # Physics/collision material names are surface types, not display shaders.
                 permutation = node.permutation or 'default'
-                definition = f'{permutation} {region}'
+                lod = (node.ob.nwo.mesh_lod
+                       if self.target_game == 'halo2' and node.tag_type == 'render'
+                       else '')
+                definition = f'{permutation} {region}' + (f' {lod}' if lod else '')
                 key = (name, definition, lighting)
                 if key not in cache:
                     cache[key] = len(asset.materials)
                     asset.materials.append(ass.Material(name, definition, lighting) if isinstance(asset, ass.ASS)
-                                           else jms.Material(name, definition, region, permutation))
+                                           else jms.Material(name, definition, region, permutation, lod.lower()))
                 materials[face] = cache[key], region
         return materials
 

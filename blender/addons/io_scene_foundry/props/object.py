@@ -1997,6 +1997,22 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         get=get_permutation_from_collection,
     )
 
+    mesh_lod: bpy.props.EnumProperty(
+        name="LOD",
+        description="Halo 2 model level of detail",
+        items=[
+            ('L1', "L1", "Lowest-detail model"),
+            ('L2', "L2", "Low-detail model"),
+            ('L3', "L3", "Medium-detail model"),
+            ('L4', "L4", "High-detail model"),
+            ('L5', "L5", "Default model"),
+            ('L6', "L6", "Cinematic-use-only model"),
+        ],
+        default='L5',
+        override={'LIBRARY_OVERRIDABLE'},
+        options=set(),
+    )
+
     is_pca: bpy.props.BoolProperty(
         name="Frame PCA",
         options=set(),

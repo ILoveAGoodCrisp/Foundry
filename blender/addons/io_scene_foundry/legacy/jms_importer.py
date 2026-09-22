@@ -268,7 +268,9 @@ class JMSImporter:
                     colors = mesh.color_attributes.new(name='Color', type='FLOAT_COLOR', domain='POINT')
                     colors.data.foreach_set('color', [c for v in vertices for c in (*(v.color or (1, 1, 1)), 1)])
                 self.configure_mesh(ob, kind, region, permutation)
-                ob['jms_lod'] = lod
+                lod_label = lod.upper()
+                if lod_label in {'L1', 'L2', 'L3', 'L4', 'L5', 'L6'}:
+                    ob.nwo.mesh_lod = lod_label
                 self.apply_materials(ob, faces_by_material)
                 self.mesh_created(ob, list(remap))
                 if self.armature:

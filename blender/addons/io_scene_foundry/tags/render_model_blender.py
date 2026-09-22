@@ -222,10 +222,11 @@ class RenderModelTag(RenderModelMetadataTag):
                 if allowed_region_permutations and region_perm not in allowed_region_permutations:
                     continue
                     
-                if permutation.mesh_index < 0: continue
-                for i in range(permutation.mesh_count):
+                meshes = (permutation.lod_mesh_indices if self.game == 'halo2'
+                          else tuple(('', permutation.mesh_index + i)
+                                     for i in range(permutation.mesh_count)))
+                for i, (lod, mesh_index) in enumerate(meshes):
                     real_mesh_idx = None
-                    mesh_index = permutation.mesh_index + i
                     geometry_record = native_render_meshes[mesh_index]
                     if permutation.clone_name:
                         if not allowed_region_permutations or (region.name, permutation.clone_name) in allowed_region_permutations:
@@ -249,7 +250,9 @@ class RenderModelTag(RenderModelMetadataTag):
                     obs = mesh.create(None, None, self.nodes, self.armature,
                                       real_mesh_index=real_mesh_idx)
                     for ob in obs:
-                        ob_region_perms[ob] = region_perm
+                        ob_region_perms[ob] = (*region_perm, lod)
+                        if lod:
+                            ob.name = f'{ob.name}:{lod}'
                         
                     original_meshes_by_perm_name.setdefault(mesh.permutation.name, mesh)
                     objects.extend(obs)
@@ -274,9 +277,11 @@ class RenderModelTag(RenderModelMetadataTag):
                                 InstancePlacement.from_native(record, self.nodes))
 
         for ob, region_perm in ob_region_perms.items():
-            region, permutation = region_perm
+            region, permutation, lod = region_perm
             utils.set_region(ob, region, utils.SetType.MODEL)
             utils.set_permutation(ob, permutation, utils.SetType.MODEL)
+            if lod:
+                ob.nwo.mesh_lod = lod
             
         if self.instances:
             instance_mesh = Mesh.from_native(

@@ -4428,11 +4428,23 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         region_name += '*'
                         break
 
+        project = utils.get_project(self.scene_nwo.scene_project)
+        show_halo2_lod = (
+            project is not None
+            and project.game == 'halo2'
+            and utils.poll_ui(('model', 'multi_model'))
+            and is_mesh
+            and nwo.mesh_type == '_connected_geometry_mesh_type_default'
+            and not is_seam
+        )
+
         row = col.row()
         split = row.split()
         col1 = split.column()
         col2 = split.column()
         if is_seam and not nwo.seam_back_manual:
+            col3 = split.column()
+        elif show_halo2_lod:
             col3 = split.column()
         col1.enabled = not nwo.region_name_locked and not auto_bsp
         if is_seam and not nwo.seam_back_manual:
@@ -4445,6 +4457,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col3.label(text=perm_name, icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked else 0)
         else:
             col2.label(text=perm_name, icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked else 0)
+            if show_halo2_lod:
+                col3.label(text="LOD")
         if auto_bsp:
             col1.label(text="Auto", icon_value=get_icon_id("region"))
         else:
@@ -4459,6 +4473,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col3.menu("NWO_MT_Permutations", text=utils.true_permutation(nwo), icon_value=get_icon_id("permutation"))
         else:
             col2.menu("NWO_MT_Permutations", text=utils.true_permutation(nwo), icon_value=get_icon_id("permutation"))
+            if show_halo2_lod:
+                col3.prop(nwo, "mesh_lod", text="")
         col.separator()
         
         if is_seam:
