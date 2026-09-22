@@ -194,12 +194,92 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             raise TypeError(f'{self.path}: animation graph entry has no animation structure')
         return int(self.value(animation, 'animation'))
 
+    def _halo1_animation_state_paths(self) -> dict[str, list[str]]:
+        """Map Halo 1's positional animation tables to Foundry graph paths."""
+        root = self.tag.root()
+        animation_names = self.animation_names()
+        name_to_paths: dict[str, list[str]] = {}
+
+        def add_index(index: int, tokens: Iterable[str]) -> None:
+            if index < 0:
+                return
+            if index >= len(animation_names):
+                raise ValueError(
+                    f'{self.path}: graph animation index {index} is outside the '
+                    f'{len(animation_names)} local animations')
+            source_name = animation_names[index].replace(' ', ':')
+            path = ':'.join(token for token in tokens if token)
+            if path:
+                name_to_paths.setdefault(source_name, []).append(path)
+
+        def add_entries(entries: Iterable[blam_tags.TagStruct],
+                        prefix: Iterable[str]) -> None:
+            """Use the authored terminal state with a table's current labels."""
+            for entry in entries:
+                index = int(self.value(entry, 'animation'))
+                if index < 0:
+                    continue
+                if index >= len(animation_names):
+                    raise ValueError(
+                        f'{self.path}: graph animation index {index} is outside '
+                        f'the {len(animation_names)} local animations')
+                name_tokens = animation_names[index].split()
+                if not name_tokens:
+                    raise ValueError(
+                        f'{self.path}: graph animation index {index} has an '
+                        'empty animation name')
+                state = name_tokens[-1]
+                add_index(index, (*prefix, state))
+
+        # Object, weapon, vehicle, device and first-person tables have no
+        # authored mode label of their own. Their animation name supplies the
+        # terminal state while the table supplies the canonical Foundry mode.
+        add_entries(self.block(root, 'objects'), ('object',))
+        for block_name, mode in (
+                ('weapons', 'weapon'), ('vehicles', 'vehicle'),
+                ('devices', 'device'), ('first person weapons', 'first_person')):
+            for group in self.block(root, block_name):
+                add_entries(self.block(group, 'animations'), (mode,))
+
+        # Unit blocks carry the seat/mode and nested weapon labels. Halo 1
+        # commonly reuses a stand animation in alert/crouch or vehicle seats;
+        # retaining each table path is what produces the required renames.
+        for unit in self.block(root, 'units'):
+            mode = str(self.value(unit, 'label'))
+            add_entries(self.block(unit, 'animations'), (mode,))
+            for weapon in self.block(unit, 'weapons'):
+                weapon_class = str(self.value(weapon, 'name'))
+                add_entries(self.block(weapon, 'animations'),
+                            (mode, weapon_class))
+                for weapon_type in self.block(weapon, 'weapon types'):
+                    type_name = str(self.value(weapon_type, 'label'))
+                    add_entries(self.block(weapon_type, 'animations'),
+                                (mode, weapon_class, type_name))
+
+        # The unit-damage table is a dense state/direction/region cube in this
+        # on-disk order. Unlike action names, Foundry spells damage states and
+        # limb regions with underscores.
+        damage_states = ('s_ping', 'h_ping', 's_kill', 'h_kill')
+        damage_entries = self.block(root, 'unit damage')
+        expected_damage_count = len(damage_states) * len(DIRECTIONS) * len(REGIONS)
+        if len(damage_entries) not in {0, expected_damage_count}:
+            raise ValueError(
+                f'{self.path}: expected 0 or {expected_damage_count} Halo 1 '
+                f'unit-damage entries, found {len(damage_entries)}')
+        for index, entry in enumerate(damage_entries):
+            animation_index = int(self.value(entry, 'animation'))
+            region_index = index % len(REGIONS)
+            direction_index = (index // len(REGIONS)) % len(DIRECTIONS)
+            state_index = index // (len(DIRECTIONS) * len(REGIONS))
+            add_index(animation_index, (
+                damage_states[state_index], DIRECTIONS[direction_index],
+                REGIONS[region_index]))
+        return name_to_paths
+
     def animation_state_paths(self) -> dict[str, list[str]]:
         """Map each local animation name to its authored mode/state graph paths."""
         if self.game == 'halo1':
-            # Halo 1 stores its animation indices in legacy object/unit/weapon
-            # tables rather than the gen2+ content mode graph.
-            return {}
+            return self._halo1_animation_state_paths()
         animation_names = self.animation_names()
         name_to_paths: dict[str, list[str]] = {}
 

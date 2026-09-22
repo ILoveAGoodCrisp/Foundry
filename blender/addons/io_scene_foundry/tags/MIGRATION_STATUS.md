@@ -64,8 +64,13 @@ extraction including P8 bump data, dozens of filtered idle animations, 104
 renames and 68 frame events (75 objects, 46 meshes and 12 materials). These
 paths use native classic resource decoders exposed by blam-tags. Broad
 tag-family and visual acceptance, an unfiltered full-graph pass, complete H1
-legacy rename mapping, higher-fidelity H1 shader nodes and new classic-tag
-creation remain unfinished.
+shader fidelity and new classic-tag creation remain unfinished. H1 legacy
+animation paths are now reconstructed directly from its positional object,
+seat, weapon, vehicle, device, first-person and unit-damage tables. A Blender
+sweep opened all 213 HCE `model_animations` tags and resolved 10,061 authored
+paths, including 8,246 aliases caused by animations reused across graph states.
+The Captain sample now maps its shared `stand airborne-dead` animation to the
+authored `alert:airborne-dead` state as well as its canonical stand state.
 
 Bitmap extraction now derives base-mip storage size from the image dimensions
 and format instead of trusting the tag's `pixels size` field. A cross-kit scan
