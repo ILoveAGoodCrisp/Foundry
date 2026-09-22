@@ -68,6 +68,12 @@ description. The resulting tags/data roots and game are held in an ephemeral
 import context and are never added to preferences. With the configured project
 list empty, real tags from all five H3+ kits resolved to the correct title and
 the external Reach Elite imported 102 objects from its original location.
+Configured cross-project imports now hold the same source-kit snapshot through
+all Blender scene changes. Referenced models, animation graphs, shaders and
+bitmaps therefore continue resolving under the imported tag's tags directory.
+A probe switched the active scene back to H3 during a Reach Brute import and
+still opened `HREK/tags/shaders/default_bitmaps/bitmaps/default_detail.bitmap`
+with the Reach schema and tags root, covering the reported material-build crash.
 
 The drag-and-drop object importer now establishes that ephemeral context before
 reading invoke-time metadata such as variants. With Reach as the only configured

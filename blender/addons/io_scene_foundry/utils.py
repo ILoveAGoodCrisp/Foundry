@@ -2516,7 +2516,19 @@ def switch_project_from_filepath(context: bpy.types.Context, path: Path) -> None
             path.relative_to(Path(project.tags_directory).resolve())
         except ValueError:
             continue
-        _external_project = None
+        # Hold the source kit for the complete import. Imports can switch Blender
+        # scenes while building animations and materials; consulting the active
+        # scene again would make referenced tags come from that scene's project.
+        _external_project = ExternalProject(
+            name=project.name,
+            project_name=project.project_name,
+            project_path=project.project_path,
+            tags_directory=project.tags_directory,
+            data_directory=project.data_directory,
+            game=project.game,
+            corinth=project.corinth,
+            remote_server_name=getattr(project, 'remote_server_name', ''),
+        )
         nwo = get_scene_props()
         if nwo.scene_project != project.name:
             nwo.scene_project = project.name
