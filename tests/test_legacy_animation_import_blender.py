@@ -18,7 +18,9 @@ addon_utils.enable('io_scene_foundry', default_set=True, persistent=False)
 from io_scene_foundry import import_transform, utils
 from io_scene_foundry.legacy.jma import Node
 from io_scene_foundry.managed_blam.animation import AnimationTag, AnimationType
-from io_scene_foundry.tags.animation_resource import FrameInfoType
+from io_scene_foundry.tags.animation_resource import (
+    AnimationData, FrameInfoType, MovementData, apply_movement_data,
+)
 from io_scene_foundry.tags.animation_graph import AnimationBlendScreen
 from io_scene_foundry.tools.animation.legacy_import import prepare_reach_skeleton, convert_blend_screen
 from io_scene_foundry.tools.importer import draw_animation_graph_import_options, draw_graph_import_options
@@ -93,6 +95,36 @@ class LegacyImportTests(unittest.TestCase):
             for frame in transforms:
                 bpy.context.scene.frame_set(frame)
                 self.assertMatrix(self.arm.pose.bones['root'].matrix, import_transform.armature_bone_matrix(original[frame - 1][0], root=True))
+
+    def test_movement_yaw_precedes_rotated_legacy_root_pose(self):
+        angle = 0.3
+        root_pose = Quaternion((1, 0, 0), 1.1)
+        turn = Quaternion((0, 0, 1), angle)
+        animation = AnimationData(
+            1,
+            [[Vector()]],
+            [[root_pose.copy()]],
+            [[1.0]],
+            [False], [True], [False],
+        )
+        movement = MovementData(
+            FrameInfoType.DX_DY_DYAW,
+            [Vector()],
+            [turn],
+        )
+        apply_movement_data(animation, movement)
+        movement_delta = animation.rotations[0][0] @ root_pose.inverted()
+        axis, actual_angle = movement_delta.to_axis_angle()
+        self.assertAlmostEqual(abs(axis.z), 1.0, places=5)
+        self.assertAlmostEqual(axis.x, 0.0, places=5)
+        self.assertAlmostEqual(axis.y, 0.0, places=5)
+        self.assertAlmostEqual(actual_angle, angle, places=5)
+
+        # The old order turns this same Z yaw into the root's tilted Y axis.
+        old_order = root_pose @ turn
+        old_delta = old_order @ root_pose.inverted()
+        old_axis, _ = old_delta.to_axis_angle()
+        self.assertGreater(abs(old_axis.y), 0.5)
 
     def test_skeletal_motion_is_preserved_with_and_without_movement(self):
         names = prepare_reach_skeleton(self.arm)

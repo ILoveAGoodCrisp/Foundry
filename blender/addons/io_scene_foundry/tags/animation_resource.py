@@ -1099,9 +1099,13 @@ def apply_movement_data(animation: AnimationData, movement_data: MovementData | 
         accumulated_rotation = (accumulated_rotation @ local_delta_rotation).normalized()
 
         if movement_rotates_root:
-            combined_rotation = accumulated_rotation.copy()
-            combined_rotation.rotate(animation.rotations[0][frame_index])
-            animation.rotations[0][frame_index] = combined_rotation
+            # Movement is object-space motion and must precede the root's
+            # skeletal pose. Quaternion.rotate() composes in the reverse order,
+            # which conjugated yaw through rotated legacy roots (for example,
+            # making the H3 Hunter pitch during turn animations).
+            animation.rotations[0][frame_index] = (
+                accumulated_rotation @ animation.rotations[0][frame_index]
+            ).normalized()
             animation.rotation_flags[0] = True
 
     if 0 < frame_limit < animation.frame_count:
