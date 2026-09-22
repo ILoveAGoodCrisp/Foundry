@@ -42,6 +42,8 @@ class PhysicsDocument(TagDocument):
         return result
 
     def primitive_bodies(self, *, include_serialized=False):
+        if self.game == 'halo2':
+            return self._halo2_primitive_bodies()
         root = self.tag.root()
         bodies = self.block(root, 'rigid bodies')
         nodes = [self.value(e, 'name') for e in self.block(root, 'nodes')]
@@ -150,6 +152,25 @@ class PhysicsDocument(TagDocument):
                             name=self.value(base, 'name'), material=materials[material] if 0 <= material < len(materials) else None,
                             kind=kind, material_index=material, radius=radius, translation=translation, havok=havok,
                             friction=friction, restitution=restitution, **geometry))
+        return result
+
+    def _halo2_primitive_bodies(self):
+        """Use blam-tags' flat H2 physics decoder instead of the H3 nested-shape layout."""
+        result = []
+        for value in self.tag.physics_shapes_h2():
+            material_index = int(value['material_index'])
+            material_name = value['material']
+            material = (None if material_name is None else
+                        SimpleNamespace(index=material_index, name=str(material_name)))
+            record = SimpleNamespace(**value)
+            record.material_index = material_index
+            record.material = material
+            record.region = 'default'
+            record.permutation = 'default'
+            record.friction = 0.0
+            record.restitution = 0.0
+            record.havok = None
+            result.append(record)
         return result
 
     def _havok_properties(self, body):

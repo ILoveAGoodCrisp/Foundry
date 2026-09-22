@@ -240,6 +240,13 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
                 group.node_tree = utils.add_node_from_resources("shared_nodes", "Basic Water")
                 group.location.x -= 300
                 mat.node_tree.links.new(input=output.inputs[0], output=group.outputs[0])
+            case ('shader_model' | 'shader_environment' |
+                  'shader_transparent_chicago' | 'shader_transparent_chicago_extended' |
+                  'shader_transparent_generic' | 'shader_transparent_glass' |
+                  'shader_transparent_meter' | 'shader_transparent_plasma' |
+                  'shader_transparent_water'):
+                with ShaderTag(path=tag_path) as shader:
+                    shader.to_nodes(mat, always_extract_bitmaps)
     
     if shader is not None:
         mat.nwo.game_functions = ",".join(shader.game_functions)

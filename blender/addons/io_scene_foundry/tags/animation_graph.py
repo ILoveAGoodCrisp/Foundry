@@ -172,9 +172,13 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             self.tag_has_changes = True
 
     def _definitions(self) -> blam_tags.TagStruct:
-        definitions = self.required_field(self.tag.root(), 'definitions').as_struct()
+        root = self.tag.root()
+        if self.game == 'halo1':
+            return root
+        field_name = 'resources' if self.game == 'halo2' else 'definitions'
+        definitions = self.required_field(root, field_name).as_struct()
         if definitions is None:
-            raise TypeError(f'{self.path}: definitions is not a structure')
+            raise TypeError(f'{self.path}: {field_name} is not a structure')
         return definitions
 
     def animation_names(self, contains: str = '') -> list[str]:
@@ -192,6 +196,10 @@ class AnimationGraphTag(BlenderTag, TagDocument):
 
     def animation_state_paths(self) -> dict[str, list[str]]:
         """Map each local animation name to its authored mode/state graph paths."""
+        if self.game == 'halo1':
+            # Halo 1 stores its animation indices in legacy object/unit/weapon
+            # tables rather than the gen2+ content mode graph.
+            return {}
         animation_names = self.animation_names()
         name_to_paths: dict[str, list[str]] = {}
 
@@ -227,7 +235,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                         )
 
                     for animation_set, set_tokens in set_records:
-                        overlay_name = ('overlays' if self.game in {'halo3', 'halo3odst'}
+                        overlay_name = ('overlays' if self.game in {'halo2', 'halo3', 'halo3odst'}
                                         else 'overlay animations')
                         for block_name in ('actions', overlay_name):
                             field = animation_set.field(block_name)
@@ -255,12 +263,12 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                                         DIRECTIONS[direction_index], REGIONS[region_index]])
 
                         for transition in self.block(animation_set, 'transitions'):
-                            if self.game in {'halo3', 'halo3odst'}:
+                            if self.game in {'halo2', 'halo3', 'halo3odst'}:
                                 source_state = str(self.value(transition, 'full name'))
                             else:
                                 source_state = str(self.value(transition, 'state name'))
                             for destination in self.block(transition, 'destinations'):
-                                if self.game in {'halo3', 'halo3odst'}:
+                                if self.game in {'halo2', 'halo3', 'halo3odst'}:
                                     destination_mode = str(self.value(destination, 'full name'))
                                     destination_state = str(self.value(destination, 'mode'))
                                 else:
@@ -343,10 +351,11 @@ class AnimationGraphTag(BlenderTag, TagDocument):
         return result
 
     def nodes(self) -> list[AnimationGraphNode]:
-        nodes = self.block(self._definitions(), 'skeleton nodes')
+        definitions = self._definitions()
+        nodes = self.block(definitions, 'nodes' if self.game == 'halo1' else 'skeleton nodes')
         return [AnimationGraphNode(
             name=str(self.value(node, 'name')),
-            parent_index=int(self.value(node, 'parent node index')),
+            parent_index=int(self.value(node, 'parent node' if self.game == 'halo1' else 'parent node index')),
         ) for node in nodes]
 
     def get_nodes(self) -> list[str]:
@@ -355,7 +364,11 @@ class AnimationGraphTag(BlenderTag, TagDocument):
 
     def additional_nodes(self) -> list[AnimationGraphDefaultNode]:
         records: list[AnimationGraphDefaultNode] = []
-        for element in self.block(self.tag.root(), 'additional node data'):
+        field = self.tag.root().field('additional node data')
+        block = None if field is None else field.as_block()
+        if block is None:
+            return records
+        for element in block:
             rotation = cast(
                 ArrayValue, self.required_field(element, 'default rotation').value)
             translation = cast(
@@ -385,7 +398,8 @@ class AnimationGraphTag(BlenderTag, TagDocument):
     def animation_import_settings(self) -> dict[str, AnimationImportSettings]:
         records: dict[str, AnimationImportSettings] = {}
         for element in self.block(self._definitions(), 'animations'):
-            flags = element.field('user flags') or element.field('playback flags')
+            flags = (element.field('user flags') or element.field('playback flags') or
+                     element.field('flags'))
             if flags is None:
                 raise ValueError(f'{self.path}: animation has no playback flags')
             options = flags.options()
@@ -612,12 +626,46 @@ class AnimationGraphTag(BlenderTag, TagDocument):
 
     def inline_events(self) -> dict[str, list[AnimationEvent]]:
         from .frame_event_list import (
-            AnimationEvent, DialogueEvent, EffectEvent, SoundEvent,
+            AnimationEvent, DialogueEvent, EffectEvent, Reference, SoundEvent,
             collapse_events,
         )
         from .. import utils
 
         definitions = self._definitions()
+        if self.game == 'halo1':
+            sound_references: list[Reference] = []
+            for element in self.block(definitions, 'sound references'):
+                reference = Reference()
+                path = self.reference(element, 'sound')
+                reference.tag = path.RelativePathWithExtension if path is not None else ''
+                sound_references.append(reference)
+            result: dict[str, list[AnimationEvent]] = {}
+            for animation in self.block(definitions, 'animations'):
+                name = str(self.value(animation, 'name'))
+                events: list[AnimationEvent] = []
+                for field_name, event_type in (
+                        ('left foot frame index', 'left foot'),
+                        ('right foot frame index', 'right foot')):
+                    frame = int(self.value(animation, field_name))
+                    if frame < 0:
+                        continue
+                    event = AnimationEvent()
+                    event.frame = utils.blender_frame(frame)
+                    event.end_frame = event.frame
+                    event.type = event_type
+                    events.append(event)
+                sound_index = int(self.value(animation, 'sound'))
+                if 0 <= sound_index < len(sound_references):
+                    event = AnimationEvent()
+                    event.frame = utils.blender_frame(
+                        int(self.value(animation, 'sound frame index')))
+                    event.end_frame = event.frame
+                    sound = SoundEvent()
+                    sound.sound_reference = sound_references[sound_index]
+                    event.sound_events.append(sound)
+                    events.append(event)
+                result[name] = collapse_events(events)
+            return result
         references = {
             kind: [self._event_reference(element, kind)
                    for element in self.block(definitions, kind + ' references')]
@@ -650,7 +698,11 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 ('sound', SoundEvent), ('effect', EffectEvent),
                 ('dialogue', DialogueEvent),
             ):
-                for element in self.block(holder, kind + ' events'):
+                event_field = holder.field(kind + ' events')
+                event_block = None if event_field is None else event_field.as_block()
+                if event_block is None:
+                    continue
+                for element in event_block:
                     record = cls()
                     record.frame_offset = int(self.value(element, 'frame'))
                     if kind == 'dialogue':
@@ -665,7 +717,8 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                                 f'{self.path}: invalid {kind} reference index '
                                 f'{reference_index} in animation {name!r}')
                         setattr(record, kind + '_reference', references[kind][reference_index])
-                        record.marker_name = str(self.value(element, 'marker name'))
+                        marker = element.field('marker name')
+                        record.marker_name = '' if marker is None else str(marker.value)
                         if kind == 'effect' and element.field('damage effect reporting type') is not None:
                             record.damage_effect_reporting_type = self._event_enum(
                                 self.value(element, 'damage effect reporting type'))

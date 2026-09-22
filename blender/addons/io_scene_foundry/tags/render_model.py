@@ -135,6 +135,14 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
 
     def nodes(self) -> list[RenderModelNode]:
         elements = list(self.block(self.tag.root(), 'nodes'))
+        def vector_or(element, name: str, default: tuple[float, ...]) -> tuple[float, ...]:
+            field = element.field(name)
+            return default if field is None or field.value is None else self._vector(field.value)
+
+        def float_or(element, name: str, default: float) -> float:
+            field = element.field(name)
+            return default if field is None or field.value is None else float(field.value)
+
         return [RenderModelNode(
             index=index,
             name=str(self.value(element, 'name')),
@@ -143,18 +151,44 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
                 self.value(element, 'default translation'))),
             rotation=cast(tuple[float, float, float, float], self._vector(
                 self.value(element, 'default rotation'))),
-            inverse_forward=cast(tuple[float, float, float], self._vector(
-                self.value(element, 'inverse forward'))),
-            inverse_left=cast(tuple[float, float, float], self._vector(
-                self.value(element, 'inverse left'))),
-            inverse_up=cast(tuple[float, float, float], self._vector(
-                self.value(element, 'inverse up'))),
-            inverse_position=cast(tuple[float, float, float], self._vector(
-                self.value(element, 'inverse position'))),
-            inverse_scale=float(self.value(element, 'inverse scale')),
+            inverse_forward=cast(tuple[float, float, float], vector_or(
+                element, 'inverse forward', (1.0, 0.0, 0.0))),
+            inverse_left=cast(tuple[float, float, float], vector_or(
+                element, 'inverse left', (0.0, 1.0, 0.0))),
+            inverse_up=cast(tuple[float, float, float], vector_or(
+                element, 'inverse up', (0.0, 0.0, 1.0))),
+            inverse_position=cast(tuple[float, float, float], vector_or(
+                element, 'inverse position', (0.0, 0.0, 0.0))),
+            inverse_scale=float_or(element, 'inverse scale', 1.0),
         ) for index, element in enumerate(elements)]
 
     def regions(self) -> list[RenderModelRegion]:
+        if self.game in {'halo1', 'halo2'}:
+            records = []
+            for region_index, element in enumerate(self.block(self.tag.root(), 'regions')):
+                permutations = []
+                for permutation_index, permutation in enumerate(self.block(element, 'permutations')):
+                    lod_names = (('super high', 'high', 'medium', 'low', 'super low')
+                                 if self.game == 'halo1' else
+                                 ('L1 section index', 'L2 section index', 'L3 section index',
+                                  'L4 section index', 'L5 section index', 'L6 section index'))
+                    lod_indices = [int(self.value(permutation, name)) for name in lod_names]
+                    mesh_index = next((index for index in lod_indices if index >= 0), -1)
+                    permutations.append(RenderModelPermutation(
+                        index=permutation_index,
+                        name=str(self.value(permutation, 'name')),
+                        mesh_index=mesh_index,
+                        mesh_count=1 if mesh_index >= 0 else 0,
+                        clone_name='',
+                        instance_indices=(),
+                    ))
+                records.append(RenderModelRegion(
+                    index=region_index,
+                    name=str(self.value(element, 'name')),
+                    permutations=tuple(permutations),
+                ))
+            return records
+
         records = []
         for region_index, element in enumerate(self.block(self.tag.root(), 'regions')):
             permutations = []
@@ -212,6 +246,26 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
         ) for index, element in enumerate(block)]
 
     def marker_groups(self) -> list[RenderModelMarkerGroup]:
+        if self.game == 'halo1':
+            grouped: dict[str, list[RenderModelMarker]] = {}
+            for region_index, region in enumerate(self.block(self.tag.root(), 'regions')):
+                for permutation_index, permutation in enumerate(self.block(region, 'permutations')):
+                    for marker in self.block(permutation, 'markers'):
+                        grouped.setdefault(str(self.value(marker, 'name')), []).append(
+                            RenderModelMarker(
+                                region_index=region_index,
+                                permutation_index=permutation_index,
+                                node_index=int(self.value(marker, 'node index')),
+                                translation=cast(tuple[float, float, float], self._vector(
+                                    self.value(marker, 'translation'))),
+                                rotation=cast(tuple[float, float, float, float], self._vector(
+                                    self.value(marker, 'rotation'))),
+                                scale=1.0,
+                                direction=(0.0, 0.0, 0.0),
+                            ))
+            return [RenderModelMarkerGroup(index=index, name=name, markers=tuple(markers))
+                    for index, (name, markers) in enumerate(grouped.items())]
+
         records = []
         for group_index, element in enumerate(self.block(self.tag.root(), 'marker groups')):
             markers = []
@@ -242,9 +296,54 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
         return -1 if field is None else int(field.value)
 
     def compression_bounds(self) -> list[StructureBspCompressionBounds]:
+        if self.game == 'halo1':
+            return [StructureBspCompressionBounds(
+                position_0=(0.0, 1.0, 0.0),
+                position_1=(1.0, 0.0, 1.0),
+                texcoord_0=(0.0, 1.0),
+                texcoord_1=(0.0, 1.0),
+            )]
+        if self.game == 'halo2':
+            records = []
+            for element in self.block(self.tag.root(), 'compression info'):
+                x = self.value(element, 'position bounds x')
+                y = self.value(element, 'position bounds y')
+                z = self.value(element, 'position bounds z')
+                u = self.value(element, 'texcoord bounds x')
+                v = self.value(element, 'texcoord bounds y')
+                records.append(StructureBspCompressionBounds(
+                    position_0=(float(x.lower), float(x.upper), float(y.lower)),
+                    position_1=(float(y.upper), float(z.lower), float(z.upper)),
+                    texcoord_0=(float(u.lower), float(u.upper)),
+                    texcoord_1=(float(v.lower), float(v.upper)),
+                ))
+            return records
         return ScenarioStructureBspMetadataTag.compression_bounds(self)
 
     def render_materials(self) -> list[StructureBspRenderMaterial]:
+        if self.game in {'halo1', 'halo2'}:
+            records = []
+            block_name = 'shaders' if self.game == 'halo1' else 'materials'
+            for index, element in enumerate(self.block(self.tag.root(), block_name)):
+                reference = self.reference(element, 'shader')
+                if reference is None or not reference.RelativePath:
+                    continue
+                records.append(StructureBspRenderMaterial(
+                    index=index,
+                    render_method=reference,
+                    emissive_index=-1,
+                    lightmap_resolution=1.0,
+                    additive_transparency=0,
+                    translucency_tint=0,
+                    lighting_from_both_sides=False,
+                    transparency_override=False,
+                    ignore_default_resolution=False,
+                    chart_group_index=-1,
+                    breakable_surface_index=-1,
+                    analytical_absorb=0.0,
+                    normal_absorb=0.0,
+                ))
+            return records
         return ScenarioStructureBspMetadataTag.render_materials(self)
 
     def sky_data(self) -> RenderModelSkyData:

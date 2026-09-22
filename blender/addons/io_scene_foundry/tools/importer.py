@@ -3142,7 +3142,10 @@ class NWOImporter:
                             else:
                                 source_tag_root = self.tags_dir
                                 
-                            render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
+                            if obj.game == 'halo1':
+                                render, collision, animation, physics = obj.get_halo1_model_paths(source_tag_root)
+                            else:
+                                render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
                             
                             temp_variant = self.tag_variant
 

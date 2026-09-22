@@ -362,7 +362,7 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
             system_tiff_path = Path(data_dir, rel_path).with_suffix('.tiff')
             alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
 
-        info.curve = bitmap._enum_index(bitmap.block_bitmaps[0], 'curve')
+        info.curve = bitmap.curve_index()
         info.for_normal = bitmap.used_as_normal_map()
         info.shader_type = bitmap.get_shader_type()
         if always_extract_bitmaps:
@@ -415,6 +415,14 @@ class BitmapTag(BlenderTag, TagDocument):
     
     def _read_fields(self):
         root = self.tag.root()
+        if self.game in {'halo1', 'halo2'}:
+            self.longenum_usage = self.required_field(root, 'usage')
+            self.charenum_usage = self.longenum_usage
+            self.block_usage_override = None
+            self.block_bitmaps = self.block(root, 'bitmaps')
+            self.is_cubemap = bool(len(self.block_bitmaps) and
+                                   self._enum_index(self.block_bitmaps[0], 'type') == 2)
+            return
         self.longenum_usage = self.required_field(root, 'Usage')
         self.charenum_usage = self.required_field(root, 'curve mode')
         self.block_usage_override = self.block(root, 'usage override')
@@ -1815,6 +1823,19 @@ class BitmapTag(BlenderTag, TagDocument):
         )
 
     def _save_single_raw_tiff(self, frame_index: int, suffix: str, convert_color_space: bool) -> str:
+        if self.game in {'halo1', 'halo2'}:
+            save_path = self._raw_tiff_save_path(suffix)
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            try:
+                tiff = self.tag.bitmap_tiff(frame_index)
+            except (IndexError, ValueError) as exc:
+                raise BitmapExtractionError(
+                    f"Classic bitmap extraction failed for {self.tag_path.RelativePath}, "
+                    f"frame {frame_index}: {exc}") from exc
+            with open(save_path, 'wb') as stream:
+                stream.write(tiff)
+            return save_path
+
         bitmap_elements = self.block_bitmaps
         if frame_index < 0 or frame_index >= len(bitmap_elements):
             raise BitmapExtractionError(
@@ -1913,22 +1934,35 @@ class BitmapTag(BlenderTag, TagDocument):
         return tiff_path
     
     def normal_type(self):
+        if self.game in {'halo1', 'halo2'}:
+            return NormalType.DIRECTX
         return NormalType.OPENGL if self._enum_index(self.tag.root(), 'Usage') == 36 else NormalType.DIRECTX
     
     def has_bitmap_data(self):
         return len(self.block_bitmaps)
     
     def is_linear(self):
-        return self._enum_index(self.block_bitmaps[0], 'curve') == 3
+        return self.curve_index() == 3
+
+    def curve_index(self) -> int:
+        if self.game in {'halo1', 'halo2'}:
+            return 3 if self.used_as_normal_map() else 5
+        return self._enum_index(self.block_bitmaps[0], 'curve')
     
     def used_as_normal_map(self):
+        if self.game in {'halo1', 'halo2'}:
+            options = self.longenum_usage.options()
+            usage = options.current_name.casefold() if options is not None and options.current_name else ''
+            return any(name in usage for name in ('height map', 'vector map', 'bump', 'normal', 'embm'))
         return self._enum_index(self.tag.root(), 'Usage') in {2, 3, 18, 19, 20, 21, 36, 38}
     
     def uses_srgb(self):
+        if self.game in {'halo1', 'halo2'}:
+            return not self.used_as_normal_map()
         return self._enum_index(self.tag.root(), 'Usage') in {0, 5, 7}
     
     def get_gamma_name(self) -> str:
-        match self._enum_index(self.block_bitmaps[0], 'curve'):
+        match self.curve_index():
             case 3:
                 return 'linear'
             case 5:
@@ -1937,7 +1971,7 @@ class BitmapTag(BlenderTag, TagDocument):
                 return 'xrgb'
             
     def get_gamma_value(self) -> str:
-        match self._enum_index(self.block_bitmaps[0], 'curve'):
+        match self.curve_index():
             case 0:
                 return 1.95
             case 1:
@@ -1961,7 +1995,7 @@ class BitmapTag(BlenderTag, TagDocument):
     def get_shader_type(self):
         options = self.longenum_usage.options()
         if options is None or options.current is None:
-            raise ValueError(f'{self.path}: bitmap Usage has an unknown enum value')
+            raise ValueError(f'{self.path}: bitmap usage has an unknown enum value')
         return options.names[options.current]
             
 def lerp(p1: float, p2: float, fraction: float) -> float:

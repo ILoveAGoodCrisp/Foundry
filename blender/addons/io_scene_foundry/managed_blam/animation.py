@@ -222,10 +222,35 @@ class Animation:
         self.translate_and_scale_root_only = False
         
     def from_element(self, element: _NativeStruct,
-                     shared_element: _NativeStruct, corinth: bool):
+                     shared_element: _NativeStruct, corinth: bool, game: str):
         self.name = utils.AnimationName(element.Fields[0].GetStringData())
         self.index = element.ElementIndex
         self.frame_count = shared_element.SelectField("frame count").Data
+        if game == 'halo1':
+            self.animation_type = AnimationType(shared_element.SelectField("type").Value + 1)
+            self.frame_info_type = FrameInfoType(shared_element.SelectField("frame info type").Value)
+            self.compression = Compression.old_codec
+            self.element = element
+            self.shared_element = shared_element
+            flags = shared_element.SelectField("flags")
+            self.world_relative = flags.TestBit("world relative")
+            return
+        if game == 'halo2':
+            self.animation_type = AnimationType(shared_element.SelectField("type").Value + 1)
+            self.frame_info_type = FrameInfoType(shared_element.SelectField("frame info type").Value)
+            self.compression = Compression.medium_compression
+            self.element = element
+            self.shared_element = shared_element
+            playback_flags = element.SelectField("playback flags")
+            self.translate_and_scale_root_only = playback_flags.TestBit(
+                "translate and scale root only") if playback_flags is not None else False
+            internal_flags = shared_element.SelectField("internal flags")
+            self.world_relative = (internal_flags.TestBit("world relative")
+                                   if internal_flags is not None else False)
+            object_space = shared_element.SelectField("object-space parent nodes")
+            self.is_pose_overlay = (self.animation_type == AnimationType.OVERLAY and
+                                    object_space is not None and object_space.Elements.Count > 0)
+            return
         self.animation_type = AnimationType(shared_element.SelectField("animation type").Value)
         self.frame_info_type = FrameInfoType(shared_element.SelectField("frame info type").Value)
         self.compression = Compression(shared_element.SelectField("desired compression").Value)
@@ -273,11 +298,22 @@ class AnimationTag(AnimationGraphTag):
             self._read_fields()
 
     def _read_fields(self):
-        self.block_animations = self._native_root.SelectField(
-            "Struct:definitions[0]/Block:animations")
-        self.block_modes = self._native_root.SelectField("Struct:content[0]/Block:modes")
-        self.block_blend_screens = self._native_root.SelectField(
-            'Struct:definitions[0]/Block:NEW blend screens')
+        if self.game == 'halo1':
+            self.block_animations = self._native_root.SelectField("Block:animations")
+            self.block_modes = None
+            self.block_blend_screens = None
+        elif self.game == 'halo2':
+            self.block_animations = self._native_root.SelectField(
+                "Struct:resources[0]/Block:animations")
+            self.block_modes = self._native_root.SelectField("Struct:content[0]/Block:modes")
+            self.block_blend_screens = self._native_root.SelectField(
+                'Struct:resources[0]/Block:blend screens')
+        else:
+            self.block_animations = self._native_root.SelectField(
+                "Struct:definitions[0]/Block:animations")
+            self.block_modes = self._native_root.SelectField("Struct:content[0]/Block:modes")
+            self.block_blend_screens = self._native_root.SelectField(
+                'Struct:definitions[0]/Block:NEW blend screens')
         
         
     def get_animation_names(self, filter="") -> list[str]:
@@ -293,7 +329,7 @@ class AnimationTag(AnimationGraphTag):
             shared_animation_element = self._get_shared_animation_element(element)
             if shared_animation_element is not None:
                 anim = Animation()
-                anim.from_element(element, shared_animation_element, self.corinth)
+                anim.from_element(element, shared_animation_element, self.corinth, self.game)
                 return anim
         
         animations = []
@@ -3543,7 +3579,8 @@ class AnimationTag(AnimationGraphTag):
         index = tag_animation.index
         if index in animation_cache:
             return animation_cache[index]
-        animation_pose = getattr(self.tag, 'animation_pose', None)
+        pose_method = 'animation_pose_classic' if self.game == 'halo1' else 'animation_pose'
+        animation_pose = getattr(self.tag, pose_method, None)
         if animation_pose is None:
             raise RuntimeError(
                 'The loaded blam-tags binding predates native animation decoding. '
@@ -4341,13 +4378,15 @@ class AnimationTag(AnimationGraphTag):
         shared_animation_element = self._get_shared_animation_element(element)
         if shared_animation_element is not None:
             animation = Animation()
-            animation.from_element(element, shared_animation_element, self.corinth)
+            animation.from_element(element, shared_animation_element, self.corinth, self.game)
             if state_type:
                 animation.state_types.add(state_type)
             return animation
         
     def to_dict(self, tag_animations: list) -> dict:
         """Build the mode/state lookup used by the native resource decoder."""
+        if self.game == 'halo1':
+            return {}
         animations_by_index = {animation.index: animation for animation in tag_animations}
         graph: dict[str, dict] = {}
 
@@ -4380,7 +4419,7 @@ class AnimationTag(AnimationGraphTag):
                         actions: dict[str, Animation] = set_graph.setdefault('actions', {})
                         overlays: dict[str, Animation] = set_graph.setdefault(
                             'overlay_animations', {})
-                        overlay_name = ('overlays' if self.game in {'halo3', 'halo3odst'}
+                        overlay_name = ('overlays' if self.game in {'halo2', 'halo3', 'halo3odst'}
                                         else 'overlay animations')
                         for block_name, target, state_type in (
                                 ('actions', actions, 'action'),
@@ -4409,12 +4448,12 @@ class AnimationTag(AnimationGraphTag):
                         transition_graph: dict[str, dict] = set_graph.setdefault(
                             'transitions', {})
                         for transition in self.block(animation_set, 'transitions'):
-                            source_field = ('full name' if self.game in {'halo3', 'halo3odst'}
+                            source_field = ('full name' if self.game in {'halo2', 'halo3', 'halo3odst'}
                                             else 'state name')
                             destinations = transition_graph.setdefault(
                                 str(self.value(transition, source_field)), {})
                             for destination in self.block(transition, 'destinations'):
-                                if self.game in {'halo3', 'halo3odst'}:
+                                if self.game in {'halo2', 'halo3', 'halo3odst'}:
                                     mode_name = str(self.value(destination, 'full name'))
                                     state_name = str(self.value(destination, 'mode'))
                                 else:

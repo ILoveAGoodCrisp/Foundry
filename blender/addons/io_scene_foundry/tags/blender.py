@@ -18,12 +18,14 @@ class BlenderTag:
         if not path:
             asset = Path(utils.get_asset_path())
             path = asset / (asset.name + '.' + self.tag_ext)
+        supplied_path = Path(getattr(path, 'RelativePathWithExtension', path))
+        extension = self.tag_ext if not supplied_path.suffix else None
         self.corinth: bool = project.game in {'halo4', 'halo2a'}
         self.tags_dir: str = utils.get_tags_path()
         self.error: Exception | None = None
         try:
             super().__init__(path, tags_root=self.tags_dir, game=project.game,
-                             extension=self.tag_ext, must_exist=tag_must_exist,
+                             extension=extension, must_exist=tag_must_exist,
                              always_save=always_save)
             self.tag_path = self.reference_from_path(self.path)
         except Exception as error:

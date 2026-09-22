@@ -301,6 +301,12 @@ class ShaderTag(BlenderTag, TagDocument):
         return NativeGameColor(red, green, blue, alpha)
     
     def _read_fields(self):
+        if self.game in {'halo1', 'halo2'}:
+            self.reference = _EmptyReference()
+            self.definition = _EmptyReference()
+            self.block_parameters = None
+            self.block_options = None
+            return
         self.render_method = self._native_root.SelectField("Struct:render_method").Elements[0]
         self.block_parameters = self.render_method.SelectField("parameters")
         self.block_options = self.render_method.SelectField('options')
@@ -1402,6 +1408,12 @@ class ShaderTag(BlenderTag, TagDocument):
         self.sequence_drivers = {}
         self.has_rotating_bitmaps = False
         self.generated_uvs = generated_uvs
+        if self.game == 'halo1':
+            self._to_nodes_halo1(blender_material)
+            return
+        if self.game == 'halo2':
+            self._to_nodes_halo2(blender_material)
+            return
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         if self.group_supported:
             self._to_nodes_group(blender_material)
@@ -1412,6 +1424,176 @@ class ShaderTag(BlenderTag, TagDocument):
             flags = self._native_root.SelectField("Struct:render_method[0]/WordFlags:shader flags")
             if flags is not None and flags.TestBit("only render for shields"):
                 utils.material_add_shield(blender_material)
+
+    def _to_nodes_halo1(self, blender_material: bpy.types.Material):
+        """Build a basic material from Halo 1's shader-family layouts."""
+        from ..tags.backend import TagDocument
+
+        blender_material.use_nodes = True
+        tree = blender_material.node_tree
+        nodes = tree.nodes
+        nodes.clear()
+        output = nodes.new(type='ShaderNodeOutputMaterial')
+        output.location = (420, 0)
+        bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+        bsdf.location = (120, 0)
+        tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+
+        root = self.tag.root()
+        shader_type = self.system_path.suffix[1:].casefold()
+        transparent = shader_type.startswith('shader_transparent_')
+        if transparent:
+            blender_material.surface_render_method = 'BLENDED'
+
+        def child(struct, name: str):
+            field = struct.field(name)
+            return field.as_struct() if field is not None else None
+
+        def bitmap(struct, name: str, *, non_color=False):
+            if struct is None:
+                return None
+            reference = TagDocument.reference(self, struct, name)
+            if reference is None or not reference.RelativePath:
+                return None
+            result = bitmap_to_image(reference.Filename, self.always_extract_bitmaps)
+            image_node = nodes.new(type='ShaderNodeTexImage')
+            image_node.name = name
+            image_node.label = name
+            image_node.image = result.image
+            if non_color and image_node.image is not None:
+                image_node.image.colorspace_settings.name = 'Non-Color'
+            return image_node
+
+        base = bump = emission = None
+        if shader_type == 'shader_model':
+            maps = child(root, 'maps')
+            base = bitmap(maps, 'base map')
+        elif shader_type == 'shader_environment':
+            base = bitmap(child(root, 'diffuse'), 'base map')
+            bump = bitmap(child(root, 'bump'), 'bump map', non_color=True)
+            emission = bitmap(child(root, 'self-illumination'), 'map')
+        elif shader_type == 'shader_transparent_glass':
+            base = bitmap(child(root, 'diffuse'), 'diffuse map')
+            bump = bitmap(child(root, 'reflection'), 'bump map', non_color=True)
+        elif shader_type == 'shader_transparent_meter':
+            base = bitmap(child(root, 'properties'), 'map')
+        elif shader_type == 'shader_transparent_plasma':
+            base = bitmap(child(root, 'primary noise map'), 'noise map')
+        elif shader_type == 'shader_transparent_water':
+            base = bitmap(child(root, 'properties'), 'base map')
+        elif shader_type in {'shader_transparent_chicago', 'shader_transparent_generic'}:
+            maps = self.block(root, 'maps')
+            if len(maps):
+                parameters = child(maps[0], 'parameters') or maps[0]
+                base = bitmap(parameters, 'map')
+        elif shader_type == 'shader_transparent_chicago_extended':
+            maps = self.block(root, '4 stage maps')
+            if not len(maps):
+                maps = self.block(root, '2 stage maps')
+            if len(maps):
+                base = bitmap(child(maps[0], 'parameters'), 'map')
+
+        if base is not None:
+            base.location = (-520, 160)
+            tree.links.new(base.outputs['Color'], bsdf.inputs['Base Color'])
+            if transparent:
+                tree.links.new(base.outputs['Alpha'], bsdf.inputs['Alpha'])
+        if bump is not None:
+            bump.location = (-520, -180)
+            normal = nodes.new(type='ShaderNodeNormalMap')
+            normal.location = (-180, -180)
+            tree.links.new(bump.outputs['Color'], normal.inputs['Color'])
+            tree.links.new(normal.outputs['Normal'], bsdf.inputs['Normal'])
+        emission_input = bsdf.inputs.get('Emission Color')
+        if emission_input is None:
+            emission_input = bsdf.inputs.get('Emission')
+        if emission is not None and emission_input is not None:
+            emission.location = (-520, -500)
+            tree.links.new(emission.outputs['Color'], emission_input)
+
+    def _to_nodes_halo2(self, blender_material: bpy.types.Material):
+        """Build a useful Principled material from Halo 2 shader parameters."""
+        from ..tags.backend import TagDocument
+
+        blender_material.use_nodes = True
+        tree = blender_material.node_tree
+        nodes = tree.nodes
+        nodes.clear()
+        output = nodes.new(type='ShaderNodeOutputMaterial')
+        output.location = (420, 0)
+        bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+        bsdf.location = (120, 0)
+        tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+
+        root = self.tag.root()
+        template = TagDocument.reference(self, root, 'template')
+        template_name = template.RelativePath.casefold() if template is not None else ''
+        transparent = '\\transparent\\' in template_name
+        if transparent:
+            blender_material.surface_render_method = 'BLENDED'
+
+        parameters = {}
+        for element in self.block(root, 'parameters'):
+            parameters[str(self.value(element, 'name')).casefold()] = element
+
+        def color(name: str):
+            element = parameters.get(name)
+            if element is None:
+                return None
+            value = self.value(element, 'const color')
+            return (value.red, value.green, value.blue, 1.0)
+
+        def image(name: str, *, non_color=False):
+            element = parameters.get(name)
+            if element is None:
+                return None
+            bitmap = TagDocument.reference(self, element, 'bitmap')
+            if bitmap is None or not bitmap.RelativePath:
+                return None
+            result = bitmap_to_image(bitmap.Filename, self.always_extract_bitmaps)
+            image_node = nodes.new(type='ShaderNodeTexImage')
+            image_node.name = name
+            image_node.label = name
+            image_node.image = result.image
+            if non_color and image_node.image is not None:
+                image_node.image.colorspace_settings.name = 'Non-Color'
+            return image_node
+
+        base = image('base_map')
+        if base is None:
+            base = image('alpha_blend_map') or image('self_illum_map')
+        if base is not None:
+            base.location = (-520, 160)
+            tree.links.new(base.outputs['Color'], bsdf.inputs['Base Color'])
+            if transparent:
+                tree.links.new(base.outputs['Alpha'], bsdf.inputs['Alpha'])
+
+        bump = image('bump_map', non_color=True)
+        if bump is not None:
+            bump.location = (-520, -180)
+            normal = nodes.new(type='ShaderNodeNormalMap')
+            normal.location = (-180, -180)
+            tree.links.new(bump.outputs['Color'], normal.inputs['Color'])
+            tree.links.new(normal.outputs['Normal'], bsdf.inputs['Normal'])
+
+        specular = color('specular_color')
+        specular_input = bsdf.inputs.get('Specular IOR Level')
+        if specular is not None and specular_input is not None:
+            specular_input.default_value = max(specular[:3])
+
+        emission = image('self_illum_map')
+        emission_input = bsdf.inputs.get('Emission Color')
+        if emission_input is None:
+            emission_input = bsdf.inputs.get('Emission')
+        if emission is not None and emission_input is not None:
+            emission.location = (-520, -500)
+            tree.links.new(emission.outputs['Color'], emission_input)
+            strength = bsdf.inputs.get('Emission Strength')
+            if strength is not None:
+                strength.default_value = max(float(self.value(parameters.get('emissive_power'), 'const value'))
+                                             if parameters.get('emissive_power') is not None else 1.0, 1.0)
+        elif (emission_color := color('self_illum_color')) is not None and emission_input is not None:
+            emission_input.default_value = emission_color
             
     def _option_value_from_index(self, index):
         if index >= self.block_options.Elements.Count:

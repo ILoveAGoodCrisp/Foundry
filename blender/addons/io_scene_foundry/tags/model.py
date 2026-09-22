@@ -34,6 +34,8 @@ class ModelDocument(TagDocument):
         return self.block(self.tag.root(), 'variants')
 
     def get_model_variants(self) -> list[str]:
+        if self.game == 'halo1':
+            return []
         return [cast(str, self.value(e, 'name')) for e in self.variants()]
 
     def get_render_model(self, optional_tag_root=None, override_type=None):
@@ -154,6 +156,8 @@ class ModelDocument(TagDocument):
         return {}
 
     def get_variant_regions_and_permutations(self, variant, state):
+        if self.game == 'halo1':
+            return set()
         if not self.path_exists(self.reference_render_model.Path):
             return set()
         return {(region, random.choice(options)) for region, options in

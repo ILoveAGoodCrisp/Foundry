@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from pathlib import Path
 
 from .backend import TagDocument, TagPathInput
 from .model import ModelDocument
@@ -49,7 +50,7 @@ class ObjectDocument(TagDocument):
     def object_struct(self) -> blam_tags.TagStruct:
         struct = self.tag.root()
         for _ in range(4):
-            if struct.field('default model variant') is not None and struct.field('model') is not None:
+            if struct.field('model') is not None:
                 return struct
             for name in ('object', 'unit', 'item', 'device'):
                 if struct.field(name) is not None:
@@ -60,7 +61,8 @@ class ObjectDocument(TagDocument):
         raise ValueError(f'{self.path}: no inherited object struct')
 
     def get_default_variant(self):
-        return self.value(self.object_struct(), 'default model variant')
+        field = self.object_struct().field('default model variant')
+        return '' if field is None else field.value
 
     def get_model_tag_path(self):
         ref = self.reference_model.Path
@@ -69,6 +71,20 @@ class ObjectDocument(TagDocument):
     def get_model_tag_path_full(self):
         ref = self.reference_model.Path
         return ref.Filename if ref else None
+
+    def get_halo1_model_paths(self, optional_tag_root: str | Path | None = None) -> tuple[str, str, str, str]:
+        """Return the direct render/collision/animation/physics references stored by H1 objects."""
+        struct = self.object_struct()
+        paths = []
+        for name in ('model', 'collision model', 'animation graph', 'physics'):
+            reference = self.reference(struct, name)
+            if reference is None or not reference.RelativePath:
+                paths.append('')
+            elif optional_tag_root is None:
+                paths.append(reference.Filename)
+            else:
+                paths.append(str(Path(optional_tag_root) / reference.RelativePathWithExtension))
+        return paths[0], paths[1], paths[2], paths[3]
 
     def set_model_tag_path(self, path):
         self.reference_model.Path = path

@@ -55,7 +55,17 @@ The schema staging step now includes every generated H1/H2 group instead of the
 H3+-focused subset. A one-real-file-per-group sweep opened 75 H1 and 96 H2 tag
 groups. The only parser failure was a Halo 2 V3 `style` variant affecting 9 of 50
 sampled style tags; it is recorded as READ-004. Broad Blender import acceptance
-and new classic-tag creation remain unfinished.
+has now begun with full representative object imports. The HCE Captain biped
+completed render and collision geometry, four shader-model materials and their
+bitmaps, three filtered idle animations and six frame events (29 objects, 18
+meshes and 7 materials). The H2 Brute biped completed render, collision and
+physics geometry, eight referenced shader material builds and classic bitmap
+extraction including P8 bump data, dozens of filtered idle animations, 104
+renames and 68 frame events (75 objects, 46 meshes and 12 materials). These
+paths use native classic resource decoders exposed by blam-tags. Broad
+tag-family and visual acceptance, an unfiltered full-graph pass, complete H1
+legacy rename mapping, higher-fidelity H1 shader nodes and new classic-tag
+creation remain unfinished.
 
 Bitmap extraction now derives base-mip storage size from the image dimensions
 and format instead of trusting the tag's `pixels size` field. A cross-kit scan
