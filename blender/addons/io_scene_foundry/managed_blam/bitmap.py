@@ -14,7 +14,7 @@ from ..tags.blender import BlenderTag
 from .. import utils
 import bpy
 
-path_cache = set()
+path_cache: set[Path] = set()
 NORMAL_DEBUG_GAMMA = 2.2
 NORMAL_DEBUG_GAMMA_LOOKUP = tuple(
     int(round(((i / 255.0) ** NORMAL_DEBUG_GAMMA) * 255.0))
@@ -353,6 +353,8 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
         
     system_tiff_path = Path(utils.get_data_path(), rel_path).with_suffix('.tiff')
     alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
+    sequence_tiff_path = None
+    alt_sequence_tiff_path = None
     
     with BitmapTag(path=rel_path) as bitmap:
         if not bitmap.has_bitmap_data(): return info
@@ -361,6 +363,9 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
             rel_path = f"{bitmap.tag_path.RelativePath}_equirectangular"
             system_tiff_path = Path(data_dir, rel_path).with_suffix('.tiff')
             alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
+            sequence_tiff_path = system_tiff_path.with_name(
+                f"{system_tiff_path.stem}_00001{system_tiff_path.suffix}")
+            alt_sequence_tiff_path = sequence_tiff_path.with_suffix(".tif")
 
         info.curve = bitmap.curve_index()
         info.for_normal = bitmap.used_as_normal_map()
@@ -371,6 +376,10 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
             info.image_path = str(system_tiff_path)
         elif alt_system_tiff_path.exists():
             info.image_path = str(alt_system_tiff_path)
+        elif sequence_tiff_path is not None and sequence_tiff_path.exists():
+            info.image_path = str(sequence_tiff_path)
+        elif alt_sequence_tiff_path is not None and alt_sequence_tiff_path.exists():
+            info.image_path = str(alt_sequence_tiff_path)
         else:
             info.image_path = bitmap.save_to_tiff(info.for_normal)
             
@@ -396,7 +405,7 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
 
     apply_bitmap_info_color_space(image, info)
 
-    if info.sequence_length > 1:
+    if info.sequence_length > 1 and not info.cubemap:
         image.source = 'SEQUENCE'
         
     info.image = image
@@ -1796,7 +1805,109 @@ class BitmapTag(BlenderTag, TagDocument):
         return str(Path(self.data_dir, self.tag_path.RelativePath).with_suffix('.tiff'))
 
     def _raw_cubemap_equirectangular_save_path(self, suffix: str):
-        return str(Path(self.data_dir, f"{self.tag_path.RelativePath}{suffix}_equirectangular").with_suffix('.tiff'))
+        return str(Path(
+            self.data_dir, f"{self.tag_path.RelativePath}_equirectangular{suffix}"
+        ).with_suffix('.tiff'))
+
+    @staticmethod
+    def _uncompressed_rgba_tiff(tiff: bytes) -> tuple[int, int, bytes]:
+        """Read the simple uncompressed RGBA TIFF emitted by blam-tags."""
+        if len(tiff) < 8 or tiff[:2] not in {b"II", b"MM"}:
+            raise BitmapExtractionError("blam-tags returned an invalid TIFF header")
+        endian = "<" if tiff[:2] == b"II" else ">"
+
+        def unpack(fmt: str, offset: int):
+            size = struct.calcsize(fmt)
+            if offset < 0 or offset + size > len(tiff):
+                raise BitmapExtractionError("blam-tags TIFF directory exceeds the returned data")
+            return struct.unpack_from(endian + fmt, tiff, offset)
+
+        if unpack("H", 2)[0] != 42:
+            raise BitmapExtractionError("blam-tags returned an unsupported TIFF version")
+        directory_offset = unpack("I", 4)[0]
+        entry_count = unpack("H", directory_offset)[0]
+        type_sizes = {1: 1, 3: 2, 4: 4}
+        entries: dict[int, tuple[int, ...]] = {}
+        for index in range(entry_count):
+            entry_offset = directory_offset + 2 + index * 12
+            tag, field_type, count = unpack("HHI", entry_offset)
+            item_size = type_sizes.get(field_type)
+            if item_size is None:
+                continue
+            byte_count = item_size * count
+            value_offset = entry_offset + 8
+            if byte_count > 4:
+                value_offset = unpack("I", value_offset)[0]
+            if value_offset + byte_count > len(tiff):
+                raise BitmapExtractionError(
+                    f"blam-tags TIFF field {tag} exceeds the returned data")
+            format_char = {1: "B", 3: "H", 4: "I"}[field_type]
+            entries[tag] = unpack(format_char * count, value_offset)
+
+        def required(tag: int) -> tuple[int, ...]:
+            values = entries.get(tag)
+            if values is None:
+                raise BitmapExtractionError(f"blam-tags TIFF is missing required field {tag}")
+            return values
+
+        width = required(256)[0]
+        height = required(257)[0]
+        bits = required(258)
+        compression = required(259)[0]
+        strip_offsets = required(273)
+        samples = required(277)[0]
+        strip_sizes = required(279)
+        planar = entries.get(284, (1,))[0]
+        orientation = entries.get(274, (1,))[0]
+        if compression != 1 or samples != 4 or any(value != 8 for value in bits):
+            raise BitmapExtractionError(
+                "blam-tags cubemap TIFF must be uncompressed 8-bit RGBA")
+        if planar != 1 or orientation != 1:
+            raise BitmapExtractionError(
+                "blam-tags cubemap TIFF must use chunky top-left pixel storage")
+        if len(strip_offsets) != len(strip_sizes):
+            raise BitmapExtractionError("blam-tags TIFF strip tables have different lengths")
+        rgba = b"".join(
+            tiff[offset:offset + size]
+            for offset, size in zip(strip_offsets, strip_sizes, strict=True)
+        )
+        expected = width * height * 4
+        if len(rgba) != expected:
+            raise BitmapExtractionError(
+                f"blam-tags TIFF has {len(rgba)} pixel bytes; expected {expected}")
+        return width, height, rgba
+
+    def _save_classic_cubemap_equirectangular(self, tiff: bytes, suffix: str) -> str:
+        width, height, rgba = self._uncompressed_rgba_tiff(tiff)
+        if width % 4 or height % 3 or width // 4 != height // 3:
+            raise BitmapExtractionError(
+                f"Classic cubemap TIFF must use a 4x3 square-face cross, got {width}x{height}")
+        face_size = width // 4
+        cross = np.frombuffer(rgba, dtype=np.uint8).reshape(height, width, 4)
+
+        def face(column: int, row: int):
+            x = column * face_size
+            y = row * face_size
+            return cross[y:y + face_size, x:x + face_size]
+
+        # blam-tags emits the DirectX cross used by the classic Tool pipeline:
+        # +Y on top, -Y below, and +X/+Z/-X/-Z across the middle row.
+        faces = {
+            "U": face(1, 0),
+            "R": face(0, 1),
+            "F": face(1, 1),
+            "L": face(2, 1),
+            "B": face(3, 1),
+            "D": face(1, 2),
+        }
+        equirectangular = self._cubemap_faces_to_equirectangular(
+            faces, face_size * 2, face_size * 4, "bilinear")
+        save_path = self._raw_cubemap_equirectangular_save_path(suffix)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        self._write_rgba_tiff(
+            save_path, face_size * 4, face_size * 2,
+            np.ascontiguousarray(equirectangular).tobytes())
+        return save_path
 
     def _bitmap_format_name(self, bitmap_format: int) -> str:
         return BITMAP_FORMAT_NAMES.get(bitmap_format, f"unknown format {bitmap_format}")
@@ -1834,6 +1945,8 @@ class BitmapTag(BlenderTag, TagDocument):
                     f"frame {frame_index}: {exc}") from exc
             with open(save_path, 'wb') as stream:
                 stream.write(tiff)
+            if self.is_cubemap:
+                return self._save_classic_cubemap_equirectangular(tiff, suffix)
             return save_path
 
         bitmap_elements = self.block_bitmaps
@@ -1902,14 +2015,17 @@ class BitmapTag(BlenderTag, TagDocument):
 
         return self._save_single_raw_tiff(frame_index, suffix, not blue_channel_fix)
         
-    def save_to_tiff(self, blue_channel_fix=False, format='tiff') -> list[str]:
+    def save_to_tiff(self, blue_channel_fix=False, format='tiff') -> str | None:
         global path_cache
-        expected_tiff_path = Path(self.data_dir, self.tag_path.RelativePath).with_suffix('.tiff')
+        first_suffix = "_00001" if len(self.block_bitmaps) > 1 else ""
+        expected_tiff_path = (Path(self._raw_cubemap_equirectangular_save_path(first_suffix))
+                              if self.is_cubemap else
+                              Path(self.data_dir, self.tag_path.RelativePath).with_suffix('.tiff'))
         expected_tif_path = expected_tiff_path.with_suffix('.tif')
         if expected_tiff_path in path_cache and expected_tiff_path.exists():
-            return expected_tiff_path
+            return str(expected_tiff_path)
         elif expected_tif_path in path_cache and expected_tif_path.exists():
-            return expected_tif_path
+            return str(expected_tif_path)
         
         
         if not len(self.block_bitmaps):
@@ -1930,7 +2046,7 @@ class BitmapTag(BlenderTag, TagDocument):
             tiff_path = self._save_single(blue_channel_fix, format, 0, "")
         
         
-        path_cache.add(tiff_path)
+        path_cache.add(Path(tiff_path))
         return tiff_path
     
     def normal_type(self):

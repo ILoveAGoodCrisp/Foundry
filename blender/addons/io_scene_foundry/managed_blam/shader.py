@@ -1442,12 +1442,25 @@ class ShaderTag(BlenderTag, TagDocument):
         root = self.tag.root()
         shader_type = self.system_path.suffix[1:].casefold()
         transparent = shader_type.startswith('shader_transparent_')
-        if transparent:
-            blender_material.surface_render_method = 'BLENDED'
 
         def child(struct, name: str):
             field = struct.field(name)
             return field.as_struct() if field is not None else None
+
+        alpha_tested = False
+        if transparent:
+            properties = child(root, 'properties')
+            for field_name in ('flags', 'shader transparent glass flags'):
+                flags = None if properties is None else properties.field(field_name)
+                if flags is None:
+                    continue
+                try:
+                    alpha_tested = flags.get_flag('alpha tested')
+                except KeyError:
+                    pass
+                break
+            blender_material.surface_render_method = ('DITHERED' if alpha_tested
+                                                       else 'BLENDED')
 
         def bitmap(struct, name: str, *, non_color=False):
             if struct is None:
@@ -1456,7 +1469,9 @@ class ShaderTag(BlenderTag, TagDocument):
             if reference is None or not reference.RelativePath:
                 return None
             result = bitmap_to_image(reference.Filename, self.always_extract_bitmaps)
-            image_node = nodes.new(type='ShaderNodeTexImage')
+            node_type = ('ShaderNodeTexEnvironment' if getattr(result, 'cubemap', False)
+                         else 'ShaderNodeTexImage')
+            image_node = nodes.new(type=node_type)
             image_node.name = name
             image_node.label = name
             image_node.image = result.image
@@ -1464,9 +1479,11 @@ class ShaderTag(BlenderTag, TagDocument):
                 image_node.image.colorspace_settings.name = 'Non-Color'
             return image_node
 
-        base = bump = emission = detail = multipurpose = None
+        base = bump = emission = detail = multipurpose = environment = None
         change_color_source = ''
         self_illumination = None
+        reflection_properties = None
+        reflection_mask = None
         xbox_multipurpose_order = False
         if shader_type == 'shader_model':
             maps = child(root, 'maps')
@@ -1476,6 +1493,9 @@ class ShaderTag(BlenderTag, TagDocument):
             change = child(root, 'change color')
             change_color_source = str(self.value(change, 'change color source')).casefold()
             self_illumination = child(root, 'self-illumination')
+            reflection = child(root, 'reflection')
+            reflection_properties = child(reflection, 'cube map properties')
+            environment = bitmap(reflection, 'cube map')
             properties = child(root, 'properties')
             flags = None if properties is None else properties.field('flags')
             if flags is not None:
@@ -1594,9 +1614,67 @@ class ShaderTag(BlenderTag, TagDocument):
                     tree.links.new(illuminated.outputs['Vector'], emission_input)
                     if emission_strength is not None:
                         tree.links.new(separate.outputs['Green'], emission_strength)
+
+            if environment is not None:
+                environment.location = (-520, 560)
+                texture = nodes.new(type='ShaderNodeTexCoord')
+                texture.location = (-1050, 560)
+                tree.links.new(texture.outputs['Reflection'], environment.inputs['Vector'])
+
+                perpendicular_brightness = 1.0
+                parallel_brightness = 1.0
+                perpendicular_tint = (1.0, 1.0, 1.0, 1.0)
+                parallel_tint = perpendicular_tint
+                if reflection_properties is not None:
+                    if reflection_properties.field('perpendicular brightness') is not None:
+                        perpendicular_brightness = float(
+                            self.value(reflection_properties, 'perpendicular brightness'))
+                    if reflection_properties.field('parallel brightness') is not None:
+                        parallel_brightness = float(
+                            self.value(reflection_properties, 'parallel brightness'))
+                    if reflection_properties.field('perpendicular tint color') is not None:
+                        value = self.value(reflection_properties, 'perpendicular tint color')
+                        perpendicular_tint = (value.red, value.green, value.blue, 1.0)
+                    if reflection_properties.field('parallel tint color') is not None:
+                        value = self.value(reflection_properties, 'parallel tint color')
+                        parallel_tint = (value.red, value.green, value.blue, 1.0)
+
+                facing = nodes.new(type='ShaderNodeLayerWeight')
+                facing.location = (-280, 660)
+                reflection_tint = nodes.new(type='ShaderNodeMixRGB')
+                reflection_tint.blend_type = 'MIX'
+                reflection_tint.location = (-40, 560)
+                reflection_tint.inputs[1].default_value = tuple(
+                    component * parallel_brightness for component in parallel_tint)
+                reflection_tint.inputs[2].default_value = tuple(
+                    component * perpendicular_brightness for component in perpendicular_tint)
+                tree.links.new(facing.outputs['Facing'], reflection_tint.inputs[0])
+
+                tinted_reflection = nodes.new(type='ShaderNodeVectorMath')
+                tinted_reflection.operation = 'MULTIPLY'
+                tinted_reflection.location = (170, 520)
+                tree.links.new(environment.outputs['Color'], tinted_reflection.inputs[0])
+                tree.links.new(reflection_tint.outputs['Color'], tinted_reflection.inputs[1])
+                reflection_color = tinted_reflection.outputs['Vector']
+                if reflection_mask is not None:
+                    masked_reflection = nodes.new(type='ShaderNodeVectorMath')
+                    masked_reflection.operation = 'SCALE'
+                    masked_reflection.location = (370, 520)
+                    tree.links.new(reflection_color, masked_reflection.inputs['Vector'])
+                    tree.links.new(reflection_mask, masked_reflection.inputs['Scale'])
+                    reflection_color = masked_reflection.outputs['Vector']
+
+                add_reflection = nodes.new(type='ShaderNodeVectorMath')
+                add_reflection.operation = 'ADD'
+                add_reflection.location = (570, 360)
+                tree.links.new(base_color, add_reflection.inputs[0])
+                tree.links.new(reflection_color, add_reflection.inputs[1])
+                base_color = add_reflection.outputs['Vector']
             tree.links.new(base_color, bsdf.inputs['Base Color'])
             if transparent:
-                tree.links.new(base.outputs['Alpha'], bsdf.inputs['Alpha'])
+                alpha_output = base.outputs.get('Alpha')
+                if alpha_output is not None:
+                    tree.links.new(alpha_output, bsdf.inputs['Alpha'])
         if bump is not None:
             bump.location = (-520, -180)
             normal = nodes.new(type='ShaderNodeNormalMap')
@@ -1635,6 +1713,11 @@ class ShaderTag(BlenderTag, TagDocument):
         for element in self.block(root, 'parameters'):
             parameters[str(self.value(element, 'name')).casefold()] = element
 
+        alpha_tested = ('alpha_test' in template_name or
+                        'alphatest_map' in parameters)
+        if alpha_tested:
+            blender_material.surface_render_method = 'DITHERED'
+
         def color(name: str):
             element = parameters.get(name)
             if element is None:
@@ -1654,7 +1737,9 @@ class ShaderTag(BlenderTag, TagDocument):
             if bitmap is None or not bitmap.RelativePath:
                 return None
             result = bitmap_to_image(bitmap.Filename, self.always_extract_bitmaps)
-            image_node = nodes.new(type='ShaderNodeTexImage')
+            node_type = ('ShaderNodeTexEnvironment' if getattr(result, 'cubemap', False)
+                         else 'ShaderNodeTexImage')
+            image_node = nodes.new(type=node_type)
             image_node.name = name
             image_node.label = name
             image_node.image = result.image
@@ -1663,6 +1748,7 @@ class ShaderTag(BlenderTag, TagDocument):
             return image_node
 
         alpha_map = image('alpha_blend_map')
+        alpha_test_map = image('alphatest_map', non_color=True)
         base = image('base_map')
         if base is None:
             base = alpha_map or image('self_illum_map')
@@ -1735,22 +1821,67 @@ class ShaderTag(BlenderTag, TagDocument):
                     tree.links.new(base_color, color_mix.inputs[1])
                     tree.links.new(tinted.outputs['Vector'], color_mix.inputs[2])
                     base_color = color_mix.outputs['Color']
+
+            environment = image('environment_map')
+            if environment is None:
+                environment = image('specular_cube_map')
+            if environment is not None:
+                environment.location = (-520, 620)
+                texture = nodes.new(type='ShaderNodeTexCoord')
+                texture.location = (-1050, 620)
+                tree.links.new(texture.outputs['Reflection'], environment.inputs['Vector'])
+
+                environment_tint = color('env_tint_color') or color('environment_color')
+                glancing_tint = color('env_glancing_tint_color') or environment_tint
+                environment_tint = environment_tint or (1.0, 1.0, 1.0, 1.0)
+                glancing_tint = glancing_tint or environment_tint
+                environment_brightness = real('env_brightness', 1.0)
+                glancing_brightness = real('env_glancing_brightness', environment_brightness)
+
+                facing = nodes.new(type='ShaderNodeLayerWeight')
+                facing.location = (-280, 720)
+                reflection_tint = nodes.new(type='ShaderNodeMixRGB')
+                reflection_tint.blend_type = 'MIX'
+                reflection_tint.location = (-40, 620)
+                reflection_tint.inputs[1].default_value = tuple(
+                    component * glancing_brightness for component in glancing_tint)
+                reflection_tint.inputs[2].default_value = tuple(
+                    component * environment_brightness for component in environment_tint)
+                tree.links.new(facing.outputs['Facing'], reflection_tint.inputs[0])
+
+                tinted_reflection = nodes.new(type='ShaderNodeVectorMath')
+                tinted_reflection.operation = 'MULTIPLY'
+                tinted_reflection.location = (170, 580)
+                tree.links.new(environment.outputs['Color'], tinted_reflection.inputs[0])
+                tree.links.new(reflection_tint.outputs['Color'], tinted_reflection.inputs[1])
+                add_reflection = nodes.new(type='ShaderNodeVectorMath')
+                add_reflection.operation = 'ADD'
+                add_reflection.location = (570, 360)
+                tree.links.new(base_color, add_reflection.inputs[0])
+                tree.links.new(tinted_reflection.outputs['Vector'], add_reflection.inputs[1])
+                base_color = add_reflection.outputs['Vector']
             tree.links.new(base_color, bsdf.inputs['Base Color'])
 
         if transparent:
             alpha_source = alpha_map or base
             opacity = real('alpha_blend_opacity', 1.0)
-            if alpha_source is None:
+            alpha_output = None if alpha_source is None else alpha_source.outputs.get('Alpha')
+            if alpha_output is None:
                 bsdf.inputs['Alpha'].default_value = opacity
             elif opacity == 1.0:
-                tree.links.new(alpha_source.outputs['Alpha'], bsdf.inputs['Alpha'])
+                tree.links.new(alpha_output, bsdf.inputs['Alpha'])
             else:
                 multiply_alpha = nodes.new(type='ShaderNodeMath')
                 multiply_alpha.operation = 'MULTIPLY'
                 multiply_alpha.inputs[1].default_value = opacity
                 multiply_alpha.location = (-100, -420)
-                tree.links.new(alpha_source.outputs['Alpha'], multiply_alpha.inputs[0])
+                tree.links.new(alpha_output, multiply_alpha.inputs[0])
                 tree.links.new(multiply_alpha.outputs[0], bsdf.inputs['Alpha'])
+        elif alpha_test_map is not None:
+            alpha_test_map.location = (-520, -760)
+            alpha_output = alpha_test_map.outputs.get('Alpha')
+            if alpha_output is not None:
+                tree.links.new(alpha_output, bsdf.inputs['Alpha'])
 
         bump = image('bump_map', non_color=True)
         if bump is not None:

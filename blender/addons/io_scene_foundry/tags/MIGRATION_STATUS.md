@@ -866,7 +866,7 @@ scale using double-biased multiplication. H2 shaders now combine primary and
 secondary detail maps, carry their authored UV scales, apply separate alpha maps
 and constant opacity, and recognize `emissive_color` alongside the older
 `self_illum_color` name. This is broad construction acceptance; environment-map,
-change-color and exact blend-template parity still need visual review.
+change-color and exact blend-template behavior still need visual review.
 
 H1 model-shader multipurpose maps now honor the H1A/PC and optional Xbox channel
 orders. Their change-color masks read Primary through Quaternary instance colors,
@@ -875,6 +875,34 @@ Principled specular level. H2 `change_color_map` RGBA channels now drive the sam
 four instance colors; authored multiply maps and emissive-map tint colors are also
 connected. The complete 1,412/3,107 shader construction sweep still passes after
 these additions.
+
+Classic cubemap references now use Blender environment textures fed by reflection
+coordinates, matching the equirectangular images produced by the native bitmap
+extractor. H1 model reflections apply the authored perpendicular/parallel tint
+and brightness and the correct multipurpose-map reflection channel. H2
+environment/specular cubemaps apply their normal and glancing tint/brightness
+parameters. The full construction sweep passes with 228 H1 and 152 H2
+environment-texture nodes, including three H1 transparent shaders whose cubemap
+stages correctly omit unavailable alpha outputs. Visual comparison of reflection
+strength and exact transparent blend-template behavior remains.
+
+The classic extraction branch now performs that conversion explicitly. The
+blam-tags H1/H2 decoder returns a Tool-compatible 4x3 DirectX face cross; Foundry
+reads its uncompressed RGBA TIFF, maps the +Y/-Y and +X/+Z/-X/-Z cells, and writes
+a 4x2 equirectangular TIFF for Blender's environment texture. Its cache key and
+returned path point to the converted image rather than the intermediate cross.
+Real HCE and H2 samples converted 256x192 to 256x128 and 16x12 to 16x8 through
+the public `save_to_tiff` and `bitmap_to_image` paths, including a repeated
+cached lookup. The four-image H2 sample writes numbered equirectangular frames;
+Blender loads the first as a valid environment image while the metadata retains
+the full frame count.
+
+Classic alpha-test intent is now preserved separately from ordinary transparency.
+H1 transparent-family flags select Blender's dithered surface mode, while H2
+alpha-test templates/parameters do the same and connect their authored alpha-test
+map to the Principled alpha input. The complete shader construction sweep remains
+clean after this change; additive, subtractive and multiply framebuffer modes
+still require visual parity work.
 
 Representative unfiltered classic animation resource decoding is now complete.
 The HCE Captain graph decoded all 22 animations (1,048 composed frames), and the
