@@ -218,6 +218,13 @@ Blender 5.1.2 checks decoded real H3, ODST, Reach, H4 and H2AMP graphs with a fo
 failure if ManagedBlam starts. The sampled H3 codec-slot-0 stream also decodes
 successfully through the Rust pipeline. Baboon's animation extractor uses the
 same `blam_tags::extract` implementation.
+H3/ODST shared-animation records omit the later FIK-anchor, object-space-offset
+and extended-event blocks. The Blender importer now treats these blocks as absent
+instead of dereferencing missing fields. Fresh Blender 5.2 imports decoded the
+reported Brute `any any airborne_dead` action from both H3 and ODST. The bundled
+wheel and the Python 3.14 installation expose `TagFile.animation_pose`; when an
+older native module is already resident, the importer now requests a Blender
+restart with a direct compatibility error.
 The native wrapper and Blender event records now live under `tags`; the legacy
 animation graph keeps its graph-field adapter locally and no longer imports a
 ManagedBlam frame-event module.

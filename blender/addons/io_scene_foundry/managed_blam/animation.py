@@ -2140,8 +2140,9 @@ class AnimationTag(AnimationGraphTag):
             return ik_pole_curve_cache[cache_key]
 
         tag_events = []
-        
-        for element in tag_animation.shared_element.SelectField("extended data events").Elements:
+
+        extended_events = tag_animation.shared_element.SelectField("extended data events")
+        for element in extended_events.Elements if extended_events is not None else ():
             function_name = element.SelectField("name").GetStringData()
             frame_count = element.SelectField("frame count").Data
             data_index = element.SelectField("data index").Data
@@ -2157,7 +2158,8 @@ class AnimationTag(AnimationGraphTag):
                 }
             )
             
-        for element in tag_animation.shared_element.SelectField("ik chain events").Elements:
+        ik_chain_events = tag_animation.shared_element.SelectField("ik chain events")
+        for element in ik_chain_events.Elements if ik_chain_events is not None else ():
             chain_name = element.SelectField("chain name").GetStringData()
             if chain_name not in valid_ik_chain_names:
                 continue
@@ -2185,7 +2187,8 @@ class AnimationTag(AnimationGraphTag):
             )
             
             
-        for element in tag_animation.shared_element.SelectField("facial wrinkle events").Elements:
+        wrinkle_events = tag_animation.shared_element.SelectField("facial wrinkle events")
+        for element in wrinkle_events.Elements if wrinkle_events is not None else ():
             wrinkle_name = element.SelectField("wrinkle name").GetStringData()
             region_name = WRINKLE_FACE_REGION_MAP[element.SelectField("region").Value]
             frame_count = element.SelectField("frame count").Data
@@ -3540,7 +3543,13 @@ class AnimationTag(AnimationGraphTag):
         index = tag_animation.index
         if index in animation_cache:
             return animation_cache[index]
-        native_pose = self.tag.animation_pose(
+        animation_pose = getattr(self.tag, 'animation_pose', None)
+        if animation_pose is None:
+            raise RuntimeError(
+                'The loaded blam-tags binding predates native animation decoding. '
+                'Restart Blender after updating Foundry so it loads the bundled wheel.'
+            )
+        native_pose = animation_pose(
             index,
             [self._native_default_tuple(node) for node in defaults],
         )
@@ -3737,14 +3746,15 @@ class AnimationTag(AnimationGraphTag):
                         if parent_nodes.Elements.Count > 0:
                             blender_animation.pose_overlay = True
                         offset_nodes = tag_animation.shared_element.SelectField("object space offset nodes")
-                        for node_element in offset_nodes.Elements:
-                            n_index = node_element.Fields[0].Value
-                            if n_index < 0 or n_index >= nodes_count:
-                                continue
-                            a_node = blender_animation.animation_nodes.add()
-                            a_node.name = node_names[n_index]
-                            a_node.node_type = "object_space_offset_node"
-                            blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
+                        if offset_nodes is not None:
+                            for node_element in offset_nodes.Elements:
+                                n_index = node_element.Fields[0].Value
+                                if n_index < 0 or n_index >= nodes_count:
+                                    continue
+                                a_node = blender_animation.animation_nodes.add()
+                                a_node.name = node_names[n_index]
+                                a_node.node_type = "object_space_offset_node"
+                                blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
                             
                     case AnimationType.REPLACEMENT:
                         blender_animation.animation_type = "replacement"
@@ -3762,25 +3772,27 @@ class AnimationTag(AnimationGraphTag):
 
                         offset_node_indices = set()
                         offset_nodes = tag_animation.shared_element.SelectField("object space offset nodes")
-                        for node_element in offset_nodes.Elements:
-                            n_index = node_element.Fields[0].Value
-                            if n_index < 0 or n_index >= nodes_count or n_index in offset_node_indices:
-                                continue
-                            offset_node_indices.add(n_index)
-                            a_node = blender_animation.animation_nodes.add()
-                            a_node.name = node_names[n_index]
-                            a_node.node_type = "object_space_offset_node"
-                            blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
+                        if offset_nodes is not None:
+                            for node_element in offset_nodes.Elements:
+                                n_index = node_element.Fields[0].Value
+                                if n_index < 0 or n_index >= nodes_count or n_index in offset_node_indices:
+                                    continue
+                                offset_node_indices.add(n_index)
+                                a_node = blender_animation.animation_nodes.add()
+                                a_node.name = node_names[n_index]
+                                a_node.node_type = "object_space_offset_node"
+                                blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
 
                 fik_anchor_nodes = tag_animation.shared_element.SelectField("forward-invert kinetic anchor nodes")
-                for node_element in fik_anchor_nodes.Elements:
-                    n_index = node_element.Fields[0].Value
-                    if n_index < 0 or n_index >= nodes_count:
-                        continue
-                    a_node = blender_animation.animation_nodes.add()
-                    a_node.name = node_names[n_index]
-                    a_node.node_type = "fik_anchor_node"
-                    blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
+                if fik_anchor_nodes is not None:
+                    for node_element in fik_anchor_nodes.Elements:
+                        n_index = node_element.Fields[0].Value
+                        if n_index < 0 or n_index >= nodes_count:
+                            continue
+                        a_node = blender_animation.animation_nodes.add()
+                        a_node.name = node_names[n_index]
+                        a_node.node_type = "fik_anchor_node"
+                        blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
 
                 track = blender_animation.action_tracks.add()
                 track.object = armature
