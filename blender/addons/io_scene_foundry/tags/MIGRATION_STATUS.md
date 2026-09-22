@@ -867,3 +867,17 @@ secondary detail maps, carry their authored UV scales, apply separate alpha maps
 and constant opacity, and recognize `emissive_color` alongside the older
 `self_illum_color` name. This is broad construction acceptance; environment-map,
 change-color and exact blend-template parity still need visual review.
+
+H1 model-shader multipurpose maps now honor the H1A/PC and optional Xbox channel
+orders. Their change-color masks read Primary through Quaternary instance colors,
+self-illumination uses the green mask, and the reflection channel drives the
+Principled specular level. H2 `change_color_map` RGBA channels now drive the same
+four instance colors; authored multiply maps and emissive-map tint colors are also
+connected. The complete 1,412/3,107 shader construction sweep still passes after
+these additions.
+
+Representative unfiltered classic animation resource decoding is now complete.
+The HCE Captain graph decoded all 22 animations (1,048 composed frames), and the
+H2 Brute graph decoded all 406 animations (12,965 composed frames) through the
+native blam-tags pose path. This closes the earlier filtered-resource coverage;
+full Blender action creation and visual pose comparison across more graphs remain.

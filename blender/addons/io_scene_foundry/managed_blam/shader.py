@@ -1464,11 +1464,25 @@ class ShaderTag(BlenderTag, TagDocument):
                 image_node.image.colorspace_settings.name = 'Non-Color'
             return image_node
 
-        base = bump = emission = detail = None
+        base = bump = emission = detail = multipurpose = None
+        change_color_source = ''
+        self_illumination = None
+        xbox_multipurpose_order = False
         if shader_type == 'shader_model':
             maps = child(root, 'maps')
             base = bitmap(maps, 'base map')
             detail = bitmap(maps, 'detail map')
+            multipurpose = bitmap(maps, 'multipurpose map', non_color=True)
+            change = child(root, 'change color')
+            change_color_source = str(self.value(change, 'change color source')).casefold()
+            self_illumination = child(root, 'self-illumination')
+            properties = child(root, 'properties')
+            flags = None if properties is None else properties.field('flags')
+            if flags is not None:
+                try:
+                    xbox_multipurpose_order = flags.get_flag('use xbox multipurpose channel order')
+                except KeyError:
+                    pass
         elif shader_type == 'shader_environment':
             base = bitmap(child(root, 'diffuse'), 'base map')
             bump = bitmap(child(root, 'bump'), 'bump map', non_color=True)
@@ -1521,6 +1535,65 @@ class ShaderTag(BlenderTag, TagDocument):
                 tree.links.new(detail.outputs['Color'], multiply.inputs[1])
                 tree.links.new(multiply.outputs['Vector'], double.inputs['Vector'])
                 base_color = double.outputs['Vector']
+
+            if multipurpose is not None:
+                multipurpose.location = (-520, -380)
+                separate = nodes.new(type='ShaderNodeSeparateColor')
+                separate.location = (-280, -380)
+                tree.links.new(multipurpose.outputs['Color'], separate.inputs['Color'])
+
+                attribute_names = {
+                    'a': 'Primary Color',
+                    'b': 'Secondary Color',
+                    'c': 'Tertiary Color',
+                    'd': 'Quaternary Color',
+                }
+                attribute_name = attribute_names.get(change_color_source)
+                if attribute_name is not None:
+                    attribute = nodes.new(type='ShaderNodeAttribute')
+                    attribute.attribute_name = attribute_name
+                    attribute.attribute_type = 'INSTANCER'
+                    attribute.location = (-520, 420)
+                    tinted = nodes.new(type='ShaderNodeVectorMath')
+                    tinted.operation = 'MULTIPLY'
+                    tinted.location = (-40, 320)
+                    color_mix = nodes.new(type='ShaderNodeMixRGB')
+                    color_mix.blend_type = 'MIX'
+                    color_mix.location = (160, 260)
+                    tree.links.new(base_color, tinted.inputs[0])
+                    tree.links.new(attribute.outputs['Color'], tinted.inputs[1])
+                    tree.links.new(base_color, color_mix.inputs[1])
+                    tree.links.new(tinted.outputs['Vector'], color_mix.inputs[2])
+                    change_mask = (separate.outputs['Blue'] if xbox_multipurpose_order
+                                   else multipurpose.outputs['Alpha'])
+                    tree.links.new(change_mask, color_mix.inputs[0])
+                    base_color = color_mix.outputs['Color']
+
+                specular_input = bsdf.inputs.get('Specular IOR Level')
+                if specular_input is not None:
+                    reflection_mask = (separate.outputs['Red'] if xbox_multipurpose_order
+                                       else separate.outputs['Blue'])
+                    tree.links.new(reflection_mask, specular_input)
+
+                illumination_source = ('' if self_illumination is None else
+                                       str(self.value(self_illumination, 'color source')).casefold())
+                emission_input = bsdf.inputs.get('Emission Color')
+                if emission_input is None:
+                    emission_input = bsdf.inputs.get('Emission')
+                emission_strength = bsdf.inputs.get('Emission Strength')
+                if illumination_source != 'none' and emission_input is not None:
+                    upper = self.value(self_illumination, 'animation color upper bound')
+                    emission_color = nodes.new(type='ShaderNodeRGB')
+                    emission_color.outputs['Color'].default_value = (
+                        upper.red, upper.green, upper.blue, 1.0)
+                    illuminated = nodes.new(type='ShaderNodeVectorMath')
+                    illuminated.operation = 'MULTIPLY'
+                    illuminated.location = (160, -220)
+                    tree.links.new(base_color, illuminated.inputs[0])
+                    tree.links.new(emission_color.outputs['Color'], illuminated.inputs[1])
+                    tree.links.new(illuminated.outputs['Vector'], emission_input)
+                    if emission_strength is not None:
+                        tree.links.new(separate.outputs['Green'], emission_strength)
             tree.links.new(base_color, bsdf.inputs['Base Color'])
             if transparent:
                 tree.links.new(base.outputs['Alpha'], bsdf.inputs['Alpha'])
@@ -1622,6 +1695,46 @@ class ShaderTag(BlenderTag, TagDocument):
                 tree.links.new(detail.outputs['Color'], multiply.inputs[1])
                 tree.links.new(multiply.outputs['Vector'], double.inputs['Vector'])
                 base_color = double.outputs['Vector']
+
+            multiply_map = image('multiply_map')
+            if multiply_map is not None:
+                multiply_map.location = (-520, -400)
+                multiply_color = nodes.new(type='ShaderNodeVectorMath')
+                multiply_color.operation = 'MULTIPLY'
+                multiply_color.location = (300, 160)
+                tree.links.new(base_color, multiply_color.inputs[0])
+                tree.links.new(multiply_map.outputs['Color'], multiply_color.inputs[1])
+                base_color = multiply_color.outputs['Vector']
+
+            change_map = image('change_color_map', non_color=True)
+            if change_map is not None:
+                change_map.location = (-520, -580)
+                separate = nodes.new(type='ShaderNodeSeparateColor')
+                separate.location = (-280, -580)
+                tree.links.new(change_map.outputs['Color'], separate.inputs['Color'])
+                masks = (
+                    (separate.outputs['Red'], 'Primary Color'),
+                    (separate.outputs['Green'], 'Secondary Color'),
+                    (separate.outputs['Blue'], 'Tertiary Color'),
+                    (change_map.outputs['Alpha'], 'Quaternary Color'),
+                )
+                for index, (mask, attribute_name) in enumerate(masks):
+                    attribute = nodes.new(type='ShaderNodeAttribute')
+                    attribute.attribute_name = attribute_name
+                    attribute.attribute_type = 'INSTANCER'
+                    attribute.location = (-40, -500 - index * 120)
+                    tinted = nodes.new(type='ShaderNodeVectorMath')
+                    tinted.operation = 'MULTIPLY'
+                    tinted.location = (170, -420 - index * 120)
+                    color_mix = nodes.new(type='ShaderNodeMixRGB')
+                    color_mix.blend_type = 'MIX'
+                    color_mix.location = (380, -340 - index * 120)
+                    tree.links.new(base_color, tinted.inputs[0])
+                    tree.links.new(attribute.outputs['Color'], tinted.inputs[1])
+                    tree.links.new(mask, color_mix.inputs[0])
+                    tree.links.new(base_color, color_mix.inputs[1])
+                    tree.links.new(tinted.outputs['Vector'], color_mix.inputs[2])
+                    base_color = color_mix.outputs['Color']
             tree.links.new(base_color, bsdf.inputs['Base Color'])
 
         if transparent:
@@ -1658,7 +1771,18 @@ class ShaderTag(BlenderTag, TagDocument):
             emission_input = bsdf.inputs.get('Emission')
         if emission is not None and emission_input is not None:
             emission.location = (-520, -500)
-            tree.links.new(emission.outputs['Color'], emission_input)
+            emission_color = color('emissive_color') or color('self_illum_color')
+            if emission_color is None:
+                tree.links.new(emission.outputs['Color'], emission_input)
+            else:
+                tint = nodes.new(type='ShaderNodeRGB')
+                tint.outputs['Color'].default_value = emission_color
+                multiply_emission = nodes.new(type='ShaderNodeVectorMath')
+                multiply_emission.operation = 'MULTIPLY'
+                multiply_emission.location = (-100, -500)
+                tree.links.new(emission.outputs['Color'], multiply_emission.inputs[0])
+                tree.links.new(tint.outputs['Color'], multiply_emission.inputs[1])
+                tree.links.new(multiply_emission.outputs['Vector'], emission_input)
             strength = bsdf.inputs.get('Emission Strength')
             if strength is not None:
                 strength.default_value = max(float(self.value(parameters.get('emissive_power'), 'const value'))
