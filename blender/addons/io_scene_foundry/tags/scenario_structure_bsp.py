@@ -3,14 +3,14 @@
 from pathlib import Path
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Quaternion, Vector
 import numpy as np
 
 from .structure_meta import StructureMetaTag
 
 from .structure_lighting import ScenarioStructureLightingInfoTag
 
-from ..managed_blam.connected_geometry import BSP, BSPCollisionMaterial, Cluster, Emissive, EnvironmentObject, HavokCollision, Instance, InstanceDefinition, Material, ModelCollision, Portal, StructureCollision, StructureMarker, SurfaceMapping
+from ..managed_blam.connected_geometry import BSP, BSPCollisionMaterial, Cluster, Emissive, EnvironmentObject, HavokCollision, Instance, InstanceDefinition, Material, Mesh, ModelCollision, Portal, StructureCollision, StructureMarker, SurfaceMapping
 from .. import import_transform
 from ..utils import jstr
 from .. import utils
@@ -18,6 +18,54 @@ from .prefab import ScenarioStructureBspMetadataTag, StructureBspHavokGeometry
 
 class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
     tag_ext = 'scenario_structure_bsp'
+
+    def _classic_render_objects(self, collection: bpy.types.Collection) -> list[bpy.types.Object]:
+        material_names, mesh_records, instances = self.classic_render_scene()
+        materials = {}
+        for index, name in enumerate(material_names):
+            material = bpy.data.materials.get(name)
+            if material is None:
+                material = bpy.data.materials.new(name)
+            materials[index] = material
+
+        source_objects: dict[int, list[bpy.types.Object]] = {}
+        for index, record in enumerate(mesh_records):
+            if record is None or not record.parts or not record.positions:
+                continue
+            source_objects[index] = Mesh.from_native(record, materials, False).create(
+                None, None, name=f'classic_bsp_mesh:{index}')
+
+        objects: list[bpy.types.Object] = []
+        for instance in instances:
+            name = instance['name']
+            mesh_type = instance['mesh_type']
+            if (instance['object_index'] < 0 or name == 'Scene Root'
+                    or mesh_type == 'helper'):
+                continue
+            sources = source_objects.get(instance['object_index'], ())
+            x, y, z, w = instance['rotation']
+            transform = Matrix.LocRotScale(
+                Vector(instance['translation']) * 100,
+                Quaternion((w, x, y, z)),
+                Vector.Fill(3, instance['scale']),
+            )
+            for source in sources:
+                ob = source.copy()
+                ob.data = source.data
+                ob.name = name
+                ob.matrix_world = import_transform.object_matrix(transform)
+                ob.data.nwo.mesh_type = (
+                    '_connected_geometry_mesh_type_collision'
+                    if mesh_type == 'collision'
+                    else '_connected_geometry_mesh_type_structure'
+                )
+                collection.objects.link(ob)
+                objects.append(ob)
+
+        for sources in source_objects.values():
+            for source in sources:
+                bpy.data.objects.remove(source)
+        return objects
     
     def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1, import_havok=False, skip_structure_merge=False):
         
@@ -29,6 +77,11 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             return objects, game_objects, bvh
         
         self.collection = collection
+
+        if self.game in {'halo1', 'halo2'}:
+            if import_geometry:
+                objects.extend(self._classic_render_objects(collection))
+            return objects, game_objects, bvh
 
         def new_structure_collection():
             layer = utils.add_permutation("structure", utils.SetType.SCENARIO)

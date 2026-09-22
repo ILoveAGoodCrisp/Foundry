@@ -74,7 +74,8 @@ sys.path.insert(0, sys.argv[1])
 import blam_tags as api
 required = {
     'TagFile': ('read', 'read_classic', 'new', 'new_classic', 'write_atomic', 'particle_meshes', 'physics_shapes_h2', 'bitmap_tiff',
-                'render_model_meshes', 'sbsp_render_meshes', 'animation_pose', 'animation_pose_classic'),
+                'render_model_meshes', 'sbsp_render_meshes', 'classic_sbsp_scene',
+                'animation_pose', 'animation_pose_classic'),
     'TagField': ('options', 'as_array', 'copy_value_from'),
     'TagBlock': ('copy_from',),
     'TagStruct': ('raw_bytes',),

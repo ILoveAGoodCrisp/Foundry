@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from math import isfinite
 from pathlib import Path
 from types import SimpleNamespace as Record
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypedDict, cast
 
 if TYPE_CHECKING:
     import blam_tags
@@ -229,6 +229,21 @@ class StructureBspRenderMesh:
     water: StructureBspRenderWater | None
 
 
+class ClassicBspInstance(TypedDict):
+    object_index: int
+    name: str
+    rotation: tuple[float, float, float, float]
+    translation: tuple[float, float, float]
+    scale: float
+    mesh_type: str
+
+
+class ClassicBspScene(TypedDict):
+    materials: list[str]
+    objects: list[dict[str, object] | None]
+    instances: list[ClassicBspInstance]
+
+
 class PrefabTag(BlenderTag, TagDocument):
     tag_ext = 'prefab'
 
@@ -242,6 +257,44 @@ class PrefabTag(BlenderTag, TagDocument):
 
 class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
     tag_ext = 'scenario_structure_bsp'
+
+    @staticmethod
+    def _render_mesh_record(index: int, mesh: dict[str, object]) -> StructureBspRenderMesh:
+        return StructureBspRenderMesh(
+            index=index,
+            positions=tuple(tuple(map(float, value)) for value in cast(list, mesh['positions'])),
+            texcoords=tuple(tuple(map(float, value)) for value in cast(list, mesh['texcoords'])),
+            normals=tuple(tuple(map(float, value)) for value in cast(list, mesh['normals'])),
+            node_indices=tuple(tuple(map(int, value)) for value in cast(list, mesh['node_indices'])),
+            node_weights=tuple(tuple(map(float, value)) for value in cast(list, mesh['node_weights'])),
+            lightmap_texcoords=tuple(tuple(map(float, value)) for value in cast(list, mesh['lightmap_texcoords'])),
+            vertex_colors=tuple(tuple(map(float, value)) for value in cast(list, mesh['vertex_colors'])),
+            indices=tuple(map(int, cast(list, mesh['indices']))),
+            rigid_node_index=(-1 if mesh['rigid_node_index'] is None
+                              else int(cast(int, mesh['rigid_node_index']))),
+            parts=tuple(StructureBspRenderPart(
+                material_index=int(part['material_index']),
+                index_start=int(part['index_start']),
+                index_count=int(part['index_count']),
+                part_type=int(part['part_type']),
+            ) for part in cast(list[dict[str, object]], mesh['parts'])),
+            water=None,
+        )
+
+    def classic_render_scene(
+        self,
+    ) -> tuple[list[str], list[StructureBspRenderMesh | None], list[ClassicBspInstance]]:
+        """Decode a complete H1/H2 BSP scene through the native classic extractor."""
+        decoder = getattr(self.tag, 'classic_sbsp_scene', None)
+        if decoder is None:
+            raise RuntimeError(
+                'The bundled blam-tags binding predates classic BSP geometry decoding')
+        scene = cast(ClassicBspScene, decoder())
+        meshes = [
+            None if mesh is None else self._render_mesh_record(index, mesh)
+            for index, mesh in enumerate(scene['objects'])
+        ]
+        return scene['materials'], meshes, scene['instances']
 
     def _set_vector(self, element, name, values):
         field = self.required_field(element, name)

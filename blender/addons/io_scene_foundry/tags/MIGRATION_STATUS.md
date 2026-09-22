@@ -20,6 +20,14 @@ Measured as dependency replacement, the migration is now 100%: the add-on has no
 ManagedBlam tag-access path to fall back to. This does not mean every workflow has
 completed visual or editing-kit acceptance.
 
+**H1/H2 feature-parity estimate: about 85%.** Core loose-tag loading/saving,
+object/model geometry, all H2 LODs, collision/physics, classic animation decoding,
+bitmap and cubemap extraction, broad shader construction, scenario metadata,
+native legacy export dispatch, and scenario BSP render/collision geometry are
+connected. The remaining work is concentrated in classic BSP auxiliary objects
+and material references, legacy animation-event authoring, less common resource
+layouts, and broad visual/editing-kit acceptance.
+
 ## Editing-kit import acceptance (2026-09-22)
 
 A Blender 5.1 background sweep now covers H3, ODST, Reach, H4 and H2AMP with
@@ -488,26 +496,29 @@ its mass update was verified by reopening a temporary physics tag.
 | Area | Post-removal acceptance work |
 | --- | --- |
 | Functions, shaders and lights | Shader/material/decal lifecycle, ordinary fields and the function edits currently used by shader authoring are native. Finish broad node-graph and light visual acceptance. |
-| Geometry and resources | Complete acceptance of native render-model and structure-BSP import, then port the remaining decorator, polyart and specialized resource paths. Render-model geometry, BSP render/collision geometry and particle-model import are native. |
+| Geometry and resources | Complete acceptance of native render-model and structure-BSP import, including H1/H2 BSP material references and H2 markers/environment objects, then port the remaining decorator, polyart and specialized resource paths. Render-model geometry, BSP render/collision geometry and particle-model import are native. |
 | Animation | Native decoding, pose composition, graph metadata/edits, frame events and PCA metadata are connected. Finish broad action-level visual acceptance and specialized composite cases. |
 | Bitmaps | Review the native/Python extraction path across formats, mipmaps, cubemaps and material texture use; complete any resource layouts not represented by processed pixel data. |
 | Scenarios and cinematics | Port remaining BSP/structure editors, lighting-info export and referenced-resource workflows. Scenario object/decal/decorator import, cinematic scene/data import and writing, template/global scenario export and common scenario/cubemap/decorator edits are native. |
 | Dependency removal and acceptance | Dependency removal is complete. Run representative complete imports/exports with no ManagedBlam installation and finish visual parity review. |
 
-The Rust library already contains functionality in several of these areas, but
-its current Python binding mostly exposes generic tag fields and math. Rust
-capability does not yet imply Foundry can call it through Python.
+The Rust library already contains functionality in several of these areas. Its
+Python binding now also exposes the renderer-ready model/BSP meshes, classic
+animation poses, bitmap conversion and authored physics shapes used by Foundry;
+other Rust capabilities still need explicit Python entry points before Foundry
+can use them.
 
 ## Recommended implementation order
 
-1. Run representative complete imports/exports against each H3+ editing kit and compare the resulting Blender data visually.
-2. Close the specialized composite-animation, bitmap-format and resource-layout gaps found by that review.
-3. Complete the remaining specialized geometry and scenario/cinematic acceptance work.
-4. Continue classic H1/H2 Blender import acceptance now that loose-tag loading and preserved-container saving are exposed.
+1. Finish classic BSP material references, H2 markers/environment objects and legacy animation-event authoring.
+2. Run representative complete imports/exports against H1 and H2 editing kits and compare the resulting Blender data visually and in Tool.
+3. Run the same acceptance pass against each H3+ editing kit.
+4. Close specialized composite-animation, bitmap-format, resource-layout and scenario/cinematic gaps found by that review.
 
-H1/H2 classic loading and saving of existing files are now exposed through
-Python and validated on one real biped from each kit. New-tag creation and broad
-workflow acceptance remain separate requirements for the all-MCC goal.
+H1/H2 classic loading, saving and new-tag creation are exposed through Python.
+They have real-file coverage across object, model, shader, bitmap, animation,
+scenario and BSP paths; broad workflow and visual acceptance remain separate
+requirements for the all-MCC goal.
 Removing Python.NET entirely also requires replacing the Foundation plugin
 installer's separate .NET assembly inspection in `tools/halo_launcher.py`.
 
@@ -904,13 +915,17 @@ H1 uses the first available sky where its BSP reference has no default-sky
 field. Scenario type enum names are normalized to Foundry's existing numeric
 campaign/multiplayer/main-menu contract.
 
-The next classic scenario dependency is isolated in blam-tags: its current
-`sbsp_render_meshes` binding follows the H3+ `render geometry` resource layout.
-Real HCE Wizard and H2 Zanzibar BSP probes reach the binding but report the
-missing `render geometry/per mesh temporary` field. H1/H2 need a decoder over
-their root lightmap/cluster/material blocks before Foundry can allocate classic
-BSP geometry in Blender; the concrete failure is recorded in
-`BLAM_TAGS_LIMITATIONS.md`.
+Classic scenario geometry now uses the existing native H1 JMS and H2 ASS
+extractors through the typed `TagFile.classic_sbsp_scene()` Python entry point.
+The result carries renderer-ready meshes, placements, transforms and an explicit
+render/collision/helper classification; it does not route classic tags through
+the H3+ `render geometry` resource layout. A Blender 5.1 background import of the
+real HCE Wizard BSP produced one structure mesh and one collision mesh (13,622
+vertices / 5,804 polygons total). The real H2 Zanzibar BSP produced 117 placed
+structure objects plus one collision mesh (94,187 vertices / 34,313 polygons
+total). Portal and weather helper geometry is decoded but currently omitted;
+classic BSP material references, markers and environment-object cross-references
+still need their Blender conversions.
 
 Classic object acceptance now covers representative H1 and H2 weapons, vehicles
 and scenery as well as bipeds. H1 positional object functions retain their input
