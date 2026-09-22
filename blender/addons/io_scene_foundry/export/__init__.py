@@ -76,6 +76,27 @@ def _data_path(path_value: str | Path) -> Path:
     return Path(get_data_path(), value)
 
 
+def _legacy_marker_asset_path(scene_nwo) -> Path | None:
+    """Resolve a legacy asset from its sidecar, then its saved blend location."""
+    data_dir = Path(get_data_path()).resolve()
+    sidecar = scene_nwo.sidecar_path.strip()
+    if sidecar:
+        marker = _data_path(sidecar).resolve()
+        if marker.is_relative_to(data_dir) and marker.parent != data_dir:
+            return marker.parent
+
+    if bpy.data.filepath:
+        blend = Path(bpy.data.filepath).resolve()
+        if blend.is_relative_to(data_dir) and blend.parent != data_dir:
+            folder = blend.parent
+            if folder.name.casefold() in {'models', 'animations', 'work'}:
+                folder = folder.parent
+            if folder != data_dir:
+                return folder
+
+    return None
+
+
 def _child_animation_parent_asset_path(scene_nwo) -> Path | None:
     parent_sidecar = scene_nwo.parent_sidecar.strip()
     if parent_sidecar:
@@ -173,7 +194,9 @@ class NWO_ExportScene(Operator, ExportHelper):
         data_dir = get_data_path()
 
         if legacy:
-            asset_path = utils.get_export_props().legacy_asset_path
+            asset_path = _legacy_marker_asset_path(nwo)
+            if asset_path is None:
+                asset_path = utils.get_export_props().legacy_asset_path
             if asset_path:
                 asset_path = Path(asset_path)
                 self.filepath = str(asset_path / f"{asset_path.name}.asset")
@@ -293,11 +316,16 @@ class NWO_ExportScene(Operator, ExportHelper):
         
         global sidecar_path
         if legacy and not single_animation:
-            asset_path = scene_nwo_export.legacy_asset_path
-            if not asset_path or not scene_nwo_export.export_quick:
-                asset_path, asset_name = get_asset_info(self.filepath)
-            else:
+            # Resolve durable asset markers during execute. Blender forbids
+            # writing Scene properties from this operator's constructor.
+            marker_asset_path = _legacy_marker_asset_path(scene_nwo)
+            asset_path = (str(marker_asset_path) if marker_asset_path is not None
+                          else scene_nwo_export.legacy_asset_path.strip())
+            if asset_path:
+                asset_path = str(Path(bpy.path.abspath(asset_path)).resolve())
                 asset_name = Path(asset_path).name
+            else:
+                asset_path, asset_name = get_asset_info(self.filepath)
             scene_nwo_export.legacy_asset_path = asset_path
             sidecar_path_full = sidecar_path = ''
             if self.export_invalid(asset_path):

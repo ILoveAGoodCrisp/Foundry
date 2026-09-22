@@ -848,6 +848,40 @@ for cinematic geometry. Legacy JMS import/export carries the same LOD value.
 A Blender 5.1 background import of the real H2 Brute render model decoded 18
 permutations and produced 108 meshes, six per permutation, with all L1-L6 labels.
 
+Legacy tag export now supports H1 and H2 as well as H3/ODST. H2 uses its
+available `bulk-import-model-folder` command rather than the H3-only draft verb,
+then uses `model-animations` and the native classic object writer. H1 writes
+render JMS files under `models`, combines collision/physics source geometry in
+Tool's `physics` directory, and dispatches the separate `model`,
+`collision-geometry`, `physics` and `animations` verbs. Newly created H1 object
+tags receive independent gbxmodel, model-collision, model-animations and physics
+references through blam-tags. Isolated editing-kit probes produced valid H1
+gbxmodel/collision/physics files and H2 model/render-model files; command-dispatch
+checks cover both games. H1 skips the H2+ graph pre/post-processing pass because
+its animation tag and metadata layout are distinct.
+
+H1 tag compilation now always invokes `tool.exe`, so selecting `tool_fast` in
+Foundry no longer breaks an H1 export. H1 Tool reads its shader-class question
+directly from the Windows console, so Foundry now prevents the prompt by creating
+missing material tags first. Model-family compilation creates `shader_model`,
+while scenario structure compilation creates `shader_environment`. H1 and H2 scenario exports now dispatch one
+`structure` command per exported BSP source.
+
+Legacy export now canonicalizes the resolved asset destination before handing it
+to the backend. The initial `data\\halo\\halo.asset` fallback no longer overrides
+an asset marker, and the backend always derives the asset name from the resolved
+folder.
+
+H1–ODST sidecars are restored as lightweight asset markers. The export operator
+uses a saved sidecar path first and a `.blend` folder inside `data` second to
+initialize Legacy Asset Folder, which repairs stale `data\\halo` settings when a
+blend already belongs to another asset. Export creates the marker when absent;
+legacy Tool commands continue to consume JMS/ASS/JMA sources directly.
+
+Asset-marker resolution remains read-only in the export operator constructor;
+Blender disallows Scene ID writes in that context. The resolved path is applied
+and persisted during operator execution instead, including Quick Export.
+
 Classic object acceptance now covers representative H1 and H2 weapons, vehicles
 and scenery as well as bipeds. H1 positional object functions retain their input
 dependencies without assuming Halo 2's named function fields. H1 object physics

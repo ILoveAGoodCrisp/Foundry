@@ -6,11 +6,14 @@ the reusable legacy format models and writes files below the data asset folder.
 """
 from collections import defaultdict
 from copy import copy
+from datetime import datetime
+from getpass import getuser
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 import io
 import os
 import re
+import xml.etree.ElementTree as ET
 
 import bpy
 from mathutils import Matrix, Quaternion, Vector
@@ -21,6 +24,7 @@ from .shader_collections import ShaderCollections
 from ..legacy import jms_format as jms
 from ..legacy import ass_format as ass
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, node_checksum, write_jms, write_ass
+from ..tags.backend import TagDocument
 from ..tags.object import ObjectDocument
 from .. import utils
 
@@ -64,6 +68,47 @@ def write_outputs(outputs):
     finally:
         for temporary, _ in staged:
             temporary.unlink(missing_ok=True)
+
+
+def ensure_asset_marker(asset_path: Path, data_dir: Path, scene_settings) -> Path:
+    """Create the small sidecar used to identify an H1-ODST asset folder."""
+    marker = asset_path / f'{asset_path.name}.sidecar.xml'
+    scene_settings.sidecar_path = str(marker.relative_to(data_dir))
+    if marker.is_file():
+        return marker
+
+    metadata = ET.Element('Metadata')
+    header = ET.SubElement(metadata, 'Header')
+    values = {
+        'MainRev': '0',
+        'PointRev': '6',
+        'Description': 'Forged in Foundry',
+        'Created': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
+        'By': getuser(),
+        'DirectoryType': 'TAE.Shared.NWOAssetDirectory',
+        'Schema': '1',
+        'SourceBlend': utils.relative_path(bpy.data.filepath) if bpy.data.filepath else '',
+        'BlenderVersion': bpy.app.version_string,
+        'FoundryVersion': utils.get_version_string(),
+        'AnimationOnly': str(scene_settings.asset_type == 'animation'),
+    }
+    for name, value in values.items():
+        ET.SubElement(header, name).text = value
+    ET.SubElement(metadata, 'FaceCollections')
+
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    with NamedTemporaryFile(mode='wb', dir=marker.parent,
+                            prefix=marker.name + '.', suffix='.tmp',
+                            delete=False) as stream:
+        temporary = Path(stream.name)
+        ET.ElementTree(metadata).write(stream, encoding='utf-8',
+                                       xml_declaration=True)
+    try:
+        temporary.replace(marker)
+    finally:
+        temporary.unlink(missing_ok=True)
+    print(f'--- Created asset marker: {marker}')
+    return marker
 
 
 class LegacyExportScene(ExportScene):
@@ -122,6 +167,11 @@ class LegacyExportScene(ExportScene):
                       'collision': 'collision', 'physics': 'physics'}.get(node.tag_type)
             if folder is None:
                 raise ValueError(f'Unsupported legacy geometry role: {node.tag_type}')
+            if self.target_game == 'halo1':
+                # H1 Tool scans ``models`` for render geometry and ``physics``
+                # for the JMS used by both collision-geometry and physics.
+                folder = {'render': 'models', 'collision': 'physics',
+                          'physics': 'physics'}.get(folder, folder)
             name = node.region if folder == 'structure' else node.permutation or 'default'
             if node.tag_type == 'design':
                 name += '_design'
@@ -142,7 +192,8 @@ class LegacyExportScene(ExportScene):
         if not single_animation:
             if not grouped and ((self.bones and 'skeleton' in self.export_tag_types) or
                                 (markers and 'markers' in self.export_tag_types)):
-                grouped[('render', 'default')] = []
+                grouped[('models' if self.target_game == 'halo1' else 'render',
+                         'default')] = []
             for (folder, name), nodes in grouped.items():
                 use_ass = self.ass_version is not None and (folder == 'structure' or
                     (folder == 'render' and any(n.props.get('bungie_mesh_type') == 11 for n in nodes)))
@@ -164,23 +215,63 @@ class LegacyExportScene(ExportScene):
         write_outputs(outputs)
 
     def write_tags(self, single_animation=False):
-        """Compile H3/ODST model sources, then let native tag wrappers edit them."""
-        if self.target_game not in {'halo3', 'halo3odst'}:
-            raise ValueError('Tag writing currently requires an H3 or ODST project')
-        if self.asset_type.name not in {'MODEL', 'SKY', 'ANIMATION', 'SINGLE_ANIMATION'}:
+        """Compile legacy model sources, then update object tags natively."""
+        supported_asset_types = {'MODEL', 'SKY', 'ANIMATION', 'SINGLE_ANIMATION'}
+        if self.target_game in {'halo1', 'halo2'}:
+            supported_asset_types.add('SCENARIO')
+        if self.asset_type.name not in supported_asset_types:
             raise ValueError(
-                f'H3/ODST tag writing is not implemented for {self.asset_type.name.lower()} assets')
+                f'Legacy tag writing is not implemented for {self.asset_type.name.lower()} assets')
 
         print("\n\nWriting Tags")
         print("-----------------------------------------------------------------------\n")
         animation_only = single_animation or self.asset_type.name in {
             'ANIMATION', 'SINGLE_ANIMATION'}
+        halo1_tool_options = {}
+        if self.target_game == 'halo1':
+            # H1 has no usable tool_fast equivalent for these imports.
+            halo1_tool_options = {'force_tool': True}
+        if self.asset_type.name == 'SCENARIO':
+            structure_dir = Path(self.asset_path, 'structure')
+            structure_sources = sorted(
+                path for path in structure_dir.iterdir()
+                if path.is_file() and path.suffix.lower() in {'.jms', '.ass'}
+                and not path.stem.endswith('_design')
+            ) if structure_dir.is_dir() else []
+            if not structure_sources:
+                raise FileNotFoundError(
+                    f'No structure sources were found in {structure_dir}')
+            if self.target_game == 'halo1':
+                self.ensure_halo1_shaders(
+                    structure_sources, 'shader_environment')
+            for source in structure_sources:
+                utils.run_tool(
+                    ['structure', self.asset_path_relative, source.stem],
+                    event_level=self.export_settings.event_level,
+                    **halo1_tool_options,
+                )
+            return
         if not animation_only:
-            command = ('bulk-import-model-folder'
-                       if self.export_settings.lightmap_structure
-                       else 'bulk-import-model-folder-draft')
-            utils.run_tool([command, self.asset_path_relative],
-                           event_level=self.export_settings.event_level)
+            if self.target_game == 'halo1':
+                models = Path(self.asset_path, 'models')
+                physics = Path(self.asset_path, 'physics')
+                model_sources = sorted(models.glob('*.jms')) if models.is_dir() else []
+                if model_sources:
+                    self.ensure_halo1_shaders(model_sources, 'shader_model')
+                    utils.run_tool(['model', self.asset_path_relative],
+                                   event_level=self.export_settings.event_level,
+                                   **halo1_tool_options)
+                if physics.is_dir() and any(physics.glob('*.jms')):
+                    for command in ('collision-geometry', 'physics'):
+                        utils.run_tool([command, self.asset_path_relative],
+                                       event_level=self.export_settings.event_level,
+                                       **halo1_tool_options)
+            else:
+                command = ('bulk-import-model-folder'
+                           if self.target_game == 'halo2' or self.export_settings.lightmap_structure
+                           else 'bulk-import-model-folder-draft')
+                utils.run_tool([command, self.asset_path_relative],
+                               event_level=self.export_settings.event_level)
 
         animation_dir = Path(self.asset_path, 'animations')
         has_animation_sources = (animation_dir.is_dir() and any(
@@ -188,15 +279,50 @@ class LegacyExportScene(ExportScene):
             for path in animation_dir.iterdir()))
         if animation_only or (self.export_settings.export_animations != 'NONE'
                               and has_animation_sources):
-            utils.run_tool(['model-animations', self.asset_path_relative],
-                           event_level=self.export_settings.event_level)
+            command = 'animations' if self.target_game == 'halo1' else 'model-animations'
+            utils.run_tool([command, self.asset_path_relative],
+                           event_level=self.export_settings.event_level,
+                           **halo1_tool_options)
         if self.asset_type.name in {'MODEL', 'SKY'}:
             self.write_object_tags()
+
+    def ensure_halo1_shaders(self, source_paths: list[Path], shader_type: str) -> None:
+        """Create unresolved H1 shaders before Tool can open its console prompt."""
+        shader_root = Path(self.tags_dir, self.asset_path_relative)
+        existing = {
+            path.stem.casefold()
+            for path in shader_root.rglob('*')
+            if path.is_file() and path.suffix.lower().startswith('.shader')
+        } if shader_root.is_dir() else set()
+        for source in source_paths:
+            for material in jms.JMS.from_file(source).materials:
+                # H1 Tool does not treat the later precise-position `)`
+                # marker as a material suffix, so preserve it in the lookup name.
+                name = re.sub(
+                    r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+',
+                    '',
+                    material.name,
+                ).strip().rstrip("%#?!@*$^-&=.;><|~({]}[' ")
+                if not name or name.startswith('+') or name.casefold() in existing:
+                    continue
+                name = filename(name)
+                destination = Path(
+                    self.tags_dir, self.asset_path_relative, name + '.' + shader_type
+                )
+                with TagDocument(
+                    destination,
+                    tags_root=self.tags_dir,
+                    game='halo1',
+                ):
+                    pass
+                existing.add(name.casefold())
+                print(f'--- Created {destination}')
 
     def write_object_tags(self):
         """Create selected high-level object tags through blam-tags."""
         model_path = Path(self.tags_dir, self.asset_path_relative,
-                          self.asset_name).with_suffix('.model')
+                          self.asset_name).with_suffix(
+                              '.gbxmodel' if self.target_game == 'halo1' else '.model')
         if not model_path.is_file():
             raise FileNotFoundError(
                 f'Model compilation did not create the expected tag: {model_path}')
@@ -221,7 +347,19 @@ class LegacyExportScene(ExportScene):
 
             with ObjectDocument(destination, tags_root=self.tags_dir,
                                 game=self.target_game) as tag:
-                tag.set_model_tag_path(model_reference)
+                if self.target_game == 'halo1':
+                    base = model_path.with_suffix('')
+                    tag.set_halo1_model_paths(
+                        model_reference,
+                        utils.relative_path(base.with_suffix('.model_collision_geometry'))
+                        if base.with_suffix('.model_collision_geometry').is_file() else None,
+                        utils.relative_path(base.with_suffix('.model_animations'))
+                        if base.with_suffix('.model_animations').is_file() else None,
+                        utils.relative_path(base.with_suffix('.physics'))
+                        if base.with_suffix('.physics').is_file() else None,
+                    )
+                else:
+                    tag.set_model_tag_path(model_reference)
             print(f'--- Wrote {destination}')
 
     def create_event_objects(self, animation):
@@ -342,7 +480,7 @@ class LegacyExportScene(ExportScene):
                 if node.negative_scaling:
                     indices = indices[0], indices[2], indices[1]
                 asset.triangles.append(jms.Triangle(material, indices, asset.regions.index(region)))
-        if folder == 'render' and 'markers' in self.export_tag_types:
+        if folder in {'render', 'models'} and 'markers' in self.export_tag_types:
             for node in markers:
                 nwo = node.ob.nwo
                 permutations = {p.name for p in nwo.marker_permutations}
@@ -481,15 +619,16 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
         raise ValueError(f'JMS/ASS export does not support {scene_settings.asset_type} assets')
     write_intermediates = export_settings.export_mode in {'FULL', 'GRANNY'}
     write_tags = export_settings.export_mode in {'FULL', 'TAGS'}
-    if write_tags and project.game not in {'halo3', 'halo3odst'}:
-        raise ValueError('Tag writing currently requires an H3 or ODST project')
     if not asset_path and single_animation:
         asset_path = str(Path(bpy.data.filepath).parent.parent)
-        asset_name = Path(asset_path).name
     path = Path(asset_path).resolve()
+    # Keep tag names and paths tied to the selected legacy asset folder even if
+    # an operator entered with a stale ExportHelper filename.
+    asset_name = path.name
     data = Path(utils.get_data_path()).resolve()
     if not path.is_relative_to(data) or path == data:
         raise ValueError('Legacy exports must be inside an asset folder below the project data directory')
+    ensure_asset_marker(path, data, scene_settings)
     export = LegacyExportScene(context, '', '', scene_settings.asset_type, asset_name, str(path), False,
                                export_settings, scene_settings, context.scene)
     export.new_scene('default')
@@ -511,8 +650,12 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
 
     if write_tags:
         try:
-            export.preprocess_tags()
+            # H1 uses model_animations and distinct object references rather
+            # than the H2+ model/animation-graph post-processing layout.
+            if project.game != 'halo1':
+                export.preprocess_tags()
             export.write_tags(single_animation)
-            export.postprocess_tags()
+            if project.game != 'halo1':
+                export.postprocess_tags()
         finally:
             os.chdir(export.original_cwd)

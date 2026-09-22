@@ -5,6 +5,11 @@ and Reach onward use Granny. There is no format selector.
 Use **Intermediate Files Only** and choose an asset folder within the active
 project's data directory. The legacy asset-folder setting is separate from the
 Granny sidecar path. Existing Granny exports retain their default behavior.
+H1–ODST assets retain a lightweight `.sidecar.xml` marker. Foundry resolves the
+authoritative data and tag destination from that marker during export, then
+falls back to a saved `.blend` location inside the project's data directory and
+finally the Legacy Asset Folder field. A missing marker is created on export
+without using it as Tool input.
 
 The backend uses `ExportScene.ready_scene`, object selection and Halo property
 mapping, `VirtualScene` evaluation/triangulation, and normal animation sampling.
@@ -17,8 +22,10 @@ if conversion or writing fails. No sidecar is constructed or written.
 | H2 | 8210 | 2 | 16395 |
 | H3 / ODST | 8213 | 7 | 16395 |
 
-Models, particle models, and decorators go in `render`; collision and physics
-in `collision` and `physics`. Scenario BSPs and designs go in `structure`, with
+H2–ODST models, particle models, and decorators go in `render`; collision and
+physics go in `collision` and `physics`. H1 model geometry goes in `models`, and
+its collision/physics geometry shares the `physics` directory expected by Tool.
+Scenario BSPs and designs go in `structure`, with
 design files receiving `_design` in their names. Animations go in `animations`,
 using the appropriate JMA-family extension for movement/overlay/replacement.
 Each model permutation has its own file. BSP layers combine into a single file
@@ -46,24 +53,35 @@ batch is not a filesystem-wide atomic transaction.
 
 ## Tag writing
 
-Full and Tags Only exports for H3 and ODST model, sky, and animation assets run
-the editing kit's documented `bulk-import-model-folder` workflow over the
-JMS/ASS source tree (using its draft variant unless **Light Model (PRT)** is
-enabled). Animation sources are compiled separately with `model-animations`, as
-required by [H3 Tool](https://c20.reclaimers.net/h3/h3-ek/h3-tool/). Native
+Full and Tags Only exports support H1 through ODST model, sky, and animation
+assets. H1 and H2 scenario exports also compile each structure BSP. H2–ODST run the editing kit's `bulk-import-model-folder` workflow over
+the JMS/ASS source tree; H2 always uses its standard command because that kit
+does not provide the H3 draft variant. H1 dispatches its separate `model`,
+`collision-geometry`, and `physics` commands according to the available source
+directories. H1 always launches `tool.exe`, even when the project preference is
+set to `tool_fast`, because H1 does not provide a compatible fast executable.
+Before H1 Tool runs, Foundry creates any unresolved material tags so Tool does
+not open its interactive shader-class prompt: scenario structure uses
+`shader_environment`, while all other asset types use `shader_model`. Animation
+sources use `animations` on H1 and `model-animations`
+on H2–ODST. Native
 `blam-tags` documents perform Foundry's tag pre-processing and post-processing,
 including animation metadata and model template-reference overrides. Selected
 high-level object outputs (such as scenery, crate, biped, vehicle, and weapon)
-are created or updated natively and reference the compiled model tag; configured
+are created or updated natively. H2–ODST objects reference the compiled model
+tag. H1 objects receive their separate gbxmodel, collision, animation and
+physics references; configured
 tag templates are copied before those references are written. Tags Only reuses
 the source files already in the asset folder; Full Export writes fresh
 intermediates before compiling them.
 
 ## Current limits
 
-- Tag compilation for H1/H2 and non-model H3/ODST asset types is not implemented.
+- Tag compilation for other non-model legacy asset types is not implemented.
   Intermediate Files Only remains available for all supported legacy assets.
-  Legacy lightmapping and cache building are not implemented.
+  H1 does not run the H2+ animation-graph pre/post-processing pass; Tool compiles
+  its `model_animations` tag directly. Legacy lightmapping and cache building are
+  not implemented.
 - Physics meshes currently write convex records for H2/H3/ODST; analytic primitive
   shapes and constraints need a dedicated conversion pass. Mixed-material convex
   shapes must be split before export. Constraints and tag references are rejected.
@@ -80,4 +98,6 @@ Validation: `tests/test_legacy_writers.py` checks serializer round trips and
 material variants. `tests/test_legacy_export_blender.py` runs the real Foundry
 preparation pipeline for all four target games, including skinned geometry,
 ASS model instances, collision, convex physics, animation samples, no-sidecar
-output and scene restoration. Tool acceptance has not yet been tested.
+output and scene restoration. Isolated Tool acceptance compiled H1 gbxmodel,
+model-collision and physics tags and an H2 model/render-model pair from the
+folder layouts used by this exporter.

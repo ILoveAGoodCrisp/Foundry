@@ -93,6 +93,21 @@ class ObjectDocument(TagDocument):
     def set_model_tag_path(self, path):
         self.reference_model.Path = path
 
+    def set_halo1_model_paths(self, model: TagPathInput,
+                              collision: TagPathInput | None = None,
+                              animation: TagPathInput | None = None,
+                              physics: TagPathInput | None = None) -> None:
+        """Set the four independent model references used by H1 objects."""
+        if self.game != 'halo1':
+            raise ValueError('Independent model references are specific to Halo 1')
+        struct = self.object_struct()
+        for field_name, path in (
+            ('model', model), ('collision model', collision),
+            ('animation graph', animation), ('physics', physics),
+        ):
+            if path is not None:
+                self.set_reference(struct, field_name, path)
+
     def get_variants(self):
         ref = self.reference_model.Path
         if not self.path_exists(ref):
