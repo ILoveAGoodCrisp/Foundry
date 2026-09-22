@@ -43,6 +43,7 @@ MIDNIGHT_FOUNDATION_VERSION = "1.890.0.0"
 GROUNDHOG_FOUNDATION_VERSION = "1.41.0.0"
 
 GUERILLA_GAMES = {"Halo1", "Halo2", "Halo3", "Halo3ODST"}
+LEGACY_SAPIEN_GAMES = {"halo1", "halo2", "halo3", "halo3odst"}
 
 
 def tag_editor_executable(context=None):
@@ -374,48 +375,52 @@ launch_foundation = launch_tag_editor
 def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, report=None):
     asset_path = scene_nwo.asset_directory
     asset_name = scene_nwo.asset_name
+    project = get_project()
+    legacy_sapien = bool(is_sapien and project and project.game in LEGACY_SAPIEN_GAMES)
     
     prefs = get_prefs()
     
     if scene_nwo.asset_type == 'model' and prefs.debug_menu_on_launch:
         update_debug_menu(asset_path, asset_name)
     
-    asset_type = scene_nwo.asset_type
-    
-    if asset_type in {"scenario", "cinematic"} and settings.game_default == "asset":
-        if asset_type == "scenario":
-            new_filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
-            if new_filepath:
-                filepath = new_filepath
-        else:
-            cin_scen_path = Path(get_tags_path(), relative_path(scene_nwo.cinematic_scenario))
-            if cin_scen_path.exists() and cin_scen_path.is_file() and cin_scen_path.is_absolute():
-                filepath = str(cin_scen_path)
-    
-    if not filepath or not Path(filepath).exists() or Path(filepath).suffix.lower() != ".scenario" or settings.game_default == "last":
-        filepath = get_project().last_scenario
-        if not filepath:
-            if report:
-                report({'WARNING'}, "No scenario selected")
-            return
+    if not legacy_sapien:
+        asset_type = scene_nwo.asset_type
         
-        last_scenario_fp = Path(get_tags_path(), filepath).with_suffix(".scenario")
-        if not last_scenario_fp.exists():
-            if report:
-                report({'WARNING'}, f"Tried to load last scenario but it does not exist: {last_scenario_fp}")
-                
-            return
+        if asset_type in {"scenario", "cinematic"} and settings.game_default == "asset":
+            if asset_type == "scenario":
+                new_filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
+                if new_filepath:
+                    filepath = new_filepath
+            else:
+                cin_scen_path = Path(get_tags_path(), relative_path(scene_nwo.cinematic_scenario))
+                if cin_scen_path.exists() and cin_scen_path.is_file() and cin_scen_path.is_absolute():
+                    filepath = str(cin_scen_path)
         
-        filepath = str(last_scenario_fp)
+        if not filepath or not Path(filepath).exists() or Path(filepath).suffix.lower() != ".scenario" or settings.game_default == "last":
+            filepath = project.last_scenario
+            if not filepath:
+                if report:
+                    report({'WARNING'}, "No scenario selected")
+                return
+
+            last_scenario_fp = Path(get_tags_path(), filepath).with_suffix(".scenario")
+            if not last_scenario_fp.exists():
+                if report:
+                    report({'WARNING'}, f"Tried to load last scenario but it does not exist: {last_scenario_fp}")
+
+                return
+
+            filepath = str(last_scenario_fp)
     
     if is_sapien:
         if not ignore_play and settings.use_play:
             args = [get_exe("sapien_play")]
         else:
             args = [get_exe("sapien")]
-        # Sapien needs the scenario in the launch args so adding this here
-        
-        args.append(filepath)
+        # Reach and later Sapien builds accept a scenario path on launch;
+        # legacy Sapien must be launched without one.
+        if not legacy_sapien:
+            args.append(filepath)
         
     else:
         if not ignore_play and settings.use_play:
@@ -625,8 +630,7 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
                 )
 
     # write last scenario to project
-    project = get_project()
-    if project:
+    if project and filepath:
         project_xml = Path(project.project_xml)
         if Path(project.project_path, "tool.exe").is_file():
             xml = ProjectXML()
@@ -838,6 +842,10 @@ class NWO_HaloLauncher_Sapien(bpy.types.Operator):
     def invoke(self, context, event):
         scene_nwo_halo_launcher = get_launcher_props()
         scene_nwo = get_scene_props()
+        project = get_project()
+        if project and project.game in LEGACY_SAPIEN_GAMES:
+            self.filepath = ""
+            return self.execute(context)
         if (
             scene_nwo_halo_launcher.game_default == "default"
             or not scene_nwo.is_valid_asset
