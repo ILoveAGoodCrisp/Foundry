@@ -70,7 +70,13 @@ seat, weapon, vehicle, device, first-person and unit-damage tables. A Blender
 sweep opened all 213 HCE `model_animations` tags and resolved 10,061 authored
 paths, including 8,246 aliases caused by animations reused across graph states.
 The Captain sample now maps its shared `stand airborne-dead` animation to the
-authored `alert:airborne-dead` state as well as its canonical stand state.
+authored `alert:airborne-dead` state as well as its canonical stand state. H1
+unit look and weapon aim screens are also read from their owning positional
+records for Reach-style conversion. All 213 HCE graphs accepted the conversion
+metadata; 35 graphs exposed 158 distinct look/aim overlays. When an animation
+is shared by seats with different screen dimensions, Foundry keeps the screen
+belonging to the animation's canonical authored path because a Blender action
+can carry only one converted pose-overlay screen.
 
 Bitmap extraction now derives base-mip storage size from the image dimensions
 and format instead of trusting the tag's `pixels size` field. A cross-kit scan

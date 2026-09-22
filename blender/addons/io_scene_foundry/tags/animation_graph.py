@@ -404,6 +404,67 @@ class AnimationGraphTag(BlenderTag, TagDocument):
 
     def blend_screens(self) -> dict[str, AnimationBlendScreen]:
         definitions = self._definitions()
+        if self.game == 'halo1':
+            animations = self.block(definitions, 'animations')
+            result: dict[str, AnimationBlendScreen] = {}
+            priorities: dict[str, bool] = {}
+
+            def screen(element: blam_tags.TagStruct,
+                       label: str) -> AnimationBlendScreen:
+                return AnimationBlendScreen(
+                    label=label,
+                    right_yaw_per_frame=degrees(float(
+                        self.value(element, 'right yaw per frame'))),
+                    left_yaw_per_frame=degrees(float(
+                        self.value(element, 'left yaw per frame'))),
+                    right_frame_count=int(self.value(element, 'right frame count')),
+                    left_frame_count=int(self.value(element, 'left frame count')),
+                    down_pitch_per_frame=degrees(float(
+                        self.value(element, 'down pitch per frame'))),
+                    up_pitch_per_frame=degrees(float(
+                        self.value(element, 'up pitch per frame'))),
+                    down_pitch_frame_count=int(self.value(
+                        element, 'down pitch frame count')),
+                    up_pitch_frame_count=int(self.value(
+                        element, 'up pitch frame count')),
+                )
+
+            def assign(index: int, record: AnimationBlendScreen,
+                       authored_prefix: str) -> None:
+                if index < 0:
+                    return
+                if index >= len(animations):
+                    raise ValueError(
+                        f'{self.path}: blend-screen animation index {index} is '
+                        f'outside the {len(animations)} local animations')
+                name = str(self.value(animations[index], 'name')).replace(' ', ':')
+                preferred = name.startswith(authored_prefix + ':')
+                if name not in result or preferred and not priorities[name]:
+                    result[name] = record
+                    priorities[name] = preferred
+
+            def animation_index(entries: blam_tags.TagBlock, index: int) -> int:
+                if index >= len(entries):
+                    return -1
+                return int(self.value(entries[index], 'animation'))
+
+            # Unit slot 9 is the look overlay. Weapon slots 25 and 26 are the
+            # two aim overlays. Their screen dimensions live directly on the
+            # owning H1 unit/weapon record rather than on the animation.
+            for unit in self.block(definitions, 'units'):
+                mode = str(self.value(unit, 'label'))
+                unit_screen = screen(unit, f'{mode}:look')
+                assign(animation_index(self.block(unit, 'animations'), 9),
+                       unit_screen, mode)
+                for weapon in self.block(unit, 'weapons'):
+                    weapon_class = str(self.value(weapon, 'name'))
+                    prefix = f'{mode}:{weapon_class}'
+                    weapon_screen = screen(weapon, f'{prefix}:aim')
+                    entries = self.block(weapon, 'animations')
+                    assign(animation_index(entries, 25), weapon_screen, prefix)
+                    assign(animation_index(entries, 26), weapon_screen, prefix)
+            return result
+
         screens: list[AnimationBlendScreen] = []
         for element in self.block(definitions, 'blend screens'):
             aiming = self.required_field(element, 'aiming screen').as_struct()
