@@ -58,6 +58,11 @@ images across compressed, uncompressed, HDR and normal-map formats. The reported
 Reach `magnum_diffuse.bitmap` now extracts as 512x512 from both HREK and HR3EK.
 Smoke extraction also passed DXT1, DXT5, DXN, A8, V8U8, an H3 cubemap and an H4
 three-layer texture array; arrays are emitted as a vertical layer strip.
+Bitmap format enums are now normalized by their schema names before byte-size and
+decode selection. H3 places DXN at enum index 33, where Reach places R16G16; treating
+the index as cross-game made the reported 768x768 Hunter `hunter_zbump.bitmap`
+appear four times larger than its payload. It now resolves as DXN and extracts to
+a validated 768x768 TIFF.
 
 Tag imports no longer require the owning editing kit to be registered as a
 Foundry project. For an absolute path under a `tags` directory, Foundry first

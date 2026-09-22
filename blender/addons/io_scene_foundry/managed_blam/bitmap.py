@@ -116,6 +116,9 @@ BITMAP_FORMAT_NAMES = {
     47: "dxt5_blue",
     48: "depth 24",
 }
+BITMAP_FORMAT_BY_NAME = {
+    name.casefold(): bitmap_format for bitmap_format, name in BITMAP_FORMAT_NAMES.items()
+}
 
 BITMAP_TYPE_NAMES = {
     0: "2d texture",
@@ -535,7 +538,7 @@ class BitmapTag(BlenderTag, TagDocument):
         width = self._select_int(bitmap, 'width')
         height = self._select_int(bitmap, 'height')
         bitmap_type = self._select_int(bitmap, 'type')
-        bitmap_format = self._select_int(bitmap, 'format', -1)
+        bitmap_format = self._bitmap_format(bitmap)
         pixels_offset = self._select_int(bitmap, 'pixels offset', -1)
         pixels_size = self._bitmap_base_pixel_size(
             width, height, bitmap_format, bitmap_type)
@@ -969,6 +972,20 @@ class BitmapTag(BlenderTag, TagDocument):
             return int(field.value)
         except (TypeError, ValueError):
             return default
+
+    @staticmethod
+    def _bitmap_format(element) -> int:
+        """Resolve title-specific bitmap enums to Foundry's canonical values."""
+        field = element.field('format')
+        if field is None:
+            return -1
+        options = field.options()
+        if options is not None and options.current_name is not None:
+            return BITMAP_FORMAT_BY_NAME.get(options.current_name.casefold(), -1)
+        try:
+            return int(field.value)
+        except (TypeError, ValueError):
+            return -1
 
     @staticmethod
     def _bitmap_level_byte_size(width: int, height: int, bitmap_format: int) -> int:
@@ -1784,7 +1801,7 @@ class BitmapTag(BlenderTag, TagDocument):
         height = self._select_int(bitmap_element, "ShortInteger:height")
         depth = self._select_int(bitmap_element, "CharInteger:depth", 1)
         bitmap_type = self._select_int(bitmap_element, "CharEnum:type")
-        bitmap_format = self._select_int(bitmap_element, "ShortEnum:format", -1)
+        bitmap_format = self._bitmap_format(bitmap_element)
         pixels_offset = self._select_int(bitmap_element, "LongInteger:pixels offset", -1)
         pixels_size = self._select_int(bitmap_element, "LongInteger:pixels size", -1)
         resolved_size = self._bitmap_base_pixel_size(
@@ -1810,7 +1827,7 @@ class BitmapTag(BlenderTag, TagDocument):
         height = self._select_int(bitmap_element, "ShortInteger:height")
         depth = self._select_int(bitmap_element, "CharInteger:depth", 1)
         bitmap_type = self._select_int(bitmap_element, "CharEnum:type")
-        bitmap_format = self._select_int(bitmap_element, "ShortEnum:format", -1)
+        bitmap_format = self._bitmap_format(bitmap_element)
         pixels_offset = self._select_int(bitmap_element, "LongInteger:pixels offset", -1)
         pixels_size = self._bitmap_base_pixel_size(
             width, height, bitmap_format, bitmap_type, depth)
