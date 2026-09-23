@@ -1115,6 +1115,15 @@ class ExportScene:
                             props["bungie_mesh_seam_associated_bsp"] = region
                             if len(mesh.materials) == 1:
                                 mesh_type = '_connected_geometry_mesh_type_seam'
+                    case '_connected_geometry_mesh_type_weather_polyhedron':
+                        project = utils.get_project(self.scene_settings.scene_project)
+                        if not self.legacy_export or project is None or project.game != 'halo2':
+                            raise ValueError(
+                                f'{ob.name}: weather polyhedra are only supported by Halo 2 legacy export')
+                        # Halo 2 represents these through ASS naming/material
+                        # conventions rather than a connected-geometry enum.
+                        props['foundry_weather_polyhedron'] = True
+                        mesh_type = '_connected_geometry_mesh_type_default'
                         
                 match mesh_type:
                     case '_connected_geometry_mesh_type_poop':

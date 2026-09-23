@@ -15,6 +15,7 @@ AUTO_BSP_MANUAL_MESH_TYPES = {
     "_connected_geometry_mesh_type_water_physics_volume",
     "_connected_geometry_mesh_type_boundary_surface",
     "_connected_geometry_mesh_type_seam",
+    "_connected_geometry_mesh_type_weather_polyhedron",
 }
 
 AUTO_BSP_SOURCE_MESH_TYPES = {

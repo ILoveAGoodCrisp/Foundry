@@ -20,13 +20,12 @@ Measured as dependency replacement, the migration is now 100%: the add-on has no
 ManagedBlam tag-access path to fall back to. This does not mean every workflow has
 completed visual or editing-kit acceptance.
 
-**H1/H2 feature-parity estimate: about 89%.** Core loose-tag loading/saving,
+**H1/H2 feature-parity estimate: about 90%.** Core loose-tag loading/saving,
 object/model geometry, all H2 LODs, collision/physics, classic animation decoding,
 bitmap and cubemap extraction, broad shader construction, scenario metadata,
 native legacy export dispatch and inline animation-event writing, and scenario BSP
 render/collision geometry are connected. The remaining work is concentrated in
-less common resource layouts, H2 weather-volume representation, and broad
-visual/editing-kit acceptance.
+less common resource layouts and broad visual/editing-kit acceptance.
 
 ## Editing-kit import acceptance (2026-09-22)
 
@@ -510,7 +509,7 @@ can use them.
 
 ## Recommended implementation order
 
-1. Decide how decoded H2 weather polyhedra map to Foundry's Blender properties.
+1. Validate complete H1/H2 exports in Tool, including imported H2 weather hulls.
 2. Run representative complete imports/exports against H1 and H2 editing kits and compare the resulting Blender data visually and in Tool.
 3. Run the same acceptance pass against each H3+ editing kit.
 4. Close specialized composite-animation, bitmap-format, resource-layout and scenario/cinematic gaps found by that review.
@@ -936,7 +935,19 @@ structure objects, 125 portals and one collision mesh. A second H2 sample,
 `01outro_bsp`, produced five structure markers and one referenced
 environment-object marker. Classic BSP materials now carry their complete tag
 paths and group extensions into Blender rather than requiring a basename search.
-H2 weather-polyhedron helper geometry is decoded but currently omitted.
+H2 weather planes now normalize the title's offset-form distance and inconsistent
+normal directions against each record's bounding-sphere center. Foundry imports
+the recovered `+weather` hulls as a dedicated Weather Polyhedron mesh type. The
+type is available only in Halo 2 scenario UI and maps back to Tool's special
+object/material convention during legacy ASS export. A full H2EK scan
+reconstructed 99 of 100 weather records across all 12 BSPs that contain them.
+The remaining `08b_deltacontrol/deltacontrolroom_bsp0` record 9 has no Y-bound
+planes and therefore does not define a closed hull. A Blender 5.1 end-to-end
+check of the real Lockout BSP imported all ten closed hulls with the dedicated
+type and exported a parseable ASS retaining one `+weather` material plus the
+ten `+weather_0` through `+weather_9` instances. Direct H2 ASS import also
+recognizes `+weather` materials and assigns the dedicated type; other project
+types continue to treat that legacy marker as ordinary structure geometry.
 
 Classic object acceptance now covers representative H1 and H2 weapons, vehicles
 and scenery as well as bipeds. H1 positional object functions retain their input

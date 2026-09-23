@@ -1163,6 +1163,9 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
         h4 = utils.is_corinth(context)
+        scene_nwo = utils.get_scene_props()
+        project = utils.get_project(scene_nwo.scene_project)
+        halo2 = project is not None and project.game == 'halo2'
         if utils.poll_ui(("model", "multi_model")):
             layout.operator('nwo.apply_type_mesh_single', text='Render', icon_value=get_icon_id('render')).m_type = 'render'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
@@ -1172,6 +1175,8 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Structure', icon_value=get_icon_id('structure')).m_type = 'structure'
+            if halo2:
+                layout.operator('nwo.apply_type_mesh_single', text='Weather Polyhedron', icon_value=get_icon_id('rain_blocker')).m_type = 'weather_polyhedron'
             layout.operator('nwo.apply_type_mesh_single', text='Seam', icon_value=get_icon_id('seam')).m_type = 'seam'
             layout.operator('nwo.apply_type_mesh_single', text='Portal', icon_value=get_icon_id('portal')).m_type = 'portal'
             layout.operator('nwo.apply_type_mesh_single', text='Water', icon_value=get_icon_id('water')).m_type = 'water_surface'

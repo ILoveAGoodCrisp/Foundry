@@ -169,10 +169,14 @@ class ASSImporter(JMSImporter):
 
     def mesh_kind(self, props):
         if self.active_kind == 'instance' and props and props.mesh_type != 'default':
-            return props.mesh_type
+            kind = props.mesh_type
+            return ('default' if kind == 'weather_polyhedron'
+                    and getattr(self.owner, 'game', None) != 'halo2' else kind)
         if self.active_kind:
             return self.active_kind
-        return props.mesh_type if props else 'default'
+        kind = props.mesh_type if props else 'default'
+        return ('default' if kind == 'weather_polyhedron'
+                and getattr(self.owner, 'game', None) != 'halo2' else kind)
 
     def mesh_created(self, ob, source_indices):
         self.source_indices[ob] = source_indices

@@ -44,8 +44,10 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         for instance in instances:
             name = instance['name']
             mesh_type = instance['mesh_type']
+            is_weather = (mesh_type == 'helper'
+                          and name.casefold().startswith('+weather'))
             if (instance['object_index'] < 0 or name == 'Scene Root'
-                    or mesh_type == 'helper'):
+                    or (mesh_type == 'helper' and not is_weather)):
                 continue
             sources = source_objects.get(instance['object_index'], ())
             x, y, z, w = instance['rotation']
@@ -72,11 +74,16 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 ob.data = source.data
                 ob.name = name
                 ob.matrix_world = import_transform.object_matrix(transform)
+                if is_weather:
+                    ob.display_type = 'WIRE'
+                    ob.show_in_front = True
                 ob.data.nwo.mesh_type = (
                     '_connected_geometry_mesh_type_collision'
                     if mesh_type == 'collision'
                     else '_connected_geometry_mesh_type_portal'
                     if mesh_type == 'portal'
+                    else '_connected_geometry_mesh_type_weather_polyhedron'
+                    if is_weather
                     else '_connected_geometry_mesh_type_structure'
                 )
                 collection.objects.link(ob)

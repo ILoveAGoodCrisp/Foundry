@@ -3880,6 +3880,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     def update_connected_geometry_mesh_type_obb_volume_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_obb_volume')
     def update_connected_geometry_mesh_type_cookie_cutter_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_cookie_cutter')
     def update_connected_geometry_mesh_type_poop_rain_blocker_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_poop_rain_blocker')
+    def update_connected_geometry_mesh_type_weather_polyhedron_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_weather_polyhedron')
     
     def update_connected_geometry_marker_type_model_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_model')
     def update_connected_geometry_marker_type_effects_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_effects')
@@ -3911,6 +3912,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     connected_geometry_mesh_type_obb_volume_visible: bpy.props.BoolProperty(default=True, options=set(), name="Lightmap Exclusion Volume", update=update_connected_geometry_mesh_type_obb_volume_visible)
     connected_geometry_mesh_type_cookie_cutter_visible: bpy.props.BoolProperty(default=True, options=set(), name="Cookie Cutter", update=update_connected_geometry_mesh_type_cookie_cutter_visible)
     connected_geometry_mesh_type_poop_rain_blocker_visible: bpy.props.BoolProperty(default=True, options=set(), name="Rain Blocker", update=update_connected_geometry_mesh_type_poop_rain_blocker_visible)
+    connected_geometry_mesh_type_weather_polyhedron_visible: bpy.props.BoolProperty(default=True, options=set(), name="Weather Polyhedron", update=update_connected_geometry_mesh_type_weather_polyhedron_visible)
     
     connected_geometry_marker_type_model_visible: bpy.props.BoolProperty(default=True, options=set(), name="Model Marker", update=update_connected_geometry_marker_type_model_visible)
     connected_geometry_marker_type_effects_visible: bpy.props.BoolProperty(default=True, options=set(), name="Effects", update=update_connected_geometry_marker_type_effects_visible)

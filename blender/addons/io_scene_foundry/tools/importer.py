@@ -2340,7 +2340,9 @@ class JMSMaterialSlot:
         
     def _mesh_type_from_special_name(self):
         name = self.material.name
-        if name.startswith('+portal') or self.portal_one_way or self.portal_vis_blocker:
+        if name.startswith('+weather'):
+            return 'weather_polyhedron'
+        elif name.startswith('+portal') or self.portal_one_way or self.portal_vis_blocker:
             return 'portal'
         elif name.startswith('+seam') and not name.startswith('+seams'):
             return 'seam'
@@ -2481,6 +2483,7 @@ class NWOImporter:
     def __init__(self, context, filepaths=None, scope=None, existing_scene=False):
         self.scene_nwo = utils.get_scene_props()
         self.scene_nwo_export = utils.get_export_props()
+        self.game = utils.get_project(self.scene_nwo.scene_project).game
         self.filepaths = list(filepaths) if filepaths else []
         self.context = context
         self.scene = context.scene
@@ -4378,6 +4381,9 @@ class NWOImporter:
             case "rain_blocker":
                 mesh_type = "_connected_geometry_mesh_type_poop_rain_blocker"
                 material = "RainBlocker"
+            case "weather_polyhedron":
+                mesh_type = "_connected_geometry_mesh_type_weather_polyhedron"
+                material = "+weather"
             case "decorator":
                 mesh_type = "_connected_geometry_mesh_type_decorator"
                 

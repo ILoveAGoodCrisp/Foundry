@@ -2280,6 +2280,8 @@ def get_mesh_display(mesh_type):
             return 'Boundary Surface', get_icon_id('soft_ceiling')
         case '_connected_geometry_mesh_type_poop_rain_blocker':
             return 'Rain Blocker', get_icon_id('rain_blocker')
+        case '_connected_geometry_mesh_type_weather_polyhedron':
+            return 'Weather Polyhedron', get_icon_id('rain_blocker')
         case '_connected_geometry_mesh_type_obb_volume':
             return 'Bounding Box', get_icon_id('volume')
         case '_connected_geometry_mesh_type_poop_vertical_rain_sheet':
@@ -5358,6 +5360,9 @@ def mesh_and_material(m_type, context):
             material = "CookieCutter"
         case "rain_blocker":
             mesh_type = "_connected_geometry_mesh_type_poop_rain_blocker"
+        case "weather_polyhedron":
+            mesh_type = "_connected_geometry_mesh_type_weather_polyhedron"
+            material = "+weather"
         case "decorator":
             mesh_type = "_connected_geometry_mesh_type_decorator"
             

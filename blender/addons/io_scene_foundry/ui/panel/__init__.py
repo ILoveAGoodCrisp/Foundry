@@ -1699,6 +1699,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             grid.prop(nwo, "connected_geometry_mesh_type_object_instance_visible", text="", icon_value=get_icon_id("instance") if nwo.connected_geometry_mesh_type_object_instance_visible else get_icon_id("instance_off"), emboss=False)
         if asset_type == 'scenario':
             grid.prop(nwo, "connected_geometry_mesh_type_structure_visible", text="", icon_value=get_icon_id("structure") if nwo.connected_geometry_mesh_type_structure_visible else get_icon_id("structure_off"), emboss=False)
+            project = utils.get_project(nwo.scene_project)
+            if project is not None and project.game == 'halo2':
+                grid.prop(nwo, "connected_geometry_mesh_type_weather_polyhedron_visible", text="", icon_value=get_icon_id("rain_blocker") if nwo.connected_geometry_mesh_type_weather_polyhedron_visible else get_icon_id("rain_blocker_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_seam_visible", text="", icon_value=get_icon_id("seam") if nwo.connected_geometry_mesh_type_seam_visible else get_icon_id("seam_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_portal_visible", text="", icon_value=get_icon_id("portal") if nwo.connected_geometry_mesh_type_portal_visible else get_icon_id("portal_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_water_surface_visible", text="", icon_value=get_icon_id("water") if nwo.connected_geometry_mesh_type_water_surface_visible else get_icon_id("water_off"), emboss=False)
@@ -4409,6 +4412,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             "_connected_geometry_mesh_type_water_physics_volume",
             "_connected_geometry_mesh_type_boundary_surface",
             "_connected_geometry_mesh_type_seam",
+            "_connected_geometry_mesh_type_weather_polyhedron",
         }
         auto_bsp = (
             utils.poll_ui(("scenario",))

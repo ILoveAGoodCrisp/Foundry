@@ -487,6 +487,8 @@ class LegacyExportScene(ExportScene):
                 name, lighting = material_variant(shader, props, gm,
                     asset.version if isinstance(asset, ass.ASS) else None,
                     self.target_game)
+                if props.get('foundry_weather_polyhedron'):
+                    name = '+weather'
                 if node.tag_type in {'collision', 'physics'}:
                     name = gm  # Physics/collision material names are surface types, not display shaders.
                 permutation = node.permutation or 'default'
@@ -629,7 +631,12 @@ class LegacyExportScene(ExportScene):
             else:
                 geometry_bones = next(i.bones for i in asset.instances if i.geometry == geometry_index)
             prefix = '%' if node.props.get('bungie_mesh_type') in {4, 11} else ''
-            asset.instances.append(ass.Instance(geometry_index, prefix + node.name.lstrip('%'), len(asset.instances),
+            instance_name = prefix + node.name.lstrip('%')
+            if node.props.get('foundry_weather_polyhedron'):
+                if not instance_name.casefold().startswith('+weather'):
+                    suffix = instance_name.rpartition(':')[2].lstrip('+')
+                    instance_name = '+weather_' + (suffix or str(len(asset.instances)))
+            asset.instances.append(ass.Instance(geometry_index, instance_name, len(asset.instances),
                 0, 0, local, ass.Transform(), geometry_bones))
         if 'markers' in self.export_tag_types:
             for node in markers:

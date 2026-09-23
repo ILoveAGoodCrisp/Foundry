@@ -170,6 +170,7 @@ object_asset_validation = {
     '_connected_geometry_mesh_type_obb_volume': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_cookie_cutter': ('scenario', 'resource'),
     '_connected_geometry_mesh_type_poop_rain_blocker': ('scenario', 'resource'),
+    '_connected_geometry_mesh_type_weather_polyhedron': ('scenario', 'resource'),
     # Marker
     '_connected_geometry_marker_type_model': ('model', 'scenario', 'sky', 'animation', 'prefab', 'resource', 'multi_model', 'multi_prefab'),
     '_connected_geometry_marker_type_effects': ('model', 'sky', 'resource', 'multi_model'),
@@ -202,6 +203,9 @@ object_game_validation = {
     '_connected_geometry_mesh_type_obb_volume': ('corinth',),
     '_connected_geometry_mesh_type_cookie_cutter': ('reach',),
     '_connected_geometry_mesh_type_poop_rain_blocker': ('reach',),
+    # Internal Foundry type for Halo 2 legacy ASS export. H1/H2 run through
+    # the pre-Corinth (``reach``) preparation path.
+    '_connected_geometry_mesh_type_weather_polyhedron': ('reach',),
     # Marker
     '_connected_geometry_marker_type_model': ('reach', 'corinth'),
     '_connected_geometry_marker_type_effects': ('reach', 'corinth'),

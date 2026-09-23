@@ -607,6 +607,7 @@ class NWO_UpdateSets(bpy.types.Operator):
         bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_obb_volume')
         bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_cookie_cutter')
         bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_poop_rain_blocker')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_weather_polyhedron')
         
         bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_model')
         bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_effects')

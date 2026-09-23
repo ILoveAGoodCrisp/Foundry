@@ -19,6 +19,7 @@ lightmap_region = {'full': 'lightmap_region:', 'legacy': ''}
 water_physics = {'full': 'water_physics:', 'legacy': ''}
 rain_blocker = {'full': 'rain_blocker:', 'legacy': ''}
 rain_sheet = {'full': 'rain_sheet:', 'legacy': ''}
+weather_polyhedron = {'full': 'weather_polyhedron:', 'legacy': '+weather_'}
 cookie_cutter = {'full': 'cookie_cutter:', 'legacy': ''}
 fog = {'full': 'fog:', 'legacy': ''}
 lightmap = {'full': 'lightmap_exclude:', 'legacy': ''}
@@ -38,7 +39,7 @@ target = {'full': 'target:', 'legacy': '#'}
 
 all_prefixes = []
 
-for dictionary in [render, decorator, collision, physics, io, structure, instance, seam, portal, water_surface, soft_ceiling, soft_kill, slip_surface, water_physics, rain_blocker, rain_sheet, cookie_cutter, fog, lightmap, streaming, model, game_instance, envfx, lightcone, airprobe, effects, garbage, hint, pathfinding_sphere, physics_constraint, target]:
+for dictionary in [render, decorator, collision, physics, io, structure, instance, seam, portal, water_surface, soft_ceiling, soft_kill, slip_surface, water_physics, rain_blocker, rain_sheet, weather_polyhedron, cookie_cutter, fog, lightmap, streaming, model, game_instance, envfx, lightcone, airprobe, effects, garbage, hint, pathfinding_sphere, physics_constraint, target]:
     all_prefixes.extend(list(dictionary.values()))
 
 all_prefixes = [p for p in all_prefixes if p != '']
@@ -62,6 +63,7 @@ special_materials = (
     "CookieCutter",
     "RainBlocker",
     "RainSheet",
+    "+weather",
     "WaterVolume",
     "Structure",
     "Volume",
@@ -161,6 +163,7 @@ types = {
     '_connected_geometry_mesh_type_obb_volume': ('obb_volume:', 'obb_volume:'),
     '_connected_geometry_mesh_type_cookie_cutter': ('cookie_cutter:', 'cookie_cutter:'),
     '_connected_geometry_mesh_type_poop_rain_blocker': ('rain_blocker:', 'rain_blocker:'),
+    '_connected_geometry_mesh_type_weather_polyhedron': ('weather_polyhedron:', '+weather_'),
 }
     
 def apply_prefix_bulk(objects):

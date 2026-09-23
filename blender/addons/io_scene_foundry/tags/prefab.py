@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from math import isfinite
 from pathlib import Path
 from types import SimpleNamespace as Record
-from typing import TYPE_CHECKING, TypedDict, cast
+from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 
 if TYPE_CHECKING:
     import blam_tags
@@ -241,7 +241,7 @@ class ClassicBspInstance(TypedDict):
 
 class ClassicBspScene(TypedDict):
     materials: list[str]
-    material_paths: list[str]
+    material_paths: NotRequired[list[str]]
     objects: list[dict[str, object] | None]
     instances: list[ClassicBspInstance]
 
@@ -283,6 +283,61 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
             water=None,
         )
 
+    @staticmethod
+    def _assign_classic_material_path(
+        names: list[str], paths: list[str], reference: TagReference, start: int = 0,
+    ) -> None:
+        """Match a shader reference to the material name emitted by JMS/ASS."""
+        name = Path(reference.RelativePath).name
+        for index in range(start, len(names)):
+            if names[index] == name and not paths[index]:
+                paths[index] = reference.RelativePathWithExtension
+                return
+
+    def _classic_material_paths(self, names: list[str]) -> list[str]:
+        """Read paths from classic BSP fields used by older native decoders."""
+        paths = [''] * len(names)
+        root = self.tag.root()
+        if self.game == 'halo1':
+            lightmaps_field = root.field('lightmaps')
+            lightmaps = None if lightmaps_field is None else lightmaps_field.as_block()
+            if lightmaps is not None:
+                for lightmap in lightmaps:
+                    materials_field = lightmap.field('materials')
+                    materials = None if materials_field is None else materials_field.as_block()
+                    if materials is None:
+                        continue
+                    for material in materials:
+                        reference = self.reference(material, 'shader')
+                        if reference is not None:
+                            self._assign_classic_material_path(names, paths, reference)
+
+            collision_field = root.field('collision materials')
+            collision_materials = (
+                None if collision_field is None else collision_field.as_block())
+            if collision_materials is not None:
+                collision_start = max(0, len(names) - len(collision_materials))
+                for material in collision_materials:
+                    reference = self.reference(material, 'shader')
+                    if reference is not None:
+                        self._assign_classic_material_path(
+                            names, paths, reference, collision_start)
+            return paths
+
+        materials_field = root.field('materials')
+        materials = None if materials_field is None else materials_field.as_block()
+        if materials is None:
+            return paths
+        for index, material in enumerate(materials):
+            if index >= len(paths):
+                break
+            reference = self.reference(material, 'shader')
+            if reference is None:
+                reference = self.reference(material, 'old shader')
+            if reference is not None:
+                paths[index] = reference.RelativePathWithExtension
+        return paths
+
     def classic_render_scene(
         self,
     ) -> tuple[list[str], list[str], list[StructureBspRenderMesh | None], list[ClassicBspInstance]]:
@@ -296,7 +351,15 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
             None if mesh is None else self._render_mesh_record(index, mesh)
             for index, mesh in enumerate(scene['objects'])
         ]
-        return scene['materials'], scene['material_paths'], meshes, scene['instances']
+        material_names = scene['materials']
+        material_paths = scene.get('material_paths')
+        if material_paths is None:
+            material_paths = self._classic_material_paths(material_names)
+        if len(material_paths) != len(material_names):
+            raise ValueError(
+                f'{self.path}: native classic BSP decoder returned '
+                f'{len(material_paths)} material paths for {len(material_names)} materials')
+        return material_names, material_paths, meshes, scene['instances']
 
     def _set_vector(self, element, name, values):
         field = self.required_field(element, name)
