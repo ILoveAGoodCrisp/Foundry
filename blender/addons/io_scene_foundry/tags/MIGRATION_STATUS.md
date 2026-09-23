@@ -1068,3 +1068,20 @@ zero, which previously made Foundry skip its root-only scene-forward conversion.
 Blender 5.2 validation with the scene set to negative Y imported the cyborg
 `alert rifle move-front` action and moved its root 1.709 units along negative Y
 instead of positive X.
+
+Halo 2 render-model imports now expose an LOD selector with `All` as the default
+and individual L1 through L6 choices. Imported Halo 2 geometry is placed in a
+child collection for each available LOD. Blender 5.2 validation of the H2
+Master Chief render model produced six collections and 24 meshes for `All`, and
+only the four L3 meshes in a single L3 collection when that LOD was selected.
+The same selector is registered on the drag-and-drop operator, where it was
+previously absent from biped and other object-tag dialogs.
+
+Halo 2 render-model skinning now reads the authored four node indices and
+weights from each raw vertex and resolves section-local indices through the
+section node map. The bundled blam-tags decoder currently supplies node-zero
+placeholder weights for H2, so this uses its structured tag fields until the
+semantic decoder is extended. A scan of all 1,120 H2EK render models found
+1,435,973 raw vertices using the new-index layout, including 115,947 vertices
+with multiple influences. Blender 5.2 validation of Master Chief L5 produced
+31 bone groups, 2,256 weighted vertices and 484 multi-weighted vertices.

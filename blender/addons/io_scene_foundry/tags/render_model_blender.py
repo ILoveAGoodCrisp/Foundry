@@ -22,7 +22,7 @@ class RenderModelTag(RenderModelMetadataTag):
         super().__init__(*args, **kwargs)
         self.context = bpy.context
         
-    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set(), from_vert_normals=False, no_io=False, no_armature=False, specific_io_index=None, build_control_rig=False):
+    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set(), from_vert_normals=False, no_io=False, no_armature=False, specific_io_index=None, build_control_rig=False, selected_lod: str = 'ALL'):
         self.collection = collection
         self.model_collection = model_collection
         self._native_nodes = RenderModelMetadataTag.nodes(self)
@@ -42,7 +42,7 @@ class RenderModelTag(RenderModelMetadataTag):
         
         if render:
             # print("Creating Render Geometry")
-            result = self._create_render_geometry(allowed_region_permutations, from_vert_normals, no_io, specific_io_index)
+            result = self._create_render_geometry(allowed_region_permutations, from_vert_normals, no_io, specific_io_index, selected_lod)
             if result:
                 objects.extend(result)
             else:
@@ -175,7 +175,7 @@ class RenderModelTag(RenderModelMetadataTag):
         return arm.ob
         
 
-    def _create_render_geometry(self, allowed_region_permutations: set | str, from_vert_normals=False, no_io=False, specific_io_index=None):
+    def _create_render_geometry(self, allowed_region_permutations: set | str, from_vert_normals=False, no_io=False, specific_io_index=None, selected_lod: str = 'ALL'):
         objects = []
         if not self._native_compression_bounds:
             utils.print_warning("Render Model has no compression info. Cannot import render model mesh")
@@ -191,6 +191,20 @@ class RenderModelTag(RenderModelMetadataTag):
         clone_meshes: list[Mesh] = []
         original_meshes_by_perm_name = {}
         regions_by_name = {region.name: region for region in self.regions}
+        selected_lod = selected_lod.upper()
+        if selected_lod not in {'ALL', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6'}:
+            selected_lod = 'ALL'
+        lod_collections: dict[str, bpy.types.Collection] = {}
+
+        def collection_for_lod(lod: str) -> bpy.types.Collection:
+            if not lod:
+                return self.collection
+            collection = lod_collections.get(lod)
+            if collection is None:
+                collection = bpy.data.collections.new(f'{self.tag_path.ShortName}_{lod}')
+                self.collection.children.link(collection)
+                lod_collections[lod] = collection
+            return collection
 
         if isinstance(allowed_region_permutations, str): # if str use all regions but only the given perm
             allowed_region_permutations = {(region.name, allowed_region_permutations) for region in self.regions}
@@ -228,6 +242,8 @@ class RenderModelTag(RenderModelMetadataTag):
                 meshes = (permutation.lod_mesh_indices if self.game == 'halo2'
                           else tuple(('', permutation.mesh_index + i)
                                      for i in range(permutation.mesh_count)))
+                if self.game == 'halo2' and selected_lod != 'ALL':
+                    meshes = tuple(mesh for mesh in meshes if mesh[0] == selected_lod)
                 for i, (lod, mesh_index) in enumerate(meshes):
                     real_mesh_idx = None
                     geometry_record = native_render_meshes[mesh_index]
@@ -259,8 +275,9 @@ class RenderModelTag(RenderModelMetadataTag):
                         
                     original_meshes_by_perm_name.setdefault(mesh.permutation.name, mesh)
                     objects.extend(obs)
+                    target_collection = collection_for_lod(lod)
                     for ob in obs:
-                        self.collection.objects.link(ob)
+                        target_collection.objects.link(ob)
                 
         # Instances
         self.instances = []

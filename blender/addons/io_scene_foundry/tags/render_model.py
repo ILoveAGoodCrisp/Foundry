@@ -406,14 +406,18 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
     def render_meshes(self) -> list[StructureBspRenderMesh]:
         """Decode every model mesh through blam-tags' cross-game decoder."""
         decoded = self.tag.render_model_meshes()
-        halo1_skinning = self._halo1_skinning() if self.game == 'halo1' else ()
+        classic_skinning = (
+            self._halo1_skinning() if self.game == 'halo1'
+            else self._halo2_skinning() if self.game == 'halo2'
+            else ()
+        )
         records = []
         for index, mesh in enumerate(decoded):
-            if index < len(halo1_skinning):
-                node_indices, node_weights = halo1_skinning[index]
+            if index < len(classic_skinning):
+                node_indices, node_weights = classic_skinning[index]
                 if len(node_indices) != len(mesh['positions']):
                     raise ValueError(
-                        f'{self.path}: H1 geometry {index} has {len(mesh["positions"])} '
+                        f'{self.path}: classic geometry {index} has {len(mesh["positions"])} '
                         f'decoded vertices but {len(node_indices)} authored skinning records')
             else:
                 node_indices = tuple(tuple(map(int, value)) for value in mesh['node_indices'])
@@ -493,6 +497,61 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
                     geometry_weights.append((first_weight, second_weight, 0.0, 0.0))
             geometries.append((tuple(geometry_indices), tuple(geometry_weights)))
         return tuple(geometries)
+
+    def _halo2_skinning(self) -> tuple[
+            tuple[tuple[tuple[int, int, int, int], ...],
+                  tuple[tuple[float, float, float, float], ...]], ...]:
+        """Read H2's authored four-node skinning and section-local node maps."""
+        sections = self.block(self.tag.root(), 'sections')
+        result = []
+        for section in sections:
+            section_data = self.block(section, 'section data')
+            if not len(section_data):
+                result.append(((), ()))
+                continue
+
+            data = section_data[0]
+            section_field = self.required_field(data, 'section')
+            section_struct = section_field.as_struct()
+            if section_struct is None:
+                raise TypeError(f'{self.path}: H2 section data is not a struct')
+
+            node_map = tuple(
+                int(element.fields()[0].value) & 0xFF
+                for element in self.block(data, 'node map')
+            )
+            section_indices = []
+            section_weights = []
+            for vertex in self.block(section_struct, 'raw vertices'):
+                use_new = bool(self.value(vertex, 'use new node indices'))
+                index_field = self.required_field(
+                    vertex, 'node indices (NEW)' if use_new else 'node indices (OLD)')
+                index_array = index_field.as_array()
+                weight_array = self.required_field(vertex, 'node weights').as_array()
+                if index_array is None or weight_array is None:
+                    raise TypeError(f'{self.path}: H2 vertex skinning fields are not arrays')
+
+                local_indices = tuple(
+                    int(index_array[index].fields()[0].value)
+                    for index in range(len(index_array))
+                )
+                weights = tuple(
+                    float(weight_array[index].fields()[0].value)
+                    for index in range(len(weight_array))
+                )
+
+                def global_node_index(index: int) -> int:
+                    if index < 0:
+                        return -1
+                    if not node_map:
+                        return index
+                    return node_map[index] if index < len(node_map) else -1
+
+                section_indices.append(tuple(global_node_index(index) for index in local_indices))
+                section_weights.append(weights)
+
+            result.append((tuple(section_indices), tuple(section_weights)))
+        return tuple(result)
 
     def insert_empty_region_perms(self, empty_region_perms: dict[str, set]):
         print("\nAdding Empty Region Permutations")

@@ -24,7 +24,7 @@ unfinished migration work, not the intended workaround.
 | ID | Games / data | Failure and evidence | Layer / current workaround | Resolution needed |
 | --- | --- | --- | --- | --- |
 | READ-003 | Tag-function editor descriptions: unknown transition functions | The Python describe path raises `unknown transition function` when the transition index has no text mapping. Earlier read-only sampling found two such functions among 266 functions from 60 object tags. Exact asset paths were not retained in this record and must be captured on reproduction. Raw payload reading/round-trip succeeded; semantic description did not. | Function decoding/binding. Unsupported object-function conversion now raises an explicit error; the legacy editor fallback has been removed. | Reproduce and record tag path, field and index; support the missing transition or expose a lossless representation usable by Foundry. |
-| READ-005 | Halo 1 `gbxmodel` render-mesh skinning | `TagFile.render_model_meshes()` currently returns `[0, 0, 0, 0]` and `[1, 0, 0, 0]` for every H1 vertex, discarding the authored `node0/node1 index` and weight fields. This made the HCE cyborg mesh contain only a pelvis group. | Rust semantic render-model decoder. Foundry reads the two authored influences and optional part-local node map through blam-tags' structured fields before Blender allocation. | Populate `RenderVertex.node_indices/node_weights` in `read_gbxmodel_render_vertex`, applying the part-local node map when the model flag requires it, then rebuild the Python wheel. |
+| READ-005 | Halo 1 `gbxmodel` and Halo 2 `render_model` render-mesh skinning | `TagFile.render_model_meshes()` currently returns `[0, 0, 0, 0]` and `[1, 0, 0, 0]` for every H1 and H2 vertex, discarding the authored node indices and weights. This made the HCE cyborg and H2 Master Chief meshes contain only a pelvis group. | Rust semantic render-model decoder. Foundry reads H1's two authored influences and optional part-local map, plus H2's four influences and per-section node map, through blam-tags' structured fields before Blender allocation. | Populate `RenderVertex.node_indices/node_weights` in `read_gbxmodel_render_vertex` and `read_h2_render_vertex`, applying each format's local node map, then rebuild the Python wheel. |
 
 ### Evidence locations
 
@@ -33,9 +33,10 @@ unfinished migration work, not the intended workaround.
 - READ-002: Foundry `tags/backend.py`, `CameraTrackDocument.__init__`.
 - READ-003: local `blam-tags-py/src/manual/functions.rs` and the historical
   function-decoding sample in [MIGRATION_STATUS.md](MIGRATION_STATUS.md).
-- READ-005: local `blam-tags/src/render_model.rs` function
-  `read_gbxmodel_render_vertex`; verified with
-  `HCEEK/tags/characters/cyborg/cyborg.gbxmodel`.
+- READ-005: local `blam-tags/src/render_model.rs` functions
+  `read_gbxmodel_render_vertex` and `read_h2_render_vertex`; verified with
+  `HCEEK/tags/characters/cyborg/cyborg.gbxmodel` and
+  `H2EK/tags/objects/characters/masterchief/masterchief.render_model`.
 
 ## Separate integration work — not confirmed blam-tags read failures
 

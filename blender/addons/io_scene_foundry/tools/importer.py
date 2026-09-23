@@ -314,6 +314,7 @@ def draw_model_tag_import_sections(operator, layout, corinth, show_template=True
     core_box = layout.box()
     core_box.label(text="Core Model")
     core_box.prop(operator, "tag_render")
+    core_box.prop(operator, "render_lod")
     core_box.prop(operator, "tag_markers")
 
     reimport_box = layout.box()
@@ -705,9 +706,20 @@ IMPORT_OPERATOR_ENUM_DEFAULTS = {
     "tag_state": "default",
     "tag_model_override_type": "none",
     "decorator_lod": "1",
+    "render_lod": "ALL",
     "import_fp_arms": "NONE",
     "legacy_type": "auto",
 }
+
+RENDER_LOD_ITEMS = [
+    ("ALL", "All", "Import every available Halo 2 level of detail"),
+    ("L1", "L1", "Import the super-low detail geometry"),
+    ("L2", "L2", "Import the low detail geometry"),
+    ("L3", "L3", "Import the medium detail geometry"),
+    ("L4", "L4", "Import the high detail geometry"),
+    ("L5", "L5", "Import the default super-high detail geometry"),
+    ("L6", "L6", "Import the cinematic geometry"),
+]
 
 def ensure_import_operator_enum_defaults(keywords):
     for prop_name, default in IMPORT_OPERATOR_ENUM_DEFAULTS.items():
@@ -1017,6 +1029,13 @@ class NWO_Import(bpy.types.Operator):
     tag_render: bpy.props.BoolProperty(
         name="Import Render Geometry",
         default=True,
+    )
+    render_lod: bpy.props.EnumProperty(
+        name="Halo 2 LOD",
+        description="Level of detail to import from Halo 2 render models",
+        items=RENDER_LOD_ITEMS,
+        default="ALL",
+        options={'SKIP_SAVE'},
     )
     tag_markers: bpy.props.BoolProperty(
         name="Import Markers",
@@ -1362,6 +1381,7 @@ class NWO_Import(bpy.types.Operator):
                 importer = NWOImporter(context, filepaths, scope_list)
                 importer.graph_bake_to_control_rig = self.graph_bake_to_control_rig
                 importer.graph_convert_to_reach = self.graph_convert_to_reach
+                importer.render_lod = self.render_lod
                 switch_blender_scene = None
                 
                 mouse_matrix = utils.matrix_from_mouse(self.mouse_x, self.mouse_y)
@@ -2238,7 +2258,7 @@ class NWO_Import(bpy.types.Operator):
         layout.scale_y = 1.25
         corinth = utils.is_corinth(context)
         scope_items = set(self.scope.split(',')) if self.scope else set()
-        if not self.scope or ('jms' in self.scope or 'model' in self.scope or 'object' in self.scope):
+        if not self.scope or ('jms' in self.scope or 'model' in self.scope or 'object' in self.scope or 'render_model' in self.scope):
             box = layout.box()
             box.label(text="Model Settings")
             tag_type = 'material' if utils.is_corinth(context) else 'shader'
@@ -2258,6 +2278,15 @@ class NWO_Import(bpy.types.Operator):
                 include_generate_frames=True,
                 show_material_options=False,
             )
+
+        if 'render_model' in scope_items and 'model' not in scope_items and 'object' not in scope_items:
+            box = layout.box()
+            box.label(text='Render Model Settings')
+            box.prop(self, 'reuse_armature')
+            box.prop(self, 'build_control_rig')
+            box.prop(self, 'tag_render')
+            box.prop(self, 'render_lod')
+            box.prop(self, 'tag_markers')
             
         if not self.scope or ('scenario' in scope_items) or ('scenario_structure_bsp' in scope_items):
             layout.label(text='Scenario Tag Settings')
@@ -2498,6 +2527,7 @@ class NWOImporter:
         self.prefix_setting = utils.get_prefs().apply_prefix
         self.corinth = utils.is_corinth(context)
         self.tag_render = False
+        self.render_lod = 'ALL'
         self.tag_markers = False
         self.tag_collision = False
         self.tag_physics = False
@@ -3215,7 +3245,7 @@ class NWOImporter:
                                                     fp_collection = bpy.data.collections.new(f"FP Arms - {self.import_fp_arms.name.title()}")
                                                     scene_collection.children.link(fp_collection)
                                                     with RenderModelTag(path=fp_arms_path) as render_model:
-                                                        fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, scene_collection, None, allowed_fp_region_permutations, no_io=True, build_control_rig=False)
+                                                        fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, scene_collection, None, allowed_fp_region_permutations, no_io=True, build_control_rig=False, selected_lod=self.render_lod)
                                                         fp_objects.remove(fp_armature)
                                                         render_objects.extend(fp_objects)
                                                         
@@ -3560,7 +3590,7 @@ class NWOImporter:
         model_collection.children.link(collection)
         with utils.TagImportMover(self.tags_dir, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
-                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals, build_control_rig=self.build_control_rig and allow_control_rig)
+                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals, build_control_rig=self.build_control_rig and allow_control_rig, selected_lod=self.render_lod)
                 render_model_objects.extend(render_model.skylights_to_blender(collection))
             
         return render_model_objects, armature
@@ -4548,6 +4578,13 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     tag_render: bpy.props.BoolProperty(
         name="Import Render Geometry",
         default=True,
+    )
+    render_lod: bpy.props.EnumProperty(
+        name="Halo 2 LOD",
+        description="Level of detail to import from Halo 2 render models",
+        items=RENDER_LOD_ITEMS,
+        default="ALL",
+        options={'SKIP_SAVE'},
     )
     tag_markers: bpy.props.BoolProperty(
         name="Import Markers",
