@@ -1237,7 +1237,7 @@ class NWO_Import(bpy.types.Operator):
     graph_import_animations: bpy.props.BoolProperty(
         name="Import Animations",
         default=True,
-        description="Imports animations from the graph. Root movement stored separately from the base pose is not yet supported"
+        description="Imports animations from the graph"
     )
     graph_bake_to_control_rig: bpy.props.BoolProperty(
         name="Bake to Control Rig",
@@ -4862,7 +4862,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     graph_import_animations: bpy.props.BoolProperty(
         name="Import Animations",
         default=True,
-        description="Imports animations from the graph. Root movement stored separately from the base pose is not yet supported"
+        description="Imports animations from the graph"
     )
     graph_bake_to_control_rig: bpy.props.BoolProperty(
         name="Bake to Control Rig",

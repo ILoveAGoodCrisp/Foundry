@@ -68,6 +68,14 @@ APPLY_OBJECT_SPACE_PARENT_CORRECTION_TO_FULL_ANIMATION = False
 PRESERVE_OVERLAY_OBJECT_SPACE_PARENT_FRAME = True
 PRESERVE_REPLACEMENT_OBJECT_SPACE_PARENT_FRAME = True
 POSE_OVERLAY_REST_BASE_NAMES = {"any:look", "any:aim_spine"}
+NATIVE_MOVEMENT_KINDS = {
+    'None': FrameInfoType.NONE,
+    'DxDy': FrameInfoType.DX_DY,
+    'DxDyDyaw': FrameInfoType.DX_DY_DYAW,
+    'DxDyDzDyaw': FrameInfoType.DX_DY_DZ_DYAW,
+    'DxDyDzDangleAxis': FrameInfoType.DX_DY_DZ_DANGLE_AXIS,
+    'XyzAbsolute': FrameInfoType.XYZ_ABSOLUTE,
+}
 # Object-space parent nodes are metadata generated from frame 0 by Tool.
 # Set APPLY_OBJECT_SPACE_PARENT_CORRECTION_TO_FULL_ANIMATION to False to use
 # frame-0-only preservation instead of baking the correction across playback.
@@ -3662,13 +3670,25 @@ class AnimationTag(AnimationGraphTag):
         )
 
     def _native_animation_movement(
-        self, tag_animation: Animation, pose: dict
+        self, pose: dict[str, object],
     ) -> MovementData | None:
-        records = pose['movement']
-        if not records:
+        raw_records = pose.get('movement')
+        if raw_records is None or raw_records == []:
             return None
+        if not isinstance(raw_records, list):
+            raise TypeError(
+                f'{self.path}: blam-tags returned malformed animation movement data')
+        records = cast(
+            list[tuple[float, float, float, float, float, float, float]],
+            raw_records)
+        kind_name = str(pose.get('movement_kind', ''))
+        frame_info_type = NATIVE_MOVEMENT_KINDS.get(kind_name)
+        if frame_info_type is None or frame_info_type == FrameInfoType.NONE:
+            raise ValueError(
+                f'{self.path}: blam-tags returned movement records with '
+                f'unsupported kind {kind_name!r}')
         return MovementData(
-            tag_animation.frame_info_type,
+            frame_info_type,
             [Vector((record[0], record[1], record[2])) * 100.0
              for record in records],
             [Quaternion((record[6], record[3], record[4], record[5]))
@@ -3711,7 +3731,7 @@ class AnimationTag(AnimationGraphTag):
         animation_data = self._animation_data_from_native_pose(native_pose)
         if tag_animation.animation_type in (AnimationType.NONE, AnimationType.BASE):
             append_final_frame(animation_data)
-            movement = self._native_animation_movement(tag_animation, native_pose)
+            movement = self._native_animation_movement(native_pose)
             if movement is not None:
                 if getattr(self, '_reach_pedestal_node', None) is not None:
                     self._reach_unmoved_roots[id(animation_data)] = [

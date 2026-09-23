@@ -1049,6 +1049,15 @@ H2 Brute graph decoded all 406 animations (12,965 composed frames) through the
 native blam-tags pose path. This closes the earlier filtered-resource coverage;
 full Blender action creation and visual pose comparison across more graphs remain.
 
+Classic root movement is also native. Foundry consumes the detached movement
+records returned with each blam-tags pose, prepends the stationary first frame,
+uses the movement kind reported by the decoded payload, and accumulates local
+translation and rotation onto the root or converted pedestal. Unknown movement
+kinds fail explicitly instead of being interpreted through stale tag metadata.
+The HCE Cyborg sample decoded 4,910 movement frames across 153 animations, while
+the H2 Brute decoded 4,616 movement frames across 144 animations. The importer UI
+no longer reports this already connected path as unsupported.
+
 Halo 1 render-model skeleton construction now inverts each stored default node
 rotation before composing the Blender rest pose, matching the Halo 1 tag
 convention and the io_scene_halo importer. Blender 5.1 validation against the
