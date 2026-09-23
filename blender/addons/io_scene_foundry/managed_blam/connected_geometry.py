@@ -631,11 +631,13 @@ class Face:
 
 class Node:
     @classmethod
-    def from_native(cls, record: 'RenderModelNode'):
+    def from_native(cls, record: 'RenderModelNode', *, invert_rotation: bool = False) -> 'Node':
         node = cls(record.name)
         node.index = record.index
         node.translation = Vector(record.translation) * 100
         node.rotation = Quaternion((record.rotation[3], *record.rotation[:3]))
+        if invert_rotation:
+            node.rotation.invert()
         node.inverse_forward = Vector(record.inverse_forward)
         node.inverse_left = Vector(record.inverse_left)
         node.inverse_up = Vector(record.inverse_up)

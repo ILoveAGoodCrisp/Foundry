@@ -112,7 +112,10 @@ class RenderModelTag(RenderModelMetadataTag):
         yaw = None
         nodes_dict = {}
         for record in self._native_nodes:
-            node = Node.from_native(record)
+            # Halo 1 stores model-node default rotations in the inverse
+            # convention used by later games. Convert them before composing
+            # each local transform into the Blender rest pose.
+            node = Node.from_native(record, invert_rotation=self.game == 'halo1')
             rotation = record.rotation
             parent_index = record.parent_index
             if parent_index > -1:

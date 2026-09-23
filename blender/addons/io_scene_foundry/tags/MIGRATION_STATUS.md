@@ -1039,3 +1039,9 @@ The HCE Captain graph decoded all 22 animations (1,048 composed frames), and the
 H2 Brute graph decoded all 406 animations (12,965 composed frames) through the
 native blam-tags pose path. This closes the earlier filtered-resource coverage;
 full Blender action creation and visual pose comparison across more graphs remain.
+
+Halo 1 render-model skeleton construction now inverts each stored default node
+rotation before composing the Blender rest pose, matching the Halo 1 tag
+convention and the io_scene_halo importer. Blender 5.1 validation against the
+19-node HCE cyborg model confirmed that 18 non-identity rotations take the
+corrected path. Halo 2 and later node rotations retain their existing convention.
