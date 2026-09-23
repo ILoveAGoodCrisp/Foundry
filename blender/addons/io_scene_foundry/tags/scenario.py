@@ -827,7 +827,6 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
             cache_index = int(self.value(group, 'cache block'))
             start = int(self.value(group, 'decorator start index'))
             count = int(self.value(group, 'decorator count'))
-            type_index = int(self.value(group, 'shader index'))
             if not (0 <= set_index < len(palette) and
                     0 <= cache_index < len(cache_blocks) and count > 0):
                 continue
@@ -841,6 +840,7 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
             output = placements_by_set.setdefault(set_index, [])
             for placement_index in range(max(0, start), end):
                 placement = native_placements[placement_index]
+                internal_data = int(self.value(placement, 'internal data 1')) & 0xFFFFFFFF
                 output.append(ScenarioDecoratorPlacement(
                     position=self._halo2_decorator_position(
                         int(self.value(placement, 'compressed position')),
@@ -850,7 +850,10 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                     # blam-tags. Preserve useful placement/type/tint data now.
                     rotation=(0.0, 0.0, 0.0, 1.0),
                     scale=1.0,
-                    type_index=type_index,
+                    # H2 decorator sets permit eight classes; the placement's
+                    # low three bits select the class independently of the
+                    # group's render-shader index.
+                    type_index=internal_data & 0x7,
                     motion_scale=255,
                     ground_tint=255,
                     tint=self._halo2_decorator_tint(

@@ -986,11 +986,16 @@ planes for billboard, rotating-quad and decal classes. A Blender 5.1 sweep impor
 all 24 local H2 decorator sets as 184 objects with 2,784 vertices and 1,778 faces.
 Halo 2 scenario decorator placement caches now traverse their sparse spatial
 octree and decode the cell-relative 10/10/10-bit positions, palette/class selections
-and tint. A Cairo Station sample produced 326 records; four packed positions checked
+and tint. The low three bits of each placement's `internal data 1` word select its
+decorator class independently of the group's shader index. A Cairo Station sample
+produced 326 records; four packed positions checked
 against generated decal-vertex centers agreed within 0.007 world units. blam-tags
 does not yet semantically expose the rotation and per-instance scale packed into
 `internal data 1`, so those attributes currently use identity and unit values and
-are tracked as READ-006.
+are tracked as READ-006. A Python 3.14 sweep decoded 1,485,497 importable placements
+from all 237 populated scenarios among the 333 local H2 scenario files without an
+invalid range or decorator-class index. It separately found and skipped 14,246
+orphaned groups whose source palette index is `-1`, concentrated in editor backups.
 
 Classic shader acceptance now builds Blender node trees for all 1,412 genuine HCE
 shader-family tags in the local kit, covering model, environment, glass, water,
