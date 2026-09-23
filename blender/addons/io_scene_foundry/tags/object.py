@@ -116,6 +116,14 @@ class ObjectDocument(TagDocument):
                            definitions=self.definitions, must_exist=True) as model:
             return model.get_model_variants()
 
+    def get_model_permutations(self) -> list[str]:
+        ref = self.reference_model.Path
+        if not self.path_exists(ref):
+            return []
+        with ModelDocument(ref, tags_root=self.tags_root, game=self.game,
+                           definitions=self.definitions, must_exist=True) as model:
+            return model.get_model_permutations()
+
     def get_change_colors(self, variant=''):
         colors = self.block(self.object_struct(), 'change colors')
         if not len(colors):

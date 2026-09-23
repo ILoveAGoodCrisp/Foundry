@@ -39,6 +39,13 @@ class RenderModelTag(RenderModelMetadataTag):
         
         self.regions: list[Region] = [Region.from_native(record)
                                       for record in self._native_regions]
+        if isinstance(allowed_region_permutations, str):
+            allowed_region_permutations = {
+                (region.name, allowed_region_permutations)
+                for region in self.regions
+                if any(permutation.name == allowed_region_permutations
+                       for permutation in region.permutations)
+            }
         
         if render:
             # print("Creating Render Geometry")

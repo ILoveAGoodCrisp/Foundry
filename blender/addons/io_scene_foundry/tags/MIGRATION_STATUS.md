@@ -1085,3 +1085,9 @@ semantic decoder is extended. A scan of all 1,120 H2EK render models found
 1,435,973 raw vertices using the new-index layout, including 115,947 vertices
 with multiple influences. Blender 5.2 validation of Master Chief L5 produced
 31 bone groups, 2,256 weighted vertices and 484 multi-weighted vertices.
+
+Halo 1 model and object drag-and-drop dialogs now show a Permutation selector
+instead of the later-game Variant selector. Permutation names are read from the
+referenced H1 model through blam-tags, with All Permutations as the default, and
+the selection filters render geometry and markers across matching regions. The
+HCE grunt biped resolved `base00` and `shellback` from its referenced model.

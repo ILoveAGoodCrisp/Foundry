@@ -38,6 +38,17 @@ class ModelDocument(TagDocument):
             return []
         return [cast(str, self.value(e, 'name')) for e in self.variants()]
 
+    def get_model_permutations(self) -> list[str]:
+        """Return the render permutation names exposed directly by an H1 model."""
+        if self.game != 'halo1':
+            return []
+        names = (
+            cast(str, self.value(permutation, 'name'))
+            for region in self.block(self.tag.root(), 'regions')
+            for permutation in self.block(region, 'permutations')
+        )
+        return list(dict.fromkeys(name for name in names if name))
+
     def get_render_model(self, optional_tag_root=None, override_type=None):
         reference = self.reference_render_model.Path
         if self.game in {'halo4', 'halo2a'} and override_type is not None:

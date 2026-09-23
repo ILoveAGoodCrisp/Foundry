@@ -284,14 +284,16 @@ def draw_graph_import_options(operator, layout, corinth):
     layout.prop(operator, "graph_import_events")
     layout.prop(operator, "graph_import_ik_chains")
 
-def draw_model_source_options(operator, layout, corinth, show_model_override, show_variant, show_state=True):
-    if not show_model_override and not show_variant:
+def draw_model_source_options(operator, layout, corinth, show_model_override, show_variant, show_state=True, show_permutation=False):
+    if not show_model_override and not show_variant and not show_permutation:
         return
 
     box = layout.box()
     box.label(text="Selection")
     if show_model_override and corinth:
         box.prop(operator, "tag_model_override_type")
+    if show_permutation:
+        box.prop(operator, "tag_permutation")
     if show_variant:
         box.prop(operator, "tag_variant")
         if show_state and getattr(operator, "tag_variant", "") != "all_variants":
@@ -299,12 +301,13 @@ def draw_model_source_options(operator, layout, corinth, show_model_override, sh
             if getattr(operator, "tag_markers", False):
                 box.prop(operator, "import_variant_children")
 
-def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True):
+def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, has_permutations=False, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True):
     if show_template:
         draw_import_template(operator, layout)
 
     if show_source:
-        draw_model_source_options(operator, layout, corinth, has_variants, has_variants)
+        draw_model_source_options(operator, layout, corinth, has_variants, has_variants,
+                                  show_permutation=has_permutations)
 
     rig_box = layout.box()
     rig_box.label(text="Rigging")
@@ -658,6 +661,8 @@ def _apply_scenario_node_orientations(armature: bpy.types.Object, node_mask: lis
 
 variant_items = []
 last_used_variant = ""
+
+permutation_items = []
 
 decorator_type_items = []
 last_used_decorator_type = ""
@@ -1061,6 +1066,12 @@ class NWO_Import(bpy.types.Operator):
         options={'SKIP_SAVE'},
         description="Optional field to declare a variant to import. If this field is left blank, all variants will be imported (except if this is for a cinematic, in which case the first variant will be used)"
     )
+
+    tag_permutation: bpy.props.StringProperty(
+        name="Permutation",
+        options={'SKIP_SAVE'},
+        description="Optional Halo 1 model permutation to import. Leave blank to import all permutations",
+    )
     
     import_variant_children: bpy.props.BoolProperty(
         name="Import Variant Child Objects",
@@ -1344,6 +1355,8 @@ class NWO_Import(bpy.types.Operator):
         last_used_variant = self.tag_variant
         if self.tag_variant == "all_variants":
             self.tag_variant = ""
+        if self.tag_permutation == "all_permutations":
+            self.tag_permutation = ""
         if self.tag_zone_set == "all_zone_sets":
             self.tag_zone_set = ""
         if self.decorator_type == "all_types":
@@ -1434,6 +1447,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_physics = self.tag_physics
                     importer.tag_animation = self.tag_animation
                     importer.tag_variant = self.tag_variant.lower()
+                    importer.tag_permutation = self.tag_permutation.lower()
                     importer.tag_state = State[self.tag_state].value
                     importer.tag_model_override_type = RenderModelOverrideType(self.tag_model_override_type) if self.tag_model_override_type != 'none' else None
                     importer.tag_animation_filter = self.tag_animation_filter
@@ -1513,6 +1527,7 @@ class NWO_Import(bpy.types.Operator):
                         importer.tag_physics = self.tag_physics
                         importer.tag_animation = self.tag_animation
                         importer.tag_variant = self.tag_variant.lower()
+                        importer.tag_permutation = self.tag_permutation.lower()
                         importer.tag_state = State[self.tag_state].value
                         importer.tag_animation_filter = self.tag_animation_filter
                         importer.graph_import_animations = self.graph_import_animations
@@ -2543,6 +2558,7 @@ class NWOImporter:
         self.import_fp_arms = FPARMS.NONE
         # self.to_cursor_objects = set()
         self.tag_variant = ""
+        self.tag_permutation = ""
         self.tag_state = -1
         self.tag_zone_set = ""
         self.tag_bsp_render_only = False
@@ -2724,6 +2740,7 @@ class NWOImporter:
         return (
             str(file).lower(),
             variant,
+            self.tag_permutation,
             self.tag_render,
             self.tag_markers,
             self.tag_state,
@@ -2988,8 +3005,9 @@ class NWOImporter:
         imported_objects = []
         imported_animations = []
         for file in paths:
-            if self.tag_variant:
-                print(f'Importing Model Tag: {Path(file).with_suffix("").name} [{self.tag_variant}] ')
+            selection = self.tag_variant or self.tag_permutation
+            if selection:
+                print(f'Importing Model Tag: {Path(file).with_suffix("").name} [{selection}] ')
             else:
                 print(f'Importing Model Tag: {Path(file).with_suffix("").name} ')
             with utils.TagImportMover(self.tags_dir, file) as mover:
@@ -3002,9 +3020,11 @@ class NWOImporter:
                         
                     render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root, override_type=self.tag_model_override_type)
                     
-                    allowed_region_permutations = model.get_variant_regions_and_permutations(self.tag_variant, self.tag_state)
-                    if self.tag_variant:
-                        model_collection = bpy.data.collections.new(f"{model.tag_path.ShortName} [{self.tag_variant}]")
+                    allowed_region_permutations = (self.tag_permutation if model.game == 'halo1'
+                                                   else model.get_variant_regions_and_permutations(self.tag_variant, self.tag_state))
+                    selection = self.tag_variant or self.tag_permutation
+                    if selection:
+                        model_collection = bpy.data.collections.new(f"{model.tag_path.ShortName} [{selection}]")
                     else:
                         model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                     self.scene_collection.children.link(model_collection)
@@ -3131,8 +3151,9 @@ class NWOImporter:
             #     imported_objects.extend(imported_file_objects)
             #     continue
             
-            if self.tag_variant:
-                utils.print_section(f'Importing Object Tag: {Path(file).name} [{self.tag_variant}]')
+            selection = self.tag_variant or self.tag_permutation
+            if selection:
+                utils.print_section(f'Importing Object Tag: {Path(file).name} [{selection}]')
             else:
                 utils.print_section(f'Importing Object Tag: {Path(file).name} ')
                 
@@ -3195,9 +3216,11 @@ class NWOImporter:
                                     imported_objects.extend(imported_file_objects)
                                     continue
                             
-                            allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
-                            if temp_variant:
-                                model_collection = bpy.data.collections.new(f"{model.tag_path.ShortName} [{temp_variant}]")
+                            allowed_region_permutations = (self.tag_permutation if obj.game == 'halo1'
+                                                           else model.get_variant_regions_and_permutations(temp_variant, self.tag_state))
+                            selection = temp_variant or self.tag_permutation
+                            if selection:
+                                model_collection = bpy.data.collections.new(f"{model.tag_path.ShortName} [{selection}]")
                             else:
                                 model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                             scene_collection.children.link(model_collection)
@@ -4624,6 +4647,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             return [("all_variants", "All Variants", "Includes the full model geometry")]
             
         return items
+
+    def items_tag_permutation(self, context):
+        return [("all_permutations", "All Permutations", "Import every model permutation"), *(
+            (permutation, permutation, "") for permutation in permutation_items
+        )]
     
     def items_decorator_type(self, context):
         dec_match = False
@@ -4665,6 +4693,13 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         options={'SKIP_SAVE'},
         description="Model variant to import, or all",
         items=items_tag_variant,
+    )
+
+    tag_permutation: bpy.props.EnumProperty(
+        name="Permutation",
+        options={'SKIP_SAVE'},
+        description="Halo 1 model permutation to import, or all",
+        items=items_tag_permutation,
     )
     
     setup_as_asset: bpy.props.BoolProperty(
@@ -4975,6 +5010,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         suffix = Path(self.filepath).suffix.lower()
         self.place_at_mouse = scene_nwo.asset_type == 'scenario' and (suffix == '.prefab' or suffix == '.decorator_set' or suffix in OBJECT_TAG_EXTS)
         self.has_variants = False
+        self.has_permutations = False
         self.has_zone_sets = False
         self.import_type = Path(self.filepath).suffix[1:].lower()
         set_default_import_template(self)
@@ -5025,12 +5061,25 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         
             elif self.import_type in {"model", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon"}:
                 global variant_items
+                global permutation_items
+                variant_items = []
+                permutation_items = []
                 if self.import_type == "model":
                     with ModelTag(path=self.filepath) as model:
-                        variant_items = model.get_model_variants()
+                        if model.game == 'halo1':
+                            permutation_items = model.get_model_permutations()
+                            self.has_permutations = True
+                            self.tag_permutation = "all_permutations"
+                        else:
+                            variant_items = model.get_model_variants()
                 else:
                     with ObjectTag(path=self.filepath) as object_tag:
-                        variant_items = object_tag.get_variants()
+                        if object_tag.game == 'halo1':
+                            permutation_items = object_tag.get_model_permutations()
+                            self.has_permutations = True
+                            self.tag_permutation = "all_permutations"
+                        else:
+                            variant_items = object_tag.get_variants()
                 if variant_items:
                     self.has_variants = True
             if self.place_at_mouse:
@@ -5051,8 +5100,10 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         match self.import_type:
             case "model" | "biped" | "crate" | "creature" | "device_control" | "device_dispenser" | "effect_scenery" | "equipment" | "giant" | "device_machine" | "projectile" | "scenery" | "spawner" | "sound_scenery" | "device_terminal" | "vehicle" | "weapon":
                 if self.place_at_mouse:
-                    if self.has_variants:
-                        draw_model_source_options(self, layout, corinth, True, True)
+                    if self.has_variants or self.has_permutations:
+                        draw_model_source_options(
+                            self, layout, corinth, self.has_variants, self.has_variants,
+                            show_permutation=self.has_permutations)
                     layout.prop(self, "convert_to_instance")
                 else:
                     draw_model_tag_import_sections(
@@ -5060,8 +5111,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         layout,
                         corinth,
                         show_template=True,
-                        show_source=self.has_variants,
+                        show_source=self.has_variants or self.has_permutations,
                         has_variants=self.has_variants,
+                        has_permutations=self.has_permutations,
                         show_fp_arms=self.import_type == "weapon",
                         show_biped_weapon=self.import_type == "biped",
                     )
