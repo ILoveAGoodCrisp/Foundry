@@ -67,6 +67,7 @@ APPLY_POSITION_OFFSET_TO_OVERLAYS_AND_REPLACEMENTS = True
 APPLY_OBJECT_SPACE_PARENT_CORRECTION_TO_FULL_ANIMATION = False
 PRESERVE_OVERLAY_OBJECT_SPACE_PARENT_FRAME = True
 PRESERVE_REPLACEMENT_OBJECT_SPACE_PARENT_FRAME = True
+POSE_OVERLAY_REST_BASE_NAMES = {"any:look", "any:aim_spine"}
 # Object-space parent nodes are metadata generated from frame 0 by Tool.
 # Set APPLY_OBJECT_SPACE_PARENT_CORRECTION_TO_FULL_ANIMATION to False to use
 # frame-0-only preservation instead of baking the correction across playback.
@@ -3539,6 +3540,99 @@ class AnimationTag(AnimationGraphTag):
             node.scale,
         )
 
+    def _native_frame_tuples(self, frame: FrameChannels) -> list[tuple[float, ...]]:
+        result = []
+        for translation, source_rotation, scale in zip(
+                frame.translations, frame.rotations, frame.scales):
+            rotation = source_rotation.copy()
+            if self.game == 'halo1':
+                rotation.invert()
+            translation = translation / 100.0
+            result.append((
+                translation.x,
+                translation.y,
+                translation.z,
+                rotation.x,
+                rotation.y,
+                rotation.z,
+                rotation.w,
+                scale,
+            ))
+        return result
+
+    def _native_frame_channels(self, transforms) -> FrameChannels:
+        translations = []
+        rotations = []
+        scales = []
+        for transform in transforms:
+            tx, ty, tz, qx, qy, qz, qw, scale = transform
+            translations.append(Vector((tx, ty, tz)) * 100.0)
+            rotation = Quaternion((qw, qx, qy, qz))
+            if self.game == 'halo1':
+                rotation.invert()
+            rotations.append(rotation)
+            scales.append(scale)
+        return FrameChannels(translations, rotations, scales)
+
+    def _prepend_native_leading_frame(self, animation_data: AnimationData, native_pose: dict) -> None:
+        transforms = native_pose.get('leading_frame') or ()
+        if len(transforms) != animation_data.node_count:
+            return
+        frame = self._native_frame_channels(transforms)
+        for node_index in range(animation_data.node_count):
+            animation_data.translations[node_index].insert(0, frame.translations[node_index])
+            animation_data.rotations[node_index].insert(0, frame.rotations[node_index])
+            animation_data.scales[node_index].insert(0, frame.scales[node_index])
+        animation_data.frame_count += 1
+
+    def _best_overlay_base_animation(
+        self,
+        tag_animation: Animation,
+        graph: dict,
+        all_tag_animations: list[Animation],
+    ) -> Animation | None:
+        if tag_animation.name.tag_name.lower() in POSE_OVERLAY_REST_BASE_NAMES:
+            return None
+
+        candidate_name_groups = self._base_animation_candidate_name_groups(graph, tag_animation)
+        candidate_names = [name for group in candidate_name_groups for name in group]
+        raw_candidates = []
+        resolved_candidates = []
+        for names in candidate_name_groups:
+            raw_candidates = self._get_base_animation_candidates(
+                graph, names, tag_animation.animation_type)
+            resolved_candidates = self._resolved_base_candidates(
+                raw_candidates, all_tag_animations)
+            if resolved_candidates:
+                break
+
+        # Classic graphs such as Halo 1 have no mode/state graph block. Names
+        # still carry enough scope information to select the closest action;
+        # this also covers later tags with incomplete graph entries.
+        if not resolved_candidates and tag_animation.name.valid and not tag_animation.name.custom:
+            for state in self._base_state_candidates(
+                    tag_animation.name, tag_animation.animation_type):
+                base_name = tag_animation.name.copy()
+                base_name.state = state
+                base_name.destination_mode = ""
+                base_name.destination_state = ""
+                base_name.direction = ""
+                base_name.region = ""
+                candidate = self._seek_best_matching_base_animation(
+                    tag_animation, base_name, all_tag_animations)
+                if candidate is not None:
+                    resolved_candidates = [candidate]
+                    break
+
+        self._debug_print_base_animation_candidates(
+            tag_animation,
+            candidate_names,
+            raw_candidates,
+            resolved_candidates,
+            "pose overlay uses rest base" if tag_animation.name.tag_name.lower() in POSE_OVERLAY_REST_BASE_NAMES else "",
+        )
+        return resolved_candidates[0] if resolved_candidates else None
+
     def _animation_data_from_native_pose(self, pose: dict) -> AnimationData:
         frames = pose['frames']
         frame_count = len(frames)
@@ -3592,10 +3686,28 @@ class AnimationTag(AnimationGraphTag):
                 'The loaded blam-tags binding predates native animation decoding. '
                 'Restart Blender after updating Foundry so it loads the bundled wheel.'
             )
-        native_pose = animation_pose(
-            index,
-            [self._native_default_tuple(node) for node in defaults],
-        )
+        pose_defaults = [self._native_default_tuple(node) for node in defaults]
+        selected_base_animation = None
+        base_animation = None
+        if tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
+            selected_base_animation = self._best_overlay_base_animation(
+                tag_animation, graph, all_tag_animations)
+            if selected_base_animation is not None:
+                base_animation = self._build_animation(
+                    selected_base_animation,
+                    defaults,
+                    overlay_defaults,
+                    graph,
+                    shared_static_codec,
+                    resource_cache,
+                    animation_cache,
+                    all_tag_animations,
+                    final_frame_stack,
+                )
+                if base_animation.frame_count:
+                    pose_defaults = self._native_frame_tuples(base_animation.first_frame())
+
+        native_pose = animation_pose(index, pose_defaults)
         animation_data = self._animation_data_from_native_pose(native_pose)
         if tag_animation.animation_type in (AnimationType.NONE, AnimationType.BASE):
             append_final_frame(animation_data)
@@ -3612,7 +3724,18 @@ class AnimationTag(AnimationGraphTag):
                     self._movement_data_from_second_frame(
                         movement, animation_data.frame_count),
                 )
-        elif tag_animation.animation_type == AnimationType.OVERLAY:
+        elif tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
+            self._prepend_native_leading_frame(animation_data, native_pose)
+            base_frame = animation_data.first_frame()
+            self._debug_print_applied_base_animation(
+                tag_animation,
+                selected_base_animation,
+                base_animation,
+                base_frame,
+                self._object_space_parent_transform_targets(tag_animation),
+                [],
+                [],
+            )
             if tag_animation.is_pose_overlay:
                 self._apply_pose_overlay_blend_screen_control_basis(tag_animation, animation_data)
         animation_cache[index] = animation_data

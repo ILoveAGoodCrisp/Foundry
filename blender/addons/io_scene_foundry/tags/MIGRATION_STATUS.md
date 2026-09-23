@@ -1091,3 +1091,11 @@ instead of the later-game Variant selector. Permutation names are read from the
 referenced H1 model through blam-tags, with All Permutations as the default, and
 the selection filters render geometry and markers across matching regions. The
 HCE grunt biped resolved `base00` and `shellback` from its referenced model.
+
+Halo 1 and Halo 2 overlay and replacement animation imports now use Foundry's
+Reach-style base-animation search before native pose decoding. The chosen idle
+or locomotion frame is supplied to blam-tags as the composition base, and the
+native leading frame is retained as frame 1 of the Blender action. Targeted HCE
+cyborg and H2 Master Chief checks covered both overlay and replacement clips;
+each imported action contained one leading frame and matched its selected base
+pose within floating-point tolerance.
