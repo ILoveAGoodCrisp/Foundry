@@ -20,7 +20,7 @@ Measured as dependency replacement, the migration is now 100%: the add-on has no
 ManagedBlam tag-access path to fall back to. This does not mean every workflow has
 completed visual or editing-kit acceptance.
 
-**H1/H2 feature-parity estimate: about 91%.** Core loose-tag loading/saving,
+**H1/H2 feature-parity estimate: about 92%.** Core loose-tag loading/saving,
 object/model geometry, all H2 LODs, collision/physics, classic animation decoding,
 bitmap and cubemap extraction, broad shader construction, scenario metadata,
 native legacy export dispatch and inline animation-event writing, and scenario BSP
@@ -984,9 +984,13 @@ later render-model-reference layout. Foundry imports embedded model vertices,
 indices, normals, UVs and shader references, and creates representative source
 planes for billboard, rotating-quad and decal classes. A Blender 5.1 sweep imported
 all 24 local H2 decorator sets as 184 objects with 2,784 vertices and 1,778 faces.
-Halo 2 scenario decorator placement caches use a separate packed representation;
-decoding those cached transforms and type selections remains scenario integration
-work.
+Halo 2 scenario decorator placement caches now traverse their sparse spatial
+octree and decode the cell-relative 10/10/10-bit positions, palette/class selections
+and tint. A Cairo Station sample produced 326 records; four packed positions checked
+against generated decal-vertex centers agreed within 0.007 world units. blam-tags
+does not yet semantically expose the rotation and per-instance scale packed into
+`internal data 1`, so those attributes currently use identity and unit values and
+are tracked as READ-006.
 
 Classic shader acceptance now builds Blender node trees for all 1,412 genuine HCE
 shader-family tags in the local kit, covering model, environment, glass, water,

@@ -695,6 +695,8 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
 
     def decorator_sets(self):
         root = self.tag.root()
+        if self.game == 'halo2':
+            return self._halo2_decorator_sets(root)
         decorators = self._optional_block(root, 'decorators')
         if decorators is None or not len(decorators):
             return []
@@ -726,6 +728,139 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                     ground_tint=ground_tint,
                     tint=(tint.x, tint.y, tint.z),
                 ))
+            result.append(ScenarioDecoratorSet(
+                definition=reference.RelativePathWithExtension,
+                name=reference.ShortName,
+                placements=tuple(placements),
+            ))
+        return result
+
+    @staticmethod
+    def _halo2_decorator_cell_paths(
+        cells: blam_tags.TagBlock,
+    ) -> dict[int, tuple[int, ...]]:
+        """Map a decorator group to its sparse octree path."""
+        if not len(cells):
+            return {}
+        paths: dict[int, tuple[int, ...]] = {}
+        visited: set[int] = set()
+
+        def visit(cell_index: int, path: tuple[int, ...]) -> None:
+            if cell_index in visited or not 0 <= cell_index < len(cells):
+                return
+            visited.add(cell_index)
+            cell = cells[cell_index]
+            group_start = int(cell.field('group start index').value)
+            group_count = int(cell.field('group count').value)
+            for group_index in range(group_start, group_start + group_count):
+                paths[group_index] = path
+            children_field = cell.field('child indices')
+            if children_field is None:
+                return
+            children = children_field.as_array()
+            for octant in range(len(children)):
+                child_field = children[octant].field('child index')
+                if child_field is None:
+                    continue
+                child_index = int(child_field.value)
+                if child_index >= 0:
+                    visit(child_index, path + (octant,))
+
+        visit(0, ())
+        return paths
+
+    @staticmethod
+    def _halo2_decorator_position(
+        packed: int, path: tuple[int, ...],
+        grid_origin: tuple[float, float, float], cell_count: int,
+    ) -> tuple[float, float, float]:
+        """Expand H2's cell-relative 10/10/10-bit decorator position."""
+        root_size = float(cell_count) * 8.0
+        cell_size = root_size / float(1 << len(path))
+        root_min = tuple(value - root_size * 0.5 for value in grid_origin)
+        cell_indices = [0, 0, 0]
+        # H2 octants store Z, Y, X in bits 0, 1, 2 respectively.
+        for octant in path:
+            for axis, bit in enumerate((2, 1, 0)):
+                cell_indices[axis] = (cell_indices[axis] << 1) | ((octant >> bit) & 1)
+        packed &= 0xFFFFFFFF
+        quantized = (packed & 0x3FF, (packed >> 10) & 0x3FF,
+                     (packed >> 22) & 0x3FF)
+        return tuple(
+            root_min[axis] + cell_indices[axis] * cell_size
+            + quantized[axis] * cell_size / 1023.0
+            for axis in range(3)
+        )
+
+    @staticmethod
+    def _halo2_decorator_tint(value: object) -> tuple[float, float, float]:
+        packed = int(getattr(value, 'value', value)) & 0xFFFFFF
+        return (((packed >> 16) & 0xFF) / 255.0,
+                ((packed >> 8) & 0xFF) / 255.0,
+                (packed & 0xFF) / 255.0)
+
+    def _halo2_decorator_sets(
+        self, root: blam_tags.TagStruct,
+    ) -> list[ScenarioDecoratorSet]:
+        decorators = self._optional_block(root, 'decorators')
+        palette = self._optional_block(root, 'decorator palette')
+        if decorators is None or not len(decorators) or palette is None:
+            return []
+        definition = decorators[0]
+        groups = self._optional_block(definition, 'groups')
+        cache_blocks = self._optional_block(definition, 'cache blocks')
+        cells = self._optional_block(definition, 'cells')
+        if groups is None or cache_blocks is None or cells is None:
+            return []
+        origin = self.value(definition, 'grid origin')
+        grid_origin = (float(origin.x), float(origin.y), float(origin.z))
+        cell_count = int(self.value(definition, 'cell count per dimension'))
+        if cell_count <= 0:
+            return []
+        group_paths = self._halo2_decorator_cell_paths(cells)
+        placements_by_set: dict[int, list[ScenarioDecoratorPlacement]] = {}
+        for group_index, group in enumerate(groups):
+            path = group_paths.get(group_index)
+            if path is None:
+                continue
+            set_index = int(self.value(group, 'decorator set'))
+            cache_index = int(self.value(group, 'cache block'))
+            start = int(self.value(group, 'decorator start index'))
+            count = int(self.value(group, 'decorator count'))
+            type_index = int(self.value(group, 'shader index'))
+            if not (0 <= set_index < len(palette) and
+                    0 <= cache_index < len(cache_blocks) and count > 0):
+                continue
+            data = self._optional_block(cache_blocks[cache_index], 'cache block data')
+            if data is None or not len(data):
+                continue
+            native_placements = self._optional_block(data[0], 'placements')
+            if native_placements is None:
+                continue
+            end = min(start + count, len(native_placements))
+            output = placements_by_set.setdefault(set_index, [])
+            for placement_index in range(max(0, start), end):
+                placement = native_placements[placement_index]
+                output.append(ScenarioDecoratorPlacement(
+                    position=self._halo2_decorator_position(
+                        int(self.value(placement, 'compressed position')),
+                        path, grid_origin, cell_count),
+                    # H2 keeps orientation and per-instance scale in another
+                    # packed word whose semantic decoder is not yet exposed by
+                    # blam-tags. Preserve useful placement/type/tint data now.
+                    rotation=(0.0, 0.0, 0.0, 1.0),
+                    scale=1.0,
+                    type_index=type_index,
+                    motion_scale=255,
+                    ground_tint=255,
+                    tint=self._halo2_decorator_tint(
+                        self.value(placement, 'tint color')),
+                ))
+        result = []
+        for set_index, placements in placements_by_set.items():
+            reference = self.reference(palette[set_index], 'decorator set')
+            if not self.path_exists(reference):
+                continue
             result.append(ScenarioDecoratorSet(
                 definition=reference.RelativePathWithExtension,
                 name=reference.ShortName,
