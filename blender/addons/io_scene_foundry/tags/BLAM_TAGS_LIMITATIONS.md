@@ -21,21 +21,14 @@ unfinished migration work, not the intended workaround.
 
 ## Confirmed open limitations
 
-| ID | Games / data | Failure and evidence | Layer / current workaround | Resolution needed |
-| --- | --- | --- | --- | --- |
-| READ-006 | Halo 2 scenario decorator placement transforms | blam-tags exposes the two packed 32-bit placement words only as `internal data 1` and `compressed position`; it has no semantic H2 decorator-placement decoder. Foundry now expands the octree-cell-relative 10/10/10-bit position exactly and resolves the decorator set, class and tint. Rotation and per-instance scale remain inside `internal data 1`, so imported H2 decorator clouds currently use identity rotation and unit scale. | Rust semantic scenario/decorator decoder. Foundry performs the verified position/type/tint decoding through structured fields and records the remaining loss explicitly rather than falling back to ManagedBlam. | Expose decoded H2 placement rotation and scale from blam-tags, backed by fixture values from Tool/Sapien, then replace the temporary identity/unit values. |
-| READ-008 | Halo 4 camera-acceleration function curves | The three `mapping` fields under `unit/seats[*]/unit camera/camera acceleration` in `objects/props/covenant/drop_pod_elite/drop_pod_elite.vehicle` parse as function payloads, but `TagFunctionEditor.describe()` raises `curve editor data unavailable`. The same forward/back, left/right and up/down payloads occur in both seat records, producing six failures in a 9,491-function corpus scan. | Function curve editor/binding. The compact payload remains readable and evaluable; only reconstruction of the editable curve graph fails. No ManagedBlam fallback is used. | Decode this older or compact-only multipart curve representation, or expose a lossless sampled graph suitable for Foundry. |
+There are currently no confirmed open byte-reading failures in the audited tag
+corpus. Unfinished converters and acceptance work remain listed separately below.
 
 ### Evidence locations
 
 - READ-001: local `blam-tags/definitions/halo4_mcc/cinematic_scene_data.json`,
   `blam-tags-py/src/manual/handles.rs`, and Foundry `tags/cinematic.py`.
 - READ-002: Foundry `tags/backend.py`, `CameraTrackDocument.__init__`.
-- READ-006: H2 `temp_scenario/scenarios/solo/01b_spacestation/01b_spacestation.scenario`;
-  packed placement positions were checked against the centers of the tag's
-  generated decal vertices and agreed within 0.007 world units.
-- READ-008: H4 `objects/props/covenant/drop_pod_elite/drop_pod_elite.vehicle`,
-  both seat records' `unit camera/camera acceleration` mappings.
 
 ## Separate integration work — not confirmed blam-tags read failures
 
@@ -53,7 +46,7 @@ unfinished migration work, not the intended workaround.
 | Render geometry and animation resources | The Python binding exposes the core structure-BSP and render-model mesh decoders plus detached, composed animation poses. A real ODST BSP decoded all 239 meshes, including water data; three real Reach render models covered rigid, skinned and triangle-strip geometry, including 23 distinct resolved bone indices. Real animation graphs from H3, ODST, Reach, H4 and H2AMP decoded in Blender without ManagedBlam, including the sampled H3 codec-slot-0 stream. Classic resource decoding also completed representative end-to-end imports: three filtered HCE Captain actions, and dozens of filtered H2 Brute actions with 104 renames and 68 events. Broad visual, unfiltered full-graph and editing-kit acceptance remains; no concrete failure is recorded for those H3+ geometry or classic animation samples. |
 | Classic H1/H2 BSP auxiliary geometry | The Python binding exposes the native classic BSP scene extractor. Foundry imports render, collision and H2 portal geometry without the H3+ resource layout; it also creates H2 structure markers and referenced environment-object markers. Real HCE `levels/test/wizard/wizard` produced one structure mesh plus one collision mesh (13,622 Blender vertices / 5,804 polygons total). H2 `!extracted/zanzibar/zanzibar` produced 117 structure placements, 125 portals and one collision mesh. H2 `scenarios/solo/01b_spacestation/01outro_bsp` additionally produced five structure markers and one environment-object marker. Material records carry their complete shader paths and group extensions; 17/18 Wizard and 94/97 Zanzibar slots resolve, with the remaining slots being generated special materials. The decoder normalizes H2's offset-form and inconsistently oriented weather planes using each record's bounding-sphere center; Foundry imports the resulting `+weather` hulls as the Halo 2-only Weather Polyhedron mesh type, which legacy ASS export maps to Tool's special name/material convention. A full H2EK scan reconstructed 99 of 100 records across all 12 BSPs containing weather volumes. A Blender 5.1 Lockout roundtrip retained all ten typed weather instances and their `+weather` ASS material. `scenarios/solo/08b_deltacontrol/deltacontrolroom_bsp0` weather record 9 is an open four-plane prism with no Y bounds, so no closed hull can be recovered without inventing geometry. |
 | Classic H1/H2 scenario decals | The compact classic placement records are now decoded directly: palette type, signed normalized yaw/pitch, position and the referenced decal's radius bounds. Native H1/H2 decal fields also feed Blender bitmap/color/alpha materials. A full local sweep decoded 3,735 HCE placements and 6,216 H2 placements with positive dimensions and unit rotations. Visual comparison of decal orientation and title-specific blend modes remains part of final acceptance; this is not a parser gap. |
-| Halo 2 scenario decorators | Standalone `.decorator_set` tags now import their native embedded model buffers and generated quad/decal classes. All 24 local tags produced Blender geometry. Scenario import now traverses H2's sparse decorator octree, expands cell-relative packed positions, resolves palette/class indices and preserves tint; the class is selected by the low three bits of `internal data 1`, independently of the group's shader index. A Cairo Station sample produced 326 placement records and packed positions agreed with generated decal centers within 0.007 world units. A Python 3.14 sweep decoded 1,485,497 importable placements from all 237 populated scenarios among the 333 local scenario files without an invalid class or range; it also found and skipped 14,246 orphaned groups with the source palette index `-1`, concentrated in editor backups. The remaining packed rotation/scale decoder is tracked as READ-006, so those two attributes temporarily import as identity/unit values. |
+| Halo 2 scenario decorators | Standalone `.decorator_set` tags now import their native embedded model buffers and generated quad/decal classes. All 24 local tags produced Blender geometry. Scenario import traverses H2's sparse decorator octree and decodes cell-relative position, class, permutation, surface-normal orientation, axial rotation, per-permutation scale and tint. A Cairo Station sample produced 326 placement records and packed positions agreed with generated decal centers within 0.007 world units. A Python 3.14 sweep decoded 1,485,497 importable placements from all 237 populated scenarios among the 333 local scenario files without an invalid class or range; it also found and skipped 14,246 orphaned groups with the source palette index `-1`, concentrated in editor backups. |
 | Bitmap resource coverage | Bitmap tag fields and inline `processed pixel data` are read through blam-tags. Foundry now calls the native classic bitmap-to-TIFF decoder for H1/H2, including verified HCE shader bitmaps, H2 P8 bump data, mip-major 3D volumes and H2 RGBFP32 radiance maps; its classic 4x3 cubemap crosses are converted to 4x2 equirectangular TIFFs before Blender loads them. Modern supported formats continue through the existing Python decoders. The Tool fallback has been removed. Foundry follows blam-tags/Baboon in deriving modern base-mip byte counts from format and dimensions because real H3 through H2AMP tags commonly store zero in `pixels size`; the reported Reach Magnum diffuse and representative compressed, uncompressed, cubemap and array samples now extract. Full classic sweeps covered 1,825 HCE files and 4,636 H2 files. Eight HCE `shaders/foundry/bitmaps` helpers have non-classic headers and were excluded; every other pre-fix failure was one of the native cases resolved in READ-007. Resource-backed layouts and non-base mip selection are awaiting final migration review, so failures discovered there must be recorded as concrete cases. |
 | Particle-model fidelity | Native particle geometry import is enabled for H3 through H2AMP. Representative tags from all five profiles decoded and allocated Blender meshes without source changes. Gen3 particle-model tags do not retain original object names or materials, so names are synthesized and no material is assigned. Only position, normal and primary UV streams are currently exposed to Python; other vertex attributes have not been found in the acceptance sample and remain unverified. Particle-model authoring/export is also unverified. These are format/integration limits, not observed parser failures. |
 | Serialized Havok geometry | Payload bytes read natively. The existing Foundry Python Havok decoder handles the two sampled vehicle payloads; unrecognized payloads now raise an unsupported error without ManagedBlam fallback. No specific failed payload is currently recorded here. |
@@ -63,6 +56,32 @@ unfinished migration work, not the intended workaround.
 
 ## Resolved read limitations
 
+### READ-008 — optimized multipart curves without editor data (resolved 2026-09-24)
+
+Some shipping Halo 4 tags retain only a `MultiSpline` compact and omit the
+148-byte editable control-point trailer. blam-tags 0.1.9 reconstructs Linear and
+Spline control points directly from the compact line or cubic coefficients;
+Spline reconstruction is mathematically exact. Spline2 endpoints and tangents
+are retained, although its original handle spacing cannot be recovered after
+optimization. The three distinct forward/back, left/right and up/down camera
+acceleration mappings in
+`objects/props/covenant/drop_pod_elite/drop_pod_elite.vehicle` now describe as
+one or two spline segments in both seat records. This removes all six remaining
+failures from the 9,491-function corpus scan.
+
+### READ-006 — Halo 2 decorator placement transforms (resolved 2026-09-24)
+
+Foundry now decodes the complete 32-bit `internal data 1` placement word. The
+layout was recovered from the H2 Tool runtime decoder: bits 0–2 select the
+decorator class, bits 3–8 select its permutation, bits 9–12 encode a full-circle
+axial rotation, bits 16–19 interpolate across that permutation's scale bounds,
+and bits 20–31 store three signed 4-bit surface-normal components. Foundry reads
+the referenced `.decorator_set` through blam-tags to resolve the scale bounds and
+builds the placement quaternion from the decoded normal and axial angle. No
+ManagedBlam or Tool subprocess fallback is used. Packed positions in H2
+`temp_scenario/scenarios/solo/01b_spacestation/01b_spacestation.scenario` were
+also checked against generated decal centers and agreed within 0.007 world units.
+
 ### READ-003 — complete transition-function descriptions (resolved 2026-09-23)
 
 The native editor's transition option table previously stopped at index 3 even
@@ -71,7 +90,8 @@ values. blam-tags 0.1.8 now exposes indices 0 through 7 as `linear`, `early`,
 `very early`, `late`, `very late`, `cosine`, `one` and `zero`. A read-only scan
 of 14,108 object tags across H3, ODST, Reach, H4 and H2AMP described 9,491
 function payloads. All 27 former index-4/index-5 failures now decode; the only
-remaining description failures are the separate H4 curve layout in READ-008.
+remaining description failures at that stage were the compact-only H4 curves
+subsequently resolved in READ-008.
 
 ### READ-005 — H1/H2 render-model skinning (resolved 2026-09-23)
 

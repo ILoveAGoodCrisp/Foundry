@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from math import cos, pi, sin
+from math import cos, pi, sin, sqrt
 from pathlib import Path
 import shutil
 from typing import TYPE_CHECKING
@@ -799,6 +799,73 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 ((packed >> 8) & 0xFF) / 255.0,
                 (packed & 0xFF) / 255.0)
 
+    @staticmethod
+    def _halo2_decorator_rotation(
+        packed: int,
+    ) -> tuple[float, float, float, float]:
+        """Decode H2's 4/4/4-bit surface normal and 4-bit axial angle."""
+        packed &= 0xFFFFFFFF
+        normal = [
+            (((packed >> shift) & 0xF) / 15.0) * 2.0 - 1.0
+            for shift in (20, 24, 28)
+        ]
+        length = sqrt(sum(value * value for value in normal))
+        if length <= 1e-8:
+            normal = [0.0, 0.0, 1.0]
+        else:
+            normal = [value / length for value in normal]
+        nx, ny, nz = normal
+
+        # Align local +Z with the stored surface normal. H2 then applies the
+        # quantized angle around that normal.
+        if nz <= -0.999999:
+            align = (1.0, 0.0, 0.0, 0.0)
+        else:
+            factor = sqrt(2.0 * (1.0 + nz))
+            align = (-ny / factor, nx / factor, 0.0, factor * 0.5)
+        half_angle = (((packed >> 9) & 0xF) / 15.0) * pi
+        twist = (nx * sin(half_angle), ny * sin(half_angle),
+                 nz * sin(half_angle), cos(half_angle))
+        tx, ty, tz, tw = twist
+        ax, ay, az, aw = align
+        return (
+            tw * ax + tx * aw + ty * az - tz * ay,
+            tw * ay - tx * az + ty * aw + tz * ax,
+            tw * az + tx * ay - ty * ax + tz * aw,
+            tw * aw - tx * ax - ty * ay - tz * az,
+        )
+
+    def _halo2_decorator_scale_bounds(
+        self, palette: blam_tags.TagBlock,
+    ) -> dict[tuple[int, int, int], tuple[float, float]]:
+        """Read the permutation bounds addressed by packed H2 placements."""
+        result: dict[tuple[int, int, int], tuple[float, float]] = {}
+        for set_index, palette_element in enumerate(palette):
+            reference = self.reference(palette_element, 'decorator set')
+            if not self.path_exists(reference):
+                continue
+            with TagDocument(reference, tags_root=self.tags_root,
+                             game=self.game, must_exist=True) as decorator_set:
+                classes = decorator_set.block(
+                    decorator_set.tag.root(), 'classes')
+                for class_index, class_element in enumerate(classes):
+                    permutations = decorator_set.block(
+                        class_element, 'permutations')
+                    for permutation_index, permutation in enumerate(permutations):
+                        bounds = decorator_set.value(permutation, 'scale')
+                        result[set_index, class_index, permutation_index] = (
+                            float(bounds.lower), float(bounds.upper))
+        return result
+
+    @staticmethod
+    def _halo2_decorator_scale(
+        packed: int, bounds: tuple[float, float] | None,
+    ) -> float:
+        if bounds is None or bounds == (0.0, 0.0):
+            return 1.0
+        fraction = ((packed >> 16) & 0xF) / 15.0
+        return bounds[0] + (bounds[1] - bounds[0]) * fraction
+
     def _halo2_decorator_sets(
         self, root: blam_tags.TagStruct,
     ) -> list[ScenarioDecoratorSet]:
@@ -818,6 +885,7 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
         if cell_count <= 0:
             return []
         group_paths = self._halo2_decorator_cell_paths(cells)
+        scale_bounds = self._halo2_decorator_scale_bounds(palette)
         placements_by_set: dict[int, list[ScenarioDecoratorPlacement]] = {}
         for group_index, group in enumerate(groups):
             path = group_paths.get(group_index)
@@ -841,19 +909,18 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
             for placement_index in range(max(0, start), end):
                 placement = native_placements[placement_index]
                 internal_data = int(self.value(placement, 'internal data 1')) & 0xFFFFFFFF
+                type_index = internal_data & 0x7
+                permutation_index = (internal_data >> 3) & 0x3F
                 output.append(ScenarioDecoratorPlacement(
                     position=self._halo2_decorator_position(
                         int(self.value(placement, 'compressed position')),
                         path, grid_origin, cell_count),
-                    # H2 keeps orientation and per-instance scale in another
-                    # packed word whose semantic decoder is not yet exposed by
-                    # blam-tags. Preserve useful placement/type/tint data now.
-                    rotation=(0.0, 0.0, 0.0, 1.0),
-                    scale=1.0,
-                    # H2 decorator sets permit eight classes; the placement's
-                    # low three bits select the class independently of the
-                    # group's render-shader index.
-                    type_index=internal_data & 0x7,
+                    rotation=self._halo2_decorator_rotation(internal_data),
+                    scale=self._halo2_decorator_scale(
+                        internal_data,
+                        scale_bounds.get((set_index, type_index,
+                                          permutation_index))),
+                    type_index=type_index,
                     motion_scale=255,
                     ground_tint=255,
                     tint=self._halo2_decorator_tint(

@@ -20,7 +20,7 @@ Measured as dependency replacement, the migration is now 100%: the add-on has no
 ManagedBlam tag-access path to fall back to. This does not mean every workflow has
 completed visual or editing-kit acceptance.
 
-**H1/H2 feature-parity estimate: about 93%.** Core loose-tag loading/saving,
+**H1/H2 feature-parity estimate: about 94%.** Core loose-tag loading/saving,
 object/model geometry, all H2 LODs, collision/physics, classic animation decoding,
 bitmap and cubemap extraction, broad shader construction, scenario metadata,
 native legacy export dispatch and inline animation-event writing, and scenario BSP
@@ -556,9 +556,11 @@ Object-function node creation now uses it. Unsupported editor shapes raise befor
 any nodes are created. blam-tags 0.1.8 expands transition descriptions to all
 eight schema-defined values. A read-only scan across 14,108 H3-through-H2AMP
 object tags described 9,491 function payloads and eliminated all 27 former
-index-4/index-5 failures. Six failures remain for three unique camera-acceleration
-mappings duplicated across two seats in the H4 Elite drop-pod vehicle; the exact
-paths are tracked as READ-008.
+index-4/index-5 failures. blam-tags 0.1.9 also reconstructs editor-shaped spline
+controls from optimized `MultiSpline` compacts which omit their editor trailer.
+The three unique camera-acceleration mappings duplicated across two seats in the
+H4 Elite drop-pod vehicle now describe successfully, eliminating the final six
+failures from that corpus scan.
 H3 and ODST object-function records omit Reach's ranged-interpolation-name field;
 the native converter now preserves those functions with no range dependency. The
 reported ODST Hunter biped completed a Blender 5.2 render, collision and physics
@@ -991,14 +993,13 @@ indices, normals, UVs and shader references, and creates representative source
 planes for billboard, rotating-quad and decal classes. A Blender 5.1 sweep imported
 all 24 local H2 decorator sets as 184 objects with 2,784 vertices and 1,778 faces.
 Halo 2 scenario decorator placement caches now traverse their sparse spatial
-octree and decode the cell-relative 10/10/10-bit positions, palette/class selections
-and tint. The low three bits of each placement's `internal data 1` word select its
-decorator class independently of the group's shader index. A Cairo Station sample
-produced 326 records; four packed positions checked
-against generated decal-vertex centers agreed within 0.007 world units. blam-tags
-does not yet semantically expose the rotation and per-instance scale packed into
-`internal data 1`, so those attributes currently use identity and unit values and
-are tracked as READ-006. A Python 3.14 sweep decoded 1,485,497 importable placements
+octree and decode the cell-relative 10/10/10-bit positions, palette/class and
+permutation selections, tint, surface-normal orientation, axial rotation and
+per-permutation scale. The complete `internal data 1` layout and quantization
+constants were recovered from H2 Tool's runtime decoder; referenced decorator-set
+tags provide each selected permutation's scale bounds. A Cairo Station sample
+produced 326 records; four packed positions checked against generated decal-vertex
+centers agreed within 0.007 world units. A Python 3.14 sweep decoded 1,485,497 importable placements
 from all 237 populated scenarios among the 333 local H2 scenario files without an
 invalid range or decorator-class index. It separately found and skipped 14,246
 orphaned groups whose source palette index is `-1`, concentrated in editor backups.
