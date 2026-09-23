@@ -507,7 +507,7 @@ its mass update was verified by reopening a temporary physics tag.
 | Functions, shaders and lights | Shader/material/decal lifecycle, ordinary fields and the function edits currently used by shader authoring are native. Finish broad node-graph and light visual acceptance. |
 | Geometry and resources | Complete acceptance of native render-model and structure-BSP import, including the H2 weather-volume representation, then port the remaining decorator, polyart and specialized resource paths. Render-model geometry, BSP render/collision/portal geometry, markers, environment objects and particle-model import are native. |
 | Animation | Native decoding, pose composition, graph metadata/edits, frame events and PCA metadata are connected. Finish broad action-level visual acceptance and specialized composite cases. |
-| Bitmaps | Review the native/Python extraction path across formats, mipmaps, cubemaps and material texture use; complete any resource layouts not represented by processed pixel data. |
+| Bitmaps | Classic H1/H2 processed-data coverage has a full-corpus audit: all genuine failures found there (3D volumes and H2 RGBFP32 radiance maps) are implemented in the bundled wheel. Review non-base mip selection, material texture use and resource layouts not represented by processed pixel data. |
 | Scenarios and cinematics | Port remaining BSP/structure editors, lighting-info export and referenced-resource workflows. Scenario object/decal/decorator import, cinematic scene/data import and writing, template/global scenario export and common scenario/cubemap/decorator edits are native. |
 | Dependency removal and acceptance | Dependency removal is complete. Run representative complete imports/exports with no ManagedBlam installation and finish visual parity review. |
 
@@ -1075,9 +1075,9 @@ cyborg graph completed all 254 actions, including `G-driver acc-front-back`.
 Halo 1 skeletal animation quaternions now use the title's inverse rotation
 convention during Blender action construction, matching its rest skeleton and
 the io_scene_halo reference importer. Foundry also restores the authored two-node
-H1 vertex skinning from each `gbxmodel` part because the current blam-tags mesh
-decoder exposes placeholder node-zero weights. Blender 5.2 validation of the HCE
-cyborg produced 16 bone groups and 2,256 weighted vertices; its animated
+H1 vertex skinning from each `gbxmodel` part through the native blam-tags mesh
+decoder. Blender 5.2 validation of the HCE cyborg produced 16 bone groups and
+2,256 weighted vertices; its animated
 `stand rifle idle` bounds remained vertically oriented.
 
 Halo 1 animation skeleton metadata now normalizes a node that names itself as
@@ -1097,9 +1097,8 @@ previously absent from biped and other object-tag dialogs.
 
 Halo 2 render-model skinning now reads the authored four node indices and
 weights from each raw vertex and resolves section-local indices through the
-section node map. The bundled blam-tags decoder currently supplies node-zero
-placeholder weights for H2, so this uses its structured tag fields until the
-semantic decoder is extended. A scan of all 1,120 H2EK render models found
+section node map in the native semantic decoder. A scan of all 1,120 H2EK render
+models found
 1,435,973 raw vertices using the new-index layout, including 115,947 vertices
 with multiple influences. Blender 5.2 validation of Master Chief L5 produced
 31 bone groups, 2,256 weighted vertices and 484 multi-weighted vertices.
