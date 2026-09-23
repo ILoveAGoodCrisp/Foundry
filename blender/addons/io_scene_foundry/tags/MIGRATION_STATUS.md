@@ -1045,3 +1045,26 @@ rotation before composing the Blender rest pose, matching the Halo 1 tag
 convention and the io_scene_halo importer. Blender 5.1 validation against the
 19-node HCE cyborg model confirmed that 18 non-identity rotations take the
 corrected path. Halo 2 and later node rotations retain their existing convention.
+
+The Foundry importer now accepts Halo 1 `.model_animations` files as direct
+animation imports. File grouping, the animation options dialog, and Blender's
+drag-and-drop file handler route both `.model_animations` and the later
+`.model_animation_graph` extension through the native animation importer. Halo 1
+overlay and replacement actions also tolerate the object-space node metadata
+blocks that are absent from its tag layout. A Blender 5.2 import of the HCE
+cyborg graph completed all 254 actions, including `G-driver acc-front-back`.
+
+Halo 1 skeletal animation quaternions now use the title's inverse rotation
+convention during Blender action construction, matching its rest skeleton and
+the io_scene_halo reference importer. Foundry also restores the authored two-node
+H1 vertex skinning from each `gbxmodel` part because the current blam-tags mesh
+decoder exposes placeholder node-zero weights. Blender 5.2 validation of the HCE
+cyborg produced 16 bone groups and 2,256 weighted vertices; its animated
+`stand rifle idle` bounds remained vertically oriented.
+
+Halo 1 animation skeleton metadata now normalizes a node that names itself as
+its parent to a root node. HCE stores the first animation node with parent index
+zero, which previously made Foundry skip its root-only scene-forward conversion.
+Blender 5.2 validation with the scene set to negative Y imported the cyborg
+`alert rifle move-front` action and moved its root 1.709 units along negative Y
+instead of positive X.

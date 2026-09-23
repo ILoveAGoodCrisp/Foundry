@@ -406,8 +406,18 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
     def render_meshes(self) -> list[StructureBspRenderMesh]:
         """Decode every model mesh through blam-tags' cross-game decoder."""
         decoded = self.tag.render_model_meshes()
+        halo1_skinning = self._halo1_skinning() if self.game == 'halo1' else ()
         records = []
         for index, mesh in enumerate(decoded):
+            if index < len(halo1_skinning):
+                node_indices, node_weights = halo1_skinning[index]
+                if len(node_indices) != len(mesh['positions']):
+                    raise ValueError(
+                        f'{self.path}: H1 geometry {index} has {len(mesh["positions"])} '
+                        f'decoded vertices but {len(node_indices)} authored skinning records')
+            else:
+                node_indices = tuple(tuple(map(int, value)) for value in mesh['node_indices'])
+                node_weights = tuple(tuple(map(float, value)) for value in mesh['node_weights'])
             parts = tuple(StructureBspRenderPart(
                 material_index=int(part['material_index']),
                 index_start=int(part['index_start']),
@@ -432,8 +442,8 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
                 positions=tuple(tuple(map(float, value)) for value in mesh['positions']),
                 texcoords=tuple(tuple(map(float, value)) for value in mesh['texcoords']),
                 normals=tuple(tuple(map(float, value)) for value in mesh['normals']),
-                node_indices=tuple(tuple(map(int, value)) for value in mesh['node_indices']),
-                node_weights=tuple(tuple(map(float, value)) for value in mesh['node_weights']),
+                node_indices=node_indices,
+                node_weights=node_weights,
                 lightmap_texcoords=tuple(tuple(map(float, value))
                                          for value in mesh['lightmap_texcoords']),
                 vertex_colors=tuple(tuple(map(float, value))
@@ -445,6 +455,44 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
                 water=water,
             ))
         return records
+
+    def _halo1_skinning(self) -> tuple[
+            tuple[tuple[tuple[int, int, int, int], ...],
+                  tuple[tuple[float, float, float, float], ...]], ...]:
+        """Read CE's authored two-node skinning, including part-local node maps."""
+        root = self.tag.root()
+        flags = self.required_field(root, 'flags')
+        try:
+            uses_local_nodes = flags.get_flag('parts have local nodes')
+        except KeyError:
+            uses_local_nodes = False
+
+        geometries = []
+        for geometry in self.block(root, 'geometries'):
+            geometry_indices = []
+            geometry_weights = []
+            for part in self.block(geometry, 'parts'):
+                local_node_count = int(self.value(part, 'local node count'))
+                local_nodes = [
+                    int(field.value)
+                    for field in part.fields()
+                    if field.clean_name == 'local node indices'
+                ][:local_node_count]
+
+                def global_node_index(index: int) -> int:
+                    if not uses_local_nodes or index < 0:
+                        return index
+                    return local_nodes[index] if index < len(local_nodes) else -1
+
+                for vertex in self.block(part, 'uncompressed vertices'):
+                    first = global_node_index(int(self.value(vertex, 'node0 index')))
+                    second = global_node_index(int(self.value(vertex, 'node1 index')))
+                    first_weight = float(self.value(vertex, 'node0 weight')) if first >= 0 else 0.0
+                    second_weight = float(self.value(vertex, 'node1 weight')) if second >= 0 else 0.0
+                    geometry_indices.append((first, second, -1, -1))
+                    geometry_weights.append((first_weight, second_weight, 0.0, 0.0))
+            geometries.append((tuple(geometry_indices), tuple(geometry_weights)))
+        return tuple(geometries)
 
     def insert_empty_region_perms(self, empty_region_perms: dict[str, set]):
         print("\nAdding Empty Region Permutations")

@@ -413,9 +413,13 @@ class AnimationTag(AnimationGraphTag):
         identity_translation = Vector((0.0, 0.0, 0.0))
         identity_rotation = Quaternion((1.0, 0.0, 0.0, 0.0))
 
+        # H1 records the first skeleton node with parent index zero. Treat any
+        # self-parent as a root so root motion receives the scene-forward transform.
         parent_indices = [
-            node.parent_index if 0 <= node.parent_index < len(graph_node_names) else -1
-            for node in metadata.nodes
+            node.parent_index
+            if 0 <= node.parent_index < len(graph_node_names) and node.parent_index != index
+            else -1
+            for index, node in enumerate(metadata.nodes)
         ]
             
         graph_nodes = {}
@@ -3535,8 +3539,7 @@ class AnimationTag(AnimationGraphTag):
             node.scale,
         )
 
-    @staticmethod
-    def _animation_data_from_native_pose(pose: dict) -> AnimationData:
+    def _animation_data_from_native_pose(self, pose: dict) -> AnimationData:
         frames = pose['frames']
         frame_count = len(frames)
         node_count = len(frames[0]) if frames else 0
@@ -3549,7 +3552,10 @@ class AnimationTag(AnimationGraphTag):
             for node_index, transform in enumerate(frame):
                 tx, ty, tz, qx, qy, qz, qw, scale = transform
                 translations[node_index].append(Vector((tx, ty, tz)) * 100.0)
-                rotations[node_index].append(Quaternion((qw, qx, qy, qz)))
+                rotation = Quaternion((qw, qx, qy, qz))
+                if self.game == 'halo1':
+                    rotation.invert()
+                rotations[node_index].append(rotation)
                 scales[node_index].append(scale)
         return AnimationData(
             frame_count,
@@ -3780,7 +3786,7 @@ class AnimationTag(AnimationGraphTag):
                     case AnimationType.OVERLAY:
                         blender_animation.animation_type = "overlay"
                         parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
-                        if parent_nodes.Elements.Count > 0:
+                        if parent_nodes is not None and parent_nodes.Elements.Count > 0:
                             blender_animation.pose_overlay = True
                         offset_nodes = tag_animation.shared_element.SelectField("object space offset nodes")
                         if offset_nodes is not None:
@@ -3797,7 +3803,7 @@ class AnimationTag(AnimationGraphTag):
                         blender_animation.animation_type = "replacement"
                         replacement_node_indices = set()
                         correction_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
-                        for node_element in correction_nodes.Elements:
+                        for node_element in correction_nodes.Elements if correction_nodes is not None else ():
                             n_index = node_element.Fields[0].Value
                             if n_index < 0 or n_index >= nodes_count or n_index in replacement_node_indices:
                                 continue

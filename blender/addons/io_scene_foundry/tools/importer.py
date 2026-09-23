@@ -763,7 +763,7 @@ filetype_suffixes = (
     ("scenario_structure_lighting_info", (".scenario_structure_lighting_info",)),
     ("particle_model", (".particle_model",)),
     ("object", object_tag_types),
-    ("animation", (".model_animation_graph",)),
+    ("animation", (".model_animation_graph", ".model_animations")),
     ("prefab", (".prefab",)),
     ("structure_design", (".structure_design",)),
     ("polyart_asset", (".polyart_asset",)),
@@ -1556,6 +1556,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.graph_scale_animations_to_skeleton = self.graph_scale_animations_to_skeleton
                     importer.graph_import_ik_chains = self.graph_import_ik_chains
                     animation_files = importer.sorted_filepaths['animation']
+                    imported_animations = []
                     if context.object and context.object.type == 'ARMATURE':
                         existing_armature = context.object
                     else:
@@ -1582,9 +1583,8 @@ class NWO_Import(bpy.types.Operator):
                             #     good_to_go = False
                         
                         if good_to_go:
-                            imported_animations = []
                             for file in animation_files:
-                                print(f'Importing Animation Graph Tag: {Path(file).with_suffix("").name} ')
+                                print(f'Importing Animation Tag: {Path(file).with_suffix("").name} ')
                                 imported_animations.extend(importer.import_animation_graph(file, existing_armature, full_render_path))
                             
                         if imported_animations and set_animation_index:
@@ -4953,7 +4953,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         if self.import_type in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
             self.legacy_okay = True
 
-        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "model_animations", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 global sky_items
@@ -5070,7 +5070,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                     show_scenario_content=False,
                     show_setup_as_asset=True,
                 )
-            case "model_animation_graph":
+            case "model_animation_graph" | "model_animations":
                 draw_graph_import_options(self, layout, corinth)
             case "camera_track":
                 layout.prop(self, "camera_track_animation_scale")
@@ -5101,7 +5101,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
+    bl_file_extensions = ".jms;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.model_animations;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
 
     @classmethod
     def poll_drop(cls, context):
