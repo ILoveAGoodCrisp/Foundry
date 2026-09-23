@@ -20,7 +20,7 @@ Measured as dependency replacement, the migration is now 100%: the add-on has no
 ManagedBlam tag-access path to fall back to. This does not mean every workflow has
 completed visual or editing-kit acceptance.
 
-**H1/H2 feature-parity estimate: about 92%.** Core loose-tag loading/saving,
+**H1/H2 feature-parity estimate: about 93%.** Core loose-tag loading/saving,
 object/model geometry, all H2 LODs, collision/physics, classic animation decoding,
 bitmap and cubemap extraction, broad shader construction, scenario metadata,
 native legacy export dispatch and inline animation-event writing, and scenario BSP
@@ -528,8 +528,10 @@ H1/H2 classic loading, saving and new-tag creation are exposed through Python.
 They have real-file coverage across object, model, shader, bitmap, animation,
 scenario and BSP paths; broad workflow and visual acceptance remain separate
 requirements for the all-MCC goal.
-Removing Python.NET entirely also requires replacing the Foundation plugin
-installer's separate .NET assembly inspection in `tools/halo_launcher.py`.
+The Foundation plugin installer now reads Windows PE file-version resources
+through the standard library. The extension manifest and build helper no longer
+ship Python.NET, clr-loader, cffi or pycparser; none are needed by tag access or
+plugin version checks.
 
 ## Validation so far
 
@@ -551,8 +553,12 @@ The tag-function binding is implemented: `TagFunctionEditor` decodes and
 describes functions, evaluates outputs and normalized shapes, and round-trips bytes.
 It exposes basic, periodic, exponent, transition and MultiSpline editor graphs.
 Object-function node creation now uses it. Unsupported editor shapes raise before
-any nodes are created. A read-only sample across 60 H3+ object tags decoded and
-round-tripped 266 functions; two unknown transition indices remain unsupported.
+any nodes are created. blam-tags 0.1.8 expands transition descriptions to all
+eight schema-defined values. A read-only scan across 14,108 H3-through-H2AMP
+object tags described 9,491 function payloads and eliminated all 27 former
+index-4/index-5 failures. Six failures remain for three unique camera-acceleration
+mappings duplicated across two seats in the H4 Elite drop-pod vehicle; the exact
+paths are tracked as READ-008.
 H3 and ODST object-function records omit Reach's ranged-interpolation-name field;
 the native converter now preserves those functions with no range dependency. The
 reported ODST Hunter biped completed a Blender 5.2 render, collision and physics

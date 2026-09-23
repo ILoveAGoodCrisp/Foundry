@@ -23,19 +23,19 @@ unfinished migration work, not the intended workaround.
 
 | ID | Games / data | Failure and evidence | Layer / current workaround | Resolution needed |
 | --- | --- | --- | --- | --- |
-| READ-003 | Tag-function editor descriptions: unknown transition functions | The Python describe path raises `unknown transition function` when the transition index has no text mapping. Earlier read-only sampling found two such functions among 266 functions from 60 object tags. Exact asset paths were not retained in this record and must be captured on reproduction. Raw payload reading/round-trip succeeded; semantic description did not. | Function decoding/binding. Unsupported object-function conversion now raises an explicit error; the legacy editor fallback has been removed. | Reproduce and record tag path, field and index; support the missing transition or expose a lossless representation usable by Foundry. |
 | READ-006 | Halo 2 scenario decorator placement transforms | blam-tags exposes the two packed 32-bit placement words only as `internal data 1` and `compressed position`; it has no semantic H2 decorator-placement decoder. Foundry now expands the octree-cell-relative 10/10/10-bit position exactly and resolves the decorator set, class and tint. Rotation and per-instance scale remain inside `internal data 1`, so imported H2 decorator clouds currently use identity rotation and unit scale. | Rust semantic scenario/decorator decoder. Foundry performs the verified position/type/tint decoding through structured fields and records the remaining loss explicitly rather than falling back to ManagedBlam. | Expose decoded H2 placement rotation and scale from blam-tags, backed by fixture values from Tool/Sapien, then replace the temporary identity/unit values. |
+| READ-008 | Halo 4 camera-acceleration function curves | The three `mapping` fields under `unit/seats[*]/unit camera/camera acceleration` in `objects/props/covenant/drop_pod_elite/drop_pod_elite.vehicle` parse as function payloads, but `TagFunctionEditor.describe()` raises `curve editor data unavailable`. The same forward/back, left/right and up/down payloads occur in both seat records, producing six failures in a 9,491-function corpus scan. | Function curve editor/binding. The compact payload remains readable and evaluable; only reconstruction of the editable curve graph fails. No ManagedBlam fallback is used. | Decode this older or compact-only multipart curve representation, or expose a lossless sampled graph suitable for Foundry. |
 
 ### Evidence locations
 
 - READ-001: local `blam-tags/definitions/halo4_mcc/cinematic_scene_data.json`,
   `blam-tags-py/src/manual/handles.rs`, and Foundry `tags/cinematic.py`.
 - READ-002: Foundry `tags/backend.py`, `CameraTrackDocument.__init__`.
-- READ-003: local `blam-tags-py/src/manual/functions.rs` and the historical
-  function-decoding sample in [MIGRATION_STATUS.md](MIGRATION_STATUS.md).
 - READ-006: H2 `temp_scenario/scenarios/solo/01b_spacestation/01b_spacestation.scenario`;
   packed placement positions were checked against the centers of the tag's
   generated decal vertices and agreed within 0.007 world units.
+- READ-008: H4 `objects/props/covenant/drop_pod_elite/drop_pod_elite.vehicle`,
+  both seat records' `unit camera/camera acceleration` mappings.
 
 ## Separate integration work — not confirmed blam-tags read failures
 
@@ -62,6 +62,16 @@ unfinished migration work, not the intended workaround.
 | Writing and custom editors | The top-level cinematic writer, scenario object/decal/decorator import and common scenario edits, including airprobes, cubemaps, decorator placement export and template/global scenario export, are native. Shader functions can be decoded and the master type, color graph, colors and scalar clamp range can be saved through the native editor. Remaining specialized resource and playback work is tracked in the migration status; it is not a read failure. |
 
 ## Resolved read limitations
+
+### READ-003 — complete transition-function descriptions (resolved 2026-09-23)
+
+The native editor's transition option table previously stopped at index 3 even
+though the engine lookup table and generated schemas define eight serialized
+values. blam-tags 0.1.8 now exposes indices 0 through 7 as `linear`, `early`,
+`very early`, `late`, `very late`, `cosine`, `one` and `zero`. A read-only scan
+of 14,108 object tags across H3, ODST, Reach, H4 and H2AMP described 9,491
+function payloads. All 27 former index-4/index-5 failures now decode; the only
+remaining description failures are the separate H4 curve layout in READ-008.
 
 ### READ-005 — H1/H2 render-model skinning (resolved 2026-09-23)
 

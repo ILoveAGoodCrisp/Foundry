@@ -1,6 +1,7 @@
 
 
 import os
+import ctypes
 from pathlib import Path
 import bpy
 import xml.etree.ElementTree as ET
@@ -46,6 +47,44 @@ GUERILLA_GAMES = {"Halo1", "Halo2", "Halo3", "Halo3ODST"}
 LEGACY_SAPIEN_GAMES = {"halo1", "halo2", "halo3", "halo3odst"}
 
 
+class _VSFixedFileInfo(ctypes.Structure):
+    _fields_ = [(name, ctypes.c_uint32) for name in (
+        "signature", "struct_version", "file_version_ms", "file_version_ls",
+        "product_version_ms", "product_version_ls", "file_flags_mask",
+        "file_flags", "file_os", "file_type", "file_subtype",
+        "file_date_ms", "file_date_ls",
+    )]
+
+
+def _file_version(path: Path) -> tuple[int, int, int, int]:
+    """Read a Windows PE file version without loading Python.NET."""
+    version = ctypes.windll.version
+    size = version.GetFileVersionInfoSizeW(str(path), None)
+    if not size:
+        raise OSError(f"No version resource in {path}")
+    data = ctypes.create_string_buffer(size)
+    if not version.GetFileVersionInfoW(str(path), 0, size, data):
+        raise ctypes.WinError()
+    address = ctypes.c_void_p()
+    length = ctypes.c_uint()
+    if not version.VerQueryValueW(data, "\\", ctypes.byref(address), ctypes.byref(length)):
+        raise ctypes.WinError()
+    info = ctypes.cast(address, ctypes.POINTER(_VSFixedFileInfo)).contents
+    if info.signature != 0xFEEF04BD:
+        raise ValueError(f"Invalid version resource in {path}")
+    return (
+        info.file_version_ms >> 16,
+        info.file_version_ms & 0xFFFF,
+        info.file_version_ls >> 16,
+        info.file_version_ls & 0xFFFF,
+    )
+
+
+def _version_tuple(value: str) -> tuple[int, int, int, int]:
+    parts = [int(part) for part in value.split(".")]
+    return tuple((parts + [0] * 4)[:4])
+
+
 def tag_editor_executable(context=None):
     """Return the tag editor used by the active project's generation."""
     return "guerilla.exe" if project_game_for_mcc(context) in GUERILLA_GAMES else "Foundation.exe"
@@ -53,27 +92,21 @@ def tag_editor_executable(context=None):
 
 def _install_foundation_plugin(project_path, plugin_path, plugins_xml):
     try:
-        import clr
-        import System # type:ignore
-        from System.Reflection import AssemblyName # type:ignore
-        from System.Diagnostics import FileVersionInfo # type:ignore
-        
         foundation_path = Path(project_path, "Foundation.exe")
-        foundation_info = FileVersionInfo.GetVersionInfo(str(foundation_path))
-        foundation_version = System.Version.Parse(foundation_info.FileVersion)
+        foundation_version = _file_version(foundation_path)
         
         match project_game_for_mcc(bpy.context):
             case 'HaloReach':
                 source_plugin_path = Path(addon_root(), OMAHA_SOURCE_PLUGIN_PATH)
-                if foundation_version != System.Version.Parse(OMAHA_FOUNDATION_VERSION):
+                if foundation_version != _version_tuple(OMAHA_FOUNDATION_VERSION):
                     return
             case 'Halo4':
                 source_plugin_path = Path(addon_root(), MIDNIGHT_SOURCE_PLUGIN_PATH)
-                if foundation_version != System.Version.Parse(MIDNIGHT_FOUNDATION_VERSION):
+                if foundation_version != _version_tuple(MIDNIGHT_FOUNDATION_VERSION):
                     return
             case 'Halo2A':
                 source_plugin_path = Path(addon_root(), GROUNDHOG_SOURCE_PLUGIN_PATH)
-                if foundation_version != System.Version.Parse(GROUNDHOG_FOUNDATION_VERSION):
+                if foundation_version != _version_tuple(GROUNDHOG_FOUNDATION_VERSION):
                     return
             case _:
                 return
@@ -86,8 +119,8 @@ def _install_foundation_plugin(project_path, plugin_path, plugins_xml):
         if not plugin_path.exists():
             update_required = True
         else:
-            source_version = AssemblyName.GetAssemblyName(str(source_plugin_path)).Version
-            version = AssemblyName.GetAssemblyName(str(plugin_path)).Version
+            source_version = _file_version(source_plugin_path)
+            version = _file_version(plugin_path)
             update_required = source_version > version
             
         if update_required:

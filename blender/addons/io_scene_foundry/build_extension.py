@@ -24,10 +24,6 @@ ASSEMBLY_VERSION_PATTERNS: tuple[str, ...] = (
 )
 
 REQUIRED_WHEELS: tuple[tuple[str, str], ...] = (
-    ("cffi", "2.0.0"),
-    ("clr_loader", "0.2.7.post0"),
-    ("pythonnet", "3.0.5"),
-    ("pycparser", "3.0"),
     ("networkx", "3.4.2"),
     ("coacd", "1.0.11"),
 )
