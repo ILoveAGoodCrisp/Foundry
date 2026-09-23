@@ -20,7 +20,7 @@ Measured as dependency replacement, the migration is now 100%: the add-on has no
 ManagedBlam tag-access path to fall back to. This does not mean every workflow has
 completed visual or editing-kit acceptance.
 
-**H1/H2 feature-parity estimate: about 90%.** Core loose-tag loading/saving,
+**H1/H2 feature-parity estimate: about 91%.** Core loose-tag loading/saving,
 object/model geometry, all H2 LODs, collision/physics, classic animation decoding,
 bitmap and cubemap extraction, broad shader construction, scenario metadata,
 native legacy export dispatch and inline animation-event writing, and scenario BSP
@@ -90,6 +90,16 @@ metadata; 35 graphs exposed 158 distinct look/aim overlays. When an animation
 is shared by seats with different screen dimensions, Foundry keeps the screen
 belonging to the animation's canonical authored path because a Blender action
 can carry only one converted pose-overlay screen.
+
+Classic scenario decals now use their actual H1/H2 layout instead of the H3+
+quaternion/scale fields. Foundry resolves `decal type` through the classic palette,
+expands the signed normalized yaw/pitch bytes to a unit quaternion, and derives the
+display diameter from the referenced decal tag's radius bounds. H1 `.decal` map,
+upper color bound and alpha and the equivalent H2 bitmap/color fields now build a
+Blender material through the native tag document. A complete metadata sweep decoded
+3,735 placements from 17 HCE scenarios and 6,216 placements from 183 H2 scenarios;
+all references, positive dimensions and unit rotations validated without changing
+source tags.
 
 Bitmap extraction now derives base-mip storage size from the image dimensions
 and format instead of trusting the tag's `pixels size` field. A cross-kit scan
@@ -964,6 +974,19 @@ Warthog imported render LODs, collision and physics as 472 objects/401 meshes.
 A separate metadata sweep opened 429 HCE and 804 H2 biped, vehicle, weapon and
 scenery tags and read their inherited object records, model references, variants,
 attachments, change colors and weapon metadata with no failures.
+An expanded H2 acceptance sweep now covers all 1,527 concrete object tags across
+bipeds, crates, creatures, devices, equipment, garbage, projectiles, scenery,
+sound scenery, vehicles and weapons. It decoded all 274 stored object-function
+mappings without a failure; every mapping in this editing kit uses scalar output.
+
+Halo 2 decorator-set tags now use their native classic layout rather than the
+later render-model-reference layout. Foundry imports embedded model vertices,
+indices, normals, UVs and shader references, and creates representative source
+planes for billboard, rotating-quad and decal classes. A Blender 5.1 sweep imported
+all 24 local H2 decorator sets as 184 objects with 2,784 vertices and 1,778 faces.
+Halo 2 scenario decorator placement caches use a separate packed representation;
+decoding those cached transforms and type selections remains scenario integration
+work.
 
 Classic shader acceptance now builds Blender node trees for all 1,412 genuine HCE
 shader-family tags in the local kit, covering model, environment, glass, water,

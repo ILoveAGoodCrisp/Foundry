@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from math import cos, pi, sin
 from pathlib import Path
 import shutil
 from typing import TYPE_CHECKING
@@ -602,26 +603,78 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 ))
         return len(object_names), folders, placements
 
-    def decal_placements(self):
+    def decal_placements(self) -> list[ScenarioDecalPlacement]:
         root = self.tag.root()
         palette_block = self._optional_block(root, 'decal palette')
         decal_block = self._optional_block(root, 'decals')
         if palette_block is None or decal_block is None:
             return []
         palette = [self.reference(element, 'reference') for element in palette_block]
+        classic_sizes: dict[str, float] = {}
+
+        def classic_size(reference: TagReference | None) -> float:
+            if reference is None or not self.path_exists(reference):
+                return 1.0
+            key = reference.RelativePathWithExtension.casefold()
+            if key in classic_sizes:
+                return classic_sizes[key]
+            size = 1.0
+            with TagDocument(reference.Filename, tags_root=self.tags_root,
+                             game=self.game, must_exist=True) as decal:
+                decal_root = decal.tag.root()
+                radius_container = decal_root
+                if self.game == 'halo1':
+                    appearance = decal.required_field(decal_root, 'appearance').as_struct()
+                    if appearance is not None:
+                        radius_container = appearance
+                radius = decal.value(radius_container, 'radius')
+                upper = float(getattr(radius, 'upper', 0.0))
+                lower = float(getattr(radius, 'lower', 0.0))
+                diameter = max(abs(lower), abs(upper)) * 2.0
+                if diameter > 0.0:
+                    size = diameter
+            classic_sizes[key] = size
+            return size
+
+        def classic_rotation(
+            yaw_value: object, pitch_value: object,
+        ) -> tuple[float, float, float, float]:
+            # Classic scenarios store both angles as signed normalized bytes.
+            yaw = max(-127, min(127, int(yaw_value))) * pi / 127.0
+            pitch = max(-127, min(127, int(pitch_value))) * pi / 127.0
+            cy, sy = cos(yaw * 0.5), sin(yaw * 0.5)
+            cp, sp = cos(pitch * 0.5), sin(pitch * 0.5)
+            return (-sy * sp, cy * sp, sy * cp, cy * cp)
+
         placements = []
         for element in decal_block:
-            palette_index = self.value(element, 'decal palette index')
+            classic = self.game in {'halo1', 'halo2'}
+            palette_index = self.value(
+                element, 'decal type' if classic else 'decal palette index')
             reference = palette[palette_index] if isinstance(palette_index, int) and 0 <= palette_index < len(palette) else None
             definition = reference.RelativePathWithExtension if self.path_exists(reference) else None
             position = self.value(element, 'position')
-            rotation = self.value(element, 'rotation')
-            scale_x_field = element.field('scale x')
-            if scale_x_field is not None:
-                scale = (scale_x_field.value, self.value(element, 'scale y'))
+            if classic:
+                yaw_field = element.field('yaw[-127,127]')
+                if yaw_field is None:
+                    yaw_field = element.field('yaw')
+                pitch_field = element.field('pitch[-127,127]')
+                if pitch_field is None:
+                    pitch_field = element.field('pitch')
+                rotation_values = classic_rotation(
+                    0 if yaw_field is None else yaw_field.value,
+                    0 if pitch_field is None else pitch_field.value)
+                size = classic_size(reference)
+                scale = (size, size)
             else:
-                uniform_scale = self.value(element, 'scale')
-                scale = (uniform_scale, uniform_scale)
+                rotation = self.value(element, 'rotation')
+                rotation_values = (rotation.i, rotation.j, rotation.k, rotation.w)
+                scale_x_field = element.field('scale x')
+                if scale_x_field is not None:
+                    scale = (scale_x_field.value, self.value(element, 'scale y'))
+                else:
+                    uniform_scale = self.value(element, 'scale')
+                    scale = (uniform_scale, uniform_scale)
             bsps = set()
             flags = element.field('manual bsp flags')
             if flags is not None and not self.corinth:
@@ -629,8 +682,12 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
             placements.append(ScenarioDecalPlacement(
                 name=reference.ShortName if reference is not None else 'decal',
                 definition=definition,
-                position=(position.x, position.y, position.z),
-                rotation=(rotation.i, rotation.j, rotation.k, rotation.w),
+                position=(
+                    float(getattr(position, 'x', getattr(position, 'i', 0.0))),
+                    float(getattr(position, 'y', getattr(position, 'j', 0.0))),
+                    float(getattr(position, 'z', getattr(position, 'k', 0.0))),
+                ),
+                rotation=rotation_values,
                 scale=scale,
                 bsps=frozenset(bsps),
             ))

@@ -3796,15 +3796,25 @@ class NWOImporter:
             material = material_cache.get(placement.definition)
             if placement.definition not in material_cache:
                 material = None
-                tag_type = DecalSystemCorinthTag if scenario.corinth else DecalSystemTag
-                with tag_type(path=placement.definition) as decal:
-                    for element in decal.tag.SelectField("Block:decals").Elements:
-                        decal_name = f'{decal.tag_path.ShortName}_{element.SelectField("StringId:decal name").GetStringData()}'
-                        material = bpy.data.materials.get(decal_name)
-                        if material is None:
-                            decal.reread_fields(element.ElementIndex)
-                            material = bpy.data.materials.new(decal_name)
+                if scenario.game in {'halo1', 'halo2'}:
+                    from ..managed_blam.shader import ShaderTag
+                    decal_name = Path(placement.definition).stem
+                    material = bpy.data.materials.get(decal_name)
+                    if material is None:
+                        material = bpy.data.materials.new(decal_name)
+                        material.nwo.shader_path = placement.definition
+                        with ShaderTag(path=placement.definition) as decal:
                             decal.to_nodes(material, generated_uvs=True)
+                else:
+                    tag_type = DecalSystemCorinthTag if scenario.corinth else DecalSystemTag
+                    with tag_type(path=placement.definition) as decal:
+                        for element in decal.tag.SelectField("Block:decals").Elements:
+                            decal_name = f'{decal.tag_path.ShortName}_{element.SelectField("StringId:decal name").GetStringData()}'
+                            material = bpy.data.materials.get(decal_name)
+                            if material is None:
+                                decal.reread_fields(element.ElementIndex)
+                                material = bpy.data.materials.new(decal_name)
+                                decal.to_nodes(material, generated_uvs=True)
                 material_cache[placement.definition] = material
 
             scale_x, scale_y = (value * 100 for value in placement.scale)

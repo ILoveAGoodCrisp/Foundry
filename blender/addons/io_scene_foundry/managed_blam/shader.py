@@ -1441,7 +1441,8 @@ class ShaderTag(BlenderTag, TagDocument):
 
         root = self.tag.root()
         shader_type = self.system_path.suffix[1:].casefold()
-        transparent = shader_type.startswith('shader_transparent_')
+        transparent = (shader_type.startswith('shader_transparent_')
+                       or shader_type == 'decal')
 
         def child(struct, name: str):
             field = struct.field(name)
@@ -1571,6 +1572,13 @@ class ShaderTag(BlenderTag, TagDocument):
                 maps = self.block(root, '2 stage maps')
             if len(maps):
                 base = bitmap(child(maps[0], 'parameters'), 'map')
+        elif shader_type == 'decal':
+            appearance = child(root, 'appearance')
+            shader = child(root, 'shader')
+            base = bitmap(shader, 'map')
+            if appearance is not None:
+                value = self.value(appearance, 'color upper bound')
+                material_color = (value.red, value.green, value.blue, 1.0)
 
         if base is not None:
             base.location = (-520, 160)
@@ -1806,6 +1814,31 @@ class ShaderTag(BlenderTag, TagDocument):
         tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
 
         root = self.tag.root()
+        if self.system_path.suffix.casefold() == '.decal':
+            blender_material.surface_render_method = 'BLENDED'
+            reference = TagDocument.reference(self, root, 'bitmap')
+            if reference is None or not reference.RelativePath:
+                return
+            result = bitmap_to_image(reference.Filename, self.always_extract_bitmaps)
+            image_node = nodes.new(type='ShaderNodeTexImage')
+            image_node.name = 'bitmap'
+            image_node.label = 'bitmap'
+            image_node.location = (-520, 160)
+            image_node.image = result.image
+            upper = self.value(root, 'color upper bounds')
+            tint = nodes.new(type='ShaderNodeRGB')
+            tint.outputs['Color'].default_value = (
+                upper.red, upper.green, upper.blue, 1.0)
+            tint.location = (-520, -40)
+            multiply = nodes.new(type='ShaderNodeVectorMath')
+            multiply.operation = 'MULTIPLY'
+            multiply.location = (-180, 120)
+            tree.links.new(image_node.outputs['Color'], multiply.inputs[0])
+            tree.links.new(tint.outputs['Color'], multiply.inputs[1])
+            tree.links.new(multiply.outputs['Vector'], bsdf.inputs['Base Color'])
+            tree.links.new(image_node.outputs['Alpha'], bsdf.inputs['Alpha'])
+            return
+
         template = TagDocument.reference(self, root, 'template')
         template_name = template.RelativePath.casefold() if template is not None else ''
         transparent = '\\transparent\\' in template_name
