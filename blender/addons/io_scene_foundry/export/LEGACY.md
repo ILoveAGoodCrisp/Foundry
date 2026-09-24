@@ -95,8 +95,11 @@ settings remain intact.
   shapes and constraints need a dedicated conversion pass. Mixed-material convex
   shapes must be split before export. Constraints and tag references are rejected.
 - Animation composites, external GR2 references, PCA and vector events are not
-  representable by this path and are rejected. Animation event export is not yet
-  implemented. JMA has uniform scale and H1 JMS has at most two weights per vertex.
+  representable by this path and are rejected. H1/H2 frame, sound and effect data
+  are written to the compiled classic tag where that game's layout supports them.
+  H1 export also restores authored animation weight, loop frame, supported playback
+  flags and world-relative state after Tool compiles `model_animations`. JMA has
+  uniform scale and H1 JMS has at most two weights per vertex.
 - Not every Reach/H4-only property has a legacy equivalent. ASS 2/JMS cannot carry
   the complete ASS 7 lighting records. Shadow Only is rejected for those dialects.
 - LOD-specific naming, light objects and scenario instance proxy relationships

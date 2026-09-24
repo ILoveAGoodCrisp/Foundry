@@ -1442,7 +1442,14 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             self.required_field(element, 'weight').set(settings.weight)
             self.required_field(element, 'loop frame index').set(
                 settings.loop_frame_index)
-            flags = element.field('user flags') or element.field('playback flags')
+            # Halo 1 calls its small playback bitfield simply ``flags``.  It
+            # only exposes compression/world-relative/PAL bits, so the shared
+            # flag writer below will still reject any enabled setting that the
+            # classic layout cannot represent while allowing common metadata
+            # such as weight and loop frame to be written.
+            flags = (element.field('user flags') or
+                     element.field('playback flags') or
+                     element.field('flags'))
             if flags is None:
                 raise ValueError(f'{self.path}: animation {name!r} has no flags field')
             for names, enabled in (
@@ -1498,14 +1505,21 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             self.tag_has_changes = True
 
     def set_world_animations(self, animation_names: Iterable[str]) -> None:
-        targets = set(animation_names)
+        # Sidecar/export names use colon-separated graph paths, while H1 Tool
+        # writes the same names with spaces into model_animations.
+        targets = {name.replace(' ', ':') for name in animation_names}
         for element in self.block(self._definitions(), 'animations'):
-            if str(self.value(element, 'name')) not in targets:
+            if str(self.value(element, 'name')).replace(' ', ':') not in targets:
                 continue
             shared_field = element.field('shared animation data')
             shared = None if shared_field is None else shared_field.as_block()
             if shared is None:
-                flags = self.required_field(element, 'internal flags')
+                flags = (element.field('internal flags') or
+                         element.field('flags'))
+                if flags is None:
+                    raise ValueError(
+                        f'{self.path}: animation {self.value(element, "name")!r} '
+                        'has no world-relative flags field')
             elif len(shared):
                 flags = self.required_field(shared[0], 'internal flags')
             else:

@@ -419,7 +419,7 @@ class LegacyExportScene(ExportScene):
         print(f'--- Wrote {destination}')
 
     def write_classic_animation_events(self) -> None:
-        """Apply Blender events after Tool creates the classic animation tag."""
+        """Apply Blender metadata after Tool creates the classic animation tag."""
         extension = ('model_animations' if self.target_game == 'halo1'
                      else 'model_animation_graph')
         destination = Path(
@@ -434,11 +434,24 @@ class LegacyExportScene(ExportScene):
             if (hasattr(animation, 'legacy_tracks')
                 or bool(animation.anim.animation_events))
         }
-        if not animations:
+        settings = self.anims_for_tag_info if self.target_game == 'halo1' else ()
+        world_animations = (self.reach_world_animations
+                            if self.target_game == 'halo1' else ())
+        if not animations and not settings and not world_animations:
             return
         with AnimationGraphTag(destination) as graph:
-            count = graph.inline_events_from_blender(animations)
-        print(f'--- Updated inline events for {count} animation(s) in {destination}')
+            count = (graph.inline_events_from_blender(animations)
+                     if animations else 0)
+            if settings:
+                graph.set_animation_settings(settings)
+            if world_animations:
+                graph.set_world_animations(world_animations)
+        if animations:
+            print(f'--- Updated inline events for {count} animation(s) in {destination}')
+        if settings:
+            print(f'--- Updated animation settings for {len(settings)} animation(s) in {destination}')
+        if world_animations:
+            print(f'--- Updated {len(world_animations)} world-relative animation(s) in {destination}')
 
     def create_event_objects(self, animation):
         unsupported = [

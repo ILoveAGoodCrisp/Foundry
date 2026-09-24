@@ -20,7 +20,7 @@ Measured as dependency replacement, the migration is now 100%: the add-on has no
 ManagedBlam tag-access path to fall back to. This does not mean every workflow has
 completed visual or editing-kit acceptance.
 
-**H1/H2 feature-parity estimate: about 94%.** Core loose-tag loading/saving,
+**H1/H2 feature-parity estimate: about 95%.** Core loose-tag loading/saving,
 object/model geometry, all H2 LODs, collision/physics, classic animation decoding,
 bitmap and cubemap extraction, broad shader construction, scenario metadata,
 native legacy export dispatch and inline animation-event writing, and scenario BSP
@@ -191,8 +191,12 @@ pose-overlay automation now reads legacy blend-screen angles and frame grids
 through the native graph wrapper. Reach/H4/H2AMP pose-overlay blend-screen setup
 also writes its animation bindings, sources, flags, rates and weight functions
 natively. Animation weights, loop frames, playback flags,
-blend-time overrides and H4/H2AMP PCA group settings also write natively. The
-generated graph schemas remain ignored build assets. Animation resource import
+blend-time overrides and H4/H2AMP PCA group settings also write natively. The H1
+post-Tool path now restores the subset its `model_animations` layout can
+represent: weight, loop frame, compatible flags and world-relative state. A
+save/reopen check on the real HCE Cyborg graph confirmed those edits through the
+classic writer. Unsupported newer playback flags still raise rather than being
+silently discarded. The generated graph schemas remain ignored build assets. Animation resource import
 now uses the Rust pose decoder; specialized composite behavior and broad visual
 acceptance remain.
 Cubemap checksum registration points and model-to-instance physics material maps
