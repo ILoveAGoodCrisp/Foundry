@@ -5993,11 +5993,18 @@ def join_objects(objects: list[bpy.types.Object], *, cleanup_geometry=True) -> b
     objects = objects[1:]
     # consolidate_face_attributes(active.data)
     mat_to_idx = {m: i for i, m in enumerate(active.data.materials)}
+    face_attributes = {prop.attribute_name for prop in active.data.nwo.face_props}
     # Consolidate any dupe face layers and remove unused materials, and map all materials to material indices
     for ob in objects:
         # consolidate_face_attributes(ob.data)
         
         for layer in ob.data.nwo.face_props:
+            # Instanced meshes carry the same attribute names. BMesh joins
+            # their masks into one layer, so retain only one property record;
+            # duplicate records otherwise make consolidation erase that mask.
+            if layer.attribute_name and layer.attribute_name in face_attributes:
+                continue
+            face_attributes.add(layer.attribute_name)
             new_layer = active.data.nwo.face_props.add()
             for k,v in layer.items():
                 new_layer[k] = v
