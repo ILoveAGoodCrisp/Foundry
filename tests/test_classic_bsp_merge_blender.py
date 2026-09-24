@@ -55,6 +55,154 @@ def area(mesh, indices=None):
 
 
 class ClassicMergeTests(unittest.TestCase):
+    def halo2_mapping_fixture(self):
+        class Fields(dict):
+            def field(self, name):
+                return self[name]
+        points = [(0., 0., 0.), (1., 0., 0.), (0., 1., 0.),
+                  (2., 0., 0.), (3., 0., 0.), (2., 1., 0.)]
+        mesh = SimpleNamespace(index=0, positions=points, indices=(0, 1, 2, 3, 4, 5))
+        section = {
+            'raw vertices': [{'position': SimpleNamespace(to_array=lambda p=p: p)} for p in points],
+            'strip indices': [{'index': i} for i in (0, 1, 2, 3, 4, 5)],
+            'parts': [Fields({'strip start index': 0, 'strip length': 6,
+                              'flags': SimpleNamespace(get_flag=lambda name: True)})],
+        }
+        record = SimpleNamespace(vertices=points, polygons=((0, 1, 2), (3, 4, 5)),
+                                 surfaces=[SimpleNamespace(invalid=False), SimpleNamespace(invalid=False)])
+        collision = {
+            'leaves': [{'first bsp2d reference': 0, 'bsp2d reference count': 1}],
+            'bsp3d nodes': [SimpleNamespace(raw_bytes=b'\x00' * 8) for _ in range(4)],
+            'planes': [{'plane': SimpleNamespace(i=0, j=0, k=1, d=0)}],
+            'bsp2d references': [{'plane': 0, 'bsp2d node': 0}],
+            'bsp2d nodes': [{'left child': -32768, 'right child': -32767}],
+        }
+        owner = {
+            'leaves': [{'cluster': 7, 'first surface reference index': 0, 'surface reference count': 2}],
+            'surface references': [{'strip index': 3, 'lightmap triangle index': 99, 'bsp node index': 3}] * 2,
+        }
+        doc = SimpleNamespace(block=lambda owner, name: owner[name], value=lambda owner, name: owner[name],
+                              _collision_bsp=lambda *args, **kwargs: record)
+        return doc, owner, collision, {7: mesh}, {7: section}
+
+    def test_halo2_references_resolve_nodes_leaves_and_strip_offsets(self):
+        from io_scene_foundry.tags.halo2_geometry import surface_mappings
+        doc, owner, collision, meshes, sections = self.halo2_mapping_fixture()
+        _, mappings = surface_mappings(doc, owner, collision, meshes, sections)
+        self.assertTrue(mappings[0].collision_only)
+        # Node 3, strip offset 3, and lightmap triangle 99 are NOT surface IDs.
+        self.assertEqual(mappings[1].direct_triangles, ((1, 7),))
+
+    def test_halo2_unlinked_triangles_do_not_gain_collision_from_proximity(self):
+        from io_scene_foundry.tags.halo2_geometry import surface_mappings
+        doc, owner, collision, meshes, sections = self.halo2_mapping_fixture()
+        owner['surface references'] = [{'strip index': 3, 'bsp node index': -1}] * 2
+        _, mappings = surface_mappings(doc, owner, collision, meshes, sections)
+        self.assertTrue(all(m.collision_only for m in mappings))
+
+    def test_halo2_reference_validation(self):
+        from io_scene_foundry.tags.halo2_geometry import surface_mappings
+        args = self.halo2_mapping_fixture()
+        args[1]['surface references'][0]['bsp node index'] = 100
+        with self.assertRaisesRegex(ValueError, 'BSP3D node'):
+            surface_mappings(*args)
+        args = self.halo2_mapping_fixture()
+        args[1]['leaves'][0]['surface reference count'] = 100
+        with self.assertRaisesRegex(ValueError, 'surface reference range'):
+            surface_mappings(*args)
+        args = self.halo2_mapping_fixture()
+        args[1]['surface references'][0]['strip index'] = 100
+        with self.assertRaisesRegex(ValueError, 'strip offset'):
+            surface_mappings(*args)
+
+    def test_halo2_strip_reindex_skips_connectors(self):
+        from io_scene_foundry.tags.halo2_geometry import _strip_faces
+        doc, _, _, meshes, sections = self.halo2_mapping_fixture()
+        section = sections[7]
+        section['strip indices'] = [{'index': i} for i in (0, 1, 2, 2, 3, 3, 4, 5)]
+        section['parts'][0]['strip length'] = 8
+        section['parts'][0]['flags'] = SimpleNamespace(get_flag=lambda name: False)
+        self.assertEqual(_strip_faces(doc, section, meshes[7]), {0: 0, 5: 1})
+
+    def test_halo2_strip_offsets_are_unsigned(self):
+        from io_scene_foundry.tags.halo2_geometry import _strip_faces
+        doc, _, _, meshes, sections = self.halo2_mapping_fixture()
+        section = sections[7]
+        section['strip indices'] = [{'index': 0}] * 32768 + section['strip indices']
+        section['parts'][0]['strip start index'] = -32768
+        self.assertEqual(_strip_faces(doc, section, meshes[7]), {32768: 0, 32771: 1})
+
+    def test_halo2_import_uses_h3_mapping_path_not_geometric_merge(self):
+        from io_scene_foundry.tags.prefab import (
+            StructureBspCollision, StructureBspCollisionSurface, StructureBspRenderMesh,
+            StructureBspRenderPart, StructureBspSurfaceMapping,
+        )
+        render = StructureBspRenderMesh(
+            0, tuple(SQUARE), ((0, 0), (1, 0), (1, 1), (0, 1)), ((0, 0, 1),) * 4,
+            (), (), (), (), (0, 1, 2, 0, 2, 3), -1, (StructureBspRenderPart(0, 0, 6, 0),), None)
+        surfaces = tuple(StructureBspCollisionSurface(
+            i, -1, False, False, i == 0, i == 0, False, False, False) for i in range(2))
+        collision = StructureBspCollision(tuple(SQUARE), surfaces, ((0, 2, 3), (0, 1, 2)))
+        mappings = [StructureBspSurfaceMapping(0, (), ((1, 0),)), StructureBspSurfaceMapping(1, ())]
+        tag = ScenarioStructureBspTag.__new__(ScenarioStructureBspTag)
+        tag.game = 'halo2'
+        tag.tag_path = SimpleNamespace(ShortName='mapped')
+        tag._tag = SimpleNamespace(root=lambda: {})
+        instances = [dict(object_index=i, name=name, rotation=(0, 0, 0, 1), translation=(0, 0, 0),
+                          scale=1, mesh_type=kind, reference='')
+                     for i, name, kind in ((0, 'cluster_0', 'render'), (1, '@CollideOnly', 'collision'))]
+        for skip in (False, True):
+            with self.subTest(skip=skip), patch.object(tag, 'classic_render_scene', return_value=(['test'], [''], [render, render], instances)), \
+                    patch.object(tag, 'block', return_value=[]), \
+                    patch('io_scene_foundry.tags.scenario_structure_bsp.halo2_bsp_mappings', return_value=[(collision, mappings, {0: 0}, True)]), \
+                    patch('io_scene_foundry.tags.scenario_structure_bsp.merge_classic_surfaces', side_effect=AssertionError('H2 must use references')):
+                objects, _ = tag._classic_render_objects(bpy.context.scene.collection, skip)
+            self.assertEqual(len(objects), 2 if skip else 1)
+            self.assertEqual(sum(len(ob.data.polygons) for ob in objects), 3)
+            self.assertEqual(sum(len(mode_faces(ob.data, 'render_only')) for ob in objects), 1)
+            self.assertEqual(sum(len(mode_faces(ob.data, 'collision_only')) for ob in objects), 1)
+            self.assertEqual(sum(len(mode_faces(ob.data, 'breakable')) for ob in objects), 1)
+            self.assertTrue(any(p.type == 'ladder' for ob in objects for p in ob.data.nwo.face_props))
+
+    def test_join_preserves_face_flags_on_repeated_instances(self):
+        mesh = make_mesh(SQUARE, [(0, 1, 2), (0, 2, 3)])
+        utils.add_face_prop(mesh, 'face_mode', [0, 1]).face_mode = 'breakable'
+        objects = []
+        for i in range(3):
+            ob = bpy.data.objects.new(f'instance_{i}', mesh.copy())
+            bpy.context.scene.collection.objects.link(ob)
+            objects.append(ob)
+        joined = utils.join_objects(objects, cleanup_geometry=False)
+        self.assertEqual(len(mode_faces(joined.data, 'breakable')), 3)
+
+    def test_halo2_real_bsp_imports_when_fixture_root_is_set(self):
+        import os
+        from io_scene_foundry.tags.backend import TagDocument
+        tags_root = os.environ.get('FOUNDRY_H2_TEST_TAGS')
+        if not tags_root:
+            self.skipTest('Set FOUNDRY_H2_TEST_TAGS to run Chiron Station and Zanzibar integration checks')
+        for level in ('chironstation', 'zanzibar'):
+            tag = ScenarioStructureBspTag.__new__(ScenarioStructureBspTag)
+            TagDocument.__init__(tag, f'scenarios/multi/{level}/{level}.scenario_structure_bsp', tags_root=tags_root, game='halo2')
+            tag.tag_path = tag.reference_from_path(tag.path)
+            tag.tags_dir = str(tag.tags_root)
+            tag.corinth = False
+            with patch.object(tag, '_classic_shader_emissive', return_value=None), \
+                    patch.object(utils, 'get_prefs', return_value=SimpleNamespace(update_materials_on_shader_path=False)), \
+                    patch('io_scene_foundry.tags.scenario_structure_bsp.merge_classic_surfaces', side_effect=AssertionError('H2 must use references')):
+                separate, _ = tag._classic_render_objects(bpy.context.scene.collection, True)
+                counts = {mode: sum(len(mode_faces(ob.data, mode)) for ob in separate if ob.type == 'MESH')
+                          for mode in ('render_only', 'collision_only', 'breakable')}
+                faces = sum(len(ob.data.polygons) for ob in separate if ob.type == 'MESH')
+                self.assertGreater(faces, 0)
+                self.assertLess(counts['render_only'] + counts['collision_only'], faces)
+                joined, _ = tag._classic_render_objects(bpy.context.scene.collection, False)
+                self.assertEqual(sum(len(ob.data.polygons) for ob in joined if ob.type == 'MESH'), faces)
+                for mode, count in counts.items():
+                    self.assertEqual(sum(len(mode_faces(ob.data, mode)) for ob in joined if ob.type == 'MESH'), count)
+                print(f'{level}: {faces} faces, {counts}')
+            tag.__exit__(None, None, None)
+
     def setUp(self):
         self.project_patch = patch.object(utils, 'get_project', return_value=None)
         self.project_patch.start()

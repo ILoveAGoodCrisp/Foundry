@@ -634,12 +634,13 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
             surfaces.append(StructureBspCollisionSurface(
                 index=surface_index,
                 material_index=int(self.value(surface, 'material')),
-                negated=(self.game not in {'halo3', 'halo3odst'} and
-                         flags.get_flag('plane negated')),
+                negated=((int(self.value(surface, 'plane')) & 0x8000) != 0
+                         if self.game == 'halo2' else
+                         self.game not in {'halo3', 'halo3odst'} and flags.get_flag('plane negated')),
                 invalid=flags.get_flag('invalid'),
                 ladder=flags.get_flag('climbable'),
                 breakable=breakable,
-                slip_surface=flags.get_flag('slip'),
+                slip_surface=False if self.game == 'halo2' else flags.get_flag('slip'),
                 invisible=invisible,
                 two_sided=(flags.get_flag('two sided') and
                            not (breakable or invisible)),

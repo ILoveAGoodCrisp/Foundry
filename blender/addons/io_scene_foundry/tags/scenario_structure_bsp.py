@@ -18,6 +18,7 @@ from ..utils import jstr
 from .. import utils
 from .prefab import ScenarioStructureBspMetadataTag, StructureBspHavokGeometry
 from .classic_geometry import merge_classic_surfaces
+from .halo2_geometry import bsp_mappings as halo2_bsp_mappings
 
 class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
     tag_ext = 'scenario_structure_bsp'
@@ -167,16 +168,34 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     emissives[index] = emissive
             materials[index] = material
 
+        halo2_mappings, halo2_collision, structure_collision = {}, {}, []
+        if self.game == 'halo2':
+            halo2_mappings, halo2_collision, structure_collision = self._halo2_surface_data(
+                mesh_records, instances, materials)
+        native_collision_indices = {i['object_index'] for i in instances if i['mesh_type'] == 'collision'}
         source_objects: dict[int, list[bpy.types.Object]] = {}
         for index, record in enumerate(mesh_records):
             if record is None or not record.parts or not record.positions:
                 continue
+            if self.game == 'halo2' and index in native_collision_indices:
+                continue  # Rebuilt from unmapped collision surfaces below.
+            section, mappings = halo2_mappings.get(index, (0, []))
             source_objects[index] = Mesh.from_native(record, materials, False).create(
-                None, None, name=f'classic_bsp_mesh:{index}')
+                None, None, name=f'classic_bsp_mesh:{index}',
+                surface_triangle_mapping=mappings, section_index=section)
             for source in source_objects[index]:
+                if index in halo2_mappings and not mappings:
+                    utils.add_face_prop(source.data, 'face_mode').face_mode = 'render_only'
                 self._apply_classic_emissives(source.data, emissives)
+                if self.game == 'halo2':
+                    utils.consolidate_face_attributes(source.data)
+                    utils.calc_face_prop_counts(source.data)
+            if index in halo2_collision:
+                source_objects[index].append(halo2_collision[index])
 
-        objects: list[bpy.types.Object] = []
+        objects: list[bpy.types.Object] = structure_collision
+        for ob in structure_collision:
+            collection.objects.link(ob)
         game_objects: list[bpy.types.Object] = []
         for instance in instances:
             name = instance['name']
@@ -232,7 +251,61 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 bpy.data.objects.remove(source)
         return self._merge_classic_structure_geometry(
             objects, skip_structure_merge,
-            merge_render_collision=merge_render_collision), game_objects
+            # H2 has already used the same explicit surface mapping path as H3.
+            # Joining clusters must not reclassify these faces geometrically.
+            merge_render_collision=merge_render_collision and self.game != 'halo2'), game_objects
+
+    def _halo2_surface_data(self, mesh_records, instances, materials):
+        by_path = {mat.nwo.shader_path.replace('/', '\\').casefold(): mat for mat in materials.values()}
+        collision_materials = []
+        for index, element in enumerate(self.block(self.tag.root(), 'collision materials')):
+            shader = self.reference(element, 'new shader') or self.reference(element, 'old shader')
+            material = BSPCollisionMaterial.__new__(BSPCollisionMaterial)
+            material.index = index
+            material.name = shader.ShortName if shader else '+sky'
+            material.blender_material = by_path.get(shader.RelativePathWithExtension.replace('/', '\\').casefold()) if shader else None
+            if material.blender_material is None:
+                material.blender_material = bpy.data.materials.get(material.name) or bpy.data.materials.new(material.name)
+                if shader:
+                    material.blender_material.nwo.shader_path = shader.RelativePathWithExtension
+            material.global_material_override = ''
+            material.is_seam = False
+            collision_materials.append(material)
+
+        source_mappings, source_collision, structure_collision = {}, {}, []
+        for record, native_mappings, sources, is_structure in halo2_bsp_mappings(self, mesh_records, instances):
+            collision = StructureCollision.from_native(record, collision_materials, -1)
+            mappings = [SurfaceMapping.from_native(m, collision.surfaces[m.surface_index]) for m in native_mappings]
+            for section, source in sources.items():
+                source_mappings[source] = (section, mappings)
+            remaining = [m.surface_index for m in native_mappings if m.collision_only and not record.surfaces[m.surface_index].invalid]
+            if not remaining:
+                continue
+            ob = collision.to_object(surface_indices=remaining)
+            if not ob.data.polygons:
+                mesh = ob.data
+                bpy.data.objects.remove(ob)
+                bpy.data.meshes.remove(mesh)
+                continue
+            # Keep sphere-only flags from the collision importer; other leftover
+            # surfaces use the same Collision Only attribute as H3.
+            mask = np.ones(len(ob.data.polygons), dtype=np.int8)
+            for prop in ob.data.nwo.face_props:
+                if prop.type == 'face_mode' and prop.face_mode == 'sphere_collision_only':
+                    values = np.empty(len(mask), dtype=np.int8)
+                    ob.data.attributes[prop.attribute_name].data.foreach_get('value', values)
+                    mask &= ~values
+            if mask.any():
+                utils.add_face_prop(ob.data, 'face_mode', mask).face_mode = 'collision_only'
+            ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
+            ob.data.uv_layers.new(name='UVMap0')
+            utils.consolidate_face_attributes(ob.data)
+            utils.calc_face_prop_counts(ob.data)
+            if is_structure:
+                structure_collision.append(ob)
+            else:
+                source_collision[next(iter(sources.values()))] = ob
+        return source_mappings, source_collision, structure_collision
 
     def _classic_shader_emissive(self, shader_path: str):
         """Read the lightmap emission stored directly in an H1/H2 shader."""
