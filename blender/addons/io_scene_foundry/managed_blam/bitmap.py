@@ -548,28 +548,27 @@ class BitmapTag(BlenderTag, TagDocument):
             
         self.tag_has_changes = True
         
-    def get_granny_data(self, fill_alpha: bool, calc_blue_channel: bool) -> object | None:
+    def get_granny_data(
+        self, fill_alpha: bool, calc_blue_channel: bool
+    ) -> tuple[int, int, int, bytes] | None:
         if not len(self.block_bitmaps):
             return None
         bitmap = self.block_bitmaps[0]
         width = self._select_int(bitmap, 'width')
         height = self._select_int(bitmap, 'height')
         bitmap_type = self._select_int(bitmap, 'type')
-        bitmap_format = self._bitmap_format(bitmap)
-        pixels_offset = self._select_int(bitmap, 'pixels offset', -1)
-        pixels_size = self._bitmap_base_pixel_size(
-            width, height, bitmap_format, bitmap_type)
         if bitmap_type != 0 or width <= 0 or height <= 0:
             return None
-        processed_data = bytes(self.required_field(self.tag.root(), 'processed pixel data').value)
-        end = pixels_offset + pixels_size
-        if pixels_offset < 0 or pixels_size <= 0 or end > len(processed_data):
-            raise BitmapExtractionError(f'Invalid pixel-data range in {self.path}')
-        rgba = self._decode_bitmap_rgba(
-            width, height, bitmap_format, processed_data[pixels_offset:end])
-        if rgba is None:
+        try:
+            decoded_width, decoded_height, rgba = self._uncompressed_rgba_tiff(
+                self.tag.bitmap_tiff(0))
+        except (IndexError, ValueError) as exc:
             raise BitmapExtractionError(
-                f'Unsupported bitmap format {bitmap_format} in {self.path}')
+                f'Native bitmap extraction failed for Granny data in {self.path}: {exc}') from exc
+        if (decoded_width, decoded_height) != (width, height):
+            raise BitmapExtractionError(
+                f'Native bitmap dimensions changed in {self.path}: '
+                f'{decoded_width}x{decoded_height}, expected {width}x{height}')
         pixels = np.frombuffer(rgba, dtype=np.uint8).copy().reshape(-1, 4)
         if calc_blue_channel:
             red = NORMAL_DEBUG_GAMMA_LOOKUP_NP[pixels[:, 0]] / 255.0
@@ -1877,7 +1876,7 @@ class BitmapTag(BlenderTag, TagDocument):
                 f"blam-tags TIFF has {len(rgba)} pixel bytes; expected {expected}")
         return width, height, rgba
 
-    def _save_classic_cubemap_equirectangular(self, tiff: bytes, suffix: str) -> str:
+    def _save_cubemap_equirectangular(self, tiff: bytes, suffix: str) -> str:
         width, height, rgba = self._uncompressed_rgba_tiff(tiff)
         if width % 4 or height % 3 or width // 4 != height // 3:
             raise BitmapExtractionError(
@@ -1934,77 +1933,29 @@ class BitmapTag(BlenderTag, TagDocument):
         )
 
     def _save_single_raw_tiff(self, frame_index: int, suffix: str, convert_color_space: bool) -> str:
-        if self.game in {'halo1', 'halo2'}:
-            save_path = self._raw_tiff_save_path(suffix)
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            try:
-                tiff = self.tag.bitmap_tiff(frame_index)
-            except (IndexError, ValueError) as exc:
-                raise BitmapExtractionError(
-                    f"Classic bitmap extraction failed for {self.tag_path.RelativePath}, "
-                    f"frame {frame_index}: {exc}") from exc
-            with open(save_path, 'wb') as stream:
-                stream.write(tiff)
-            if self.is_cubemap:
-                return self._save_classic_cubemap_equirectangular(tiff, suffix)
-            return save_path
-
-        bitmap_elements = self.block_bitmaps
-        if frame_index < 0 or frame_index >= len(bitmap_elements):
-            raise BitmapExtractionError(
-                f"Bitmap extraction failed for {self.tag_path.RelativePath}: frame {frame_index} is out of range "
-                f"for {len(bitmap_elements)} bitmap frame(s)"
-            )
-
-        bitmap_element = bitmap_elements[frame_index]
-        width = self._select_int(bitmap_element, "ShortInteger:width")
-        height = self._select_int(bitmap_element, "ShortInteger:height")
-        depth = self._select_int(bitmap_element, "CharInteger:depth", 1)
-        bitmap_type = self._select_int(bitmap_element, "CharEnum:type")
-        bitmap_format = self._bitmap_format(bitmap_element)
-        pixels_offset = self._select_int(bitmap_element, "LongInteger:pixels offset", -1)
-        pixels_size = self._bitmap_base_pixel_size(
-            width, height, bitmap_format, bitmap_type, depth)
-        details = self._bitmap_extraction_details(bitmap_element, frame_index)
-
-        if bitmap_type not in {0, 2, 3}:
-            raise BitmapExtractionError(f"Unsupported bitmap type for new extraction: {details}")
-        if bitmap_type == 2 and width != height:
-            raise BitmapExtractionError(f"Cubemap faces must be square for new extraction: {details}")
-        if bitmap_format not in SUPPORTED_BITMAP_FORMAT_NAMES:
-            raise BitmapExtractionError(f"Unsupported bitmap format for new extraction: {details}")
-        if pixels_offset < 0 or pixels_size <= 0:
-            raise BitmapExtractionError(f"Invalid bitmap pixel data range for new extraction: {details}")
-
-        processed_data = bytes(self.required_field(self.tag.root(), 'processed pixel data').value)
-        end = pixels_offset + pixels_size
-        if end > len(processed_data):
-            raise BitmapExtractionError(
-                f"Bitmap pixel data exceeds processed data length for new extraction: {details}, "
-                f"processed data length={len(processed_data)}"
-            )
-
-        surface_count = 6 if bitmap_type == 2 else max(1, depth) if bitmap_type == 3 else 1
-        decode_height = height * surface_count
-        rgba = self._decode_bitmap_rgba(width, decode_height, bitmap_format, processed_data[pixels_offset:end])
-        if rgba is None:
-            raise BitmapExtractionError(f"Failed to decode bitmap pixels for new extraction: {details}")
-
-        if self._should_convert_xrgb_to_srgb(convert_color_space):
-            rgba = self._convert_xrgb_rgba_to_srgb(rgba, self.get_gamma_value())
-
         save_path = self._raw_tiff_save_path(suffix)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        self._write_rgba_tiff(save_path, width, decode_height, rgba)
+        try:
+            tiff = self.tag.bitmap_tiff(frame_index)
+        except (IndexError, ValueError) as exc:
+            raise BitmapExtractionError(
+                f"Native bitmap extraction failed for {self.tag_path.RelativePath}, "
+                f"frame {frame_index}: {exc}") from exc
 
-        if bitmap_type != 2:
-            return save_path
+        if (self.game not in {'halo1', 'halo2'} and
+                self._should_convert_xrgb_to_srgb(convert_color_space)):
+            width, height, rgba = self._uncompressed_rgba_tiff(tiff)
+            rgba = self._convert_xrgb_rgba_to_srgb(rgba, self.get_gamma_value())
+            self._write_rgba_tiff(save_path, width, height, rgba)
+            with open(save_path, 'rb') as stream:
+                tiff = stream.read()
+        else:
+            with open(save_path, 'wb') as stream:
+                stream.write(tiff)
 
-        equirectangular_path = self._raw_cubemap_equirectangular_save_path(suffix)
-        equirectangular = self._cubemap_vertical_rgba_to_equirectangular(rgba, width)
-        os.makedirs(os.path.dirname(equirectangular_path), exist_ok=True)
-        self._write_rgba_tiff(equirectangular_path, width * 4, height * 2, equirectangular)
-        return equirectangular_path
+        if self.is_cubemap:
+            return self._save_cubemap_equirectangular(tiff, suffix)
+        return save_path
 
     def _save_single(self, blue_channel_fix: bool, format: str, frame_index: int, suffix: str):
         if format != 'tiff':
@@ -2020,7 +1971,7 @@ class BitmapTag(BlenderTag, TagDocument):
         first_suffix = "_00001" if len(self.block_bitmaps) > 1 else ""
         expected_tiff_path = (Path(self._raw_cubemap_equirectangular_save_path(first_suffix))
                               if self.is_cubemap else
-                              Path(self.data_dir, self.tag_path.RelativePath).with_suffix('.tiff'))
+                              Path(self._raw_tiff_save_path(first_suffix)))
         expected_tif_path = expected_tiff_path.with_suffix('.tif')
         if expected_tiff_path in path_cache and expected_tiff_path.exists():
             return str(expected_tiff_path)
