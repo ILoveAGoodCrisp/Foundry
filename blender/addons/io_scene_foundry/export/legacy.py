@@ -153,8 +153,8 @@ class LegacyExportScene(ExportScene):
             if node.invalid:
                 continue
             if node.props.get('bungie_object_type') == 2:
-                if node.ob.nwo.marker_type in {'_connected_geometry_marker_type_physics_constraint', '_connected_geometry_marker_type_game_instance'}:
-                    raise ValueError(f'{node.name}: legacy export of constraints and tag references is not implemented yet')
+                if node.ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance':
+                    raise ValueError(f'{node.name}: legacy export of tag references is not implemented yet')
                 markers.append(node)
             if node.mesh is None or node.mesh.invalid:
                 continue
@@ -604,8 +604,8 @@ class LegacyExportScene(ExportScene):
                 else:
                     # Convex records can represent arbitrary evaluated physics meshes.
                     points = tuple(v.position for v in self.vertices(node, matrix, False))
-                    asset.shapes.append(jms.Shape('convex', node.name, parent, material,
-                        jms.Transform((0, 0, 0, 1), (0, 0, 0)), vertices=points))
+                asset.shapes.append(jms.Shape('convex', node.name, parent, material,
+                    jms.Transform((0, 0, 0, 1), (0, 0, 0)), vertices=points))
                 continue
             offset = len(asset.vertices)
             asset.vertices.extend(self.vertices(
@@ -618,6 +618,48 @@ class LegacyExportScene(ExportScene):
                 if node.negative_scaling:
                     indices = indices[0], indices[2], indices[1]
                 asset.triangles.append(jms.Triangle(material, indices, asset.regions.index(region)))
+        if folder == 'physics' and self.jms_version >= 8206:
+            for node in markers:
+                marker_type = node.props.get('bungie_marker_type')
+                if marker_type not in {
+                        '_connected_geometry_marker_type_physics_hinge_constraint',
+                        '_connected_geometry_marker_type_physics_socket_constraint'}:
+                    continue
+                parent_name = node.props.get('bungie_physics_constraint_parent', '')
+                child_name = node.props.get('bungie_physics_constraint_child', '')
+                parent = self.bone_index.get(parent_name, -1)
+                child = self.bone_index.get(child_name, -1)
+                if parent < 0 or child < 0:
+                    raise ValueError(
+                        f'{node.name}: physics constraint endpoints must name '
+                        'bones in the exported skeleton')
+                parent_matrix = self.bones[parent].matrix_world.inverted() @ node.matrix_world
+                child_matrix = self.bones[child].matrix_world.inverted() @ node.matrix_world
+                use_limits = bool(node.props.get(
+                    'bungie_physics_constraint_use_limits', 0))
+                if marker_type.endswith('hinge_constraint'):
+                    kind = 'hinge'
+                    limits = (
+                        int(use_limits), 0.0,
+                        float(node.props.get('bungie_physics_constraint_hinge_min', 0.0)),
+                        float(node.props.get('bungie_physics_constraint_hinge_max', 0.0)),
+                    )
+                else:
+                    kind = 'ragdoll'
+                    limits = (
+                        float(node.props.get('bungie_physics_constraint_twist_start', 0.0)),
+                        float(node.props.get('bungie_physics_constraint_twist_end', 0.0)),
+                        0.0,
+                        float(node.props.get('bungie_physics_constraint_cone_angle', 0.0)),
+                        float(node.props.get('bungie_physics_constraint_plane_min', 0.0)),
+                        float(node.props.get('bungie_physics_constraint_plane_max', 0.0)),
+                    ) if use_limits else (0.0,) * 6
+                    if self.jms_version >= 8213:
+                        limits += (0.0,)  # H3/ODST ragdolls add friction.
+                asset.constraints.append(jms.Constraint(
+                    kind, node.name.lstrip('$'), parent, child,
+                    transform(parent_matrix, self.to_halo_scale),
+                    transform(child_matrix, self.to_halo_scale), limits))
         if folder in {'render', 'models'} and 'markers' in self.export_tag_types:
             for node in markers:
                 nwo = node.ob.nwo

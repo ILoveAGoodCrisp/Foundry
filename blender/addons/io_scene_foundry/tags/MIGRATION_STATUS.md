@@ -20,7 +20,7 @@ Measured as dependency replacement, the migration is now 100%: the add-on has no
 ManagedBlam tag-access path to fall back to. This does not mean every workflow has
 completed visual or editing-kit acceptance.
 
-**H1/H2 feature-parity estimate: about 98%.** Core loose-tag loading/saving,
+**H1/H2 feature-parity estimate: about 99%.** Core loose-tag loading/saving,
 object/model geometry, all H2 LODs, collision/physics, classic animation decoding,
 bitmap and cubemap extraction, broad shader construction, scenario metadata,
 native legacy export dispatch and inline animation-event writing, and scenario BSP
@@ -213,6 +213,10 @@ H2 physics export now preserves authored sphere, box and pill primitives in the
 native JMS shape tables instead of converting every object to a convex hull. Pill
 height is converted from Blender's full height to Tool's cylinder span; arbitrary
 physics meshes continue to use the convex record.
+H2 hinge and socket markers now export to the JMS hinge and ragdoll tables. The
+writer resolves both endpoints against the exported skeleton, builds each local
+constraint frame from the marker transform and retains the authored angular limits.
+Missing endpoint bones raise before replacing an existing intermediate.
 Cubemap checksum registration points and model-to-instance physics material maps
 now use native fields; their tool callers no longer traverse ManagedBlam elements.
 

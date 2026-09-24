@@ -92,8 +92,8 @@ settings remain intact.
   its `model_animations` tag directly. Legacy lightmapping and cache building are
   not implemented.
 - Physics meshes write native sphere, box, pill or convex records for H2/H3/ODST.
-  Mixed-material shapes must be split before export. Constraints and tag references
-  are rejected.
+  Hinge and socket markers write hinge/ragdoll constraint records. Mixed-material
+  shapes must be split before export. Tag-reference markers are rejected.
 - Animation composites, external GR2 references, PCA and vector events are not
   representable by this path and are rejected. H1/H2 frame, sound and effect data
   are written to the compiled classic tag where that game's layout supports them.
