@@ -1444,6 +1444,36 @@ class WrapperTests(unittest.TestCase):
                         tag.primitive_bodies()
                 self.assertEqual((Path(root) / 'test.physics_model').read_bytes(), before)
 
+    def test_halo1_physics_mass_points_use_model_space_rotation(self):
+        from unittest.mock import MagicMock
+        from io_scene_foundry.tags.physics_blender import PhysicsTag
+        from io_scene_foundry.tags.connected_geometry import RigidBody
+
+        scene_nwo = SimpleNamespace(scene_project='test', scale='max', forward_direction='y-')
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(utils, 'get_scene_props', return_value=scene_nwo), \
+             patch.object(utils, 'get_project', return_value=SimpleNamespace(game='halo1')), \
+             patch.object(utils, 'get_tags_path', return_value=root), \
+             patch.object(utils, 'get_rig', return_value=None):
+            with PhysicsTag('test.physics') as tag:
+                points = tag.block(tag.tag.root(), 'mass points')
+                point = points[points.add()]
+                tag.required_field(point, 'name').set('mass point')
+                tag.required_field(point, 'model node').set(-1)
+                tag.required_field(point, 'radius').set(.25)
+                position = tag.required_field(point, 'position')
+                position.set(type(position.value)(1., 2., 3.))
+
+            collection = SimpleNamespace(objects=SimpleNamespace(link=MagicMock()))
+            def convert(body):
+                body.shapes[0].ob = SimpleNamespace()
+            with PhysicsTag('test.physics') as tag, \
+                patch.object(RigidBody, 'to_objects', convert), \
+                 patch.object(utils, 'set_region'), patch.object(utils, 'set_permutation'):
+                imported, = tag.to_blend_objects(collection)
+                for actual, expected in zip(imported.matrix_world.translation, (200., -100., 300.)):
+                    self.assertAlmostEqual(actual, expected, places=4)
+
     def test_native_physics_constraints(self):
         from mathutils import Matrix
         from unittest.mock import MagicMock

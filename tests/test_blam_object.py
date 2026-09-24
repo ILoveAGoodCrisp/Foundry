@@ -182,9 +182,10 @@ class ObjectTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             args = dict(tags_root=root, game='halo1')
             with m.ObjectDocument('test.scenery', **args) as doc:
-                doc.set_halo1_model_paths('rock.model', 'rock.model_collision_geometry')
+                doc.set_halo1_model_paths('rock.model', 'rock.model_collision_geometry', physics='rock.physics')
             (Path(root) / 'rock.gbxmodel').touch()
             (Path(root) / 'rock.model_collision_geometry').touch()
+            (Path(root) / 'rock.physics').touch()
 
             with m.ObjectDocument('test.scenery', **args) as doc:
                 self.assertEqual(doc.get_model_tag_path(), 'rock.model')
@@ -193,7 +194,7 @@ class ObjectTests(unittest.TestCase):
                 self.assertEqual(render, str(Path(root) / 'rock.gbxmodel'))
                 self.assertEqual(collision, str(Path(root) / 'rock.model_collision_geometry'))
                 self.assertEqual(animation, '')
-                self.assertEqual(physics, '')
+                self.assertEqual(physics, str(Path(root) / 'rock.physics'))
 
     def test_halo1_existing_model_reference_is_not_rewritten(self):
         with tempfile.TemporaryDirectory() as root:

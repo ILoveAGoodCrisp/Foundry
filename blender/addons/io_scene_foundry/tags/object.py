@@ -87,14 +87,10 @@ class ObjectDocument(TagDocument):
         return ref.Filename if ref else None
 
     def get_halo1_model_paths(self, optional_tag_root: str | Path | None = None) -> tuple[str, str, str, str]:
-        """Return H1 render, collision and animation references.
-
-        H1's ``physics`` reference is an object-properties tag, not the geometric
-        ``physics_model`` consumed by the Blender physics importer.
-        """
+        """Return H1 render, collision, animation, and physics references."""
         struct = self.object_struct()
         paths = []
-        for name in ('model', 'collision model', 'animation graph'):
+        for name in ('model', 'collision model', 'animation graph', 'physics'):
             reference = (self._resolved_model_reference(optional_tag_root)
                          if name == 'model' else self.reference(struct, name))
             if reference is None or not reference.RelativePath:
@@ -103,7 +99,7 @@ class ObjectDocument(TagDocument):
                 paths.append(reference.Filename)
             else:
                 paths.append(str(Path(optional_tag_root) / reference.RelativePathWithExtension))
-        return paths[0], paths[1], paths[2], ''
+        return tuple(paths)
 
     def set_model_tag_path(self, path):
         self.reference_model.Path = path

@@ -31,6 +31,8 @@ class PhysicsDocument(TagDocument):
     tag_ext = 'physics_model'
 
     def materials(self) -> list[PhysicsMaterial]:
+        if self.game == 'halo1':
+            return []
         result: list[PhysicsMaterial] = []
         for element in self.block(self.tag.root(), 'materials'):
             phantom = element.field('phantom type')
@@ -42,6 +44,8 @@ class PhysicsDocument(TagDocument):
         return result
 
     def primitive_bodies(self, *, include_serialized=False):
+        if self.game == 'halo1':
+            return self._halo1_mass_points()
         if self.game == 'halo2':
             return self._halo2_primitive_bodies()
         root = self.tag.root()
@@ -152,6 +156,33 @@ class PhysicsDocument(TagDocument):
                             name=self.value(base, 'name'), material=materials[material] if 0 <= material < len(materials) else None,
                             kind=kind, material_index=material, radius=radius, translation=translation, havok=havok,
                             friction=friction, restitution=restitution, **geometry))
+        return result
+
+    def _halo1_mass_points(self):
+        """Expose Halo 1 mass points as importable spherical physics bodies."""
+        result = []
+        for index, element in enumerate(self.block(self.tag.root(), 'mass points')):
+            radius = self.value(element, 'radius')
+            translation = tuple(self.value(element, 'position').to_array())
+            if radius < 0 or not all(isfinite(value) for value in (radius, *translation)):
+                raise ValueError(f'Halo 1 physics mass point {index} has invalid geometry')
+            result.append(SimpleNamespace(
+                index=index,
+                node_index=self.value(element, 'model node'),
+                bone=None,
+                region='default',
+                permutation='default',
+                name=self.value(element, 'name') or f'mass point {index}',
+                material=None,
+                kind='sphere',
+                material_index=-1,
+                radius=radius,
+                translation=translation,
+                model_space=True,
+                havok=None,
+                friction=0.0,
+                restitution=0.0,
+            ))
         return result
 
     def _halo2_primitive_bodies(self):
@@ -283,6 +314,8 @@ class PhysicsDocument(TagDocument):
                 for i in range(offset, offset + count)]
 
     def constraints(self):
+        if self.game == 'halo1':
+            return []
         nodes = [self.value(e, 'name') for e in self.block(self.tag.root(), 'nodes')]
         result = []
         for kind, fields in CONSTRAINT_FIELDS.items():

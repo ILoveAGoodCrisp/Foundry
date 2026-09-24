@@ -756,7 +756,7 @@ def ensure_import_operator_enum_defaults(keywords):
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "jms", "jma", "bitmap", "camera_track", "model", "render_model", "sky", "scenario", "scenario_structure_bsp", "scenario_structure_lighting_info", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
+formats = "jms", "jma", "bitmap", "camera_track", "model", "render_model", "physics_model", "sky", "scenario", "scenario_structure_bsp", "scenario_structure_lighting_info", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
 
 xref_tag_types = (
     ".crate",
@@ -788,8 +788,9 @@ filetype_suffixes = (
     ("jma", legacy_animation_formats),
     ("bitmap", (".bitmap",)),
     ("camera_track", (".camera_track",)),
-    ("model", (".model",)),
     ("render_model", (".render_model", ".gbxmodel")),
+    ("physics_model", (".physics_model", ".physics")),
+    ("model", (".model",)),
     ("sky", (".sky",)),
     ("scenario", (".scenario",)),
     ("scenario_structure_bsp", (".scenario_structure_bsp",)),
@@ -845,12 +846,13 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
             scene_nwo.template_model_animation_graph = ""
             collision_extension = ".model_collision_geometry"
             animation_extension = ".model_animations"
-            scene_nwo.template_physics_model = ""
+            physics_extension = ".physics"
         else:
             scene_nwo.template_model = str(path.with_suffix(".model"))
             scene_nwo.template_render_model = str(path.with_suffix(".render_model"))
             collision_extension = ".collision_model"
             animation_extension = ".model_animation_graph"
+            physics_extension = ".physics_model"
 
         collision_path = Path(tags_dir, path).with_suffix(collision_extension)
         if collision_path.exists():
@@ -866,8 +868,10 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
                         node = skeleton_node_names[node_index]
                         setattr(scene_nwo, f"node_usage_{usage}", node)
                     
-        if not halo1 and Path(tags_dir, path).with_suffix(".physics_model").exists():
-            scene_nwo.template_physics_model = str(path.with_suffix(".physics_model"))
+        scene_nwo.template_physics_model = ""
+        physics_path = Path(tags_dir, path).with_suffix(physics_extension)
+        if physics_path.exists():
+            scene_nwo.template_physics_model = str(path.with_suffix(physics_extension))
              
     else:
         match tag_ext:
@@ -1630,6 +1634,15 @@ class NWO_Import(bpy.types.Operator):
                         
                     imported_objects.extend(imported_render_objects)
 
+                elif 'physics_model' in importer.extensions:
+                    existing_armature = utils.get_rig_prioritize_active(context) if self.reuse_armature else None
+                    for file in importer.sorted_filepaths["physics_model"]:
+                        utils.print_section(f'Importing Physics Tag: {Path(file).name}')
+                        model_collection = bpy.data.collections.new(Path(file).stem)
+                        importer.scene_collection.children.link(model_collection)
+                        imported_objects.extend(importer.import_physics_model(
+                            file, existing_armature, model_collection, set()))
+
                 elif 'sky' in importer.extensions:
                     importer.tag_render = self.tag_render
                     importer.tag_markers = self.tag_markers
@@ -2304,6 +2317,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += '*.model;'
             if 'render_model' in self.scope:
                 self.filter_glob += '*.render_model;*.gbxmodel;'
+            if 'physics_model' in self.scope:
+                self.filter_glob += '*.physics_model;*.physics;'
             if 'sky' in self.scope:
                 self.filter_glob += '*.sky;'
             if 'scenario' in self.scope:
@@ -2351,7 +2366,7 @@ class NWO_Import(bpy.types.Operator):
             box = layout.box()
             box.label(text="Tag Source Data")
             box.prop(self, "use_import_info")
-        if not self.scope or ('jms' in self.scope or 'model' in self.scope or 'object' in self.scope or 'render_model' in self.scope or 'sky' in self.scope):
+        if not self.scope or ('jms' in self.scope or 'model' in self.scope or 'object' in self.scope or 'render_model' in self.scope or 'physics_model' in self.scope or 'sky' in self.scope):
             box = layout.box()
             box.label(text="Model Settings")
             tag_type = 'material' if utils.is_corinth(context) else 'shader'
@@ -2383,6 +2398,11 @@ class NWO_Import(bpy.types.Operator):
             if 'sky' in scope_items:
                 box.prop(self, 'tag_animation')
                 box.prop(self, 'setup_as_asset')
+
+        if 'physics_model' in scope_items and 'model' not in scope_items and 'object' not in scope_items:
+            box = layout.box()
+            box.label(text='Physics Settings')
+            box.prop(self, 'reuse_armature')
             
         if not self.scope or ('scenario' in scope_items) or ('scenario_structure_bsp' in scope_items):
             layout.label(text='Scenario Tag Settings')
@@ -5346,7 +5366,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         if self.import_type in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
             self.legacy_okay = True
 
-        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "gbxmodel", "sky", "scenario", "scenario_structure_bsp", "model_animation_graph", "model_animations", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "gbxmodel", "physics_model", "physics", "sky", "scenario", "scenario_structure_bsp", "model_animation_graph", "model_animations", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 global sky_items
@@ -5462,6 +5482,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 # layout.prop(self, "from_vert_normals")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
+            case "physics_model" | "physics":
+                layout.prop(self, "reuse_armature")
             case "scenario":
                 draw_scenario_import_sections(
                     self,
@@ -5515,7 +5537,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.ass;.bitmap;.model;.gbxmodel;.render_model;.sky;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.model_animations;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
+    bl_file_extensions = ".jms;.ass;.bitmap;.model;.gbxmodel;.render_model;.physics_model;.physics;.sky;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.model_animations;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
 
     @classmethod
     def poll_drop(cls, context):

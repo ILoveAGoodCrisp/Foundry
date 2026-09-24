@@ -12,9 +12,31 @@ package.__path__ = [str(ADDON / 'tags')]
 sys.modules[package.__name__] = package
 m = importlib.import_module('foundry_model_tags.model')
 s = importlib.import_module('foundry_model_tags.sky')
+p = importlib.import_module('foundry_model_tags.physics')
 
 
 class ModelTests(unittest.TestCase):
+    def test_halo1_physics_mass_points(self):
+        with tempfile.TemporaryDirectory() as root:
+            with p.PhysicsDocument('test.physics', tags_root=root, game='halo1') as physics:
+                point = physics.block(physics.tag.root(), 'mass points')
+                point = point[point.add()]
+                physics.required_field(point, 'name').set('front wheel')
+                physics.required_field(point, 'model node').set(7)
+                physics.required_field(point, 'radius').set(0.25)
+                position = physics.required_field(point, 'position')
+                position.set(type(position.value)(1.0, 2.0, 3.0))
+
+            with p.PhysicsDocument('test.physics', tags_root=root, game='halo1') as physics:
+                record, = physics.primitive_bodies()
+                self.assertEqual(record.name, 'front wheel')
+                self.assertEqual(record.kind, 'sphere')
+                self.assertEqual(record.node_index, 7)
+                self.assertEqual(record.radius, 0.25)
+                self.assertEqual(record.translation, (1.0, 2.0, 3.0))
+                self.assertEqual(physics.constraints(), [])
+                self.assertEqual(physics.materials(), [])
+
     def test_halo1_sky_references_compiled_gbxmodel(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)

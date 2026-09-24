@@ -128,7 +128,7 @@ def extensions_from_type(list_type):
         case 'parent_animation_graph':
             return (".model_animations") if halo1 else (".model_animation_graph")
         case 'template_physics_model':
-            return (".physics_model")
+            return (".physics") if halo1 else (".physics_model")
         case 'fp_model_path':
             return (".render_model")
         case 'gun_model_path':
@@ -334,7 +334,7 @@ def get_glob_from_prop(prop):
         case 'parent_animation_graph':
             return "*.model_animations" if halo1 else "*.model_*_graph"
         case 'template_physics_model':
-            return "*.physics_model"
+            return "*.physics" if halo1 else "*.physics_model"
         case 'render_model_path':
             return "*.model;*.gbxmodel" if halo1 else "*.render_model"
         case 'shader_path':

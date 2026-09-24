@@ -3491,9 +3491,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             extension
         ).strip('"')
     def physics_clean_tag_path(self, context):
+        project = utils.get_project()
+        extension = "physics" if project is not None and project.game == 'halo1' else "physics_model"
         self["template_physics_model"] = utils.clean_tag_path(
             self["template_physics_model"],
-            "physics_model"
+            extension
         ).strip('"')
     def animation_clean_tag_path(self, context):
         project = utils.get_project()

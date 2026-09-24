@@ -25,6 +25,11 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
         objects = []
         try:
             records = self.primitive_bodies(include_serialized=True)
+            if self.game == 'halo1' and armature is not None:
+                bones = list(armature.pose.bones)
+                for record in records:
+                    if 0 <= record.node_index < len(bones):
+                        record.bone = bones[record.node_index].name
             shapes = []
             for record in records:
                 if record.kind == 'serialized':
@@ -50,13 +55,15 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
                 body.havok_info = record.havok
                 body.to_objects()
                 ob = shape.ob
-                local_matrix = import_transform.object_matrix(shape.matrix, rotate=False)
+                local_matrix = import_transform.object_matrix(
+                    shape.matrix, rotate=getattr(record, 'model_space', False))
                 if record.bone is None:
                     ob.parent = armature
                     ob.matrix_world = local_matrix
                 else:
                     ob.parent, ob.parent_type, ob.parent_bone = armature, 'BONE', record.bone
-                    ob.matrix_world = armature.pose.bones[record.bone].matrix @ local_matrix
+                    ob.matrix_world = (local_matrix if getattr(record, 'model_space', False)
+                                       else armature.pose.bones[record.bone].matrix @ local_matrix)
                 utils.set_region(ob, record.region, utils.SetType.MODEL)
                 utils.set_permutation(ob, record.permutation, utils.SetType.MODEL)
                 collection.objects.link(ob)
