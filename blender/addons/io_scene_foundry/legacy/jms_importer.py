@@ -14,6 +14,12 @@ from mathutils import Matrix, Quaternion, Vector
 from .jms_format import JMS
 from .. import utils
 
+FRAME_PREFIXES = ('frame_', 'frame ', 'bip_', 'bip ', 'b_', 'b ')
+
+
+def is_frame_name(name):
+    return name.casefold().startswith(FRAME_PREFIXES)
+
 
 class JMSImporter:
     def __init__(self, owner, path, legacy_type):
@@ -28,6 +34,7 @@ class JMSImporter:
         self.created_materials = []
         self.props = {}
         self.armature = None
+        self.frames = {}
         self.node_world = {}
 
     def transform(self, transform):
@@ -119,6 +126,9 @@ class JMSImporter:
     def build_armature(self):
         if not self.jms.nodes:
             return
+        if not self.is_model:
+            self.build_frames()
+            return
         context = bpy.context
         candidate = context.scene.nwo.main_armature or utils.get_rig_prioritize_active(context)
         candidates = ([candidate] if candidate else []) + [o for o in context.scene.objects if o.type == 'ARMATURE' and o != candidate]
@@ -147,6 +157,20 @@ class JMSImporter:
         finally:
             bpy.ops.object.mode_set(mode='OBJECT')
         arm.show_in_front = True
+
+    def build_frames(self):
+        """Represent non-model JMS nodes as Foundry frame empties."""
+        self.frames = {}
+        for index, node in enumerate(self.jms.nodes):
+            frame = self.object(node.name)
+            frame.empty_display_type = 'ARROWS'
+            frame.empty_display_size = max(self.scale, 0.001)
+            frame.nwo.is_frame = True
+            if node.parent != -1:
+                frame.parent = self.frames[node.parent]
+                frame.parent_type = 'OBJECT'
+            frame.matrix_world = self.scene_matrix(self.node_world[index])
+            self.frames[index] = frame
 
     def build_materials(self):
         from ..tools.importer import JMSMaterialSlot
@@ -307,6 +331,9 @@ class JMSImporter:
             if parent != -1:
                 ob.parent_type = 'BONE'
                 ob.parent_bone = self.jms.nodes[parent].name
+        elif parent in getattr(self, 'frames', {}):
+            ob.parent = self.frames[parent]
+            ob.parent_type = 'OBJECT'
         ob.matrix_world = self.scene_matrix(matrix)
 
     def build_markers(self):

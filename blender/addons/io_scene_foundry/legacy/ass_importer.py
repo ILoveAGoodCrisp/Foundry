@@ -11,7 +11,7 @@ from mathutils import Matrix, Quaternion, Vector
 
 from .ass_format import ASS, ASSError
 from .jms_format import JMS, Material, Node, Transform, Shape
-from .jms_importer import JMSImporter
+from .jms_importer import JMSImporter, is_frame_name
 from .. import utils
 from ..constants import face_prop_game_supported
 
@@ -25,6 +25,7 @@ class ASSImporter(JMSImporter):
         self.objects, self.materials, self.created_materials, self.props = [], {}, [], {}
         self.armature, self.node_world = None, {}
         self.source_indices, self.templates, self.anchors = {}, {}, {}
+        self.frame_instances = set()
         self.instance_objects = {}
         weighted = {b for i in self.ass.instances for b in i.bones if b != -1}
         self.is_model = legacy_type == 'model' or (legacy_type == 'auto' and (
@@ -291,6 +292,15 @@ class ASSImporter(JMSImporter):
                 anchor.parent = self.anchors.get(instance.parent)
             anchor.matrix_world = self.scene_matrix(self.world[index])
             anchor['ass_instance'] = json.dumps(asdict(instance))
+            if is_frame_name(instance.name):
+                anchor.name = instance.name
+                anchor.empty_display_type = 'ARROWS'
+                anchor.empty_display_size = max(self.scale, 0.001)
+                anchor['ass_geometry'] = instance.geometry
+                anchor['ass_identifier'] = str(instance.unique_id)
+                self.frame_instances.add(index)
+                self.instance_objects[index] = [anchor]
+                continue
             if instance.unique_id == -1:
                 continue
             geometry = self.ass.geometries[instance.geometry] if instance.geometry != -1 else None
@@ -361,6 +371,8 @@ class ASSImporter(JMSImporter):
         for index in reversed(self.order):
             anchor = self.anchors.get(index)
             if anchor is None:
+                continue
+            if index in self.frame_instances:
                 continue
             objects = self.instance_objects.get(index, [])
             if len(objects) > 1 and index in parents:
