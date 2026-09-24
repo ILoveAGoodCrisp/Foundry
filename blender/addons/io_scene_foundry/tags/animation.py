@@ -2939,27 +2939,37 @@ class AnimationTag(AnimationGraphTag):
         return max(-1.0, min(1.0, float(int(value)) / INT16_NORMALIZED_MAX))
 
     def _object_space_parent_rotation(self, element: _NativeStruct) -> Quaternion:
-        x = self._normalized_int16_quaternion_component(element.SelectField("Struct:parent orientation[0]/rotation x").Data)
-        y = self._normalized_int16_quaternion_component(element.SelectField("Struct:parent orientation[0]/rotation y").Data)
-        z = self._normalized_int16_quaternion_component(element.SelectField("Struct:parent orientation[0]/rotation z").Data)
-        w = self._normalized_int16_quaternion_component(element.SelectField("Struct:parent orientation[0]/rotation w").Data)
+        orientation = self._object_space_parent_orientation_path(element)
+        x = self._normalized_int16_quaternion_component(element.SelectField(f"{orientation}/rotation x").Data)
+        y = self._normalized_int16_quaternion_component(element.SelectField(f"{orientation}/rotation y").Data)
+        z = self._normalized_int16_quaternion_component(element.SelectField(f"{orientation}/rotation z").Data)
+        w = self._normalized_int16_quaternion_component(element.SelectField(f"{orientation}/rotation w").Data)
         rotation = Quaternion((w, x, y, z))
         if rotation.magnitude <= tolerance:
             return Quaternion((1.0, 0.0, 0.0, 0.0))
         rotation.normalize()
         return rotation
 
+    def _object_space_parent_orientation_path(self, element: _NativeStruct) -> str:
+        # Halo 2, Halo 3, and ODST use "orientation" for this quantized transform.
+        if element.SelectField("parent orientation") is not None:
+            return "Struct:parent orientation[0]"
+        return "Struct:orientation[0]"
+
     def _object_space_parent_orientation_transform(
             self, element: _NativeStruct) -> tuple[Vector, Quaternion, float]:
+        orientation = self._object_space_parent_orientation_path(element)
         translation = Vector(element.SelectField(
-            "Struct:parent orientation[0]/default translation").Data) * 100.0
+            f"{orientation}/default translation").Data) * 100.0
         rotation = self._object_space_parent_rotation(element)
-        scale = element.SelectField("Struct:parent orientation[0]/default scale").Data
+        scale = element.SelectField(f"{orientation}/default scale").Data
         return translation, rotation, scale
 
     def _object_space_parent_component_flags(
             self, element: _NativeStruct) -> tuple[bool, bool, bool, bool]:
         flags = element.SelectField("flags")
+        if flags is None:
+            flags = element.SelectField("component flags")
         if flags is None:
             return True, True, True, False
         return (

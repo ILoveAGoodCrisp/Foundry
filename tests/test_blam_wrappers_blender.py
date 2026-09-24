@@ -36,6 +36,47 @@ from io_scene_foundry.tags.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_animation_parent_orientation_and_component_flags_across_games(self):
+        from mathutils import Quaternion
+        from io_scene_foundry.tags.animation import AnimationTag
+
+        for game in ('halo2', 'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
+                 patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)), \
+                 patch.object(utils, 'get_tags_path', return_value=root):
+                with AnimationTag('test.model_animation_graph', tag_must_exist=False) as tag:
+                    animation = tag.block_animations.AddElement()
+                    shared = animation.SelectField('shared animation data')
+                    if shared is not None:
+                        animation = shared.AddElement()
+                    record = SimpleNamespace(shared_element=animation)
+                    self.assertEqual(tag._object_space_parent_transform_targets(record), [])
+                    parents = animation.SelectField('object-space parent nodes')
+                    parent = parents.AddElement()
+                    parent.Fields[0].Value = 2
+                    legacy_orientation = game in {'halo2', 'halo3', 'halo3odst'}
+                    orientation = 'orientation' if legacy_orientation else 'parent orientation'
+                    translation = parent.SelectField(f'{orientation}/default translation').field
+                    translation.set(type(translation.value)(1.0, -2.0, 3.0))
+                    parent.SelectField(f'{orientation}/default scale').Data = 1.5
+                    for axis, value in zip('xyzw', (0, 0, 16384, 16384)):
+                        parent.SelectField(f'{orientation}/rotation {axis}').Data = value
+                    flags = parent.SelectField('component flags' if legacy_orientation else 'flags').field
+                    for enabled in ((), ('rotation',), ('translation', 'scale')):
+                        for name in ('translation', 'rotation', 'scale'):
+                            flags.set_flag(name, name in enabled)
+                        target, = tag._object_space_parent_transform_targets(record)
+                        self.assertEqual(target[0], 2)
+                        self.assertEqual(tuple(target[1]), (100.0, -200.0, 300.0))
+                        expected = Quaternion((1.0, 0.0, 0.0, 1.0)).normalized()
+                        self.assertAlmostEqual(abs(target[2].dot(expected)), 1.0, places=6)
+                        self.assertEqual(target[3], 1.5)
+                        self.assertEqual(target[4:], tuple(name in enabled for name in
+                            ('translation', 'rotation', 'scale')) + (False,))
+                    parent.Fields[0].Value = -1
+                    self.assertEqual(tag._object_space_parent_transform_targets(record), [])
+
     def test_legacy_animation_nodes_prefer_exact_prefixed_bones(self):
         from io_scene_foundry.tags.animation import AnimationTag
 
