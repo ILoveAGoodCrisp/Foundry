@@ -570,11 +570,42 @@ class LegacyExportScene(ExportScene):
                 matrix = node.matrix_world
                 if parent != -1 and self.bones:
                     matrix = self.bones[parent].matrix_world.inverted() @ matrix
-                # Convex records can represent arbitrary evaluated physics meshes.
-                points = tuple(v.position for v in self.vertices(node, matrix, False))
                 material = next(iter(materials.values()), (-1, 'default'))[0]
-                asset.shapes.append(jms.Shape('convex', node.name, parent, material,
-                    jms.Transform((0, 0, 0, 1), (0, 0, 0)), vertices=points))
+                primitive = node.props.get(
+                    'bungie_mesh_primitive_type',
+                    '_connected_geometry_primitive_type_none')
+                dimensions = ()
+                kind = 'convex'
+                if primitive == '_connected_geometry_primitive_type_sphere':
+                    kind = 'sphere'
+                    dimensions = (float(node.props['bungie_mesh_primitive_sphere_radius']),)
+                elif primitive == '_connected_geometry_primitive_type_box':
+                    kind = 'box'
+                    dimensions = tuple(float(node.props[name]) for name in (
+                        'bungie_mesh_primitive_box_width',
+                        'bungie_mesh_primitive_box_length',
+                        'bungie_mesh_primitive_box_height'))
+                elif primitive == '_connected_geometry_primitive_type_pill':
+                    kind = 'pill'
+                    radius = float(node.props['bungie_mesh_primitive_pill_radius'])
+                    total_height = float(node.props['bungie_mesh_primitive_pill_height'])
+                    dimensions = (max(0.0, total_height - radius * 2.0), radius)
+                if kind != 'convex':
+                    valid_dimensions = (dimensions[-1] > 0.0 if kind == 'pill'
+                                        else bool(dimensions) and all(
+                                            value > 0.0 for value in dimensions))
+                    if not valid_dimensions:
+                        raise ValueError(
+                            f'{node.name}: {kind} physics dimensions must be positive')
+                    shape_transform = transform(matrix, self.to_halo_scale)
+                    asset.shapes.append(jms.Shape(
+                        kind, node.name.lstrip('$'), parent, material,
+                        shape_transform, dimensions=dimensions))
+                else:
+                    # Convex records can represent arbitrary evaluated physics meshes.
+                    points = tuple(v.position for v in self.vertices(node, matrix, False))
+                    asset.shapes.append(jms.Shape('convex', node.name, parent, material,
+                        jms.Transform((0, 0, 0, 1), (0, 0, 0)), vertices=points))
                 continue
             offset = len(asset.vertices)
             asset.vertices.extend(self.vertices(

@@ -91,9 +91,9 @@ settings remain intact.
   H1 does not run the H2+ animation-graph pre/post-processing pass; Tool compiles
   its `model_animations` tag directly. Legacy lightmapping and cache building are
   not implemented.
-- Physics meshes currently write convex records for H2/H3/ODST; analytic primitive
-  shapes and constraints need a dedicated conversion pass. Mixed-material convex
-  shapes must be split before export. Constraints and tag references are rejected.
+- Physics meshes write native sphere, box, pill or convex records for H2/H3/ODST.
+  Mixed-material shapes must be split before export. Constraints and tag references
+  are rejected.
 - Animation composites, external GR2 references, PCA and vector events are not
   representable by this path and are rejected. H1/H2 frame, sound and effect data
   are written to the compiled classic tag where that game's layout supports them.
