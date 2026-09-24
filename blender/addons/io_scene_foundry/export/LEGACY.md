@@ -102,8 +102,8 @@ settings remain intact.
   uniform scale and H1 JMS has at most two weights per vertex.
 - Not every Reach/H4-only property has a legacy equivalent. ASS 2/JMS cannot carry
   the complete ASS 7 lighting records. Shadow Only is rejected for those dialects.
-- Scenario instance proxy relationships need further work. H2 L1-L6 material
-  definitions and BSP light objects are written to ASS. Existing output files are not pruned automatically; remove
+- H2 L1-L6 material definitions, BSP light objects and instance collision/physics
+  proxy relationships are written to ASS. Existing output files are not pruned automatically; remove
   obsolete intermediates before compiling a folder if its format or names change.
 
 Validation: `tests/test_legacy_writers.py` checks serializer round trips and

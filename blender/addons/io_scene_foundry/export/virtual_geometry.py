@@ -1889,6 +1889,9 @@ class VirtualNode:
         self.for_animation = animation_owner is not None
         self._set_group(scene, animation_owner)
         self.parent: VirtualNode = None
+        # Instance collision/physics proxies are evaluated as separate meshes,
+        # but legacy ASS must retain the render instance they belong to.
+        self.proxy_parent: 'VirtualNode | None' = template_node
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
         self.granny_vertex_data_copies = {}

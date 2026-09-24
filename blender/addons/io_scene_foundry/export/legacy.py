@@ -609,6 +609,7 @@ class LegacyExportScene(ExportScene):
     def ass_asset(self, name, nodes, markers=(), lights=()):
         asset = ass.ASS(name=name, version=self.ass_version)
         cache, geometries = {}, {}
+        node_instances = {}
         asset.instances.append(ass.Instance(-1, 'frame', -1, -1, 0, ass.Transform(), ass.Transform()))
         for bone in self.bones:
             parent = self.bone_parents[bone.name]
@@ -618,9 +619,14 @@ class LegacyExportScene(ExportScene):
             value = transform(matrix, self.to_halo_scale)
             asset.instances.append(ass.Instance(-1, bone.name, len(asset.instances), parent + 1,
                 0, ass.Transform(value.rotation, value.translation), ass.Transform()))
-        for node in nodes:
+        # Proxy meshes refer to their render instance by parent index, so emit
+        # ordinary nodes first even if the virtual-scene dictionary order was
+        # changed by evaluation.
+        ordered_nodes = sorted(nodes, key=lambda node: node.proxy_parent is not None)
+        for node in ordered_nodes:
             materials = self.face_materials(node, asset, cache)
-            matrix = node.matrix_world
+            matrix = (Matrix.Identity(4) if node.proxy_parent is not None
+                      else node.matrix_world)
             loc, rot, scale = matrix.decompose()
             uniform = max(scale) - min(scale) < 1e-5 and min(scale) > 0
             rebuilt = Matrix.LocRotScale(loc, rot, scale)
@@ -648,14 +654,22 @@ class LegacyExportScene(ExportScene):
                 geometry_bones = tuple(b + 1 for b in palette)
             else:
                 geometry_bones = next(i.bones for i in asset.instances if i.geometry == geometry_index)
-            prefix = '%' if node.props.get('bungie_mesh_type') in {4, 11} else ''
-            instance_name = prefix + node.name.lstrip('%')
+            mesh_type = node.props.get('bungie_mesh_type')
+            prefix = {4: '%', 5: '@', 6: '$', 11: '%'}.get(mesh_type, '')
+            instance_name = prefix + node.name.lstrip('%@$')
             if node.props.get('foundry_weather_polyhedron'):
                 if not instance_name.casefold().startswith('+weather'):
                     suffix = instance_name.rpartition(':')[2].lstrip('+')
                     instance_name = '+weather_' + (suffix or str(len(asset.instances)))
-            asset.instances.append(ass.Instance(geometry_index, instance_name, len(asset.instances),
-                0, 0, local, ass.Transform(), geometry_bones))
+            parent = node_instances.get(id(node.proxy_parent), 0)
+            if node.proxy_parent is not None:
+                # Proxy vertex data is authored in the owning instance's local
+                # space. Its ASS child transform must therefore be identity.
+                local = ass.Transform()
+            instance_index = len(asset.instances)
+            asset.instances.append(ass.Instance(geometry_index, instance_name, instance_index,
+                parent, 0, local, ass.Transform(), geometry_bones))
+            node_instances[id(node)] = instance_index
         if 'markers' in self.export_tag_types:
             for node in markers:
                 nwo = node.ob.nwo

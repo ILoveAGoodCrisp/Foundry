@@ -20,7 +20,7 @@ Measured as dependency replacement, the migration is now 100%: the add-on has no
 ManagedBlam tag-access path to fall back to. This does not mean every workflow has
 completed visual or editing-kit acceptance.
 
-**H1/H2 feature-parity estimate: about 96%.** Core loose-tag loading/saving,
+**H1/H2 feature-parity estimate: about 97%.** Core loose-tag loading/saving,
 object/model geometry, all H2 LODs, collision/physics, classic animation decoding,
 bitmap and cubemap extraction, broad shader construction, scenario metadata,
 native legacy export dispatch and inline animation-event writing, and scenario BSP
@@ -205,6 +205,10 @@ lights into each BSP's ASS source as native `GENERIC_LIGHT` geometry. Color,
 intensity, cone angles, attenuation distances, area shape/aspect and transforms
 round-trip through the existing ASS reader. H1 JMS has no corresponding light
 record, so this is intentionally H2-and-later legacy behavior.
+H2 instance collision and physics proxies now retain their owning render instance
+through virtual-scene evaluation. ASS writes the required `%`, `@` and `$` names,
+parents proxy records to the render instance and keeps proxy geometry in that
+instance's local space instead of flattening it into unrelated structure meshes.
 Cubemap checksum registration points and model-to-instance physics material maps
 now use native fields; their tool callers no longer traverse ManagedBlam elements.
 
