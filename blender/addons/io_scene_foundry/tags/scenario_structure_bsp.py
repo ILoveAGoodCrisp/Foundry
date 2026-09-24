@@ -180,7 +180,10 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             if self.game == 'halo2' and index in native_collision_indices:
                 continue  # Rebuilt from unmapped collision surfaces below.
             section, mappings = halo2_mappings.get(index, (0, []))
-            source_objects[index] = Mesh.from_native(record, materials, False).create(
+            source_objects[index] = Mesh.from_native(
+                record, materials, False,
+                reverse_winding=self.game == 'halo1' and index not in native_collision_indices,
+            ).create(
                 None, None, name=f'classic_bsp_mesh:{index}',
                 surface_triangle_mapping=mappings, section_index=section)
             for source in source_objects[index]:

@@ -55,6 +55,25 @@ def area(mesh, indices=None):
 
 
 class ClassicMergeTests(unittest.TestCase):
+    def test_halo1_render_mesh_reverses_native_winding(self):
+        from io_scene_foundry.tags.connected_geometry import Mesh
+        from io_scene_foundry.tags.prefab import StructureBspRenderMesh, StructureBspRenderPart
+
+        record = StructureBspRenderMesh(
+            0,
+            ((0., 0., 0.), (1., 0., 0.), (0., 1., 0.)),
+            ((0., 0.),) * 3,
+            ((0., 0., 1.),) * 3,
+            (), (), (), (),
+            (0, 2, 1),
+            -1,
+            (StructureBspRenderPart(0, 0, 3, 0),),
+            None,
+        )
+        material = bpy.data.materials.get('test') or bpy.data.materials.new('test')
+        mesh = Mesh.from_native(record, {0: material}, False, reverse_winding=True)
+        self.assertEqual(mesh.all_triangle_indices, [[0, 1, 2]])
+
     def halo2_mapping_fixture(self):
         class Fields(dict):
             def field(self, name):

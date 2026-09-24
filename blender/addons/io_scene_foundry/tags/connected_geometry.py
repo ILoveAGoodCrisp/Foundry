@@ -2972,7 +2972,8 @@ class Mesh:
     @classmethod
     def from_native(cls, record: 'StructureBspRenderMesh',
                     materials: list['Material'], corinth: bool,
-                    geometry_record: 'StructureBspRenderMesh | None' = None):
+                    geometry_record: 'StructureBspRenderMesh | None' = None,
+                    reverse_winding: bool = False):
         geometry = record if geometry_record is None else geometry_record
         mesh = cls.__new__(cls)
         mesh.tag_path = None
@@ -3015,6 +3016,9 @@ class Mesh:
                         mesh.raw_water_texcoords[regular_index] = uv[:2]
         mesh.tris = IndexBuffer(
             IndexLayoutType.TRIANGLE_LIST.value, list(geometry.indices)).get_faces(mesh)
+        if reverse_winding:
+            for face in mesh.tris:
+                face.indices[1], face.indices[2] = face.indices[2], face.indices[1]
         mesh.all_triangle_indices = [face.indices for face in mesh.tris]
         mesh.triangle_indices_by_subpart = {}
         mesh.face_indices_by_subpart = {}
