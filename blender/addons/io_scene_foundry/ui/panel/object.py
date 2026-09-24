@@ -589,7 +589,7 @@ class NWO_OT_FaceAttributeAdd(bpy.types.Operator):
         
             
         item.color = utils.random_color()
-        if nwo.highlight:
+        if nwo.highlight and bpy.ops.nwo.face_attribute_color_all.poll():
             bpy.ops.nwo.face_attribute_color_all(enable_highlight=nwo.highlight)
 
         if self.options == "region":
@@ -624,7 +624,7 @@ class NWO_OT_FaceAttributeDelete(bpy.types.Operator):
             mesh.nwo.face_props.remove(mesh.nwo.face_props_active_index)
             mesh.nwo.face_props_active_index = min(mesh.nwo.face_props_active_index, len(mesh.nwo.face_props) - 1)
         
-        if nwo.highlight:
+        if nwo.highlight and bpy.ops.nwo.face_attribute_color_all.poll():
             bpy.ops.nwo.face_attribute_color_all(enable_highlight=nwo.highlight)
 
         context.area.tag_redraw()
@@ -847,7 +847,7 @@ def face_attribute_shader():
 
 
 def draw(op):
-    if not op.batch:
+    if not op.batch or op.alpha <= 0:
         return
 
     blend = gpu.state.blend_get()
@@ -929,16 +929,12 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
                 if area.type == 'VIEW_3D':
                     area.tag_redraw()
 
-    def shader_prep(self, context):
-        self.shader = face_attribute_shader()
-
+    def update_batch(self):
         bm = bmesh.from_edit_mesh(self.me)
-        self.volume = bm.calc_volume()
-
         cm = bm.copy()
 
-        self.attribute = cm.faces.layers.bool.get(self.attribute_name)
-        if self.attribute is None:
+        attribute = cm.faces.layers.bool.get(self.attribute_name)
+        if attribute is None:
             self.report({'WARNING'},
                         f"Face attribute {self.attribute_name!r} not found")
             cm.free()
@@ -948,27 +944,57 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
         self.verts = [
             loop.vert.co.to_tuple()
             for tri in loops
-            if tri[0].face.hide is False and tri[0].face[self.attribute]
+            if tri[0].face.hide is False and tri[0].face[attribute]
             for loop in tri
         ]
 
-        if self.verts:
-            self.batch = batch_for_shader(self.shader, "TRIS", {"pos": self.verts})
+        self.batch = (
+            batch_for_shader(self.shader, "TRIS", {"pos": self.verts})
+            if self.verts else None
+        )
 
         cm.free()
         return True
 
+    def tag_geometry_dirty(self, _scene, depsgraph):
+        for update in depsgraph.updates:
+            original = update.id.original
+            if original == self.me or original == self.ob:
+                self.geometry_dirty = True
+                return
+
+    def cleanup(self, context):
+        if self.handler is not None:
+            bpy.types.SpaceView3D.draw_handler_remove(self.handler, "WINDOW")
+            self.handler = None
+        if self.timer is not None:
+            context.window_manager.event_timer_remove(self.timer)
+            self.timer = None
+        if self.depsgraph_handler in bpy.app.handlers.depsgraph_update_post:
+            bpy.app.handlers.depsgraph_update_post.remove(self.depsgraph_handler)
+        self.tag_redraw()
+
     def modal(self, context, event):
         edit_mode = context.mode == "EDIT_MESH"
 
-        if edit_mode:
-            bm = bmesh.from_edit_mesh(self.me)
-            bm_volume = bm.calc_volume()
-        else:
-            bm_volume = self.volume
+        transform_started = (
+            event.type in {"G", "S", "R", "E", "K", "B", "I", "V"}
+            and event.value == 'PRESS'
+        ) or event.value == 'CLICK_DRAG'
+        transform_finished = self.transform_active and (
+            (event.type == 'LEFTMOUSE' and event.value == 'RELEASE')
+            or (event.type in {'RET', 'NUMPAD_ENTER', 'SPACE', 'RIGHTMOUSE', 'ESC'}
+                and event.value == 'PRESS')
+        )
 
-        if event.type in {"G", "S", "R", "E", "K", "B", "I", "V"} \
-           or event.value == "CLICK_DRAG":
+        if transform_started:
+            self.transform_active = True
+            self.alpha = 0
+        elif transform_finished:
+            self.transform_active = False
+            self.geometry_dirty = True
+            self.alpha = 0.5
+        elif self.transform_active:
             self.alpha = 0
         else:
             self.alpha = 0.5
@@ -977,15 +1003,20 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
         kill = (
             not edit_mode
             or self.highlight != int_highlight
-            or self.attribute is None
             or not self.me.nwo.highlight
             or not self.me.nwo.face_props
         )
 
-        if kill or bm_volume != self.volume:
-            bpy.types.SpaceView3D.draw_handler_remove(self.handler, "WINDOW")
-            self.tag_redraw()
+        if kill:
+            self.cleanup(context)
             return {'FINISHED'}
+
+        if self.geometry_dirty and not self.transform_active:
+            self.geometry_dirty = False
+            if not self.update_batch():
+                self.cleanup(context)
+                return {'FINISHED'}
+            self.tag_redraw()
 
         return {'PASS_THROUGH'}
 
@@ -998,14 +1029,22 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
         self.color = prop.color
         self.alpha = 0
         self.batch = None
+        self.handler = None
+        self.timer = None
+        self.geometry_dirty = False
+        self.transform_active = False
+        self.depsgraph_handler = self.tag_geometry_dirty
+        self.shader = face_attribute_shader()
 
-        if not self.shader_prep(context):
+        if not self.update_batch():
             return {'CANCELLED'}
 
         if self.verts:
             self.handler = bpy.types.SpaceView3D.draw_handler_add(
                 draw, (self,), "WINDOW", "POST_VIEW"
             )
+            bpy.app.handlers.depsgraph_update_post.append(self.depsgraph_handler)
+            self.timer = context.window_manager.event_timer_add(0.1, window=context.window)
             context.window_manager.modal_handler_add(self)
 
             # toggle Edit mode twice to ensure redraw
