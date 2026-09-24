@@ -310,12 +310,12 @@ def face_prop_game_supported(prop_type: str, game: str, face_mode: str | None = 
 
 face_prop_descriptions = {
     'face_mode': "By default the game will build multiple versions of this geometry for different uses, such as building the visible mesh and the collision mesh. You can use this to specify a specific type of geometry only to be built",
-    'render_only': "",
-    'collision_only': "",
-    'sphere_collision_only': "",
-    'shadow_only': "",
-    'breakable': "",
-    'lightmap_only': "",
+    'render_only': "Builds visible render geometry from these faces, but does not use them for collision",
+    'collision_only': "Builds collision from these faces, but does not include them in visible render geometry",
+    'sphere_collision_only': "Builds invisible collision that interacts only with physics objects, not players or projectiles",
+    'shadow_only': "Uses these otherwise invisible faces only to cast shadows",
+    'breakable': "Marks these faces as destructible collision geometry",
+    'lightmap_only': "Uses these otherwise invisible faces only while building lightmaps",
     'face_sides': "Render the backfacing normal of this mesh if it has render geometry. Collision geometry will be two-sided and will not result in open edges, but will be more expensive",
     'transparent': "Game treats this mesh as being transparent. If you're using a shader/material which has transparency, set this flag. Transparency is used in lightmapping and for allowing AI to see through a mesh",
     'region': "The name of the region these faces should be associated with",

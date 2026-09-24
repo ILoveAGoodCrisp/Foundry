@@ -32,6 +32,25 @@ from ..tags.scenario import ScenarioDocument
 from .. import utils
 
 
+def legacy_instance_name(name: str, props: dict, mesh_type: int) -> str:
+    """Encode pre-Reach instanced-geometry policies in the ASS instance name."""
+    prefix = {4: '%', 5: '@', 6: '$', 11: '%'}.get(mesh_type, '')
+    base_name = name.lstrip('%@$')
+    if mesh_type != 4:
+        return prefix + base_name
+
+    pathfinding = {0: '-', 2: '+'}.get(props.get('bungie_mesh_poop_pathfinding'), '')
+    lighting = {1: '>', 2: '!', 3: '?'}.get(props.get('bungie_mesh_poop_lighting'), '')
+    flags = ''.join((
+        '*' if props.get('bungie_mesh_poop_is_render_only') else '',
+        '&' if props.get('bungie_mesh_poop_chops_portals') else '',
+        '^' if props.get('bungie_mesh_poop_does_not_block_aoe') else '',
+        '<' if props.get('bungie_mesh_poop_excluded_from_lightprobes') else '',
+        '|' if props.get('bungie_mesh_poop_decal_spacing') else '',
+    ))
+    return '%' + pathfinding + lighting + flags + base_name
+
+
 def filename(name):
     if not name or name in {'.', '..'} or any(c in name for c in '<>:"/\\|?*\r\n') or name.endswith((' ', '.')):
         raise ValueError(f'Invalid legacy export filename: {name!r}')
@@ -877,8 +896,7 @@ class LegacyExportScene(ExportScene):
             else:
                 geometry_bones = next(i.bones for i in asset.instances if i.geometry == geometry_index)
             mesh_type = node.props.get('bungie_mesh_type')
-            prefix = {4: '%', 5: '@', 6: '$', 11: '%'}.get(mesh_type, '')
-            instance_name = prefix + node.name.lstrip('%@$')
+            instance_name = legacy_instance_name(node.name, node.props, mesh_type)
             if node.props.get('foundry_weather_polyhedron'):
                 if not instance_name.casefold().startswith('+weather'):
                     suffix = instance_name.rpartition(':')[2].lstrip('+')

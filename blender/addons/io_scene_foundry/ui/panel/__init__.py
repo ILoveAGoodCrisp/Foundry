@@ -2209,6 +2209,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         context = self.context
         ob = context.object
         h4 = self.h4
+        project = utils.get_project(self.scene_nwo.scene_project)
+        game = project.game if project else ('corinth' if h4 else 'reach')
+        legacy = game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
         if ob is None:
             row.label(text="No Active Object")
             return
@@ -2741,11 +2744,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.use_property_split = False
                     picon = 'CHECKBOX_HLT' if nwo.proxy_instance else 'CHECKBOX_DEHLT'
                     row.prop(nwo, "proxy_instance", text="Instanced Structure", icon=picon)
-                if nwo.mesh_type in {"_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision"} or (
+                if game != 'halo1' and (nwo.mesh_type in {"_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision"} or (
                     nwo.mesh_type == "_connected_geometry_mesh_type_structure"
                     and h4
                     and nwo.proxy_instance
-                ):
+                )):
                     if h4:
                         col.prop(nwo, "poop_collision_type")
                     col.prop(nwo, "poop_lighting", text="Lighting Policy")
@@ -2759,29 +2762,30 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         text="Pathfinding Policy",
                     )
 
-                    col.prop(
-                        nwo,
-                        "poop_imposter_policy",
-                        text="Imposter Policy",
-                    )
-                    if (
-                        nwo.poop_imposter_policy
-                        != "never"
-                    ):
-                        sub = col.row(heading="Imposter Transition")
-                        sub.prop(
+                    if not legacy:
+                        col.prop(
                             nwo,
-                            "poop_imposter_transition_distance_auto",
-                            text="Automatic",
+                            "poop_imposter_policy",
+                            text="Imposter Policy",
                         )
-                        if not nwo.poop_imposter_transition_distance_auto:
+                        if (
+                            nwo.poop_imposter_policy
+                            != "never"
+                        ):
+                            sub = col.row(heading="Imposter Transition")
                             sub.prop(
                                 nwo,
-                                "poop_imposter_transition_distance",
-                                text="Distance",
+                                "poop_imposter_transition_distance_auto",
+                                text="Automatic",
                             )
-                        if h4:
-                            col.prop(nwo, "poop_imposter_brightness")
+                            if not nwo.poop_imposter_transition_distance_auto:
+                                sub.prop(
+                                    nwo,
+                                    "poop_imposter_transition_distance",
+                                    text="Distance",
+                                )
+                            if h4:
+                                col.prop(nwo, "poop_imposter_brightness")
 
                     if h4:
                         col.prop(nwo, "poop_streaming_priority")

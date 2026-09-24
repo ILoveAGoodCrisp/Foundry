@@ -1103,9 +1103,16 @@ class ExportScene:
                 # Foundry stores instances as the default mesh type, so switch them back to poops and structure to default
                 match mesh_type:
                     case '_connected_geometry_mesh_type_default':
-                        mesh_type = '_connected_geometry_mesh_type_poop'
+                        # Halo 1 has no instanced geometry. Its default Foundry
+                        # mesh therefore represents ordinary BSP structure.
+                        mesh_type = ('_connected_geometry_mesh_type_default'
+                            if self.project_game == 'halo1'
+                            else '_connected_geometry_mesh_type_poop')
                     case '_connected_geometry_mesh_type_collision':
-                        if self.corinth:
+                        if self.project_game == 'halo1':
+                            mesh_type = '_connected_geometry_mesh_type_default'
+                            force_collision_only = True
+                        elif self.corinth:
                             mesh_type = '_connected_geometry_mesh_type_poop_collision'
                         else:
                             mesh_type = '_connected_geometry_mesh_type_poop'
@@ -1126,6 +1133,23 @@ class ExportScene:
                         # conventions rather than a connected-geometry enum.
                         props['foundry_weather_polyhedron'] = True
                         mesh_type = '_connected_geometry_mesh_type_default'
+
+                if self.legacy_export:
+                    if mesh_type in {
+                        '_connected_geometry_mesh_type_poop_rain_blocker',
+                        '_connected_geometry_mesh_type_poop_vertical_rain_sheet',
+                    }:
+                        raise ValueError(f'{ob.name}: rain geometry is only supported by Reach')
+                    if (self.project_game in {'halo1', 'halo2'}
+                            and mesh_type == '_connected_geometry_mesh_type_boundary_surface'):
+                        raise ValueError(f'{ob.name}: boundary surfaces are not supported by {self.project_game}')
+                    if self.project_game == 'halo1' and mesh_type in {
+                        '_connected_geometry_mesh_type_seam',
+                        '_connected_geometry_mesh_type_water_surface',
+                        '_connected_geometry_mesh_type_lightmap_region',
+                        '_connected_geometry_mesh_type_cookie_cutter',
+                    }:
+                        raise ValueError(f'{ob.name}: this scenario mesh type is not supported by Halo 1')
                         
                 match mesh_type:
                     case '_connected_geometry_mesh_type_poop':
@@ -1258,17 +1282,18 @@ class ExportScene:
         props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
         if self.corinth:
             props["bungie_mesh_poop_collision_type"] = PoopCollisionType[nwo.poop_collision_type].value
-        if self.export_settings.force_imposter_policy_never:
-            props["bungie_mesh_poop_imposter_policy"] = PoopInstanceImposterPolicy.never.value
-            # props["bungie_mesh_poop_imposter_transition_distance"] = 999999
-        else:
-            imposter_policy = PoopInstanceImposterPolicy[nwo.poop_imposter_policy]
-            props["bungie_mesh_poop_imposter_policy"] = imposter_policy.value
-            if imposter_policy != PoopInstanceImposterPolicy.never:
-                if not nwo.poop_imposter_transition_distance_auto:
-                    props["bungie_mesh_poop_imposter_transition_distance"] = nwo.poop_imposter_transition_distance * WU_SCALAR
-                if self.corinth:
-                    props["bungie_mesh_poop_imposter_brightness"] = nwo.poop_imposter_brightness
+        if not self.legacy_export:
+            if self.export_settings.force_imposter_policy_never:
+                props["bungie_mesh_poop_imposter_policy"] = PoopInstanceImposterPolicy.never.value
+                # props["bungie_mesh_poop_imposter_transition_distance"] = 999999
+            else:
+                imposter_policy = PoopInstanceImposterPolicy[nwo.poop_imposter_policy]
+                props["bungie_mesh_poop_imposter_policy"] = imposter_policy.value
+                if imposter_policy != PoopInstanceImposterPolicy.never:
+                    if not nwo.poop_imposter_transition_distance_auto:
+                        props["bungie_mesh_poop_imposter_transition_distance"] = nwo.poop_imposter_transition_distance * WU_SCALAR
+                    if self.corinth:
+                        props["bungie_mesh_poop_imposter_brightness"] = nwo.poop_imposter_brightness
 
         poop_render_only = False
         if nwo.poop_render_only:

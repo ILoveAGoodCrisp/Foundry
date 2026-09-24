@@ -272,6 +272,53 @@ class NWO_OT_SetHintName(bpy.types.Operator):
             row.prop(self, "marker_hint_height", expand=True)
 
 # FACE PROPERTIES #
+FACE_ATTRIBUTE_CATEGORIES = (
+    ("Geometry Use", (
+        'face_mode',
+        'render_only',
+        'collision_only',
+        'sphere_collision_only',
+        'shadow_only',
+        'breakable',
+        'lightmap_only',
+    )),
+    ("Surface", (
+        'face_sides',
+        'transparent',
+    )),
+    ("Collision", (
+        'global_material',
+        'ladder',
+        'slip_surface',
+    )),
+    ("Rendering", (
+        'region',
+        'draw_distance',
+        'decal_offset',
+        'no_shadow',
+        'precise_position',
+        'uncompressed',
+        'additional_compression',
+        'no_pvs',
+        'mesh_tessellation_density',
+    )),
+    ("Lightmapping", (
+        'no_lightmap',
+        'lightmap_resolution_scale',
+        'lightmap_ignore_default_resolution_scale',
+        'lightmap_chart_group',
+        'lightmap_type',
+        'lightmap_additive_transparency',
+        'lightmap_transparency_override',
+        'lightmap_analytical_bounce_modifier',
+        'lightmap_general_bounce_modifier',
+        'lightmap_translucency_tint_color',
+        'lightmap_lighting_from_both_sides',
+        'emissive',
+    )),
+)
+
+
 class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
     bl_label = "Add Face Property"
     bl_idname = "NWO_MT_FaceAttributeAddMenu"
@@ -282,8 +329,9 @@ class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
         project = utils.get_project(scene_nwo.scene_project)
         game = project.game if project else 'reach'
         asset_type = scene_nwo.asset_type
-        
-        for name, display_name, mask, _ in sorted(face_prop_type_items, key=lambda x: x[1]):
+
+        available_items = {}
+        for name, display_name, mask, _ in face_prop_type_items:
             games, asset_types = mask.split(":")
             games = games.split(",")
             asset_types = asset_types.split(",")
@@ -300,7 +348,31 @@ class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
                     continue
                 elif name == 'global_material' and asset_type != "model" and game != 'corinth':
                     continue
-            layout.operator("nwo.face_attribute_add", text=display_name).options = name
+            available_items[name] = display_name
+
+        category_count = 0
+        categorized_names = set()
+        for category_name, item_names in FACE_ATTRIBUTE_CATEGORIES:
+            category_items = [(name, available_items[name]) for name in item_names if name in available_items]
+            if not category_items:
+                continue
+
+            if category_count:
+                layout.separator()
+            layout.label(text=category_name)
+            for name, display_name in category_items:
+                layout.operator("nwo.face_attribute_add", text=display_name).options = name
+                categorized_names.add(name)
+            category_count += 1
+
+        uncategorized_items = [(name, display_name) for name, display_name in available_items.items()
+                               if name not in categorized_names]
+        if uncategorized_items:
+            if category_count:
+                layout.separator()
+            layout.label(text="Other")
+            for name, display_name in uncategorized_items:
+                layout.operator("nwo.face_attribute_add", text=display_name).options = name
 
 
 class NWO_UL_FacePropList(bpy.types.UIList):
@@ -486,7 +558,7 @@ class NWO_OT_FaceAttributeAdd(bpy.types.Operator):
     
     @classmethod
     def description(cls, context, properties):
-        return face_prop_descriptions[properties.options]
+        return face_prop_descriptions.get(properties.options, cls.bl_description)
 
     options: bpy.props.EnumProperty(
         items=face_prop_type_items,
@@ -1164,29 +1236,40 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
         h4 = utils.is_corinth(context)
         scene_nwo = utils.get_scene_props()
         project = utils.get_project(scene_nwo.scene_project)
-        halo2 = project is not None and project.game == 'halo2'
+        game = project.game if project else 'reach'
+        halo1 = game == 'halo1'
+        halo2 = game == 'halo2'
+        legacy = game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
         if utils.poll_ui(("model", "multi_model")):
             layout.operator('nwo.apply_type_mesh_single', text='Render', icon_value=get_icon_id('render')).m_type = 'render'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Physics', icon_value=get_icon_id('physics')).m_type = 'physics'
-            layout.operator('nwo.apply_type_mesh_single', text='Instanced Object', icon_value=get_icon_id('instance')).m_type = 'io'
+            if not halo1:
+                layout.operator('nwo.apply_type_mesh_single', text='Instanced Object', icon_value=get_icon_id('instance')).m_type = 'io'
         if utils.poll_ui(("scenario",)):
-            layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
+            if not halo1:
+                layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Structure', icon_value=get_icon_id('structure')).m_type = 'structure'
             if halo2:
                 layout.operator('nwo.apply_type_mesh_single', text='Weather Polyhedron', icon_value=get_icon_id('rain_blocker')).m_type = 'weather_polyhedron'
-            layout.operator('nwo.apply_type_mesh_single', text='Seam', icon_value=get_icon_id('seam')).m_type = 'seam'
+            if not halo1:
+                layout.operator('nwo.apply_type_mesh_single', text='Seam', icon_value=get_icon_id('seam')).m_type = 'seam'
             layout.operator('nwo.apply_type_mesh_single', text='Portal', icon_value=get_icon_id('portal')).m_type = 'portal'
-            layout.operator('nwo.apply_type_mesh_single', text='Water', icon_value=get_icon_id('water')).m_type = 'water_surface'
-            layout.operator('nwo.apply_type_mesh_single', text='Boundary Surface', icon_value=get_icon_id('soft_ceiling')).m_type = 'boundary_surface'
-            layout.operator('nwo.apply_type_mesh_single', text='Lightmap Region', icon_value=get_icon_id('lightmap')).m_type = 'lightmap_region'
+            if not halo1:
+                layout.operator('nwo.apply_type_mesh_single', text='Water', icon_value=get_icon_id('water')).m_type = 'water_surface'
+            if game not in {'halo1', 'halo2'}:
+                layout.operator('nwo.apply_type_mesh_single', text='Boundary Surface', icon_value=get_icon_id('soft_ceiling')).m_type = 'boundary_surface'
+            if not halo1:
+                layout.operator('nwo.apply_type_mesh_single', text='Lightmap Region', icon_value=get_icon_id('lightmap')).m_type = 'lightmap_region'
             if h4:
                 layout.operator('nwo.apply_type_mesh_single', text='Bounding Box', icon_value=get_icon_id('volume')).m_type = 'obb_volume'
             else:
-                layout.operator('nwo.apply_type_mesh_single', text='Rain Blocker', icon_value=get_icon_id('rain_blocker')).m_type = 'rain_blocker'
-                layout.operator('nwo.apply_type_mesh_single', text='Rain Sheet', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_sheet'
-                layout.operator('nwo.apply_type_mesh_single', text='Pathfinding Cutout Volume', icon_value=get_icon_id('cookie_cutter')).m_type = 'cookie_cutter'
+                if not legacy:
+                    layout.operator('nwo.apply_type_mesh_single', text='Rain Blocker', icon_value=get_icon_id('rain_blocker')).m_type = 'rain_blocker'
+                    layout.operator('nwo.apply_type_mesh_single', text='Rain Sheet', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_sheet'
+                if not halo1:
+                    layout.operator('nwo.apply_type_mesh_single', text='Pathfinding Cutout Volume', icon_value=get_icon_id('cookie_cutter')).m_type = 'cookie_cutter'
                 layout.operator('nwo.apply_type_mesh_single', text='Fog Sheet', icon_value=get_icon_id('fog')).m_type = 'fog'
         elif utils.poll_ui(("prefab", "multi_prefab")):
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'

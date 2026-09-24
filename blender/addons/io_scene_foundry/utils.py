@@ -2294,6 +2294,9 @@ def get_mesh_display(mesh_type):
             return 'Lightmap Region', get_icon_id('lightmap')
         case _:
             if poll_ui(('scenario', 'prefab')):
+                project = get_project(get_scene_props().scene_project)
+                if project is not None and project.game == 'halo1' and poll_ui(('scenario',)):
+                    return 'Structure', get_icon_id('structure')
                 return 'Instanced Geometry', get_icon_id('instance')
             elif poll_ui(('DECORATOR')):
                 return 'Decorator', get_icon_id('decorator')
