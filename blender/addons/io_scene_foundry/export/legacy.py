@@ -38,6 +38,15 @@ def filename(name):
     return name
 
 
+def jmi_text(version: int, children: list[str]) -> str:
+    """Serialize the small manifest consumed by H2 bulk asset importers."""
+    if version < 8207:
+        raise ValueError(f'JMI is unavailable for JMS version {version}')
+    if not children:
+        raise ValueError('JMI requires at least one child model')
+    return '\n'.join((str(version), str(len(children)), *children, ''))
+
+
 def transform(matrix, scale=1, inverse_rotation=False):
     rotation = matrix.to_quaternion()
     if inverse_rotation:
@@ -209,6 +218,9 @@ class LegacyExportScene(ExportScene):
                         raise ValueError(
                             f'{marker.name}: assign this tag-reference marker to one of the '
                             f'exported BSPs ({", ".join(sorted(structure_names))})')
+            uses_jmi = (self.target_game == 'halo2' and self.asset_type.name in {
+                'PARTICLE_MODEL', 'DECORATOR_SET'})
+            jmi_children = []
             for (folder, name), nodes in grouped.items():
                 use_ass = self.ass_version is not None and (folder == 'structure' or
                     (folder == 'render' and any(n.props.get('bungie_mesh_type') == 11 for n in nodes)))
@@ -223,7 +235,25 @@ class LegacyExportScene(ExportScene):
                 asset = (self.ass_asset(
                     name, nodes, ass_markers, lights)
                     if use_ass else self.jms_asset(name, nodes, markers, folder))
-                outputs.append((Path(self.asset_path, folder, name + ('.ass' if use_ass else '.jms')), asset))
+                if uses_jmi:
+                    if folder != 'render' or use_ass:
+                        raise ValueError(
+                            f'{self.asset_type.name.lower()} JMI children must be render JMS files')
+                    child_name = (self.asset_name if len(grouped) == 1 else name)
+                    child_name = filename(child_name)
+                    jmi_children.append(child_name)
+                    output_path = Path(
+                        self.asset_path, child_name, child_name + '.jms')
+                else:
+                    output_path = Path(
+                        self.asset_path, folder,
+                        name + ('.ass' if use_ass else '.jms'))
+                outputs.append((output_path, asset))
+            if uses_jmi:
+                outputs.append((
+                    Path(self.asset_path, self.asset_name + '.jmi'),
+                    jmi_text(self.jms_version, jmi_children),
+                ))
         for animation in self.virtual_scene.animations:
             if hasattr(animation, 'legacy_tracks'):
                 outputs.append((Path(self.asset_path, 'animations', filename(animation.name.replace(':', ' ')) + self.animation_extension(animation)), self.jma_text(animation)))
@@ -244,6 +274,8 @@ class LegacyExportScene(ExportScene):
         supported_asset_types = {'MODEL', 'SKY', 'ANIMATION', 'SINGLE_ANIMATION'}
         if self.target_game in {'halo1', 'halo2'}:
             supported_asset_types.add('SCENARIO')
+        if self.target_game == 'halo2':
+            supported_asset_types.update({'PARTICLE_MODEL', 'DECORATOR_SET'})
         if self.asset_type.name not in supported_asset_types:
             raise ValueError(
                 f'Legacy tag writing is not implemented for {self.asset_type.name.lower()} assets')
@@ -276,6 +308,29 @@ class LegacyExportScene(ExportScene):
                     **halo1_tool_options,
                 )
             self.write_classic_scenario_tag(structure_sources)
+            return
+        if self.asset_type.name in {'PARTICLE_MODEL', 'DECORATOR_SET'}:
+            source = Path(self.asset_path, self.asset_name + '.jmi')
+            if not source.is_file():
+                raise FileNotFoundError(
+                    f'No JMI source was found for {self.asset_type.name.lower()}: '
+                    f'{source}')
+            command = ('import-particle-model' if self.asset_type.name == 'PARTICLE_MODEL'
+                       else 'import-decorator-set')
+            utils.run_tool(
+                [command, str(Path(self.asset_path_relative,
+                                   self.asset_name + '.jmi'))],
+                event_level=self.export_settings.event_level,
+            )
+            destination = Path(
+                self.tags_dir, self.asset_path_relative, self.asset_name
+            ).with_suffix(
+                '.particle_model' if self.asset_type.name == 'PARTICLE_MODEL'
+                else '.decorator_set')
+            if not destination.is_file():
+                raise FileNotFoundError(
+                    f'{command} did not create the expected tag: {destination}')
+            print(f'--- Wrote {destination}')
             return
         if not animation_only:
             if self.target_game == 'halo1':

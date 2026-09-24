@@ -82,7 +82,10 @@ intermediates before compiling them.
 H1 and H2 Sky assets create their native `.sky` tag rather than a scenery tag:
 H1 writes gbxmodel/model-animations references, while H2 writes
 render-model/model-animation-graph references. Existing sky lighting and fog
-settings remain intact.
+settings remain intact. H2 particle-model and decorator-set exports write an
+8210 JMI manifest plus its child render JMS, then invoke Tool's dedicated
+`import-particle-model` or `import-decorator-set` command and verify the expected
+tag was created.
 
 ## Current limits
 

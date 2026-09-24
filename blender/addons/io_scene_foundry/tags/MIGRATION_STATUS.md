@@ -25,8 +25,9 @@ object/model geometry, all H2 LODs, collision/physics, classic animation decodin
 bitmap and cubemap extraction, broad shader construction, scenario metadata,
 native legacy export dispatch and inline animation-event writing, and scenario BSP
 render/collision geometry are connected. H2 legacy export also preserves native
-JMS/ASS XREF tag-reference records. The remaining work is concentrated in less
-common resource layouts and broad visual/editing-kit acceptance.
+JMS/ASS XREF tag-reference records and compiles particle-model/decorator-set JMI
+sources with their dedicated Tool commands. The remaining work is concentrated
+in less common resource layouts and broad visual/editing-kit acceptance.
 
 ## Editing-kit import acceptance (2026-09-22)
 
