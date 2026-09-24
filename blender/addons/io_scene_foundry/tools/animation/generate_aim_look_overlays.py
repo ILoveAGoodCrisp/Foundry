@@ -551,9 +551,9 @@ def _base_candidate_score(source_name: utils.AnimationName, candidate_name: util
     return (mode_score, *scope_scores, int(not candidate_name.variant), -index)
 
 
-def _target_base_animations(scene_nwo, armature: bpy.types.Object, source_name: utils.AnimationName):
+def _target_base_animations(animations, armature: bpy.types.Object, source_name: utils.AnimationName):
     candidates = {state: [] for state in _VALID_BASE_STATES}
-    for index, animation in enumerate(scene_nwo.animations):
+    for index, animation in enumerate(animations):
         if animation.animation_type != 'base':
             continue
         name = utils.AnimationName(animation.name)
@@ -581,6 +581,8 @@ def _write_generated_transforms(
     frames: dict[int, dict[str, Matrix]],
     animated_bone_names: set[str],
     rest_matrices: dict,
+    *,
+    preserve_other_transforms=False,
 ) -> None:
     fcurves = utils.get_fcurves(action, slot_identifier)
     if fcurves is None:
@@ -589,10 +591,12 @@ def _write_generated_transforms(
     transform_paths = {
         bone.path_from_id(prop)
         for bone in armature.pose.bones
+        if not preserve_other_transforms or bone.name in animated_bone_names
         for prop in _BONE_TRANSFORM_PROPERTIES
     }
     for fcurve in list(fcurves):
-        if fcurve.data_path in transform_paths or fcurve.data_path in _BONE_TRANSFORM_PROPERTIES:
+        if (fcurve.data_path in transform_paths
+                or (not preserve_other_transforms and fcurve.data_path in _BONE_TRANSFORM_PROPERTIES)):
             fcurves.remove(fcurve)
 
     previous_rotations = {}
@@ -669,6 +673,8 @@ def _generated_action(
     lower_body_names: set[str],
     aim_bone_names: set[str],
     pedestal_name: str,
+    *,
+    apply_turn_aim_offset=True,
 ) -> bpy.types.Action:
     source_curves, source_slot_identifier = _fcurve_map(source_track.action, armature)
     target_curves, _target_slot_identifier = _fcurve_map(target_base_track.action, armature)
@@ -691,7 +697,7 @@ def _generated_action(
     target_reference = _sample_local_matrices(
         armature, target_curves, target_base_animation.frame_start, rest_matrices
     )
-    if is_turn:
+    if is_turn and apply_turn_aim_offset:
         _offset_turn_aim_yaw(
             armature,
             target_reference,
@@ -843,7 +849,8 @@ def _populate_target_animation(
     _copy_property_group(
         source,
         target,
-        skip={"name", "name_old", "action_tracks", "animation_renames"},
+        # A pose overlay has no composite axis to activate via its UI callback.
+        skip={"name", "name_old", "action_tracks", "animation_renames", "blend_axis_active_index"},
     )
     target.action_tracks.clear()
     target.animation_renames.clear()
@@ -892,6 +899,107 @@ def _populate_target_animation(
     target.active_animation_rename_index = min(
         source.active_animation_rename_index, len(target.animation_renames) - 1
     ) if target.animation_renames else 0
+
+
+def generate_aim_look_overlays(scene_nwo, source, armature, target_bases, *, override_existing=False,
+                              turns_with_aim_pose=()):
+    """Share overlay generation between the operator and Reach-style tag import.
+
+    The caller supplies a validated aim/look source and matching base states.
+    Return generated animation names, the skipped count, and failed names.
+    """
+    source_name = utils.AnimationName(source.name)
+    source_track = _armature_track(source, armature)
+    if source_track is None:
+        raise ValueError("The source overlay has no armature action track")
+    pedestal = _pose_bone_from_usage(
+        armature, scene_nwo.node_usage_pedestal, ("pedestal",)
+    )
+    aim_yaw = _pose_bone_from_usage(
+        armature, scene_nwo.node_usage_pose_blend_yaw, ("aim_yaw",)
+    )
+    aim_bone_names = _aim_bone_names(armature, scene_nwo)
+    if pedestal is None:
+        raise ValueError("The armature has no valid pedestal bone usage")
+    if not aim_bone_names:
+        raise ValueError("The armature has no valid aim pitch, aim yaw, or aim control bone")
+
+    lower_body_names = _lower_body_bone_names(armature, scene_nwo, pedestal)
+    lower_body_names.difference_update(aim_bone_names)
+    # Adding a CollectionProperty item can invalidate existing RNA references.
+    # Keep indices across additions and reacquire entries before using them.
+    indices = {animation.as_pointer(): index for index, animation in enumerate(scene_nwo.animations)}
+    source_index = indices[source.as_pointer()]
+    target_bases = [(state, indices[animation.as_pointer()]) for state, animation in target_bases]
+    existing_by_name = {
+        _normalized_name(animation.name): index
+        for index, animation in enumerate(scene_nwo.animations)
+    }
+    generated = []
+    skipped_count = 0
+    failed = []
+
+    for base_state, base_index in target_bases:
+        source = scene_nwo.animations[source_index]
+        source_track = _armature_track(source, armature)
+        base_animation = scene_nwo.animations[base_index]
+        target_state = _retarget_overlay_state(source_name.state, base_state)
+        target_name = _replace_action_state(source.name, target_state)
+        normalized_target_name = _normalized_name(target_name)
+        existing = existing_by_name.get(normalized_target_name)
+        if existing is not None and not override_existing:
+            skipped_count += 1
+            continue
+
+        base_track = _armature_track(base_animation, armature)
+        if base_track is None:
+            failed.append(target_name)
+            continue
+        try:
+            action = _generated_action(
+                source,
+                source_track,
+                base_animation,
+                base_track,
+                target_name,
+                armature,
+                lower_body_names,
+                aim_bone_names,
+                pedestal.name,
+                apply_turn_aim_offset=base_animation.name not in turns_with_aim_pose,
+            )
+            if existing is None:
+                target = scene_nwo.animations.add()
+                target_index = len(scene_nwo.animations) - 1
+                source = scene_nwo.animations[source_index]
+                source_track = _armature_track(source, armature)
+            else:
+                target_index = existing
+                target = scene_nwo.animations[target_index]
+            _populate_target_animation(
+                target,
+                source,
+                source_track,
+                action,
+                target_name,
+                target_state,
+                base_state,
+                armature,
+            )
+            _rebuild_wrap_events(
+                target,
+                action,
+                armature,
+                pedestal.name,
+                aim_yaw.name if aim_yaw is not None else None,
+            )
+            existing_by_name[normalized_target_name] = target_index
+            generated.append(target_name)
+        except Exception as error:
+            utils.print_warning(f"Failed to generate [{target_name}]: {error}")
+            failed.append(target_name)
+
+    return generated, skipped_count, failed
 
 
 class NWO_OT_GenerateAimLookOverlays(bpy.types.Operator):
@@ -980,24 +1088,7 @@ class NWO_OT_GenerateAimLookOverlays(bpy.types.Operator):
             return {'CANCELLED'}
 
 
-        pedestal = _pose_bone_from_usage(
-            armature, scene_nwo.node_usage_pedestal, ("pedestal",)
-        )
-        aim_yaw = _pose_bone_from_usage(
-            armature, scene_nwo.node_usage_pose_blend_yaw, ("aim_yaw",)
-        )
-        aim_bone_names = _aim_bone_names(armature, scene_nwo)
-        if pedestal is None:
-            self.report({'WARNING'}, "The armature has no valid pedestal bone usage")
-            return {'CANCELLED'}
-        if not aim_bone_names:
-            self.report(
-                {'WARNING'},
-                "The armature has no valid aim pitch, aim yaw, or aim control bone",
-            )
-            return {'CANCELLED'}
-
-        target_bases = _target_base_animations(scene_nwo, armature, source_name)
+        target_bases = _target_base_animations(scene_nwo.animations, armature, source_name)
         if not target_bases:
             self.report(
                 {'WARNING'},
@@ -1005,64 +1096,15 @@ class NWO_OT_GenerateAimLookOverlays(bpy.types.Operator):
             )
             return {'CANCELLED'}
 
-        lower_body_names = _lower_body_bone_names(armature, scene_nwo, pedestal)
-        lower_body_names.difference_update(aim_bone_names)
-        existing_by_name = {
-            _normalized_name(animation.name): animation
-            for animation in scene_nwo.animations
-        }
-        generated_count = 0
-        skipped_count = 0
-        failed = []
-
-        for base_state, base_animation in target_bases:
-            target_state = _retarget_overlay_state(source_name.state, base_state)
-            target_name = _replace_action_state(source.name, target_state)
-            normalized_target_name = _normalized_name(target_name)
-            existing = existing_by_name.get(normalized_target_name)
-            if existing is not None and not self.override_existing:
-                skipped_count += 1
-                continue
-
-            base_track = _armature_track(base_animation, armature)
-            if base_track is None:
-                failed.append(target_name)
-                continue
-            try:
-                action = _generated_action(
-                    source,
-                    source_track,
-                    base_animation,
-                    base_track,
-                    target_name,
-                    armature,
-                    lower_body_names,
-                    aim_bone_names,
-                    pedestal.name,
-                )
-                target = existing if existing is not None else scene_nwo.animations.add()
-                _populate_target_animation(
-                    target,
-                    source,
-                    source_track,
-                    action,
-                    target_name,
-                    target_state,
-                    base_state,
-                    armature,
-                )
-                _rebuild_wrap_events(
-                    target,
-                    action,
-                    armature,
-                    pedestal.name,
-                    aim_yaw.name if aim_yaw is not None else None,
-                )
-                existing_by_name[normalized_target_name] = target
-                generated_count += 1
-            except Exception as error:
-                utils.print_warning(f"Failed to generate [{target_name}]: {error}")
-                failed.append(target_name)
+        try:
+            generated, skipped_count, failed = generate_aim_look_overlays(
+                scene_nwo, source, armature, target_bases,
+                override_existing=self.override_existing,
+            )
+        except ValueError as error:
+            self.report({'WARNING'}, str(error))
+            return {'CANCELLED'}
+        generated_count = len(generated)
 
         if generated_count == 0 and failed:
             self.report(

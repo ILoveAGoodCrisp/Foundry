@@ -1277,7 +1277,7 @@ class NWO_Import(bpy.types.Operator):
     
     graph_convert_to_reach: bpy.props.BoolProperty(
         name="Convert to Reach+ Animation Style",
-        description="Add pedestal and aim bones, move movement data to the pedestal, and convert legacy blend screens",
+        description="Add pedestal and aim bones, move movement data to the pedestal, convert legacy blend screens and turn poses, and generate missing aim/look overlays",
         default=False,
     )
 
@@ -4034,6 +4034,27 @@ class NWOImporter:
                 with AnimationGraphTag(path=mover.tag_path) as graph:
                     graph.restore_forced_compression(forced_compression_value)
 
+        if convert_to_reach and self.graph_import_animations:
+            from .animation.legacy_import import generate_reach_aim_look_overlays
+            from .animation.legacy_turns import convert_reach_turn_poses
+            utils.print_bullet("Converting Reach Turn Poses")
+            converted_turns = convert_reach_turn_poses(
+                self.scene_nwo, armature,
+                self.scene_nwo.animations[imported_animation_start:],
+            )
+            utils.print_bullet(f"Converted {len(converted_turns)} turn poses")
+            utils.print_bullet("Generating Reach Aim / Look Overlays")
+            generated = generate_reach_aim_look_overlays(
+                self.scene_nwo, armature,
+                self.scene_nwo.animations[imported_animation_start:],
+                turns_with_aim_pose=converted_turns,
+            )
+            for animation in generated:
+                animations.append(animation.name)
+                actions.extend(track.action for track in animation.action_tracks
+                               if track.action is not None)
+            utils.print_bullet(f"Generated {len(generated)} aim/look overlays")
+
         self.register_control_rig_actions(armature, actions)
 
         if return_animations:
@@ -5220,7 +5241,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     
     graph_convert_to_reach: bpy.props.BoolProperty(
         name="Convert to Reach+ Animation Style",
-        description="Add pedestal and aim bones, move movement data to the pedestal, and convert legacy blend screens",
+        description="Add pedestal and aim bones, move movement data to the pedestal, convert legacy blend screens and turn poses, and generate missing aim/look overlays",
         default=False,
     )
 

@@ -1,6 +1,7 @@
 """Run with Blender --background --factory-startup --python this_file."""
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 import sys
 import tempfile
 import unittest
@@ -28,7 +29,14 @@ from io_scene_foundry.tags.animation_resource import (
     AnimationData, FrameInfoType, MovementData, apply_movement_data,
 )
 from io_scene_foundry.tags.animation_graph import AnimationBlendScreen
-from io_scene_foundry.tools.animation.legacy_import import prepare_reach_skeleton, convert_blend_screen
+from io_scene_foundry.tools.animation.legacy_import import (
+    prepare_reach_skeleton, convert_blend_screen, generate_reach_aim_look_overlays,
+)
+from io_scene_foundry.tools import importer as importer_module
+from io_scene_foundry.tools.animation import legacy_turns
+from io_scene_foundry.tools.animation.generate_aim_look_overlays import (
+    _fcurve_map, _rest_local_matrix, _sample_local_matrices, _world_matrices,
+)
 from io_scene_foundry.tools.importer import draw_animation_graph_import_options, draw_graph_import_options
 
 
@@ -208,6 +216,238 @@ class LegacyImportTests(unittest.TestCase):
             self.assertIsNotNone(curve)
             self.assertEqual(len(curve.keyframe_points), 22)
         self.assertFalse(utils.get_fcurves(unrelated, unrelated.slots[0]))
+
+    def add_overlay_fixture_animation(self, name, *, overlay=False, height=0):
+        animation = self.nwo.animations.add()
+        animation.name = name
+        animation.animation_type = 'overlay' if overlay else 'base'
+        animation.pose_overlay = overlay
+        animation.frame_start = 1
+        animation.frame_end = 3
+        action = bpy.data.actions.new(name)
+        slot = action.slots.new('OBJECT', self.arm.name)
+        self.arm.animation_data_create()
+        self.arm.animation_data.action = action
+        self.arm.animation_data.action_slot = slot
+        track = animation.action_tracks.add()
+        track.object = self.arm
+        track.action = action
+        for frame in range(1, 4):
+            for bone in self.arm.pose.bones:
+                bone.matrix_basis = Matrix.Identity(4)
+                bone.rotation_mode = 'QUATERNION'
+                if bone.name == 'root':
+                    bone.location.z = height + (frame if overlay else 0)
+                if bone.name == 'aim_yaw' and overlay and frame > 1:
+                    bone.rotation_quaternion = Quaternion((0, 0, 1), 2.1)
+                bone.keyframe_insert('location', frame=frame)
+                bone.keyframe_insert('rotation_quaternion', frame=frame)
+        return animation
+
+    def test_import_generates_overlay_poses_metadata_and_preserves_existing(self):
+        prepare_reach_skeleton(self.arm)
+        self.nwo.node_usage_pelvis = 'root'
+        source = self.add_overlay_fixture_animation('combat rifle aim_still_up var2', overlay=True)
+        source.animation_renames.add().name = 'combat pistol aim_still_up var2'
+        event = source.animation_events.add()
+        event.event_type = '_connected_geometry_animation_event_type_frame'
+        event.frame_frame = 2
+        event = source.animation_events.add()
+        event.event_type = '_connected_geometry_animation_event_type_import'
+        event.import_name = 'Wrapped Right'
+        event.frame_frame = 99
+        look = self.add_overlay_fixture_animation('combat rifle look_still', overlay=True)
+        walk = self.add_overlay_fixture_animation('combat rifle walk_front', height=4)
+        move = self.add_overlay_fixture_animation('combat rifle move_front', height=8)
+        existing = self.add_overlay_fixture_animation('combat rifle aim_move_front_up var2', overlay=True)
+        existing_action = existing.action_tracks[0].action
+        # Scene entries outside the current import must not become sources/bases.
+        self.add_overlay_fixture_animation('combat rifle airborne')
+        self.add_overlay_fixture_animation('combat rifle aim_still_down', overlay=True)
+        self.add_overlay_fixture_animation('combat rifle move_left')
+        imported = self.nwo.animations[:5]
+        previous_action = self.arm.animation_data.action
+        previous_frame = bpy.context.scene.frame_current
+        generated = generate_reach_aim_look_overlays(self.nwo, self.arm, imported)
+        self.assertEqual({a.name for a in generated}, {
+            'combat rifle aim_walk_front_up var2',
+            'combat rifle look_walk_front', 'combat rifle look_move_front',
+        })
+        self.assertEqual(self.arm.animation_data.action, previous_action)
+        self.assertEqual(bpy.context.scene.frame_current, previous_frame)
+        target = next(a for a in generated if 'aim_walk' in a.name)
+        self.assertTrue(target.pose_overlay)
+        self.assertEqual(target.animation_type, 'overlay')
+        self.assertEqual(target.animation_renames[0].name, 'combat pistol aim_walk_front_up var2')
+        self.assertEqual([e.frame_frame for e in target.animation_events
+                          if e.event_type == '_connected_geometry_animation_event_type_frame'], [2])
+        wraps = [e for e in target.animation_events
+                 if e.event_type == '_connected_geometry_animation_event_type_import']
+        self.assertEqual([e.frame_frame for e in wraps], [2, 3])
+        action = target.action_tracks[0].action
+        self.assertNotEqual(action, self.nwo.animations[0].action_tracks[0].action)
+        curves = utils.get_fcurves(action, action.slots[0])
+        root_z = curves.find('pose.bones["root"].location', index=2)
+        for frame in range(1, 4):
+            self.assertAlmostEqual(root_z.evaluate(frame), 4)
+        self.assertEqual(self.nwo.animations[4].action_tracks[0].action, existing_action)
+        self.assertEqual(generate_reach_aim_look_overlays(self.nwo, self.arm, self.nwo.animations[:5]), [])
+
+    def test_graph_import_generates_overlays_only_for_legacy_reach_conversion(self):
+        prepare_reach_skeleton(self.arm)
+        for game, enabled, import_animations, expected in (
+                ('halo1', True, True, True), ('halo2', True, True, True),
+                ('halo3', True, True, True), ('halo3odst', True, True, True),
+                ('reach', True, True, False), ('halo4', True, True, False),
+                ('halo3', False, True, False), ('halo3', True, False, False)):
+            with self.subTest(game=game, enabled=enabled, import_animations=import_animations):
+                self.nwo.animations.clear()
+                graph = MagicMock()
+                graph.game = game
+                graph.force_uncompressed_for_import.return_value = (0, False)
+                graph.__enter__.return_value = graph
+                tag = MagicMock()
+                tag.__enter__.return_value = tag
+
+                def import_actions(*args, **kwargs):
+                    self.assertEqual(kwargs['convert_to_reach'], expected)
+                    source = self.add_overlay_fixture_animation('combat rifle aim_still', overlay=True)
+                    base = self.add_overlay_fixture_animation('combat rifle walk_front')
+                    return [a.action_tracks[0].action for a in (source, base)], [source.name, base.name]
+
+                def import_renames(*args):
+                    if self.nwo.animations:
+                        self.nwo.animations[0].animation_renames.add().name = 'combat pistol aim_still'
+
+                tag.to_blender.side_effect = import_actions
+                graph.generate_renames.side_effect = import_renames
+                importer = SimpleNamespace(
+                    import_info_sources_for_tag=lambda file: [], scene_nwo=self.nwo,
+                    context=bpy.context, tags_dir='', tag_animation_filter='',
+                    graph_convert_to_reach=enabled, graph_import_ik_chains=False,
+                    graph_import_animations=import_animations, corinth=False,
+                    graph_scale_animations_to_skeleton=False, convert_animation_names=True,
+                    target_game='reach', graph_generate_renames=True,
+                    graph_import_events=False, register_control_rig_actions=MagicMock(),
+                )
+                with patch.object(importer_module.utils, 'TagImportMover'), \
+                        patch.object(importer_module, 'AnimationGraphTag', return_value=graph), \
+                        patch.object(importer_module, 'AnimationTag', return_value=tag), \
+                        patch.object(legacy_turns, 'convert_reach_turn_poses', wraps=legacy_turns.convert_reach_turn_poses) as convert_turns:
+                    actions, names = importer_module.NWOImporter.import_animation_graph(
+                        importer, 'test.model_animation_graph', self.arm, None, return_animations=True)
+                self.assertEqual(convert_turns.call_count, int(expected))
+                self.assertEqual('combat rifle aim_walk_front' in names, expected)
+                self.assertEqual(len(actions), (3 if expected else 2) if import_animations else 0)
+                if expected:
+                    generated = self.nwo.animations[-1]
+                    self.assertEqual(generated.animation_renames[0].name, 'combat pistol aim_walk_front')
+                    self.assertIn(generated.action_tracks[0].action, actions)
+                importer.register_control_rig_actions.assert_called_once_with(self.arm, actions)
+
+    def make_turn_aim_overlay(self, name='combat rifle aim_still_up'):
+        animation = self.add_overlay_fixture_animation(name, overlay=True)
+        animation.frame_end = 5
+        # Frame 1 is the reference; the extreme pitch poses must not be selected.
+        for frame, yaw, pitch, x in ((1, 1.6, 0, 99), (2, -1.4, -0.6, 99),
+                                     (3, -0.7, 0, 3), (4, 0.9, 0, 4), (5, 1.4, 0.6, 99)):
+            for bone in self.arm.pose.bones:
+                bone.matrix_basis = Matrix.Identity(4)
+                if bone.name == 'root':
+                    bone.location.x = x
+                    bone.rotation_quaternion = Quaternion((0, 1, 0), x / 10)
+                elif bone.name == 'aim_yaw':
+                    bone.rotation_quaternion = Quaternion((0, 0, 1), yaw)
+                elif bone.name == 'aim_pitch':
+                    bone.rotation_quaternion = Quaternion((0, 1, 0), pitch)
+                bone.keyframe_insert('location', frame=frame)
+                bone.keyframe_insert('rotation_quaternion', frame=frame)
+        return animation
+
+    def test_turn_pose_matches_directional_aim_and_keeps_movement_timing_events(self):
+        prepare_reach_skeleton(self.arm)
+        self.make_turn_aim_overlay()
+        for direction in ('left', 'right'):
+            for suffix in ('', '_fast', '_slow'):
+                name = f'combat rifle turn_{direction}{suffix}'
+                turn = self.add_overlay_fixture_animation(name)
+                action = turn.action_tracks[0].action
+                action.use_frame_range = True
+                action.frame_start, action.frame_end = 1, 3
+                event = turn.animation_events.add()
+                event.frame_frame = 2
+                for frame in range(1, 4):
+                    self.arm.pose.bones['root'].location = (10 + frame, 0, 0)
+                    self.arm.pose.bones['root'].rotation_quaternion = Quaternion((1, 0, 0), frame / 10)
+                    pedestal = self.arm.pose.bones['pedestal']
+                    pedestal.rotation_quaternion = Quaternion((0, 0, 1), frame / 5)
+                    pedestal.location = (frame / 3, frame / 4, 0)
+                    for bone in (self.arm.pose.bones['root'], pedestal):
+                        bone.keyframe_insert('location', frame=frame)
+                        bone.keyframe_insert('rotation_quaternion', frame=frame)
+                    self.arm.location.x = frame / 8
+                    self.arm.keyframe_insert('location', frame=frame)
+        def movement_curves(action):
+            curves, _ = _fcurve_map(action, self.arm)
+            return {key: (curve.as_pointer(), [tuple(p.co) for p in curve.keyframe_points])
+                    for key, curve in curves.items()
+                    if key[0].startswith('pose.bones["pedestal"]') or key[0] == 'location'}
+        before = {a.name: movement_curves(a.action_tracks[0].action) for a in self.nwo.animations[1:]}
+        previous_action = self.arm.animation_data.action
+        previous_frame = bpy.context.scene.frame_current
+        converted = legacy_turns.convert_reach_turn_poses(self.nwo, self.arm, self.nwo.animations[:])
+        self.assertEqual(set(converted), set(before))
+        self.assertEqual(self.arm.animation_data.action, previous_action)
+        self.assertEqual(bpy.context.scene.frame_current, previous_frame)
+        for name in converted:
+            with self.subTest(name=name):
+                animation = self.nwo.animations[name]
+                action = animation.action_tracks[0].action
+                self.assertEqual(movement_curves(action), before[name])
+                self.assertEqual((animation.frame_start, animation.frame_end, action.frame_start, action.frame_end), (1, 3, 1, 3))
+                self.assertEqual(animation.animation_events[0].frame_frame, 2)
+                x, yaw = (4, 0.9) if 'turn_left' in name else (3, -0.7)
+                curves, _ = _fcurve_map(action, self.arm)
+                for frame in range(1, 4):
+                    self.assertAlmostEqual(curves[('pose.bones["root"].location', 0)].evaluate(frame), x+frame-1, places=4)
+                    values = [curves[('pose.bones["root"].rotation_quaternion', i)].evaluate(frame) for i in range(4)]
+                    expected = Quaternion((0, 1, 0), x/10) @ Quaternion((1, 0, 0), (frame-1)/10)
+                    self.assertMatrix(Quaternion(values).to_matrix(), expected.to_matrix())
+                    values = [curves[('pose.bones["aim_yaw"].rotation_quaternion', i)].evaluate(frame) for i in range(4)]
+                    self.assertMatrix(Quaternion(values).to_matrix(), Quaternion((0, 0, 1), yaw).to_matrix())
+
+    def test_converted_turn_overlay_uses_new_aim_reference_without_extra_offset(self):
+        prepare_reach_skeleton(self.arm)
+        self.make_turn_aim_overlay()
+        self.add_overlay_fixture_animation('combat rifle turn_right')
+        converted = legacy_turns.convert_reach_turn_poses(self.nwo, self.arm, self.nwo.animations[:])
+        generated = generate_reach_aim_look_overlays(self.nwo, self.arm, self.nwo.animations[:], turns_with_aim_pose=converted)
+        self.assertEqual([a.name for a in generated], ['combat rifle aim_turn_right_up'])
+        action = generated[0].action_tracks[0].action
+        curves, _ = _fcurve_map(action, self.arm)
+        rest = {b.name: _rest_local_matrix(b) for b in self.arm.pose.bones}
+        world = _world_matrices(self.arm, _sample_local_matrices(self.arm, curves, 1, rest))
+        reference = world['pedestal'].inverted_safe() @ world['aim_yaw']
+        self.assertMatrix(reference, Matrix.Rotation(-0.7, 4, 'Z'))
+
+    def test_turn_pose_matching_and_missing_samples(self):
+        prepare_reach_skeleton(self.arm)
+        self.make_turn_aim_overlay('combat any aim_still_up')
+        self.make_turn_aim_overlay('combat rifle aim_still_up')
+        self.make_turn_aim_overlay('combat rifle pr aim_still_up')
+        self.add_overlay_fixture_animation('combat rifle pr turn_right')
+        name = utils.AnimationName('combat rifle pr turn_right')
+        selected = legacy_turns._matching_aim_overlay(self.nwo.animations, self.arm, name)
+        self.assertEqual(selected.name, 'combat rifle pr aim_still_up')
+        # An aim screen outside this filtered import is not a dependency to mutate/use.
+        self.assertEqual(legacy_turns.convert_reach_turn_poses(self.nwo, self.arm, self.nwo.animations[-1:]), [])
+        # No yaw keys in the matching screen: do not invent a directional pose.
+        track = self.nwo.animations[2].action_tracks[0]
+        curves = utils.get_fcurves(track.action, track.action.slots[0])
+        for curve in list(curves):
+            if 'aim_yaw' in curve.data_path:
+                curves.remove(curve)
+        self.assertEqual(legacy_turns.convert_reach_turn_poses(self.nwo, self.arm, self.nwo.animations[:]), [])
 
 
 if __name__ == '__main__':

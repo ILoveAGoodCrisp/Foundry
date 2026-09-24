@@ -74,3 +74,38 @@ def convert_blend_screen(armature, animation, action, slot, record, names):
         animation.frame_end = builder.build_from_blend_screen(
             bpy.context.scene, animation, action, wrap_events, screen, slot)
     action.frame_end = animation.frame_end
+
+
+def generate_reach_aim_look_overlays(scene_nwo, armature, imported_animations, *, turns_with_aim_pose=()):
+    """Fill missing movement overlays using only sources/bases from this import."""
+    from .generate_aim_look_overlays import (
+        _is_eligible_animation_mode, _retarget_overlay_state,
+        _target_base_animations, generate_aim_look_overlays,
+    )
+
+    imported_pointers = {animation.as_pointer() for animation in imported_animations}
+    imported_indices = [index for index, animation in enumerate(scene_nwo.animations)
+                        if animation.as_pointer() in imported_pointers]
+    generated = []
+    for source_index in imported_indices:
+        source = scene_nwo.animations[source_index]
+        name = utils.AnimationName(source.name)
+        if (source.animation_type != 'overlay' or not source.pose_overlay
+                or source.frame_end <= source.frame_start
+                or not name.valid or name.custom
+                or name.type != utils.AnimationStateType.ACTION
+                or not _is_eligible_animation_mode(name.mode)
+                or _retarget_overlay_state(name.state, 'move_front') is None):
+            continue
+        target_bases = _target_base_animations(
+            [scene_nwo.animations[index] for index in imported_indices], armature, name)
+        if not target_bases:
+            continue
+        try:
+            overlays, _skipped, _failed = generate_aim_look_overlays(
+                scene_nwo, source, armature, target_bases,
+                turns_with_aim_pose=turns_with_aim_pose)
+            generated.extend(overlays)
+        except ValueError as error:
+            utils.print_warning(f"Failed to generate overlays for [{source.name}]: {error}")
+    return [scene_nwo.animations[name] for name in generated]
