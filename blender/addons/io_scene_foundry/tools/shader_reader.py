@@ -9,7 +9,7 @@ from ..managed_blam.shader_custom import ShaderCustomTag
 from ..managed_blam.shader_halogram import ShaderHalogramTag
 from ..managed_blam.shader_foliage import ShaderFoliageTag
 from ..managed_blam.shader_terrain import ShaderTerrainTag
-from ..managed_blam.material import MaterialTag
+from ..tags.material import MaterialTag
 from ..managed_blam.shader import ShaderTag, build_templates
 from ..managed_blam.shader_decal import ShaderDecalTag
 from .. import utils

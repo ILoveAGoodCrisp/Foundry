@@ -6,13 +6,13 @@ from pathlib import Path
 from typing import cast
 from mathutils import Vector
 
-from .connected_material import AnimatedParameterType, Function
-from ..tags.backend import TagReference
-from ..tags.field_view import NativeTagStruct
+from ..managed_blam.connected_material import AnimatedParameterType, Function
+from .backend import TagReference
+from .field_view import NativeTagStruct
 
-from ..tags.bitmap import BitmapTag
-from ..tags.material_shader import MaterialShaderParameter, MaterialShaderTag, convert_argb
-from .shader import BSDFParameter, ChannelType, ShaderTag
+from .bitmap import BitmapTag
+from .material_shader import MaterialShaderParameter, MaterialShaderTag, convert_argb
+from ..managed_blam.shader import BSDFParameter, ChannelType, ShaderTag
 from .. import utils
 import bpy
 
@@ -731,3 +731,4 @@ def link_change_color(tree: bpy.types.NodeTree, input: bpy.types.NodeGroupInput,
     node_cc.attribute_name = attribute
     node_cc.attribute_type = 'INSTANCER'
     tree.links.new(input=input, output=node_cc.outputs[0])
+

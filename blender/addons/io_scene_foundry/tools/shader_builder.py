@@ -11,7 +11,7 @@ from ..managed_blam.shader_foliage import ShaderFoliageTag
 from ..managed_blam.shader_glass import ShaderGlassTag
 from ..managed_blam.shader_halogram import ShaderHalogramTag
 from ..managed_blam.shader_terrain import ShaderTerrainTag
-from ..managed_blam.material import MaterialTag
+from ..tags.material import MaterialTag
 from .. import utils
 
 global_material_shaders = []

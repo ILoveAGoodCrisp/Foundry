@@ -1,6 +1,6 @@
 
 
-from .material import MaterialTag
+from ..tags.material import MaterialTag
 from .shader import _EmptyReference
 from .shader_decal import ShaderDecalTag
 
