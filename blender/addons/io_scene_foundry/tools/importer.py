@@ -109,6 +109,7 @@ IMPORT_TEMPLATE_VALUES = {
         "import_biped_weapon": True,
         "tag_bsp_import_geometry": True,
         "tag_bsp_skip_structure_merge": False,
+        "tag_bsp_merge_render_collision": True,
         "tag_bsp_render_only": False,
         "tag_bsp_import_havok": True,
         "tag_import_design": True,
@@ -131,6 +132,7 @@ IMPORT_TEMPLATE_VALUES = {
         "import_biped_weapon": False,
         "tag_bsp_import_geometry": True,
         "tag_bsp_skip_structure_merge": False,
+        "tag_bsp_merge_render_collision": True,
         "tag_bsp_render_only": False,
         "tag_bsp_import_havok": True,
         "tag_import_design": True,
@@ -153,6 +155,7 @@ IMPORT_TEMPLATE_VALUES = {
         "import_biped_weapon": False,
         "tag_bsp_import_geometry": True,
         "tag_bsp_skip_structure_merge": False,
+        "tag_bsp_merge_render_collision": True,
         "tag_bsp_render_only": True,
         "tag_bsp_import_havok": False,
         "tag_import_design": False,
@@ -358,6 +361,11 @@ def draw_scenario_import_sections(operator, layout, corinth, show_template=True,
     core_box = layout.box()
     core_box.label(text="Core")
     core_box.prop(operator, "tag_bsp_import_geometry")
+    project = utils.get_project()
+    if project is not None and project.game == 'halo1':
+        merge_row = core_box.row()
+        merge_row.enabled = operator.tag_bsp_import_geometry
+        merge_row.prop(operator, "tag_bsp_merge_render_collision")
     core_box.prop(operator, "tag_import_lights")
 
     reimport_box = layout.box()
@@ -1146,8 +1154,14 @@ class NWO_Import(bpy.types.Operator):
 
     tag_bsp_skip_structure_merge: bpy.props.BoolProperty(
         name="Skip Structure Merge",
-        description="Keeps imported BSP structure as separate cluster/collision objects instead of joining them into one structure mesh",
+        description="Keeps imported BSP clusters as separate objects instead of joining them into one structure mesh",
         default=False,
+    )
+
+    tag_bsp_merge_render_collision: bpy.props.BoolProperty(
+        name="Merge Render and Collision",
+        description="Reconstructs shared render and collision surfaces for Halo 1 BSPs. Disable to import the original render and collision meshes separately",
+        default=True,
     )
     
     tag_import_design: bpy.props.BoolProperty(
@@ -1633,6 +1647,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
                     importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
+                    importer.tag_bsp_merge_render_collision = self.tag_bsp_merge_render_collision
                     importer.tag_bsp_import_havok = self.tag_bsp_import_havok
                     importer.tag_import_lights = self.tag_import_lights
                     importer.tag_import_design = self.tag_import_design
@@ -1658,6 +1673,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
                     importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
+                    importer.tag_bsp_merge_render_collision = self.tag_bsp_merge_render_collision
                     importer.tag_bsp_import_havok = self.tag_bsp_import_havok
                     importer.tag_import_lights = self.tag_import_lights
                     importer.setup_as_asset = self.setup_as_asset
@@ -1697,6 +1713,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
                     importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
+                    importer.tag_bsp_merge_render_collision = self.tag_bsp_merge_render_collision
                     importer.tag_bsp_import_havok = self.tag_bsp_import_havok
                     importer.tag_import_lights = self.tag_import_lights
                     importer.setup_as_asset = self.setup_as_asset
@@ -1824,6 +1841,7 @@ class NWO_Import(bpy.types.Operator):
                             importer.tag_zone_set = zone_set
                             importer.tag_bsp_import_geometry = True
                             importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
+                            importer.tag_bsp_merge_render_collision = self.tag_bsp_merge_render_collision
                             importer.tag_bsp_render_only = True
                             importer.tag_import_lights = self.tag_import_lights
                             importer.tag_scenario_import_objects = self.tag_scenario_import_objects
@@ -2569,6 +2587,7 @@ class NWOImporter:
         self.tag_bsp_render_only = False
         self.tag_bsp_import_geometry = False
         self.tag_bsp_skip_structure_merge = False
+        self.tag_bsp_merge_render_collision = True
         self.tag_bsp_import_havok = False
         self.tag_import_lights = False
         self.tag_import_design = False
@@ -4124,7 +4143,7 @@ class NWOImporter:
                 scenario_collection.children.link(collection)
         with utils.TagImportMover(self.tags_dir, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
-                bsp_objects, game_objects, bvh = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights, always_get_structure_collision, sky_index, self.tag_bsp_import_havok, self.tag_bsp_skip_structure_merge)
+                bsp_objects, game_objects, bvh = bsp.to_blend_objects(collection, self.tag_bsp_render_only, info_path, self.tag_bsp_import_geometry, self.tag_import_lights, always_get_structure_collision, sky_index, self.tag_bsp_import_havok, self.tag_bsp_skip_structure_merge, merge_render_collision=self.tag_bsp_merge_render_collision)
                 
                 meshes = {ob.data for ob in bsp_objects if ob.type == 'MESH'}
                 self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
@@ -4756,8 +4775,14 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
 
     tag_bsp_skip_structure_merge: bpy.props.BoolProperty(
         name="Skip Structure Merge",
-        description="Keeps imported BSP structure as separate cluster/collision objects instead of joining them into one structure mesh",
+        description="Keeps imported BSP clusters as separate objects instead of joining them into one structure mesh",
         default=False,
+    )
+
+    tag_bsp_merge_render_collision: bpy.props.BoolProperty(
+        name="Merge Render and Collision",
+        description="Reconstructs shared render and collision surfaces for Halo 1 BSPs. Disable to import the original render and collision meshes separately",
+        default=True,
     )
     
     tag_import_design: bpy.props.BoolProperty(

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from zipfile import ZipFile
 
 ADDONS = Path(__file__).resolve().parents[1] / 'blender/addons'
@@ -228,12 +228,104 @@ class ClassicMergeTests(unittest.TestCase):
                 bpy.context.scene.collection.objects.link(ob)
                 ob.matrix_world = Matrix.Scale(scale, 4) @ transform
                 objects.append(ob)
-            self.assertEqual(tag._merge_classic_structure_geometry(objects, True), objects)
+            self.assertEqual(tag._merge_classic_structure_geometry(
+                objects, True, merge_render_collision=False), objects)
             with patch('io_scene_foundry.import_transform.scale_factor', return_value=scale):
                 merged, = tag._merge_classic_structure_geometry(objects, False)
             self.assertEqual(len(merged.data.polygons), 2)
             self.assertFalse(mode_faces(merged.data, 'render_only'))
             self.assertAlmostEqual(min(v.co.x for v in merged.data.vertices), 10 * scale, places=5)
+
+    def test_cluster_join_and_surface_merge_are_independent(self):
+        tag = ScenarioStructureBspTag.__new__(ScenarioStructureBspTag)
+        tag.tag_path = SimpleNamespace(ShortName='test')
+        for merge in (False, True):
+            for skip in (False, True):
+                for extra_collision in (False, True):
+                    with self.subTest(merge=merge, skip=skip, extra_collision=extra_collision):
+                        objects = []
+                        for index, face in enumerate(((0, 1, 2), (0, 2, 3))):
+                            mesh = make_mesh([SQUARE[i] for i in face], [(0, 1, 2)])
+                            mesh.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
+                            ob = bpy.data.objects.new(f'cluster_{index}', mesh)
+                            ob['cluster_test'] = index
+                            bpy.context.scene.collection.objects.link(ob)
+                            objects.append(ob)
+                        clusters = list(objects)
+                        cluster_names = [ob.name for ob in clusters]
+                        original_uvs = [[tuple(uv.uv) for uv in ob.data.uv_layers[0].data] for ob in clusters]
+                        points = SQUARE + ([(5, 0, 0), (6, 0, 0), (5, 1, 0)] if extra_collision else [])
+                        faces = [(0, 1, 2, 3)] + ([(4, 5, 6)] if extra_collision else [])
+                        collision = make_mesh(points, faces)
+                        collision.nwo.mesh_type = '_connected_geometry_mesh_type_collision'
+                        ob = bpy.data.objects.new('collision', collision)
+                        bpy.context.scene.collection.objects.link(ob)
+                        objects.append(ob)
+                        result = tag._merge_classic_structure_geometry(
+                            objects, skip, merge_render_collision=merge)
+                        if merge:
+                            self.assertEqual(sum(len(ob.data.polygons) for ob in result), 2 + extra_collision)
+                            self.assertFalse(any(mode_faces(ob.data, 'render_only') for ob in result))
+                            self.assertEqual(sum(len(mode_faces(ob.data, 'collision_only')) for ob in result), int(extra_collision))
+                            self.assertEqual(len(result), (2 + extra_collision) if skip else 1)
+                        else:
+                            self.assertEqual(len(result), 3 if skip else 2)
+                            self.assertEqual(len(collision.polygons), 1 + extra_collision)
+                            self.assertFalse(any(ob.data.nwo.face_props for ob in result))
+                        if skip:
+                            for index, cluster in enumerate(clusters):
+                                self.assertIn(cluster, result)
+                                self.assertEqual(cluster.name, cluster_names[index])
+                                self.assertEqual(cluster['cluster_test'], index)
+                                self.assertEqual(len(cluster.data.vertices), 3)
+                                self.assertEqual([tuple(uv.uv) for uv in cluster.data.uv_layers[0].data], original_uvs[index])
+                                self.assertTrue(all(n.vector.z > 0.999 for n in cluster.data.corner_normals))
+                        self.assertFalse(any(a.name.startswith('classic_cluster_') for ob in result for a in ob.data.attributes))
+
+    def test_surface_merge_option_in_both_importers_and_h1_ui(self):
+        from io_scene_foundry.tools.importer import (
+            IMPORT_TEMPLATE_VALUES, NWO_Import, NWO_OT_ImportFromDrop,
+            draw_scenario_import_sections,
+        )
+        for operator_type in (NWO_Import, NWO_OT_ImportFromDrop):
+            prop = operator_type.__annotations__['tag_bsp_merge_render_collision']
+            self.assertTrue(prop.keywords['default'])
+        self.assertTrue(all(values['tag_bsp_merge_render_collision'] for values in IMPORT_TEMPLATE_VALUES.values()))
+        for game in ('halo1', 'halo2', 'halo3'):
+            layout = MagicMock()
+            operator = SimpleNamespace(tag_bsp_render_only=False, tag_bsp_import_geometry=True)
+            with patch.object(utils, 'get_project', return_value=SimpleNamespace(game=game)):
+                draw_scenario_import_sections(operator, layout, False, show_template=False)
+            properties = [call.args[1] for call in layout.mock_calls if call[0].endswith('.prop')]
+            self.assertIn('tag_bsp_skip_structure_merge', properties)
+            self.assertEqual('tag_bsp_merge_render_collision' in properties, game == 'halo1')
+
+    def test_separate_clusters_preserve_ownership_when_faces_split(self):
+        tag = ScenarioStructureBspTag.__new__(ScenarioStructureBspTag)
+        tag.tag_path = SimpleNamespace(ShortName='split')
+        objects = []
+        for kind, points, faces in (
+            ('structure', [SQUARE[i] for i in (0, 1, 2)], [(0, 1, 2)]),
+            ('structure', [SQUARE[i] for i in (0, 2, 3)], [(0, 1, 2)]),
+            ('collision', [(0, 0, 0), (1, 0, 0), (1, 2, 0), (0, 2, 0)], [(0, 1, 2, 3)]),
+        ):
+            mesh = make_mesh(points, faces)
+            mesh.nwo.mesh_type = '_connected_geometry_mesh_type_' + kind
+            ob = bpy.data.objects.new(kind, mesh)
+            bpy.context.scene.collection.objects.link(ob)
+            objects.append(ob)
+        first, second = objects[:2]
+        result = tag._merge_classic_structure_geometry(objects, True)
+        self.assertEqual(result, [first, second])
+        for ob in result:
+            self.assertAlmostEqual(area(ob.data), 2)
+            for loop in ob.data.loops:
+                co = ob.data.vertices[loop.vertex_index].co
+                uv = ob.data.uv_layers[0].data[loop.index].uv
+                self.assertAlmostEqual(uv.x, co.x)
+                self.assertAlmostEqual(uv.y, co.y)
+        self.assertAlmostEqual(area(first.data, mode_faces(first.data, 'render_only')), 1.5)
+        self.assertAlmostEqual(area(second.data, mode_faces(second.data, 'render_only')), 0.5)
 
     def test_classic_emissive_face_props_follow_material_slots(self):
         mesh = make_mesh(SQUARE, [(0, 1, 2), (0, 2, 3)])
