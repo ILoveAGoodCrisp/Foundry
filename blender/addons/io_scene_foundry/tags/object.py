@@ -64,12 +64,26 @@ class ObjectDocument(TagDocument):
         field = self.object_struct().field('default model variant')
         return '' if field is None else field.value
 
+    def _resolved_model_reference(self, optional_tag_root: str | Path | None = None) -> TagReference | None:
+        """Resolve the H1 ``model`` tag group to a compiled gbxmodel when needed."""
+        reference = self.reference_model.Path
+        if reference is None:
+            return None
+        root = Path(optional_tag_root) if optional_tag_root is not None else reference.root
+        resolved = TagReference(root, reference.RelativePath, reference.Extension)
+        if self.game == 'halo1' and reference.Extension == 'model':
+            path = Path(resolved.Filename)
+            gbxmodel_path = path.with_suffix('.gbxmodel')
+            if not path.is_file() and gbxmodel_path.is_file():
+                return TagReference(root, reference.RelativePath, 'gbxmodel')
+        return resolved
+
     def get_model_tag_path(self):
         ref = self.reference_model.Path
         return ref.RelativePathWithExtension if ref else None
 
     def get_model_tag_path_full(self):
-        ref = self.reference_model.Path
+        ref = self._resolved_model_reference()
         return ref.Filename if ref else None
 
     def get_halo1_model_paths(self, optional_tag_root: str | Path | None = None) -> tuple[str, str, str, str]:
@@ -81,7 +95,8 @@ class ObjectDocument(TagDocument):
         struct = self.object_struct()
         paths = []
         for name in ('model', 'collision model', 'animation graph'):
-            reference = self.reference(struct, name)
+            reference = (self._resolved_model_reference(optional_tag_root)
+                         if name == 'model' else self.reference(struct, name))
             if reference is None or not reference.RelativePath:
                 paths.append('')
             elif optional_tag_root is None:
@@ -117,7 +132,7 @@ class ObjectDocument(TagDocument):
             return model.get_model_variants()
 
     def get_model_permutations(self) -> list[str]:
-        ref = self.reference_model.Path
+        ref = self._resolved_model_reference()
         if not self.path_exists(ref):
             return []
         with ModelDocument(ref, tags_root=self.tags_root, game=self.game,

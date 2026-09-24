@@ -189,6 +189,7 @@ MODEL_IMPORT_TYPES = {
 
 TEMPLATED_IMPORT_TYPES = MODEL_IMPORT_TYPES | {
     "render_model",
+    "gbxmodel",
     "scenario",
     "scenario_structure_bsp",
     "prefab",
@@ -785,7 +786,7 @@ filetype_suffixes = (
     ("bitmap", (".bitmap",)),
     ("camera_track", (".camera_track",)),
     ("model", (".model",)),
-    ("render_model", (".render_model",)),
+    ("render_model", (".render_model", ".gbxmodel")),
     ("scenario", (".scenario",)),
     ("scenario_structure_bsp", (".scenario_structure_bsp",)),
     ("scenario_structure_lighting_info", (".scenario_structure_lighting_info",)),
@@ -2261,7 +2262,7 @@ class NWO_Import(bpy.types.Operator):
             if 'model' in self.scope:
                 self.filter_glob += '*.model;'
             if 'render_model' in self.scope:
-                self.filter_glob += '*.render_model;'
+                self.filter_glob += '*.render_model;*.gbxmodel;'
             if 'scenario' in self.scope:
                 self.filter_glob += '*.scenario;'
             if 'scenario_structure_bsp' in self.scope:
@@ -3639,8 +3640,11 @@ class NWOImporter:
             prop_names = []
             with ModelTag(path=model_path, raise_on_error=False) as model:
                 if not model.valid: return
-                    
-                render, collision, animation, physics = model.get_model_paths(override_type=self.tag_model_override_type)
+
+                if obj.game == 'halo1':
+                    render, collision, animation, physics = obj.get_halo1_model_paths()
+                else:
+                    render, collision, animation, physics = model.get_model_paths(override_type=self.tag_model_override_type)
                 temp_variant = child_object.child_variant_name
 
                 if not temp_variant:
@@ -3648,8 +3652,9 @@ class NWOImporter:
                         temp_variant = default_variant
                     elif model.get_model_variants():
                         temp_variant = model.get_model_variants()[0]
-                
-                allowed_region_permutations = model.get_variant_regions_and_permutations(temp_variant, self.tag_state)
+
+                allowed_region_permutations = (temp_variant if obj.game == 'halo1'
+                                               else model.get_variant_regions_and_permutations(temp_variant, self.tag_state))
                 if temp_variant:
                     model_collection = bpy.data.collections.new(f"{model.tag_path.ShortName} [{temp_variant}]")
                 else:
@@ -5252,7 +5257,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         if self.import_type in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
             self.legacy_okay = True
 
-        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "scenario", "scenario_structure_bsp", "model_animation_graph", "model_animations", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "gbxmodel", "scenario", "scenario_structure_bsp", "model_animation_graph", "model_animations", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 global sky_items
@@ -5356,7 +5361,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                     layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
-            case "render_model":
+            case "render_model" | "gbxmodel":
                 draw_import_template(self, layout)
                 layout.prop(self, "build_control_rig")
                 if self.has_variants:
@@ -5418,7 +5423,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.ass;.bitmap;.model;.render_model;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.model_animations;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
+    bl_file_extensions = ".jms;.ass;.bitmap;.model;.gbxmodel;.render_model;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.model_animations;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
 
     @classmethod
     def poll_drop(cls, context):

@@ -178,6 +178,35 @@ class ObjectTests(unittest.TestCase):
                             raise RuntimeError('abort')
                     self.assertEqual(before, path.read_bytes())
 
+    def test_halo1_model_group_falls_back_to_compiled_gbxmodel(self):
+        with tempfile.TemporaryDirectory() as root:
+            args = dict(tags_root=root, game='halo1')
+            with m.ObjectDocument('test.scenery', **args) as doc:
+                doc.set_halo1_model_paths('rock.model', 'rock.model_collision_geometry')
+            (Path(root) / 'rock.gbxmodel').touch()
+            (Path(root) / 'rock.model_collision_geometry').touch()
+
+            with m.ObjectDocument('test.scenery', **args) as doc:
+                self.assertEqual(doc.get_model_tag_path(), 'rock.model')
+                self.assertEqual(doc.get_model_tag_path_full(), str(Path(root) / 'rock.gbxmodel'))
+                render, collision, animation, physics = doc.get_halo1_model_paths()
+                self.assertEqual(render, str(Path(root) / 'rock.gbxmodel'))
+                self.assertEqual(collision, str(Path(root) / 'rock.model_collision_geometry'))
+                self.assertEqual(animation, '')
+                self.assertEqual(physics, '')
+
+    def test_halo1_existing_model_reference_is_not_rewritten(self):
+        with tempfile.TemporaryDirectory() as root:
+            args = dict(tags_root=root, game='halo1')
+            with m.ObjectDocument('test.scenery', **args) as doc:
+                doc.set_halo1_model_paths('rock.model')
+            (Path(root) / 'rock.model').touch()
+            (Path(root) / 'rock.gbxmodel').touch()
+
+            with m.ObjectDocument('test.scenery', **args) as doc:
+                self.assertEqual(doc.get_model_tag_path(), 'rock.model')
+                self.assertEqual(doc.get_model_tag_path_full(), str(Path(root) / 'rock.model'))
+
     def test_weapon_metadata_and_first_person_edits(self):
         for game in GAMES:
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root:
