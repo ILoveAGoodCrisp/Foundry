@@ -36,6 +36,41 @@ from io_scene_foundry.tags.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_halo1_render_mesh_skips_unsupported_face_properties(self):
+        from io_scene_foundry.tags import connected_geometry as geometry
+
+        owner = object.__new__(geometry.Mesh)
+        owner.corinth = False
+        material = SimpleNamespace(
+            lm_res=1,
+            lm_ignore_default_res=True,
+            lm_chart_group_index=-1,
+            lm_transparency=1,
+            lm_transparency_override=True,
+            lm_analytical_absorb=0.0,
+            lm_normal_absorb=0.0,
+            lm_translucency=1,
+            lm_both_sides=True,
+            emissive=SimpleNamespace(),
+            emissive_invalid=False,
+        )
+        part = SimpleNamespace(
+            part_type=geometry.PartType.opaque_non_shadowing,
+            draw_distance=geometry.DrawDistance.detail_close,
+            tessellation=geometry.Tessellation._4x,
+            lm_type_per_vertex=True,
+            material=material,
+        )
+        subpart = SimpleNamespace(part=part)
+        mesh = SimpleNamespace(polygons=[None])
+
+        with patch.object(geometry.utils, 'get_project',
+                          return_value=SimpleNamespace(game='halo1')), \
+             patch.object(geometry.utils, 'add_face_prop') as add_face_prop:
+            owner._apply_subpart_props(mesh, subpart, None)
+
+        add_face_prop.assert_not_called()
+
     def test_legacy_jms_implied_root(self):
         from mathutils import Matrix
         from io_scene_foundry.export.legacy import LegacyExportScene

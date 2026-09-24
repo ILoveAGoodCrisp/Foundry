@@ -14,7 +14,7 @@ import bpy
 from mathutils import Matrix, Quaternion, Vector, bvhtree
 import numpy as np
 
-from ..constants import LIGHTMAP_ADDITIVE_TRANSPARENCY_COLOR, LIGHTMAP_ANALYTICAL_LIGHT_ABSORB, LIGHTMAP_CHART_GROUP_INDEX, LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE, LIGHTMAP_LIGHTING_FROM_BOTH_SIDES, LIGHTMAP_NORMAL_LIGHT_ABSORD, LIGHTMAP_RESOLUTION_SCALE, LIGHTMAP_TRANSLUCENCY_TINT_COLOR, LIGHTMAP_TRANSPARENCY_OVERRIDE, WU_SCALAR
+from ..constants import LIGHTMAP_ADDITIVE_TRANSPARENCY_COLOR, LIGHTMAP_ANALYTICAL_LIGHT_ABSORB, LIGHTMAP_CHART_GROUP_INDEX, LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE, LIGHTMAP_LIGHTING_FROM_BOTH_SIDES, LIGHTMAP_NORMAL_LIGHT_ABSORD, LIGHTMAP_RESOLUTION_SCALE, LIGHTMAP_TRANSLUCENCY_TINT_COLOR, LIGHTMAP_TRANSPARENCY_OVERRIDE, WU_SCALAR, face_prop_game_supported
 
 from ..tools.append_foundry_materials import add_special_materials
 
@@ -2878,6 +2878,9 @@ class MeshSubpart:
             mesh.polygons[i].material_index = blend_material_index
             
         corinth = utils.is_corinth(bpy.context)
+        project = utils.get_project()
+        game = project.game if project else None
+        supports = lambda prop_type, face_mode=None: not game or face_prop_game_supported(prop_type, game, face_mode)
             
         if self.is_water_surface:
             bm = bmesh.new()
@@ -2893,24 +2896,24 @@ class MeshSubpart:
             bm.to_mesh(mesh)
             bm.free()
 
-        if self.part.part_type == PartType.transparent:
+        if self.part.part_type == PartType.transparent and supports('transparent'):
             utils.add_face_prop(mesh, "transparent", all_indices)
-        elif self.part.part_type == PartType.opaque_non_shadowing:
+        elif self.part.part_type == PartType.opaque_non_shadowing and supports('no_shadow'):
             utils.add_face_prop(mesh, "no_shadow", all_indices)
-        elif self.part.part_type == PartType.opaque_shadow_only:
+        elif self.part.part_type == PartType.opaque_shadow_only and supports('face_mode', 'shadow_only'):
             utils.add_face_prop(mesh, "face_mode", all_indices).face_mode = 'shadow_only'
-        elif self.part.part_type == PartType.lightmap_only:
+        elif self.part.part_type == PartType.lightmap_only and supports('face_mode', 'lightmap_only'):
             utils.add_face_prop(mesh, "face_mode", all_indices).face_mode = 'lightmap_only'
-        if self.part.draw_distance.value > 0:
+        if self.part.draw_distance.value > 0 and supports('draw_distance'):
             utils.add_face_prop(mesh, "draw_distance", all_indices).draw_distance = self.part.draw_distance.name
-        if self.part.tessellation.value > 0:
+        if self.part.tessellation.value > 0 and supports('mesh_tessellation_density'):
             utils.add_face_prop(mesh, "mesh_tessellation_density", all_indices).mesh_tessellation_density = self.part.tessellation.name
         
-        if self.part.lm_type_per_vertex:
+        if self.part.lm_type_per_vertex and supports('lightmap_type'):
             utils.add_face_prop(mesh, "lightmap_type", all_indices)
             
         # Material Props
-        if not corinth and material.lm_res != LIGHTMAP_RESOLUTION_SCALE and material.lm_res != 0.0:
+        if supports('lightmap_resolution_scale') and not corinth and material.lm_res != LIGHTMAP_RESOLUTION_SCALE and material.lm_res != 0.0:
             res = 3
             if material.lm_res < 1:
                 res = "1"
@@ -2920,31 +2923,31 @@ class MeshSubpart:
                 res = str(material.lm_res)
             utils.add_face_prop(mesh, "lightmap_resolution_scale", all_indices).lightmap_resolution_scale = res
             
-        if material.lm_ignore_default_res != LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE:
+        if supports('lightmap_ignore_default_resolution_scale') and material.lm_ignore_default_res != LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE:
             utils.add_face_prop(mesh, "lightmap_ignore_default_resolution_scale", all_indices).lightmap_ignore_default_resolution_scale = material.lm_ignore_default_res
             
-        if material.lm_chart_group_index != LIGHTMAP_CHART_GROUP_INDEX:
+        if supports('lightmap_chart_group') and material.lm_chart_group_index != LIGHTMAP_CHART_GROUP_INDEX:
             utils.add_face_prop(mesh, "lightmap_chart_group", all_indices).lightmap_chart_group = material.lm_chart_group_index
             
-        if material.lm_transparency != LIGHTMAP_ADDITIVE_TRANSPARENCY_COLOR:
+        if supports('lightmap_additive_transparency') and material.lm_transparency != LIGHTMAP_ADDITIVE_TRANSPARENCY_COLOR:
             utils.add_face_prop(mesh, "lightmap_additive_transparency", all_indices).lightmap_additive_transparency = utils.argb32_to_rgb(material.lm_transparency)
             
-        if material.lm_transparency_override != LIGHTMAP_TRANSPARENCY_OVERRIDE:
+        if supports('lightmap_transparency_override') and material.lm_transparency_override != LIGHTMAP_TRANSPARENCY_OVERRIDE:
             utils.add_face_prop(mesh, "lightmap_transparency_override", all_indices).lightmap_transparency_override = material.lm_transparency_override
             
-        if material.lm_analytical_absorb != LIGHTMAP_ANALYTICAL_LIGHT_ABSORB and material.lm_analytical_absorb != 1.0:
+        if supports('lightmap_analytical_bounce_modifier') and material.lm_analytical_absorb != LIGHTMAP_ANALYTICAL_LIGHT_ABSORB and material.lm_analytical_absorb != 1.0:
             utils.add_face_prop(mesh, "lightmap_analytical_bounce_modifier", all_indices).lightmap_analytical_bounce_modifier = material.lm_analytical_absorb
             
-        if material.lm_normal_absorb != LIGHTMAP_NORMAL_LIGHT_ABSORD and material.lm_normal_absorb != 1.0:
+        if supports('lightmap_general_bounce_modifier') and material.lm_normal_absorb != LIGHTMAP_NORMAL_LIGHT_ABSORD and material.lm_normal_absorb != 1.0:
             utils.add_face_prop(mesh, "lightmap_general_bounce_modifier", all_indices).lightmap_general_bounce_modifier = material.lm_normal_absorb
             
-        if material.lm_translucency != LIGHTMAP_TRANSLUCENCY_TINT_COLOR:
+        if supports('lightmap_translucency_tint_color') and material.lm_translucency != LIGHTMAP_TRANSLUCENCY_TINT_COLOR:
             utils.add_face_prop(mesh, "lightmap_translucency_tint_color", all_indices).lightmap_translucency_tint_color = utils.argb32_to_rgb(material.lm_translucency)
             
-        if material.lm_both_sides != LIGHTMAP_LIGHTING_FROM_BOTH_SIDES:
+        if supports('lightmap_lighting_from_both_sides') and material.lm_both_sides != LIGHTMAP_LIGHTING_FROM_BOTH_SIDES:
             utils.add_face_prop(mesh, "lightmap_lighting_from_both_sides", all_indices).lightmap_lighting_from_both_sides = material.lm_both_sides
             
-        if material.emissive is not None:
+        if supports('emissive') and material.emissive is not None:
             prop = utils.add_face_prop(mesh, "emissive", all_indices)
             atten_factor = 1 if utils.is_corinth(bpy.context) else 0.01
             e = material.emissive
@@ -2957,7 +2960,7 @@ class MeshSubpart:
             prop.material_lighting_emissive_quality = e.quality
             prop.material_lighting_use_shader_gel = e.use_shader_gel
             prop.material_lighting_bounce_ratio = e.bounce_ratio
-        elif material.emissive_invalid:
+        elif supports('emissive') and material.emissive_invalid:
             prop = utils.add_face_prop(mesh, "emissive", all_indices)
             prop.material_lighting_emissive_power = 0
             prop.debug_emissive_index = material.emissive_index
@@ -3326,55 +3329,58 @@ class Mesh:
         face_count = len(mesh.polygons)
         all_indices = self._face_mask(face_count, face_indices)
         material = subpart.part.material
+        project = utils.get_project()
+        game = project.game if project else None
+        supports = lambda prop_type, face_mode=None: not game or face_prop_game_supported(prop_type, game, face_mode)
 
-        if subpart.part.part_type == PartType.transparent:
+        if subpart.part.part_type == PartType.transparent and supports('transparent'):
             utils.add_face_prop(mesh, "transparent", all_indices)
-        elif subpart.part.part_type == PartType.opaque_non_shadowing:
+        elif subpart.part.part_type == PartType.opaque_non_shadowing and supports('no_shadow'):
             utils.add_face_prop(mesh, "no_shadow", all_indices)
-        elif subpart.part.part_type == PartType.opaque_shadow_only:
+        elif subpart.part.part_type == PartType.opaque_shadow_only and supports('face_mode', 'shadow_only'):
             utils.add_face_prop(mesh, "face_mode", all_indices).face_mode = 'shadow_only'
-        elif subpart.part.part_type == PartType.lightmap_only:
+        elif subpart.part.part_type == PartType.lightmap_only and supports('face_mode', 'lightmap_only'):
             utils.add_face_prop(mesh, "face_mode", all_indices).face_mode = 'lightmap_only'
-        if subpart.part.draw_distance.value > 0:
+        if subpart.part.draw_distance.value > 0 and supports('draw_distance'):
             utils.add_face_prop(mesh, "draw_distance", all_indices).draw_distance = subpart.part.draw_distance.name
-        if subpart.part.tessellation.value > 0:
+        if subpart.part.tessellation.value > 0 and supports('mesh_tessellation_density'):
             utils.add_face_prop(mesh, "mesh_tessellation_density", all_indices).mesh_tessellation_density = subpart.part.tessellation.name
 
-        if subpart.part.lm_type_per_vertex:
+        if subpart.part.lm_type_per_vertex and supports('lightmap_type'):
             utils.add_face_prop(mesh, "lightmap_type", all_indices)
 
         if not hasattr(material, "lm_res"):
             return
 
-        if not self.corinth and material.lm_res != LIGHTMAP_RESOLUTION_SCALE and material.lm_res != 0.0:
+        if supports('lightmap_resolution_scale') and not self.corinth and material.lm_res != LIGHTMAP_RESOLUTION_SCALE and material.lm_res != 0.0:
             res = "1" if material.lm_res < 1 else "7" if material.lm_res > 7 else str(material.lm_res)
             utils.add_face_prop(mesh, "lightmap_resolution_scale", all_indices).lightmap_resolution_scale = res
 
-        if material.lm_ignore_default_res != LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE:
+        if supports('lightmap_ignore_default_resolution_scale') and material.lm_ignore_default_res != LIGHTMAP_IGNORE_DEFAULT_RESOLUTION_SCALE:
             utils.add_face_prop(mesh, "lightmap_ignore_default_resolution_scale", all_indices).lightmap_ignore_default_resolution_scale = material.lm_ignore_default_res
 
-        if material.lm_chart_group_index != LIGHTMAP_CHART_GROUP_INDEX:
+        if supports('lightmap_chart_group') and material.lm_chart_group_index != LIGHTMAP_CHART_GROUP_INDEX:
             utils.add_face_prop(mesh, "lightmap_chart_group", all_indices).lightmap_chart_group = material.lm_chart_group_index
 
-        if material.lm_transparency != LIGHTMAP_ADDITIVE_TRANSPARENCY_COLOR:
+        if supports('lightmap_additive_transparency') and material.lm_transparency != LIGHTMAP_ADDITIVE_TRANSPARENCY_COLOR:
             utils.add_face_prop(mesh, "lightmap_additive_transparency", all_indices).lightmap_additive_transparency = utils.argb32_to_rgb(material.lm_transparency)
 
-        if material.lm_transparency_override != LIGHTMAP_TRANSPARENCY_OVERRIDE:
+        if supports('lightmap_transparency_override') and material.lm_transparency_override != LIGHTMAP_TRANSPARENCY_OVERRIDE:
             utils.add_face_prop(mesh, "lightmap_transparency_override", all_indices).lightmap_transparency_override = material.lm_transparency_override
 
-        if material.lm_analytical_absorb != LIGHTMAP_ANALYTICAL_LIGHT_ABSORB and material.lm_analytical_absorb != 1.0:
+        if supports('lightmap_analytical_bounce_modifier') and material.lm_analytical_absorb != LIGHTMAP_ANALYTICAL_LIGHT_ABSORB and material.lm_analytical_absorb != 1.0:
             utils.add_face_prop(mesh, "lightmap_analytical_bounce_modifier", all_indices).lightmap_analytical_bounce_modifier = material.lm_analytical_absorb
 
-        if material.lm_normal_absorb != LIGHTMAP_NORMAL_LIGHT_ABSORD and material.lm_normal_absorb != 1.0:
+        if supports('lightmap_general_bounce_modifier') and material.lm_normal_absorb != LIGHTMAP_NORMAL_LIGHT_ABSORD and material.lm_normal_absorb != 1.0:
             utils.add_face_prop(mesh, "lightmap_general_bounce_modifier", all_indices).lightmap_general_bounce_modifier = material.lm_normal_absorb
 
-        if material.lm_translucency != LIGHTMAP_TRANSLUCENCY_TINT_COLOR:
+        if supports('lightmap_translucency_tint_color') and material.lm_translucency != LIGHTMAP_TRANSLUCENCY_TINT_COLOR:
             utils.add_face_prop(mesh, "lightmap_translucency_tint_color", all_indices).lightmap_translucency_tint_color = utils.argb32_to_rgb(material.lm_translucency)
 
-        if material.lm_both_sides != LIGHTMAP_LIGHTING_FROM_BOTH_SIDES:
+        if supports('lightmap_lighting_from_both_sides') and material.lm_both_sides != LIGHTMAP_LIGHTING_FROM_BOTH_SIDES:
             utils.add_face_prop(mesh, "lightmap_lighting_from_both_sides", all_indices).lightmap_lighting_from_both_sides = material.lm_both_sides
 
-        if material.emissive is not None:
+        if supports('emissive') and material.emissive is not None:
             prop = utils.add_face_prop(mesh, "emissive", all_indices)
             atten_factor = 1 if self.corinth else 0.01
             emissive = material.emissive
@@ -3387,7 +3393,7 @@ class Mesh:
             prop.material_lighting_emissive_quality = emissive.quality
             prop.material_lighting_use_shader_gel = emissive.use_shader_gel
             prop.material_lighting_bounce_ratio = emissive.bounce_ratio
-        elif material.emissive_invalid:
+        elif supports('emissive') and material.emissive_invalid:
             prop = utils.add_face_prop(mesh, "emissive", all_indices)
             prop.material_lighting_emissive_power = 0
             prop.debug_emissive_index = material.emissive_index
