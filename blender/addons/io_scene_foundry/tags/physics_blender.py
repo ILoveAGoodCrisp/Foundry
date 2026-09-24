@@ -1,7 +1,7 @@
 """Native physics import; unsupported shapes fail before object allocation."""
 from .blender import BlenderTag
 from .physics import PhysicsDocument, PhysicsShapesUnsupported
-from ..managed_blam.connected_geometry import Constraint, Sphere, Box, Pill, Polyhedron, RigidBody, HavokCollision
+from .connected_geometry import Constraint, Sphere, Box, Pill, Polyhedron, RigidBody, HavokCollision
 from mathutils import Matrix
 from .. import import_transform
 from .. import utils

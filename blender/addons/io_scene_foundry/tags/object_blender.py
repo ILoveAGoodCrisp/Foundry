@@ -10,7 +10,7 @@ class ObjectTag(BlenderTag, ObjectDocument):
         super().__init__(path, tag_must_exist=tag_must_exist, **kwargs)
 
     def functions_to_blender(self):
-        from ..managed_blam.connected_material import Function, game_functions
+        from .connected_material import Function, game_functions
         if self.game == 'halo1':
             # Halo 1 stores four positional object functions rather than the
             # named mapping functions introduced in Halo 2. Its current shader

@@ -9,9 +9,9 @@ from mathutils import Vector
 from ..constants import NormalType
 
 from .. import utils
-from ..tags.shader import ShaderTerrainMetadataTag
+from .shader import ShaderTerrainMetadataTag
 
-from .shader import ChannelType, ShaderTag
+from .shader_converter import ChannelType, ShaderTag
 
 
 class TerrainBlending(Enum):
@@ -140,3 +140,4 @@ class ShaderTerrainTag(ShaderTag):
 
         # Link to output
         tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])
+

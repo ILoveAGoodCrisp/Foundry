@@ -20,7 +20,7 @@ ANIMATION_REPO = r"https://github.com/77Mynameislol77/HaloAnimationRepository"
 from mathutils import Vector
 
 
-from ...managed_blam.connected_material import functions_list
+from ...tags.connected_material import functions_list
 game_functions = {func.name for func in functions_list}
 all_change_color_prop_names = ("Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color")
 all_change_color_prop_display_names = ("Primary", "Secondary", "Tertiary", "Quaternary")

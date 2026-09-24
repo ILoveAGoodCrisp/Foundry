@@ -8,7 +8,7 @@ from ..tools.rigging import HaloRig, needs_reach_fp_ik_fix
 
 from ..constants import HALO_FACTOR
 
-from ..managed_blam.connected_geometry import CompressionBounds, InstancePlacement, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
+from .connected_geometry import CompressionBounds, InstancePlacement, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
 from .. import import_transform
 
 from .. import utils

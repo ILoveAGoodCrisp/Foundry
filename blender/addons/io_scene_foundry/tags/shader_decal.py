@@ -10,7 +10,7 @@ from ..constants import NormalType
 
 from .. import utils
 
-from .shader import BSDFParameter, ChannelType, ShaderTag
+from .shader_converter import BSDFParameter, ChannelType, ShaderTag
 
 class Albedo(Enum):
     DIFFUSE_ONLY = 0
@@ -175,3 +175,4 @@ class ShaderDecalTag(ShaderTag):
             specular.build(Vector((-300, -200)))
 
         self._set_alpha(alpha_type, blender_material)
+

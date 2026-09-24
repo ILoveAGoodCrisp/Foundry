@@ -11,7 +11,7 @@ from ..constants import MATERIAL_SHADERS_DIR
 from ..tags.material import MaterialTag
 from ..tags.material_shader import MaterialShaderTag
 from ..tags.render_method_definition import RenderMethodDefinitionTag
-from ..managed_blam.shader import ShaderTag
+from ..tags.shader_converter import ShaderTag
 
 
 SUPPORTED_SHADER_EXTS = {

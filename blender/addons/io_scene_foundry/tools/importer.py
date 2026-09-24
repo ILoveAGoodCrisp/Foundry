@@ -16,14 +16,14 @@ from mathutils import Color, Quaternion, Vector, Matrix, Euler
 
 import numpy as np
 
-from ..managed_blam import connected_geometry
+from ..tags import connected_geometry
 from .. import import_transform
 
 from ..tags.cinematic_root import NativeCinematicTag
 from ..tags.animation_graph import AnimationGraphTag
 
 from ..tags.decorator_set import DecoratorSetTag
-from ..managed_blam.decal_system import DecalSystemCorinthTag, DecalSystemTag
+from ..tags.decal_system import DecalSystemCorinthTag, DecalSystemTag
 
 from ..tags.polyart import PolyArtTag
 
@@ -46,7 +46,7 @@ from ..ui.panel.cinematic import bake_vis_to_keyframes
 from ..tags.object_blender import ObjectTag
 from ..tags.particle_model import ParticleModelTag
 from ..tags.scenario_structure_bsp import ScenarioStructureBspTag
-from ..managed_blam.animation import AnimationTag
+from ..tags.animation import AnimationTag
 from ..tags.pca_blender import PCAAnimationTag
 from ..tags.render_model_blender import RenderModelTag
 from ..tags.physics_blender import PhysicsTag
@@ -73,7 +73,7 @@ from ..constants import (
     VALID_MESHES,
     WU_SCALAR,
 )
-from ..managed_blam.connected_material import GameFunctionType, game_functions
+from ..tags.connected_material import GameFunctionType, game_functions
 from .. import utils
 from .model_to_instance import ModelInstance
 from functools import partial
@@ -3850,7 +3850,7 @@ class NWOImporter:
             if placement.definition not in material_cache:
                 material = None
                 if scenario.game in {'halo1', 'halo2'}:
-                    from ..managed_blam.shader import ShaderTag
+                    from ..tags.shader_converter import ShaderTag
                     decal_name = Path(placement.definition).stem
                     material = bpy.data.materials.get(decal_name)
                     if material is None:

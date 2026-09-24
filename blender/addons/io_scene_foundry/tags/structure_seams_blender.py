@@ -4,7 +4,7 @@ import bmesh
 import bpy
 from mathutils import Vector
 
-from ..managed_blam.connected_geometry import BSPSeam
+from .connected_geometry import BSPSeam
 
 from ..tools.property_apply import apply_props_material
 from .blender import BlenderTag

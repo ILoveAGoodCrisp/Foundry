@@ -1,6 +1,6 @@
 """Collision-model import using native tag records and existing Blender conversion."""
 from mathutils import Euler, Matrix, Vector
-from ..managed_blam.connected_geometry import ModelCollision, PathfindingSphere
+from .connected_geometry import ModelCollision, PathfindingSphere
 from .blender import BlenderTag
 from .collision import CollisionDocument
 from .. import utils

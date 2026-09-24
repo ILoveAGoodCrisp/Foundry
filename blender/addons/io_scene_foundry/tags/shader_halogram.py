@@ -8,7 +8,7 @@ from mathutils import Vector
 
 from .. import utils
 
-from .shader import ShaderTag
+from .shader_converter import ShaderTag
 
 class Albedo(Enum):
     DEFAULT = 0
@@ -163,3 +163,4 @@ class ShaderHalogramTag(ShaderTag):
         
         # Link to output
         tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])
+

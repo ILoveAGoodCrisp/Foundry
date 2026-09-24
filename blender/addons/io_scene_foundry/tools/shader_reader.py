@@ -4,14 +4,14 @@ import time
 import bpy
 
 from .node_tree_arrange import arrange
-from ..managed_blam.shader_glass import ShaderGlassTag
-from ..managed_blam.shader_custom import ShaderCustomTag
-from ..managed_blam.shader_halogram import ShaderHalogramTag
-from ..managed_blam.shader_foliage import ShaderFoliageTag
-from ..managed_blam.shader_terrain import ShaderTerrainTag
+from ..tags.shader_glass import ShaderGlassTag
+from ..tags.shader_custom import ShaderCustomTag
+from ..tags.shader_halogram import ShaderHalogramTag
+from ..tags.shader_foliage import ShaderFoliageTag
+from ..tags.shader_terrain import ShaderTerrainTag
 from ..tags.material import MaterialTag
-from ..managed_blam.shader import ShaderTag, build_templates
-from ..managed_blam.shader_decal import ShaderDecalTag
+from ..tags.shader_converter import ShaderTag, build_templates
+from ..tags.shader_decal import ShaderDecalTag
 from .. import utils
 
 class NWO_OT_BuildShaderTemplates(bpy.types.Operator):

@@ -9,19 +9,19 @@ from mathutils import Vector
 
 from .connected_material import Function, AnimatedParameterType, FunctionEditorColorGraphType, FunctionEditorMasterType, RotateNodeInputs, TilingNodeInputs
 
-from ..tags.render_method_option import OptionParameter
+from .render_method_option import OptionParameter
 
 from ..constants import NormalType
-from ..tags.backend import TagDocument, TagReference
-from ..tags.blender import BlenderTag
-from ..tags.field_view import NativeTagStruct
+from .backend import TagDocument, TagReference
+from .blender import BlenderTag
+from .field_view import NativeTagStruct
 import os
-from ..tags.bitmap import BitmapTag, bitmap_to_image
+from .bitmap import BitmapTag, bitmap_to_image
 from ..tools.export_bitmaps import export_bitmap
 from .. import utils
 import bpy
 
-from ..tags.render_method_definition import RenderMethodDefinitionTag
+from .render_method_definition import RenderMethodDefinitionTag
 
 global_render_method_definition = None
 last_group_node = None
@@ -297,7 +297,7 @@ class ShaderTag(BlenderTag, TagDocument):
     @staticmethod
     def _GameColor_from_RGB(red: float, green: float, blue: float,
                             alpha: float = 1.0):
-        from ..tags.field_view import NativeGameColor
+        from .field_view import NativeGameColor
         return NativeGameColor(red, green, blue, alpha)
     
     def _read_fields(self):
@@ -1427,7 +1427,7 @@ class ShaderTag(BlenderTag, TagDocument):
 
     def _to_nodes_halo1(self, blender_material: bpy.types.Material):
         """Build a basic material from Halo 1's shader-family layouts."""
-        from ..tags.backend import TagDocument
+        from .backend import TagDocument
 
         blender_material.use_nodes = True
         tree = blender_material.node_tree
@@ -1801,7 +1801,7 @@ class ShaderTag(BlenderTag, TagDocument):
 
     def _to_nodes_halo2(self, blender_material: bpy.types.Material):
         """Build a useful Principled material from Halo 2 shader parameters."""
-        from ..tags.backend import TagDocument
+        from .backend import TagDocument
 
         blender_material.use_nodes = True
         tree = blender_material.node_tree

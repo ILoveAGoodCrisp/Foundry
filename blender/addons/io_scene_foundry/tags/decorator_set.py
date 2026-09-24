@@ -119,7 +119,7 @@ class DecoratorSetTag(BlenderTag, TagDocument):
                 material = bpy.data.materials.new(reference.ShortName)
             material.nwo.shader_path = reference.RelativePathWithExtension
             if build_nodes and self.path_exists(reference):
-                from ..managed_blam.shader import ShaderTag
+                from .shader_converter import ShaderTag
                 with ShaderTag(path=reference) as shader:
                     shader.to_nodes(material, always_extract_bitmaps)
             materials[index] = material

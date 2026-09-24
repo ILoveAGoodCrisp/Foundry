@@ -10,7 +10,7 @@ from .structure_meta import StructureMetaTag
 
 from .structure_lighting import ScenarioStructureLightingInfoTag
 
-from ..managed_blam.connected_geometry import BSP, BSPCollisionMaterial, Cluster, Emissive, EnvironmentObject, HavokCollision, Instance, InstanceDefinition, Material, Mesh, ModelCollision, Portal, StructureCollision, StructureMarker, SurfaceMapping
+from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, Emissive, EnvironmentObject, HavokCollision, Instance, InstanceDefinition, Material, Mesh, ModelCollision, Portal, StructureCollision, StructureMarker, SurfaceMapping
 from .. import import_transform
 from ..utils import jstr
 from .. import utils

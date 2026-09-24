@@ -8,7 +8,7 @@ from mathutils import Vector
 
 from .. import utils
 
-from .shader import BSDFParameter, ShaderTag
+from .shader_converter import BSDFParameter, ShaderTag
 
 class Albedo(Enum):
     SIMPLE = 0
@@ -75,3 +75,4 @@ class ShaderFoliageTag(ShaderTag):
         
         # Link to output
         tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])
+

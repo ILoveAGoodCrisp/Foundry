@@ -80,7 +80,7 @@ class LightTag(BlenderTag, TagDocument):
         return data
     
     def _to_blender_corinth(self, primary_scale, secondary_scale, attachment):
-        from ..managed_blam.connected_material import Function
+        from .connected_material import Function
         parameters = self.required_field(self.tag.root(), 'Midnight_Light_Parameters').as_struct()
         value = lambda name: self.value(parameters, name)
         light_type = enum_index(value('Light Type'), ('Point', 'Spot', 'Directional', 'Area', 'Sun'))

@@ -4,7 +4,7 @@
 from enum import Enum
 import bpy
 from .. import utils
-from .shader import ShaderTag
+from .shader_converter import ShaderTag
 
 # OPTION ENUMS
 class Albedo(Enum):
@@ -94,3 +94,4 @@ class ShaderGlassTag(ShaderTag):
         
         # Link to output
         tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])
+

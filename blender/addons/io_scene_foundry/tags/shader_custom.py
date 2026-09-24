@@ -7,7 +7,7 @@ import bpy
 
 from .. import utils
 
-from .shader import ChannelType, ShaderTag
+from .shader_converter import ChannelType, ShaderTag
 
 # OPTION ENUMS
 class Albedo(Enum):
@@ -212,3 +212,4 @@ class ShaderCustomTag(ShaderTag):
         
         # Link to output
         tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])
+

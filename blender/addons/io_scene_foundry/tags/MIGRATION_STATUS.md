@@ -9,11 +9,17 @@ a new unreadable tag/field is encountered or a recorded limitation is resolved.
 **ManagedBlam runtime dependency removal: complete.** No tag wrapper inherits the
 legacy `Tag` base, no add-on code imports CLR for tag access, startup no longer
 validates or initializes `ManagedBlam.dll`, and editing-kit validation no longer
-requires that DLL. The old `managed_blam` package name temporarily contains pure
-Python Blender converters at stable import paths; its initializer cannot load .NET.
+requires that DLL. The historical `managed_blam` Python package has now been
+removed; its pure-Python Blender converters live under `tags`.
 The native bitmap and material adapters have moved to `tags.bitmap` and
-`tags.material`; all internal shader, import, export, conversion and cubemap
-callers now use those paths directly.
+`tags.material`. The shared material-function and decal-system adapters now live
+at `tags.connected_material` and `tags.decal_system`. The shader conversion
+cluster lives at `tags.shader_converter` and the adjacent `tags.shader_*`
+modules. The shared geometry conversion layer now lives at
+`tags.connected_geometry`, with render-model, collision, physics, BSP and seam
+callers using it directly. The animation converter now lives at `tags.animation`.
+All internal shader, import, export, conversion and cubemap callers use the new
+paths.
 
 Migration policy: keep ManagedBlam entirely removed. Unsupported native operations must
 raise explicit errors rather than fall back to ManagedBlam. Temporary breakage on
