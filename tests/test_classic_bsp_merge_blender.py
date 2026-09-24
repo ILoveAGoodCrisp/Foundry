@@ -235,6 +235,22 @@ class ClassicMergeTests(unittest.TestCase):
             self.assertFalse(mode_faces(merged.data, 'render_only'))
             self.assertAlmostEqual(min(v.co.x for v in merged.data.vertices), 10 * scale, places=5)
 
+    def test_classic_emissive_face_props_follow_material_slots(self):
+        mesh = make_mesh(SQUARE, [(0, 1, 2), (0, 2, 3)])
+        mesh.materials.append(bpy.data.materials.new('emissive'))
+        mesh.polygons[1].material_index = 1
+
+        ScenarioStructureBspTag._apply_classic_emissives(
+            mesh, {1: (4.5, (0.25, 0.5, 0.75))})
+
+        props = [prop for prop in mesh.nwo.face_props if prop.type == 'emissive']
+        self.assertEqual(len(props), 1)
+        prop = props[0]
+        self.assertAlmostEqual(prop.material_lighting_emissive_power, 4.5)
+        self.assertEqual(tuple(prop.material_lighting_emissive_color), (0.25, 0.5, 0.75))
+        attribute = mesh.attributes[prop.attribute_name]
+        self.assertEqual([value.value for value in attribute.data], [False, True])
+
 
 if __name__ == '__main__':
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(ClassicMergeTests)

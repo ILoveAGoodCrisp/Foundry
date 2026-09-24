@@ -505,17 +505,27 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
         records = []
         for index, element in enumerate(self.block(self.tag.root(), 'cluster portals')):
             flags = self.required_field(element, 'flags')
+            if self.game == 'halo1':
+                one_way = no_way = blocks_sounds = is_door = False
+                ai_deafening = flags.get_flag("ai cant hear through this shit")
+            else:
+                one_way = (flags.get_flag('one-way')
+                           or flags.get_flag('one-way-reversed'))
+                no_way = flags.get_flag('no-way')
+                ai_deafening = flags.get_flag("ai can't hear through this shit")
+                blocks_sounds = flags.get_flag('no one can hear through this')
+                is_door = flags.get_flag('door')
             vertices = tuple(
                 tuple(self.value(vertex, 'point').to_array())
                 for vertex in self.block(element, 'vertices')
             )
             records.append(StructureBspPortal(
                 index=index,
-                one_way=flags.get_flag('one-way') or flags.get_flag('one-way-reversed'),
-                no_way=flags.get_flag('no-way'),
-                ai_deafening=flags.get_flag("ai can't hear through this shit"),
-                blocks_sounds=flags.get_flag('no one can hear through this'),
-                is_door=flags.get_flag('door'),
+                one_way=one_way,
+                no_way=no_way,
+                ai_deafening=ai_deafening,
+                blocks_sounds=blocks_sounds,
+                is_door=is_door,
                 vertices=vertices,
             ))
         return records

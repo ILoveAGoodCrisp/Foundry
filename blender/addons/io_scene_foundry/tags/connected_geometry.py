@@ -2953,13 +2953,13 @@ class MeshSubpart:
             prop.material_lighting_emissive_focus = radians(180 * (1 - e.focus))
             prop.material_lighting_emissive_color = e.color
             prop.material_lighting_emissive_per_unit = e.power_per_unit_area
-            prop.light_intensity = e.power
+            prop.material_lighting_emissive_power = e.power
             prop.material_lighting_emissive_quality = e.quality
             prop.material_lighting_use_shader_gel = e.use_shader_gel
             prop.material_lighting_bounce_ratio = e.bounce_ratio
         elif material.emissive_invalid:
             prop = utils.add_face_prop(mesh, "emissive", all_indices)
-            prop.light_intensity = 0
+            prop.material_lighting_emissive_power = 0
             prop.debug_emissive_index = material.emissive_index
             utils.print_warning(f"Mesh {ob.data.name} has invalid emissive on material {self.part.material.name} (part {self.part_index})")
             
@@ -3383,13 +3383,13 @@ class Mesh:
             prop.material_lighting_emissive_focus = radians(180 * (1 - emissive.focus))
             prop.material_lighting_emissive_color = emissive.color
             prop.material_lighting_emissive_per_unit = emissive.power_per_unit_area
-            prop.light_intensity = emissive.power
+            prop.material_lighting_emissive_power = emissive.power
             prop.material_lighting_emissive_quality = emissive.quality
             prop.material_lighting_use_shader_gel = emissive.use_shader_gel
             prop.material_lighting_bounce_ratio = emissive.bounce_ratio
         elif material.emissive_invalid:
             prop = utils.add_face_prop(mesh, "emissive", all_indices)
-            prop.light_intensity = 0
+            prop.material_lighting_emissive_power = 0
             prop.debug_emissive_index = material.emissive_index
             utils.print_warning(f"Mesh {mesh.name} has invalid emissive on material {subpart.part.material.name} (part {subpart.part_index})")
                 

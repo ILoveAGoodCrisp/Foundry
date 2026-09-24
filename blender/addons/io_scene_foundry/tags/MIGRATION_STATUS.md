@@ -998,6 +998,10 @@ structure objects, 125 portals and one collision mesh. A second H2 sample,
 `01outro_bsp`, produced five structure markers and one referenced
 environment-object marker. Classic BSP materials now carry their complete tag
 paths and group extensions into Blender rather than requiring a basename search.
+H1/H2 cluster portals are reconstructed from the native portal block as Foundry
+portal meshes, including the available title-specific flags. Classic shader
+radiosity (H1) and lightmap-emissive parameters (H2) are applied to the matching
+structure faces as Foundry emissive properties.
 H2 weather planes now normalize the title's offset-form distance and inconsistent
 normal directions against each record's bounding-sphere center. Foundry imports
 the recovered `+weather` hulls as a dedicated Weather Polyhedron mesh type. The

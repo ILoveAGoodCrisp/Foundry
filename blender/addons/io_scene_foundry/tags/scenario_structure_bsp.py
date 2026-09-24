@@ -9,6 +9,7 @@ import numpy as np
 from .structure_meta import StructureMetaTag
 
 from .structure_lighting import ScenarioStructureLightingInfoTag
+from .shader import EmptyShaderTag
 
 from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, Emissive, EnvironmentObject, HavokCollision, Instance, InstanceDefinition, Material, Mesh, ModelCollision, Portal, StructureCollision, StructureMarker, SurfaceMapping
 from .. import import_transform
@@ -98,12 +99,16 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
     ) -> tuple[list[bpy.types.Object], list[bpy.types.Object]]:
         material_names, material_paths, mesh_records, instances = self.classic_render_scene()
         materials = {}
+        emissives = {}
         for index, (name, shader_path) in enumerate(zip(material_names, material_paths, strict=True)):
             material = bpy.data.materials.get(name)
             if material is None:
                 material = bpy.data.materials.new(name)
             if shader_path:
                 material.nwo.shader_path = shader_path
+                emissive = self._classic_shader_emissive(shader_path)
+                if emissive is not None:
+                    emissives[index] = emissive
             materials[index] = material
 
         source_objects: dict[int, list[bpy.types.Object]] = {}
@@ -112,6 +117,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 continue
             source_objects[index] = Mesh.from_native(record, materials, False).create(
                 None, None, name=f'classic_bsp_mesh:{index}')
+            for source in source_objects[index]:
+                self._apply_classic_emissives(source.data, emissives)
 
         objects: list[bpy.types.Object] = []
         game_objects: list[bpy.types.Object] = []
@@ -121,6 +128,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             is_weather = (mesh_type == 'helper'
                           and name.casefold().startswith('+weather'))
             if (instance['object_index'] < 0 or name == 'Scene Root'
+                    or mesh_type == 'portal'
                     or (mesh_type == 'helper' and not is_weather)):
                 continue
             sources = source_objects.get(instance['object_index'], ())
@@ -168,6 +176,83 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 bpy.data.objects.remove(source)
         return self._merge_classic_structure_geometry(
             objects, skip_structure_merge), game_objects
+
+    def _classic_shader_emissive(self, shader_path: str):
+        """Read the lightmap emission stored directly in an H1/H2 shader."""
+        path = Path(shader_path)
+        if not path.is_absolute():
+            path = Path(self.tags_dir) / path
+        if not path.is_file():
+            return None
+
+        with EmptyShaderTag(path=path) as shader:
+            root = shader.tag.root()
+            if shader.game == 'halo1':
+                field = root.field('radiosity')
+                radiosity = None if field is None else field.as_struct()
+                if radiosity is None:
+                    return None
+                power = float(shader.value(radiosity, 'power'))
+                color = shader.value(radiosity, 'color of emitted light')
+            else:
+                field = root.field('runtime properties')
+                properties = None if field is None else field.as_block()
+                if properties is not None and len(properties):
+                    power = float(shader.value(
+                        properties[0], 'lightmap emissive power'))
+                    color = shader.value(
+                        properties[0], 'lightmap emissive color')
+                else:
+                    parameters = {
+                        str(shader.value(parameter, 'name')): parameter
+                        for parameter in shader.block(root, 'parameters')
+                    }
+                    power_parameter = parameters.get('lightmap_emissive_power')
+                    color_parameter = parameters.get('lightmap_emissive_color')
+                    if power_parameter is None or color_parameter is None:
+                        return None
+                    power = float(shader.value(power_parameter, 'const value'))
+                    color = shader.value(color_parameter, 'const color')
+
+        if power <= 0:
+            return None
+        values = (color.red, color.green, color.blue)
+        return power, tuple(utils.srgb_to_linear(float(value)) for value in values[:3])
+
+    @staticmethod
+    def _apply_classic_emissives(mesh: bpy.types.Mesh, emissives: dict[int, tuple[float, tuple[float, float, float]]]) -> None:
+        """Apply shader emission to every face using that material slot."""
+        if not emissives or not mesh.polygons:
+            return
+        material_indices = np.empty(len(mesh.polygons), dtype=np.int32)
+        mesh.polygons.foreach_get('material_index', material_indices)
+        for material_index, (power, color) in emissives.items():
+            mask = material_indices == material_index
+            if not mask.any():
+                continue
+            prop = utils.add_face_prop(
+                mesh, 'emissive', None if mask.all() else mask.astype(np.int8))
+            prop.material_lighting_emissive_power = power
+            prop.material_lighting_emissive_color = color
+
+    def _create_classic_portals(self, collection: bpy.types.Collection) -> list[bpy.types.Object]:
+        records = self.portals()
+        if not records:
+            return []
+        utils.print_step("Creating Portals")
+        layer = utils.add_permutation("portals", utils.SetType.SCENARIO)
+        portals_collection = bpy.data.collections.new(
+            name=f"{self.tag_path.ShortName}_portals")
+        portals_collection.hide_render = True
+        portals_collection.nwo.type = "permutation"
+        portals_collection.nwo.permutation = layer
+        collection.children.link(portals_collection)
+        objects = []
+        for record in records:
+            ob = Portal(record).create()
+            portals_collection.objects.link(ob)
+            objects.append(ob)
+        return objects
     
     def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1, import_havok=False, skip_structure_merge=False):
         
@@ -186,6 +271,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     collection, skip_structure_merge)
                 objects.extend(classic_objects)
                 game_objects.extend(classic_game_objects)
+                if not for_cinematic:
+                    objects.extend(self._create_classic_portals(collection))
             return objects, game_objects, bvh
 
         def new_structure_collection():
