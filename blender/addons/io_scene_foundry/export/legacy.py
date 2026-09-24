@@ -807,14 +807,15 @@ class LegacyExportScene(ExportScene):
                 marker_name = f'({name} {region}){node.name}' if nwo.marker_uses_regions and self.jms_version >= 8205 else node.name
                 asset.markers.append(jms.Marker(marker_name, asset.regions.index(region) if nwo.marker_uses_regions else -1,
                     parent, transform(matrix, self.to_halo_scale), node.props.get('bungie_mesh_primitive_sphere_radius', 1)))
-        if self.asset_type.name == 'PARTICLE_MODEL':
+        if self.asset_type.name in {'PARTICLE_MODEL', 'DECORATOR_SET'}:
+            asset_label = self.asset_type.name.lower().replace('_', '-')
             vertex_bones = []
             for vertex in asset.vertices:
                 influences = [bone for bone, weight in vertex.influences
                               if bone >= 0 and weight > 0.0]
                 if len(influences) != 1:
                     raise ValueError(
-                        'H2 particle-model geometry must be rigid; each vertex '
+                        f'H2 {asset_label} geometry must be rigid; each vertex '
                         'must have exactly one bone influence')
                 vertex_bones.append(influences[0])
             section_bones = defaultdict(set)
@@ -823,7 +824,7 @@ class LegacyExportScene(ExportScene):
                     vertex_bones[index] for index in triangle.vertices)
             if any(len(bones) != 1 for bones in section_bones.values()):
                 raise ValueError(
-                    'H2 particle-model geometry must be rigid; each material '
+                    f'H2 {asset_label} geometry must be rigid; each material '
                     'section must use one bone')
         return asset
 

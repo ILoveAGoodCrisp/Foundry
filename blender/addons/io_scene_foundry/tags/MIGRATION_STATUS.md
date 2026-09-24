@@ -29,10 +29,11 @@ JMS/ASS XREF tag-reference records and compiles particle-model/decorator-set JMI
 sources with their dedicated Tool commands. The remaining work is concentrated
 in less common resource layouts and broad visual/editing-kit acceptance.
 
-The H2 JMI path has direct Tool acceptance: an 8210 manifest with one rigid child
+The H2 JMI path has direct Tool acceptance: 8210 manifests with one rigid child
 at `<child>/render/<child>.jms` compiled through `import-particle-model` and
-created the expected native tag. A deliberately unsuitable skinned model was also
-rejected by Tool, confirming that particle-model children must use rigid weights.
+`import-decorator-set`, creating the expected native tags. A deliberately
+unsuitable skinned model was rejected by Tool, confirming that these children
+must use rigid weights; Foundry validates that constraint before compilation.
 
 ## Editing-kit import acceptance (2026-09-22)
 
