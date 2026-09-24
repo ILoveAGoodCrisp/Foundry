@@ -350,29 +350,27 @@ class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
                     continue
             available_items[name] = display_name
 
-        category_count = 0
         categorized_names = set()
+        visible_categories = []
         for category_name, item_names in FACE_ATTRIBUTE_CATEGORIES:
             category_items = [(name, available_items[name]) for name in item_names if name in available_items]
             if not category_items:
                 continue
 
-            if category_count:
-                layout.separator()
-            layout.label(text=category_name)
-            for name, display_name in category_items:
-                layout.operator("nwo.face_attribute_add", text=display_name).options = name
-                categorized_names.add(name)
-            category_count += 1
+            visible_categories.append((category_name, category_items))
+            categorized_names.update(name for name, _display_name in category_items)
 
         uncategorized_items = [(name, display_name) for name, display_name in available_items.items()
                                if name not in categorized_names]
         if uncategorized_items:
-            if category_count:
-                layout.separator()
-            layout.label(text="Other")
-            for name, display_name in uncategorized_items:
-                layout.operator("nwo.face_attribute_add", text=display_name).options = name
+            visible_categories.append(("Other", uncategorized_items))
+
+        row = layout.row()
+        for category_name, category_items in visible_categories:
+            column = row.column()
+            column.label(text=category_name)
+            for name, display_name in category_items:
+                column.operator("nwo.face_attribute_add", text=display_name).options = name
 
 
 class NWO_UL_FacePropList(bpy.types.UIList):
