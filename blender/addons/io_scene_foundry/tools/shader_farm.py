@@ -9,7 +9,7 @@ import bpy
 from .. import utils
 
 from ..icons import get_icon_id
-from ..managed_blam.bitmap import BitmapTag
+from ..tags.bitmap import BitmapTag
 from ..tools.export_bitmaps import save_image_as
 from ..tools.shader_builder import build_shader
 

@@ -6,7 +6,7 @@ import os
 import time
 import shutil
 
-from ..managed_blam.bitmap import BitmapTag
+from ..tags.bitmap import BitmapTag
 from ..tags.scenario import ScenarioMetadataTag
 from .. import utils
 from pathlib import Path

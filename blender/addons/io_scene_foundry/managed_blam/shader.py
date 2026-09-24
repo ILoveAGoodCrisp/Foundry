@@ -16,7 +16,7 @@ from ..tags.backend import TagDocument, TagReference
 from ..tags.blender import BlenderTag
 from ..tags.field_view import NativeTagStruct
 import os
-from ..managed_blam.bitmap import BitmapTag, bitmap_to_image
+from ..tags.bitmap import BitmapTag, bitmap_to_image
 from ..tools.export_bitmaps import export_bitmap
 from .. import utils
 import bpy

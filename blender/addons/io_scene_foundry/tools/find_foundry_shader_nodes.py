@@ -188,7 +188,7 @@ def _apply_image_path(image: bpy.types.Image, filepath: str | Path, bitmap_info=
         image.nwo.filepath = utils.relative_path(filepath)
 
     if bitmap_info is not None:
-        from ..managed_blam.bitmap import apply_bitmap_info_color_space
+        from ..tags.bitmap import apply_bitmap_info_color_space
 
         apply_bitmap_info_color_space(image, bitmap_info)
 
@@ -202,7 +202,7 @@ def _apply_image_path(image: bpy.types.Image, filepath: str | Path, bitmap_info=
 
 
 def _extract_bitmap_for_image(image: bpy.types.Image, bitmap_path: Path) -> bool:
-    from ..managed_blam.bitmap import bitmap_to_image
+    from ..tags.bitmap import bitmap_to_image
 
     info = bitmap_to_image(bitmap_path, True)
     if not info.image_path or not Path(info.image_path).exists():
@@ -224,7 +224,7 @@ def _fix_image_references(extract_bitmaps: bool, replace_existing_paths: bool):
     failed_images = set()
 
     if extract_bitmaps:
-        from ..managed_blam.bitmap import clear_path_cache
+        from ..tags.bitmap import clear_path_cache
 
         clear_path_cache()
 

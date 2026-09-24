@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 
 from ..constants import NormalType
-from ..tags.backend import TagDocument
-from ..tags.blender import BlenderTag
+from .backend import TagDocument
+from .blender import BlenderTag
 from .. import utils
 import bpy
 
@@ -906,3 +906,4 @@ def calculate_z_vector(r: float, g: float) -> float:
     z = sqrt(max(0, 1 - x * x - y * y))
 
     return (z + 1) / 2
+

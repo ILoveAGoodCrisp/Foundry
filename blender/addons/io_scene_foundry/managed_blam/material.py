@@ -10,7 +10,7 @@ from .connected_material import AnimatedParameterType, Function
 from ..tags.backend import TagReference
 from ..tags.field_view import NativeTagStruct
 
-from .bitmap import BitmapTag
+from ..tags.bitmap import BitmapTag
 from ..tags.material_shader import MaterialShaderParameter, MaterialShaderTag, convert_argb
 from .shader import BSDFParameter, ChannelType, ShaderTag
 from .. import utils

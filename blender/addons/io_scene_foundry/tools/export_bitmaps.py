@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 import bpy
-from ..managed_blam.bitmap import BitmapTag
+from ..tags.bitmap import BitmapTag
 
 import logging
 

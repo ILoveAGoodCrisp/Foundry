@@ -12,7 +12,7 @@ import numpy as np
 
 from ..props.scene import NWO_ScenePropertiesGroup
 
-from ..managed_blam.bitmap import BitmapTag
+from ..tags.bitmap import BitmapTag
 from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 
 from ..granny.formats import GrannyAnimation, GrannyBone, GrannyCurveDataDaKeyframes32f, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyMorphTarget, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVectorTrack, GrannyVertexData

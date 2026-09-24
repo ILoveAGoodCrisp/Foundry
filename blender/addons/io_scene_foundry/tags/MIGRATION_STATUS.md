@@ -11,6 +11,8 @@ legacy `Tag` base, no add-on code imports CLR for tag access, startup no longer
 validates or initializes `ManagedBlam.dll`, and editing-kit validation no longer
 requires that DLL. The old `managed_blam` package name temporarily contains pure
 Python Blender converters at stable import paths; its initializer cannot load .NET.
+The native bitmap adapter has moved to `tags.bitmap`, and all internal shader,
+import, export and cubemap callers now use that path directly.
 
 Migration policy: keep ManagedBlam entirely removed. Unsupported native operations must
 raise explicit errors rather than fall back to ManagedBlam. Temporary breakage on

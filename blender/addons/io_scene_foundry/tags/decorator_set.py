@@ -9,7 +9,7 @@ from mathutils import Matrix
 if TYPE_CHECKING:
     import blam_tags
 
-from ..managed_blam.bitmap import bitmap_to_image
+from .bitmap import bitmap_to_image
 from .. import import_transform, utils
 
 from .render_model_blender import RenderModelTag

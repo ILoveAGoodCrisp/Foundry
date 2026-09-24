@@ -3,7 +3,7 @@
 
 from math import radians, isfinite
 
-from ..managed_blam.bitmap import bitmap_to_image
+from .bitmap import bitmap_to_image
 from .. import utils
 from .blender import BlenderTag
 from .backend import TagDocument

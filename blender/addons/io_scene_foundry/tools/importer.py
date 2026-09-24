@@ -53,7 +53,7 @@ from ..tags.physics_blender import PhysicsTag
 from ..tags.model import ChildObject, RenderModelOverrideType
 from ..tags.model_blender import ModelTag
 from ..tools.mesh_to_marker import convert_to_marker
-from ..managed_blam.bitmap import bitmap_to_image, clear_path_cache
+from ..tags.bitmap import bitmap_to_image, clear_path_cache
 from ..tags.camera_track import CameraTrackTag
 from ..tags.collision_blender import CollisionTag
 from ..tools.clear_duplicate_materials import clear_duplicate_materials
