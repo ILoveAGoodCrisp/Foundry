@@ -233,6 +233,18 @@ def write_ass(asset, stream):
         elif g.kind in {'SPHERE', 'BOX', 'PILL'}:
             w.line(g.material)
             w.vector(g.dimensions)
+        elif g.kind == 'GENERIC_LIGHT':
+            if g.light is None:
+                raise ValueError('ASS generic light geometry has no light data')
+            light = g.light
+            w.line(light.kind)
+            w.vector(light.color)
+            for value in (
+                    light.intensity, light.hotspot, light.falloff,
+                    light.near_enabled, light.near_start, light.near_end,
+                    light.far_enabled, light.far_start, light.far_end,
+                    light.shape, light.aspect):
+                w.line(value)
         else:
             raise ValueError(f'Unsupported ASS output geometry {g.kind}')
     w.line(len(asset.instances))

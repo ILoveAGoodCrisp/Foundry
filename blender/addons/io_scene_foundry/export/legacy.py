@@ -8,6 +8,7 @@ from collections import defaultdict
 from copy import copy
 from datetime import datetime
 from getpass import getuser
+from math import degrees
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 import io
@@ -199,7 +200,11 @@ class LegacyExportScene(ExportScene):
             for (folder, name), nodes in grouped.items():
                 use_ass = self.ass_version is not None and (folder == 'structure' or
                     (folder == 'render' and any(n.props.get('bungie_mesh_type') == 11 for n in nodes)))
-                asset = self.ass_asset(name, nodes, markers if folder == 'render' else ()) if use_ass else self.jms_asset(name, nodes, markers, folder)
+                lights = tuple(ob for ob, bsp in self.lights.items()
+                               if folder == 'structure' and bsp == name)
+                asset = (self.ass_asset(
+                    name, nodes, markers if folder == 'render' else (), lights)
+                    if use_ass else self.jms_asset(name, nodes, markers, folder))
                 outputs.append((Path(self.asset_path, folder, name + ('.ass' if use_ass else '.jms')), asset))
         for animation in self.virtual_scene.animations:
             if hasattr(animation, 'legacy_tracks'):
@@ -601,7 +606,7 @@ class LegacyExportScene(ExportScene):
                     parent, transform(matrix, self.to_halo_scale), node.props.get('bungie_mesh_primitive_sphere_radius', 1)))
         return asset
 
-    def ass_asset(self, name, nodes, markers=()):
+    def ass_asset(self, name, nodes, markers=(), lights=()):
         asset = ass.ASS(name=name, version=self.ass_version)
         cache, geometries = {}, {}
         asset.instances.append(ass.Instance(-1, 'frame', -1, -1, 0, ass.Transform(), ass.Transform()))
@@ -665,6 +670,44 @@ class LegacyExportScene(ExportScene):
                 marker_name = f'#({name} {node.region}){node.name}' if nwo.marker_uses_regions else '#' + node.name
                 asset.instances.append(ass.Instance(-1, marker_name, len(asset.instances), parent + 1,
                     0, ass.Transform(value.rotation, value.translation), ass.Transform()))
+        for ob in lights:
+            data = ob.data
+            nwo = data.nwo
+            kind = {
+                'POINT': 'OMNI_LGT', 'SPOT': 'SPOT_LGT',
+                'AREA': 'DIRECT_LGT', 'SUN': 'AMBIENT_LGT',
+            }.get(data.type)
+            if kind is None:
+                raise ValueError(f'{ob.name}: unsupported legacy light type {data.type}')
+            hotspot = falloff = 0.0
+            shape = 0
+            aspect = 1.0
+            if data.type == 'SPOT':
+                falloff = degrees(data.spot_size)
+                hotspot = falloff * (1.0 - data.spot_blend)
+            elif data.type == 'AREA':
+                hotspot = data.size * self.to_halo_scale
+                shape = int(data.shape in {'RECTANGLE', 'SQUARE'})
+                if data.shape == 'RECTANGLE':
+                    aspect = data.size / max(data.size_y, 1e-6)
+            near_start = float(getattr(nwo, 'light_near_attenuation_start', 0.0))
+            near_end = float(getattr(nwo, 'light_near_attenuation_end', 0.0))
+            far_start = float(nwo.light_far_attenuation_start)
+            far_end = float(nwo.light_far_attenuation_end)
+            light = ass.Light(
+                kind, tuple(data.color), float(data.energy), hotspot, falloff,
+                int(near_end > 0.0), near_start * self.to_halo_scale,
+                near_end * self.to_halo_scale, int(far_end > 0.0),
+                far_start * self.to_halo_scale, far_end * self.to_halo_scale,
+                shape, aspect,
+            )
+            geometry_index = len(asset.geometries)
+            asset.geometries.append(ass.Geometry('GENERIC_LIGHT', light=light))
+            matrix = self.virtual_scene.rotation_matrix @ ob.matrix_world
+            value = transform(matrix, self.to_halo_scale)
+            asset.instances.append(ass.Instance(
+                geometry_index, ob.name, len(asset.instances), 0, 0,
+                ass.Transform(value.rotation, value.translation), ass.Transform()))
         return asset
 
     @staticmethod
