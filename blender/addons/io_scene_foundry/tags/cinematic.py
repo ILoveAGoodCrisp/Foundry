@@ -316,9 +316,6 @@ class CinematicCameraDocument(TagDocument):
         self.tag_has_changes = True
 
 
-class CinematicSceneDataTag(BlenderTag, CinematicCameraDocument):
-    tag_ext = 'cinematic_scene_data'
-
     def scene_metadata(self):
         root = self.tag.root()
         lights = root.field('lights')
@@ -367,6 +364,7 @@ class CinematicSceneDataTag(BlenderTag, CinematicCameraDocument):
                     sequence_id=self.value(element, 'sequence id') if element.field('sequence id') is not None else 0))
             shots.append(records)
         return shots
+
 
     def lighting_shots(self):
         object_count = len(self.block(self.tag.root(), 'objects'))
@@ -529,3 +527,7 @@ class CinematicSceneDataTag(BlenderTag, CinematicCameraDocument):
                 raise ValueError(f'Cinematic shot {shot_index}: no camera frames')
             shots.append(frames)
         return shots
+
+
+class CinematicSceneDataTag(BlenderTag, CinematicCameraDocument):
+    tag_ext = 'cinematic_scene_data'

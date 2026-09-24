@@ -5,17 +5,34 @@ import tempfile
 import unittest
 from unittest.mock import call, patch
 import sys
+from zipfile import ZipFile
 
 ADDONS = Path(__file__).resolve().parents[1] / 'blender/addons'
+TESTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(ADDONS))
-from io_scene_foundry import utils, managed_blam
-from io_scene_foundry.managed_blam.model import ModelTag
-from io_scene_foundry.managed_blam.object import ObjectTag
-from io_scene_foundry.managed_blam.cinematic_lighting import CinematicLightingTag
-from io_scene_foundry.managed_blam.globals import GlobalsTag
-from io_scene_foundry.managed_blam.render_method_option import RenderMethodOptionTag
-from io_scene_foundry.managed_blam.render_method_definition import RenderMethodDefinitionTag
-from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
+sys.path.insert(0, str(TESTS))
+_wheel_directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+for wheel_path in (ADDONS / 'io_scene_foundry/wheels').glob('*.whl'):
+    with ZipFile(wheel_path) as wheel:
+        wheel.extractall(_wheel_directory.name)
+sys.path.insert(0, _wheel_directory.name)
+from io_scene_foundry import utils
+
+
+class _RemovedManagedBlam:
+    mb_init = None
+    Tag = type('RemovedTag', (), {})
+    Tags = None
+
+
+managed_blam = _RemovedManagedBlam()
+from io_scene_foundry.tags.model_blender import ModelTag
+from io_scene_foundry.tags.object_blender import ObjectTag
+from io_scene_foundry.tags.cinematic_lighting import CinematicLightingTag
+from io_scene_foundry.tags.globals import GlobalsTag
+from io_scene_foundry.tags.render_method_option import RenderMethodOptionTag
+from io_scene_foundry.tags.render_method_definition import RenderMethodDefinitionTag
+from io_scene_foundry.tags.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
@@ -30,6 +47,7 @@ class WrapperTests(unittest.TestCase):
         scene.jms_version = 8213
         scene.to_halo_scale = 1
         scene.export_tag_types = set()
+        scene.asset_type = SimpleNamespace(name='MODEL')
         asset = scene.jms_asset('default', [], [], 'render')
         self.assertEqual([node.name for node in asset.nodes], ['implied_root_node'])
         self.assertEqual(asset.nodes[0].parent, -1)
@@ -57,7 +75,8 @@ class WrapperTests(unittest.TestCase):
                 lightmap_structure=False, event_level='WARNING',
                 export_animations='NONE')
             with patch.object(utils, 'run_tool') as run_tool, \
-                 patch.object(scene, 'write_object_tags') as write_objects:
+                 patch.object(scene, 'write_object_tags') as write_objects, \
+                 patch.object(scene, 'write_classic_animation_events'):
                 scene.write_tags()
             run_tool.assert_called_once_with(
                 ['bulk-import-model-folder-draft', r'objects\test'],
@@ -70,7 +89,8 @@ class WrapperTests(unittest.TestCase):
             animations.mkdir()
             (animations / 'any idle.jmm').write_text('source')
             with patch.object(utils, 'run_tool') as run_tool, \
-                 patch.object(scene, 'write_object_tags'):
+                 patch.object(scene, 'write_object_tags'), \
+                 patch.object(scene, 'write_classic_animation_events'):
                 scene.write_tags()
             self.assertEqual(run_tool.call_args_list, [
                 call(
@@ -84,7 +104,7 @@ class WrapperTests(unittest.TestCase):
     def test_native_particle_model_geometry(self):
         import bpy
         from mathutils import Matrix
-        from io_scene_foundry.managed_blam import particle_model as module
+        from io_scene_foundry.tags import particle_model as module
 
         class NativeTag:
             def particle_meshes(self, stem):
@@ -102,7 +122,7 @@ class WrapperTests(unittest.TestCase):
         collection = bpy.data.collections.new('particle_test')
         try:
             document = object.__new__(module.ParticleModelTag)
-            document.tag = NativeTag()
+            document._tag = NativeTag()
             document.path = 'particles/test.particle_model'
             with patch.object(module.import_transform, 'mesh_matrix', return_value=Matrix.Identity(4)), \
                  patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
@@ -133,7 +153,7 @@ class WrapperTests(unittest.TestCase):
     def test_native_lightmap_region_geometry(self):
         import bpy
         from mathutils import Matrix
-        from io_scene_foundry.managed_blam import scenario_structure_lighting_info as module
+        from io_scene_foundry.tags import structure_lighting as module
         class RegionProps(bpy.types.PropertyGroup):
             mesh_type: bpy.props.StringProperty()
         bpy.utils.register_class(RegionProps)
@@ -185,7 +205,7 @@ class WrapperTests(unittest.TestCase):
     def test_native_structure_lighting_roundtrip(self):
         import bpy
         from mathutils import Matrix, Color
-        from io_scene_foundry.managed_blam import scenario_structure_lighting_info as module
+        from io_scene_foundry.tags import structure_lighting as module
         cls = module.ScenarioStructureLightingInfoTag
         string_props = ('light_shape light_cone_projection_shape light_dynamic_shadow_quality light_cinema '
                         'light_jitter_quality light_mode light_game_type light_tag_override light_shader_reference '
@@ -462,8 +482,8 @@ class WrapperTests(unittest.TestCase):
     def test_native_structure_design_surfaces(self):
         import bpy
         from mathutils import Matrix
-        from io_scene_foundry.managed_blam.structure_design import StructureDesignTag
-        from io_scene_foundry.managed_blam import structure_design as module
+        from io_scene_foundry.tags.structure_design_blender import StructureDesignTag
+        from io_scene_foundry.tags import structure_design_blender as module
         from io_scene_foundry.tags.structure_design import StructureDesignDocument
 
         class SurfaceProperties(bpy.types.PropertyGroup):
@@ -563,8 +583,8 @@ class WrapperTests(unittest.TestCase):
             bpy.utils.unregister_class(SurfaceProperties)
 
     def test_native_cinematic_entry_points(self):
-        from io_scene_foundry.managed_blam.cinematic import NativeCinematicTag, SceneData
-        from io_scene_foundry.managed_blam.cinematic_scene import NativeCinematicSceneTag
+        from io_scene_foundry.tags.cinematic_root import NativeCinematicTag, SceneData
+        from io_scene_foundry.tags.cinematic_scene import NativeCinematicSceneTag
         from io_scene_foundry.tags.cinematic import CinematicSceneDataTag
         from io_scene_foundry.tags.backend import TagDocument
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
@@ -632,8 +652,8 @@ class WrapperTests(unittest.TestCase):
 
     def test_native_cinematic_music(self):
         from io_scene_foundry.tags.cinematic import CinematicCameraDocument
-        from io_scene_foundry.managed_blam.cinematic_scene import CinematicMusic
-        from io_scene_foundry.managed_blam.cinematic_scene import CinematicObjectFunctionKeyframe
+        from io_scene_foundry.tags.cinematic_scene import CinematicMusic
+        from io_scene_foundry.tags.cinematic_scene import CinematicObjectFunctionKeyframe
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
                  patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
@@ -737,7 +757,7 @@ class WrapperTests(unittest.TestCase):
 
     def test_native_cinematic_camera_frames(self):
         from io_scene_foundry.tags.cinematic import CinematicCameraDocument
-        from io_scene_foundry.managed_blam.cinematic_scene import CinematicDialogue, CinematicEffect, CinematicCustomScript
+        from io_scene_foundry.tags.cinematic_scene import CinematicDialogue, CinematicEffect, CinematicCustomScript
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
                  patch.object(managed_blam, 'mb_init', side_effect=AssertionError('ManagedBlam started')):
@@ -825,8 +845,8 @@ class WrapperTests(unittest.TestCase):
     def test_native_polyart_roundtrip_and_mesh(self):
         import bpy
         from mathutils import Matrix
-        from io_scene_foundry.managed_blam.polyart import PolyArtTag, _float_to_short
-        from io_scene_foundry.managed_blam import import_transform
+        from io_scene_foundry.tags.polyart import PolyArtTag, _float_to_short
+        from io_scene_foundry import import_transform
         packed = [tuple(_float_to_short(v, 'test') for v in row) for row in
                   [(0.,0.,0.,.5,0.,0.), (10.,0.,0.,1.,1.,0.), (0.,10.,0.,.25,0.,1.)]]
         for game in ('halo4', 'halo2a'):
@@ -864,7 +884,7 @@ class WrapperTests(unittest.TestCase):
                             data.remove(item)
 
     def test_native_decorator_metadata(self):
-        from io_scene_foundry.managed_blam.decorator_set import DecoratorSetTag
+        from io_scene_foundry.tags.decorator_set import DecoratorSetTag
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
                  patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
@@ -890,9 +910,9 @@ class WrapperTests(unittest.TestCase):
                 self.assertEqual(before, Path(root, 'test.decorator_set').read_bytes())
 
     def test_native_serialized_physics_records(self):
-        from io_scene_foundry.managed_blam.physics_model import PhysicsTag
-        from io_scene_foundry.managed_blam.connected_geometry import HavokCollision, RigidBody
-        from io_scene_foundry.managed_blam import import_transform
+        from io_scene_foundry.tags.physics_blender import PhysicsTag
+        from io_scene_foundry.tags.connected_geometry import HavokCollision, RigidBody
+        from io_scene_foundry import import_transform
         from mathutils import Matrix
         from unittest.mock import MagicMock
         for game in ('halo4', 'halo2a'):
@@ -967,8 +987,8 @@ class WrapperTests(unittest.TestCase):
     def test_native_physics_mesh_creation(self):
         import bpy
         from mathutils import Matrix
-        from io_scene_foundry.managed_blam.connected_geometry import Sphere, Box, Pill, Polyhedron, RigidBody, HavokCollision
-        from io_scene_foundry.managed_blam import import_transform
+        from io_scene_foundry.tags.connected_geometry import Sphere, Box, Pill, Polyhedron, RigidBody, HavokCollision
+        from io_scene_foundry import import_transform
 
         class PhysicsTestProperties(bpy.types.PropertyGroup):
             mesh_type: bpy.props.StringProperty()
@@ -1026,10 +1046,10 @@ class WrapperTests(unittest.TestCase):
     def test_native_physics_primitive_bodies(self):
         from mathutils import Matrix, Vector
         from unittest.mock import MagicMock
-        from io_scene_foundry.managed_blam.physics_model import PhysicsTag
-        from io_scene_foundry.managed_blam.connected_geometry import RigidBody, Sphere, Box, Pill, Polyhedron
+        from io_scene_foundry.tags.physics_blender import PhysicsTag
+        from io_scene_foundry.tags.connected_geometry import RigidBody, Sphere, Box, Pill, Polyhedron
         from io_scene_foundry.tags.physics import PhysicsShapesUnsupported
-        from io_scene_foundry.managed_blam import import_transform
+        from io_scene_foundry import import_transform
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
                  patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
@@ -1146,9 +1166,11 @@ class WrapperTests(unittest.TestCase):
                     extents.set(type(extents.value)(-1., .75, 1.25))
                     with self.assertRaisesRegex(ValueError, 'box dimensions'):
                         tag.primitive_bodies()
+                    extents.set(type(extents.value)(.25, .75, 1.25))
                     tag.required_field(body, 'node').set(-1)
-                    with self.assertRaisesRegex(PhysicsShapesUnsupported, 'Unbound'):
-                        tag.primitive_bodies()
+                    unbound, = tag.primitive_bodies()
+                    self.assertEqual(unbound.node_index, -1)
+                    self.assertIsNone(unbound.bone)
                     tag.required_field(body, 'node').set(0)
                     tag.required_field(reference, 'shape type').set(1)
                     pills = tag.block(tag.tag.root(), 'pills')
@@ -1286,8 +1308,9 @@ class WrapperTests(unittest.TestCase):
     def test_native_physics_constraints(self):
         from mathutils import Matrix
         from unittest.mock import MagicMock
-        from io_scene_foundry.managed_blam.physics_model import PhysicsTag
-        from io_scene_foundry.managed_blam import connected_geometry, import_transform
+        from io_scene_foundry.tags.physics_blender import PhysicsTag
+        from io_scene_foundry.tags import connected_geometry
+        from io_scene_foundry import import_transform
         from io_scene_foundry.tags.physics import CONSTRAINT_FIELDS
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
@@ -1342,8 +1365,8 @@ class WrapperTests(unittest.TestCase):
 
     def test_native_collision_geometry_and_invalid_loops(self):
         from mathutils import Vector
-        from io_scene_foundry.managed_blam.collision_model import CollisionTag
-        from io_scene_foundry.managed_blam.connected_geometry import ModelCollision
+        from io_scene_foundry.tags.collision_blender import CollisionTag
+        from io_scene_foundry.tags.connected_geometry import ModelCollision
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
                  patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
@@ -1413,7 +1436,7 @@ class WrapperTests(unittest.TestCase):
     def test_native_pca_creates_shape_keys_and_animation(self):
         import bpy
         import struct
-        from io_scene_foundry.managed_blam.pca_animation import PCAAnimationTag
+        from io_scene_foundry.tags.pca_blender import PCAAnimationTag
         for game in ('halo4', 'halo2a'):
             mesh = bpy.data.meshes.new('native_pca_test')
             mesh.from_pydata([(0., 0., 0.), (1., 1., 0.)], [], [])
@@ -1457,7 +1480,7 @@ class WrapperTests(unittest.TestCase):
 
     def test_native_structure_metadata_markers(self):
         from unittest.mock import MagicMock
-        from io_scene_foundry.managed_blam import structure_meta
+        from io_scene_foundry.tags import structure_meta
         for game in ('halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root, \
                  patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
@@ -1529,7 +1552,7 @@ class WrapperTests(unittest.TestCase):
     def test_native_structure_seam_blender_mesh(self):
         import bpy
         from mathutils import Matrix, Vector
-        from io_scene_foundry.managed_blam import structure_seams
+        from io_scene_foundry.tags import structure_seams_blender as structure_seams
         class SeamTestProperties(bpy.types.PropertyGroup):
             mesh_type: bpy.props.StringProperty()
             region_name: bpy.props.StringProperty()
@@ -1584,8 +1607,8 @@ class WrapperTests(unittest.TestCase):
     def test_unconnected_native_curves_resolve_constant_light_values(self):
         import struct
         from blam_tags import TagFunctionEditor
-        from io_scene_foundry.managed_blam.connected_material import Function, OutputModifierType
-        from io_scene_foundry.managed_blam.light_functions import constant_light_value
+        from io_scene_foundry.tags.connected_material import Function, OutputModifierType
+        from io_scene_foundry.tags.light_functions import constant_light_value
         from test_blam_functions import function_blob
         # A nonlinear exponent curve whose endpoint differs from both clamp bounds.
         blob = function_blob(9, (struct.pack('<fff', 2., 6., 2.),))
@@ -1609,7 +1632,7 @@ class WrapperTests(unittest.TestCase):
 
     def test_normalized_light_additive_modifier_keeps_units(self):
         import bpy
-        from io_scene_foundry.managed_blam import connected_material as material
+        from io_scene_foundry.tags import connected_material as material
         function = material.Function()
         function.clamp_min, function.clamp_max = 2., 8.
         function.output_modifier_type = material.OutputModifierType.PLUS
@@ -1639,8 +1662,8 @@ class WrapperTests(unittest.TestCase):
     def test_native_light_conversion(self):
         import struct
         from unittest.mock import MagicMock
-        from io_scene_foundry.managed_blam import cheap_light, light
-        from io_scene_foundry.managed_blam.connected_material import Function, OutputModifierType
+        from io_scene_foundry.tags import cheap_light, light
+        from io_scene_foundry.tags.connected_material import Function, OutputModifierType
 
         def mapping(tag, name, value, color=False):
             element = tag.required_field(tag.tag.root(), name).as_struct()
@@ -1717,7 +1740,7 @@ class WrapperTests(unittest.TestCase):
     def test_native_midnight_lights(self):
         import struct
         from unittest.mock import MagicMock
-        from io_scene_foundry.managed_blam import light
+        from io_scene_foundry.tags import light
         for game in ('halo4', 'halo2a'):
             for kind in (0, 1, 2, 3, 4):
                 for mode in (0, 1):
@@ -1781,8 +1804,8 @@ class WrapperTests(unittest.TestCase):
     def test_animated_midnight_intensity(self):
         import struct
         from unittest.mock import MagicMock
-        from io_scene_foundry.managed_blam import light
-        from io_scene_foundry.managed_blam.connected_material import Function
+        from io_scene_foundry.tags import light
+        from io_scene_foundry.tags.connected_material import Function
         for game in ('halo4', 'halo2a'):
             for mode, animated_radius in ((1, False), (0, False), (1, True)):
                 with self.subTest(game=game, mode=mode, radius=animated_radius), tempfile.TemporaryDirectory() as root, \
@@ -1834,7 +1857,7 @@ class WrapperTests(unittest.TestCase):
 
     def test_bad_light_mapping_falls_back_before_creating_lights(self):
         from unittest.mock import MagicMock
-        from io_scene_foundry.managed_blam import cheap_light
+        from io_scene_foundry.tags import cheap_light
         factory = MagicMock()
         with tempfile.TemporaryDirectory() as root, \
              patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
@@ -1845,16 +1868,15 @@ class WrapperTests(unittest.TestCase):
                 mapping = tag.required_field(color, 'Mapping').as_struct()
                 tag.required_field(mapping, 'data').set(b'bad')
             with cheap_light.CheapLightTag('bad.cheap_light') as tag, \
-                 patch.object(cheap_light, 'bpy', SimpleNamespace(data=SimpleNamespace(lights=SimpleNamespace(new=factory)))), \
-                 patch.object(managed_blam, 'Tag', side_effect=ValueError('legacy unavailable')):
-                with self.assertRaisesRegex(ValueError, 'legacy unavailable'):
+                 patch.object(cheap_light, 'bpy', SimpleNamespace(data=SimpleNamespace(lights=SimpleNamespace(new=factory)))):
+                with self.assertRaisesRegex(ValueError, 'invalid function data'):
                     tag.to_blender()
                 factory.assert_not_called()
 
     def test_native_object_functions_create_blender_nodes(self):
         import bpy
         import struct
-        from io_scene_foundry.managed_blam.connected_material import Function
+        from io_scene_foundry.tags.connected_material import Function
         name = 'foundry_native_function_test'
         group_name = 'function -> ' + name
         try:
@@ -1960,7 +1982,7 @@ class WrapperTests(unittest.TestCase):
                 obj.required_field(element, 'primary scale').set('power')
                 obj.required_field(element, 'secondary scale').set('pulse')
                 with patch.dict(sys.modules, {'bpy': fake_bpy}), \
-                     patch('io_scene_foundry.managed_blam.light.LightTag', return_value=converter) as factory:
+                     patch('io_scene_foundry.tags.light.LightTag', return_value=converter) as factory:
                     attachments = obj.attachments_to_blender(armature, [marker, other], parent)
                 self.assertEqual(factory.call_args.kwargs['path'].RelativePathWithExtension, 'lamp.light')
                 self.assertTrue(factory.call_args.kwargs['tag_must_exist'])
@@ -2027,17 +2049,13 @@ class WrapperTests(unittest.TestCase):
                     self.assertIsNotNone(model.error)
                 self.assertEqual((Path(root) / 'bad.model').read_bytes(), b'not a tag')
 
-    def test_reference_converts_at_legacy_boundary(self):
+    def test_native_reference_properties(self):
         from io_scene_foundry.tags.backend import TagReference
-        tag = object.__new__(managed_blam.Tag)
-        tag.path = TagReference(Path('G:/tags'), 'textures/test', 'bitmap')
-        factory = SimpleNamespace(TagFile=lambda: 'file',
-                                  TagPath=SimpleNamespace(FromPathAndExtension=lambda p, e: (p, e)))
-        with patch.object(managed_blam, 'Tags', factory):
-            file, path = tag._get_tag_and_path(True)
-        self.assertEqual(file, 'file')
-        self.assertEqual(path, ('textures/test', 'bitmap'))
+        reference = TagReference(Path('G:/tags'), 'textures/test', 'bitmap')
+        self.assertEqual(reference.RelativePath, 'textures/test')
+        self.assertEqual(reference.RelativePathWithExtension, 'textures/test.bitmap')
+        self.assertEqual(reference.Extension, 'bitmap')
 
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(argv=[sys.argv[0]])

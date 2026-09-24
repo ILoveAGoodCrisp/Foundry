@@ -6,19 +6,23 @@ import tempfile
 from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
+from zipfile import ZipFile
 import bpy
 from mathutils import Matrix
 
 ADDON = Path(__file__).resolve().parents[1] / 'blender/addons/io_scene_foundry'
-# Isolate the migrated feature from addon registration and ManagedBlam startup.
-for name, directory in [('pilot', ADDON), ('pilot.tags', ADDON / 'tags'),
-                        ('pilot.managed_blam', ADDON / 'managed_blam')]:
+_wheel_directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+with ZipFile(next((ADDON / 'wheels').glob('blam_tags-*.whl'))) as wheel:
+    wheel.extractall(_wheel_directory.name)
+sys.path.insert(0, _wheel_directory.name)
+# Isolate the migrated feature from addon registration.
+for name, directory in [('pilot', ADDON), ('pilot.tags', ADDON / 'tags')]:
     module = ModuleType(name)
     module.__path__ = [str(directory)]
     sys.modules[name] = module
 utils = ModuleType('pilot.utils')
 sys.modules['pilot.utils'] = utils
-from pilot.managed_blam.camera_track import CameraTrackTag
+from pilot.tags.camera_track import CameraTrackTag
 
 
 class Items(list):
@@ -73,4 +77,4 @@ class CameraTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(argv=[sys.argv[0]])

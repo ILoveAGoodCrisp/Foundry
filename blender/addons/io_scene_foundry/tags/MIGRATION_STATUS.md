@@ -38,6 +38,14 @@ JMS/ASS XREF tag-reference records and compiles particle-model/decorator-set JMI
 sources with their dedicated Tool commands. The remaining work is concentrated
 in less common resource layouts and broad visual/editing-kit acceptance.
 
+Post-package-removal acceptance now passes 29 focused native backend/model/object/
+metadata/function/packaging checks and 39 Blender checks covering camera tracks,
+legacy animation composition, export dispatch, particle/PCA geometry, physics,
+collision, structure design and seams, cinematics, lights and materials. Restoring
+the broad Blender suite exposed and fixed a cinematic class-boundary regression:
+shared scene readers are again available to H3, ODST and Reach scene tags as well
+as the H4/H2A scene-data subclass.
+
 The H2 JMI path has direct Tool acceptance: 8210 manifests with one rigid child
 at `<child>/render/<child>.jms` compiled through `import-particle-model` and
 `import-decorator-set`, creating the expected native tags. A deliberately
@@ -378,7 +386,7 @@ tag is a physical light with periodic, modifier-driven attenuation. Sampling moc
 light allocation, final lighting setup and bitmap conversion; visual parity and
 complete import/export acceptance are still outstanding.
 
-The source audit updated on 2026-09-22 found:
+The source audit completed during the migration found:
 
 - 17 migrated tag workflows: camera tracks, globals, render-method options,
   render-method definitions, material-shader metadata, models, object metadata,
@@ -387,10 +395,8 @@ The source audit updated on 2026-09-22 found:
   scenario metadata/editing and scenario airprobes.
 - No tag class inherits the legacy `Tag` base. Shader, material, decal and animation
   wrappers now inherit native documents.
-- 6 modules under `managed_blam` still contain `SelectField` calls (excluding
-  the legacy base and generated type declarations).
-- 14 Python modules remain in `managed_blam`; the cinematic-scene, render-model
-  and structure-BSP entry points have moved to `tags`.
+- No Python modules or import paths remain under `managed_blam`; all retained
+  Blender conversion code now lives under `tags`.
 - No ManagedBlam loader, `mb_init` call, DLL check or CLR tag-access import remains.
   Python.NET is retained only by the separate Foundation plugin installer.
 

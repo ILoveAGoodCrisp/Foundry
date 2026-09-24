@@ -1,6 +1,7 @@
 """Integration tests: run with the built blam_tags wheel installed."""
 import importlib.util
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -8,6 +9,7 @@ from unittest.mock import patch
 ADDON = Path(__file__).resolve().parents[1] / 'blender/addons/io_scene_foundry'
 spec = importlib.util.spec_from_file_location('foundry_tags', ADDON / 'tags/backend.py')
 backend = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = backend
 spec.loader.exec_module(backend)
 POINTS = [((1., 2., 3.), (0., 0., 0., 1.)), ((4., 5., 6.), (0., 0., 1., 0.))]
 
@@ -31,11 +33,17 @@ class BackendTests(unittest.TestCase):
                 with backend.CameraTrackDocument(path, **args) as doc:
                     self.assertEqual(doc.control_points(), POINTS[:1])
 
-    def test_classic_titles_report_binding_gap(self):
-        with tempfile.TemporaryDirectory() as root:
-            for game in ('halo1', 'halo2'):
-                with self.assertRaisesRegex(NotImplementedError, 'classic'):
-                    backend.CameraTrackDocument('test', tags_root=root, game=game)
+    def test_classic_camera_tracks_roundtrip(self):
+        for game in ('halo1', 'halo2'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root:
+                with backend.CameraTrackDocument(
+                    'test', tags_root=root, game=game,
+                ) as document:
+                    document.replace_control_points(POINTS)
+                with backend.CameraTrackDocument(
+                    'test', tags_root=root, game=game, must_exist=True,
+                ) as document:
+                    self.assertEqual(document.control_points(), POINTS)
 
     def test_every_schema_can_create_an_mcc_container(self):
         for game in backend.PROFILES:

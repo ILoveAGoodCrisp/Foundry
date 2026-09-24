@@ -2,7 +2,9 @@
 from pathlib import Path
 from types import SimpleNamespace
 import sys
+import tempfile
 import unittest
+from zipfile import ZipFile
 
 import addon_utils
 import bpy
@@ -10,14 +12,18 @@ from mathutils import Matrix, Quaternion, Vector
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'blender/addons'))
-sys.path.extend(str(p) for p in (ROOT / 'blender/addons/io_scene_foundry/wheels').glob('*none-any.whl'))
+_wheel_directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+for wheel_path in (ROOT / 'blender/addons/io_scene_foundry/wheels').glob('*.whl'):
+    with ZipFile(wheel_path) as wheel:
+        wheel.extractall(_wheel_directory.name)
+sys.path.insert(0, _wheel_directory.name)
 import io_scene_foundry
 io_scene_foundry.startup.load_projects = lambda: None
 addon_utils.enable('io_scene_foundry', default_set=True, persistent=False)
 
 from io_scene_foundry import import_transform, utils
 from io_scene_foundry.legacy.jma import Node
-from io_scene_foundry.managed_blam.animation import AnimationTag, AnimationType
+from io_scene_foundry.tags.animation import AnimationTag, AnimationType
 from io_scene_foundry.tags.animation_resource import (
     AnimationData, FrameInfoType, MovementData, apply_movement_data,
 )
@@ -64,6 +70,7 @@ class LegacyImportTests(unittest.TestCase):
     def test_movement_curves_preserve_world_pose_and_leave_root_stationary(self):
         names = prepare_reach_skeleton(self.arm)
         tag = object.__new__(AnimationTag)
+        tag.game = 'reach'
         root, pedestal = Node('root'), Node(names['pedestal'])
         tag._reach_pedestal_node = pedestal
         tag._reach_pedestal_rest = self.arm.data.bones[names['pedestal']].matrix_local.copy()
@@ -72,6 +79,7 @@ class LegacyImportTests(unittest.TestCase):
         pose = {
             'frames': [[(0, 0, 1, 0, 0, 0, 1, 1)]] * 3,
             'movement': [(0.2, 0.1, 0, turn.x, turn.y, turn.z, turn.w)] * 3,
+            'movement_kind': 'DxDyDyaw',
         }
         tag._tag = SimpleNamespace(animation_pose=lambda *args: pose)
         animation = SimpleNamespace(index=0, animation_type=AnimationType.BASE, frame_info_type=FrameInfoType.DX_DY_DYAW)
@@ -130,6 +138,7 @@ class LegacyImportTests(unittest.TestCase):
         names = prepare_reach_skeleton(self.arm)
         self.arm.data.bones['root'].name = 'b_root'
         tag = object.__new__(AnimationTag)
+        tag.game = 'reach'
         root, pedestal = Node('root'), Node(names['pedestal'])
         tag._reach_pedestal_node = pedestal
         tag._reach_pedestal_rest = self.arm.data.bones[names['pedestal']].matrix_local.copy()
@@ -141,7 +150,11 @@ class LegacyImportTests(unittest.TestCase):
         animation = SimpleNamespace(index=0, animation_type=AnimationType.BASE, frame_info_type=FrameInfoType.DX_DY_DYAW)
         self.arm.animation_data_create()
         for movement in ([], [(0.2, 0, 0, 0, 0, 0, 1)] * 3):
-            tag._tag = SimpleNamespace(animation_pose=lambda *args: {'frames': frames, 'movement': movement})
+            tag._tag = SimpleNamespace(animation_pose=lambda *args: {
+                'frames': frames,
+                'movement': movement,
+                'movement_kind': 'DxDyDyaw',
+            })
             cache = {}
             transforms = tag._animation_transforms(animation, [], [], [root], {}, None, {}, cache, [])
             action = bpy.data.actions.new('skeletal_motion')

@@ -78,9 +78,9 @@ references at that boundary.
 
 The add-on no longer requires or initializes ManagedBlam for tag access. Startup,
 project switching, editing-kit validation and packaging paths do not check for
-`ManagedBlam.dll`. Some converters remain under the `managed_blam` package name to
-preserve imports, but that package now contains Python conversion code only. The
-Foundation plugin installer still uses Python.NET independently of tag access.
+`ManagedBlam.dll`. The former pure-Python conversion modules have moved into this
+package and the historical `managed_blam` package has been removed. The Foundation
+plugin installer still uses Python.NET independently of tag access.
 
 ## Build and generated assets
 
