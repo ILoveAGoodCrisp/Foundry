@@ -1405,10 +1405,10 @@ class NWO_Import(bpy.types.Operator):
             try:
                 utils.print_section("FOUNDRY IMPORTER")
                 
-                # Switch project when the selected tag belongs to another kit.
+                # Read tags using their source kit without changing the scene project.
                 # Only checking the last file for speed (last file is always self.filepath if there was one).
-                # If another file is a tag, too bad, we won't try to switch project for it
-                utils.switch_project_from_filepath(context, Path(filepaths[-1]))
+                # If another file is a tag, too bad, we won't try to identify its source project
+                utils.set_import_context_from_filepath(Path(filepaths[-1]))
 
                 scope_list = []
                 if self.scope:
@@ -5218,7 +5218,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        utils.switch_project_from_filepath(context, Path(self.filepath))
+        utils.set_import_context_from_filepath(Path(self.filepath))
         try:
             return self._invoke_with_source_project(context, event)
         except Exception:
@@ -5445,7 +5445,7 @@ class NWO_OT_ImportBitmap(bpy.types.Operator):
         if Path(self.filepath).suffix != '.bitmap':
             return {'CANCELLED'}
 
-        utils.switch_project_from_filepath(context, Path(self.filepath))
+        utils.set_import_context_from_filepath(Path(self.filepath))
         try:
             clear_path_cache()
             importer = NWOImporter(context, [self.filepath], ['bitmap'])

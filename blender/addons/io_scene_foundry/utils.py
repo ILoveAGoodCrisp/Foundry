@@ -2511,8 +2511,8 @@ def get_project(project_name=None):
         
         return projects[0]
 
-def switch_project_from_filepath(context: bpy.types.Context, path: Path) -> None:
-    """Use the configured or ephemeral project containing an absolute tag path."""
+def set_import_context_from_filepath(path: Path) -> None:
+    """Use the tag's project as temporary import context without changing the scene project."""
     global _external_project
     path = Path(path).resolve()
     for project in get_prefs().projects:
@@ -2532,11 +2532,9 @@ def switch_project_from_filepath(context: bpy.types.Context, path: Path) -> None
             game=project.game,
             corinth=project.corinth,
             remote_server_name=getattr(project, 'remote_server_name', ''),
+            image_path=getattr(project, 'image_path', ''),
         )
-        nwo = get_scene_props()
-        if nwo.scene_project != project.name:
-            nwo.scene_project = project.name
-            print(f"Project changed to {project.name} to read {path}")
+        print(f"Using {project.project_name} as temporary import context for {path} ({project.game})")
         return
 
     if not path.is_file() or not any(

@@ -30,6 +30,7 @@ class ExternalProject:
     game: str
     corinth: bool
     remote_server_name: str = ""
+    image_path: str = ""
 
 
 def read_file_description(path):
