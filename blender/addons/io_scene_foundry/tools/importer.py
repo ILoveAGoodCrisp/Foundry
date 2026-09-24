@@ -50,7 +50,7 @@ from ..tags.object_blender import ObjectTag
 from ..tags.particle_model import ParticleModelTag
 from ..tags.scenario_structure_bsp import ScenarioStructureBspTag
 from ..tags.animation import AnimationTag
-from ..tags.animation_names import convert_animation_name_for_project
+from ..tags.animation_names import convert_animation_name_for_project, LEGACY_GAMES, REACH_PLUS_GAMES
 from ..tags.pca_blender import PCAAnimationTag
 from ..tags.render_model_blender import RenderModelTag
 from ..tags.physics_blender import PhysicsTag
@@ -250,10 +250,7 @@ def draw_import_template(operator, layout):
 def draw_animation_conversions(operator, layout):
     row = layout.row()
     row.enabled = operator.graph_import_animations
-    row.prop(operator, "graph_convert_to_reach")
-    row = layout.row()
-    row.enabled = operator.graph_import_animations
-    row.prop(operator, "convert_animation_names")
+    row.prop(operator, "convert_animations")
 
 
 def draw_animation_graph_import_options(operator, layout, corinth, include_generate_frames=False):
@@ -1275,12 +1272,6 @@ class NWO_Import(bpy.types.Operator):
         description="Filter for the animations to import. Animations that don't contain the specified strings (space or colon delimited) will be skipped"
     )
     
-    graph_convert_to_reach: bpy.props.BoolProperty(
-        name="Convert to Reach+ Animation Style",
-        description="Add pedestal and aim bones, move movement data to the pedestal, convert legacy blend screens and turn poses, and generate missing aim/look overlays",
-        default=False,
-    )
-
     graph_import_animations: bpy.props.BoolProperty(
         name="Import Animations",
         default=True,
@@ -1374,9 +1365,9 @@ class NWO_Import(bpy.types.Operator):
         default=False,
     )
 
-    convert_animation_names: bpy.props.BoolProperty(
-        name="Convert Animation names for Project",
-        description="Converts imported legacy animation names to the naming style used by the current project",
+    convert_animations: bpy.props.BoolProperty(
+        name="Convert Animations for Project",
+        description="Convert animation names, turn poses, and aim/look overlays to the current project game",
         default=True,
     )
 
@@ -1455,8 +1446,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.configure_import_info(Path(import_info_directory))
                     importer.add_import_info_sources(filepaths)
                 importer.graph_bake_to_control_rig = self.graph_bake_to_control_rig
-                importer.graph_convert_to_reach = self.graph_convert_to_reach
-                importer.convert_animation_names = self.convert_animation_names
+                importer.convert_animations = self.convert_animations
                 importer.render_lod = self.render_lod
                 switch_blender_scene = None
                 
@@ -2437,7 +2427,7 @@ class NWO_Import(bpy.types.Operator):
             box = layout.box()
             box.label(text="Animation Settings")
             box.prop(self, "generate_frames")
-            box.prop(self, "convert_animation_names")
+            box.prop(self, "convert_animations")
         
         if not self.scope or ('bitmap' in self.scope):
             box = layout.box()
@@ -2672,8 +2662,7 @@ class NWOImporter:
         self.tag_physics = False
         self.graph_scale_animations_to_skeleton = False
         self.tag_animation = False
-        self.graph_convert_to_reach = False
-        self.convert_animation_names = True
+        self.convert_animations = True
         self.graph_import_animations = False
         self.graph_bake_to_control_rig = True
         self.graph_import_pca_data = False
@@ -3938,13 +3927,19 @@ class NWOImporter:
             path for path in self.import_info_sources_for_tag(file)
             if Path(path).suffix.lower() in legacy_animation_formats
         ]
-        if source_files:
+        convert_style = self.convert_animations and (
+            self.game in LEGACY_GAMES and self.target_game in REACH_PLUS_GAMES
+            or self.game in REACH_PLUS_GAMES and self.target_game in LEGACY_GAMES)
+        # Style conversion needs the graph's blend-screen coordinates, even when
+        # an import-info JMA is available for this graph.
+        if source_files and not convert_style:
             imported_animation_start = len(self.scene_nwo.animations)
             actions = self.import_jma_files(source_files, armature)
             animations = list(self.scene_nwo.animations[imported_animation_start:])
             return (actions, animations) if return_animations else actions
         actions = []
         animations = []
+        legacy_frame_maps = {}
         imported_animation_start = len(self.scene_nwo.animations)
         filter = self.tag_animation_filter.replace(" ", ":")
         self.context.scene.render.fps = 30
@@ -3956,7 +3951,10 @@ class NWOImporter:
             with AnimationGraphTag(path=mover.tag_path) as graph:
                 forced_compression_value, do_reset = graph.force_uncompressed_for_import()
                 graph_metadata = graph.import_metadata()
-                convert_to_reach = self.graph_convert_to_reach and graph.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
+                convert_to_reach = (self.convert_animations and graph.game in LEGACY_GAMES
+                                    and self.target_game in REACH_PLUS_GAMES)
+                convert_to_legacy = (self.convert_animations and graph.game in REACH_PLUS_GAMES
+                                     and self.target_game in LEGACY_GAMES)
                 legacy_blend_screens = graph.blend_screens() if convert_to_reach else {}
                 if self.graph_import_ik_chains:
                     if armature == self.scene_nwo.main_armature or self.scene_nwo.main_armature is None:
@@ -3987,8 +3985,9 @@ class NWOImporter:
                             scale_animations_to_skeleton=self.graph_scale_animations_to_skeleton,
                             metadata=graph_metadata,
                             convert_to_reach=convert_to_reach,
+                            convert_to_legacy=convert_to_legacy,
                             legacy_blend_screens=legacy_blend_screens,
-                            convert_animation_names=self.convert_animation_names,
+                            convert_animation_names=self.convert_animations,
                             target_game=self.target_game,
                         )
                         if result is not None:
@@ -4009,30 +4008,37 @@ class NWOImporter:
                             scale_animations_to_skeleton=self.graph_scale_animations_to_skeleton,
                             metadata=graph_metadata,
                             convert_to_reach=convert_to_reach,
+                            convert_to_legacy=convert_to_legacy,
                             legacy_blend_screens=legacy_blend_screens,
-                            convert_animation_names=self.convert_animation_names,
+                            convert_animation_names=self.convert_animations,
                             target_game=self.target_game,
                         )
                         if result is not None:
                             actions, animations = result
+                    if convert_to_legacy:
+                        legacy_frame_maps = graph.legacy_frame_maps
 
             if self.graph_generate_renames:
                 utils.print_bullet("Generating Animation Renames")
                 with AnimationGraphTag(path=mover.tag_path) as graph:
                     graph.generate_renames(
-                        filter, self.convert_animation_names, self.target_game)
+                        filter, self.convert_animations, self.target_game)
             if self.graph_import_events:
                 utils.print_bullet("Importing Frame Events")
                 imported_animations = self.scene_nwo.animations[imported_animation_start:]
                 with AnimationGraphTag(path=mover.tag_path) as graph:
                     count = graph.events_to_blender(
-                        imported_animations, self.convert_animation_names,
+                        imported_animations, self.convert_animations,
                         self.target_game)
                 utils.print_bullet(f"Imported {count} frame events")
 
             if do_reset:
                 with AnimationGraphTag(path=mover.tag_path) as graph:
                     graph.restore_forced_compression(forced_compression_value)
+
+        if convert_to_legacy and self.graph_import_animations:
+            from .animation.reach_import import remap_legacy_screen_events
+            remap_legacy_screen_events(self.scene_nwo.animations[imported_animation_start:], legacy_frame_maps)
 
         if convert_to_reach and self.graph_import_animations:
             from .animation.legacy_import import generate_reach_aim_look_overlays
@@ -4863,7 +4869,7 @@ class NWOImporter:
         # existing_animations = bpy.data.actions[:]
         extension = path.suffix.strip('.')
         anim_name = path.with_suffix("").name
-        if self.convert_animation_names:
+        if self.convert_animations:
             anim_name = convert_animation_name_for_project(
                 anim_name, 'halo1', self.target_game)
         print(f"--- {anim_name}")
@@ -5239,12 +5245,6 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="Import object tag attachments. Currently supports lights and cheap lights"
     )
     
-    graph_convert_to_reach: bpy.props.BoolProperty(
-        name="Convert to Reach+ Animation Style",
-        description="Add pedestal and aim bones, move movement data to the pedestal, convert legacy blend screens and turn poses, and generate missing aim/look overlays",
-        default=False,
-    )
-
     graph_import_animations: bpy.props.BoolProperty(
         name="Import Animations",
         default=True,
@@ -5359,9 +5359,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         default=False,
     )
 
-    convert_animation_names: bpy.props.BoolProperty(
-        name="Convert Animation names for Project",
-        description="Converts imported legacy animation names to the naming style used by the current project",
+    convert_animations: bpy.props.BoolProperty(
+        name="Convert Animations for Project",
+        description="Convert animation names, turn poses, and aim/look overlays to the current project game",
         default=True,
     )
 
@@ -5589,7 +5589,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "legacy_type", expand=True)
             case "jmm" | "jma" | "jmt" | "jmz" | "jmv" | "jmw" | "jmo" | "jmr" | "jmrx":
                 layout.prop(self, "generate_frames")
-                layout.prop(self, "convert_animation_names")
+                layout.prop(self, "convert_animations")
             
 
 class NWO_FH_Import(bpy.types.FileHandler):

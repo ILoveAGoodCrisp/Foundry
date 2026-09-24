@@ -34,6 +34,10 @@ from io_scene_foundry.tools.animation.legacy_import import (
 )
 from io_scene_foundry.tools import importer as importer_module
 from io_scene_foundry.tools.animation import legacy_turns
+from io_scene_foundry.tools.animation.reach_import import (
+    LegacyAnimationConverter, legacy_screen_vertices, remap_legacy_screen_events,
+    resample_screen_event_curves, sample_pose_screen,
+)
 from io_scene_foundry.tools.animation.generate_aim_look_overlays import (
     _fcurve_map, _rest_local_matrix, _sample_local_matrices, _world_matrices,
 )
@@ -189,7 +193,119 @@ class LegacyImportTests(unittest.TestCase):
             for corinth in (False, True):
                 layout = Layout()
                 draw(operator, layout, corinth)
-                self.assertIn('graph_convert_to_reach', layout.properties)
+                self.assertEqual(layout.properties.count('convert_animations'), 1)
+                self.assertNotIn('graph_convert_to_reach', layout.properties)
+                self.assertNotIn('convert_animation_names', layout.properties)
+        for operator_type in (importer_module.NWO_Import, importer_module.NWO_OT_ImportFromDrop):
+            self.assertTrue(operator_type.__annotations__['convert_animations'].keywords['default'])
+
+    def reverse_fixture(self):
+        pedestal, body, yaw = Node('pedestal'), Node('root'), Node('aim_yaw')
+        body.parent = yaw.parent = pedestal
+        body.parent_index = yaw.parent_index = 0
+        nodes = [pedestal, body, yaw]
+        vertices = [(y, p) for y in (0.0, -1.0, 1.0) for p in (1.0, 0.0, -1.0)]
+        vertices.append((4.0, 0.0))  # Reach wrap duplicate, never a legacy sample.
+        poses = [[Matrix.Identity(4), Matrix.Translation((y, p, 1)), Matrix.Rotation(y, 4, 'Z')]
+                 for y, p in vertices]
+        reference = [Matrix.Identity(4), Matrix.Translation((10, 10, 1)), Matrix.Identity(4)]
+        overlay = SimpleNamespace(index=0, name=utils.AnimationName('combat rifle aim_still_up'),
+                                  animation_type=AnimationType.OVERLAY, is_pose_overlay=True)
+        tag = SimpleNamespace(_native_node_usages={'pedestal': 0, 'pose blend yaw': 2},
+                              _pose_overlay_blend_screen_vertices=lambda animation: vertices)
+        data = SimpleNamespace(frame_matrices=lambda: [reference, *poses])
+        converter = LegacyAnimationConverter(tag, nodes, [overlay], lambda animation: data)
+        return converter, overlay, data, nodes, vertices, poses
+
+    def test_reverse_screen_order_controls_reference_and_events(self):
+        converter, overlay, data, _, vertices, poses = self.reverse_fixture()
+        frames = converter.frames(overlay, data)
+        self.assertEqual(len(frames), 10)
+        self.assertMatrix(frames[0][1], Matrix.Translation((10, 10, 1)))
+        for frame, (yaw, pitch) in zip(frames[1:], legacy_screen_vertices()):
+            self.assertMatrix(frame[1], Matrix.Translation((max(-1, min(1, yaw)), max(-1, min(1, pitch)), 1)))
+            self.assertMatrix(frame[2], Matrix.Identity(4))
+        self.assertMatrix(poses[4][2], Matrix.Rotation(-1, 4, 'Z'))
+        # Interpolate ragged columns and clamp beyond the authored limits.
+        pose = sample_pose_screen(vertices, poses, 0.5, -0.25)
+        self.assertMatrix(pose[1], Matrix.Translation((0.5, -0.25, 1)))
+        self.assertIsNone(sample_pose_screen([(-1, 1)], poses[:1], 0, 0, require_coverage=True))
+        animation = self.nwo.animations.add()
+        animation.name = 'combat rifle aim_still_up'
+        event = animation.animation_events.add()
+        event.frame_frame = 3  # Source yaw=0, pitch=0 becomes legacy frame 6.
+        event = animation.animation_events.add()
+        event.event_type = legacy_turns._WRAP_EVENT_TYPE
+        event.import_name = next(iter(legacy_turns._WRAP_EVENT_NAMES))
+        event.frame_frame = 11
+        animation.loop_frame_index = 2
+        remap_legacy_screen_events([animation], {animation.name: converter.frame_maps[0]})
+        self.assertEqual(len(animation.animation_events), 1)
+        self.assertEqual(animation.animation_events[0].frame_frame, 6)
+        self.assertEqual(animation.loop_frame_index, 5)
+        overlay.name = utils.AnimationName('combat rifle pain_gut')
+        converter.frame_maps.clear()
+        self.assertEqual(converter.frames(overlay, data), data.frame_matrices())
+        self.assertEqual(converter.frame_maps, {})
+
+    def test_reverse_turn_keeps_pedestal_and_local_motion_with_filtered_reference(self):
+        converter, _, _, _, _, _ = self.reverse_fixture()
+        for index, state in enumerate(legacy_turns._TURN_DIRECTIONS, start=1):
+            turn = SimpleNamespace(index=index, name=utils.AnimationName(f'combat rifle {state}'),
+                                   animation_type=AnimationType.BASE, is_pose_overlay=False)
+            original = [[Matrix.Rotation(frame / 3, 4, 'Z'),
+                         Matrix.Translation((-1 + frame / 4, 0, 1)) @ Matrix.Rotation(frame / 8, 4, 'X'),
+                         Matrix.Rotation(-1, 4, 'Z')] for frame in range(4)]
+            result = converter.frames(turn, SimpleNamespace(frame_matrices=lambda: original))
+            for frame in range(4):
+                self.assertIs(result[frame][0], original[frame][0])
+                self.assertMatrix(result[frame][1], Matrix.Translation((frame / 4, 0, 1)) @ Matrix.Rotation(frame / 8, 4, 'X'))
+                self.assertMatrix(result[frame][2], Matrix.Identity(4))
+            self.assertIn(index, converter.converted_turns)
+        turn.name = utils.AnimationName('combat pistol turn_right')
+        self.assertEqual(converter.frames(turn, SimpleNamespace(frame_matrices=lambda: original)), original)
+
+    def test_reverse_event_values_follow_screen_samples_without_rewriting_body(self):
+        converter, overlay, data, _, vertices, _ = self.reverse_fixture()
+        converter.frames(overlay, data)
+        animation = self.add_overlay_fixture_animation('combat rifle aim_still_up', overlay=True)
+        track = animation.action_tracks[0]
+        curves = utils.get_fcurves(track.action, self.arm)
+        preserved = {curve.as_pointer() for curve in curves}
+        original = {curve.as_pointer(): [tuple(key.co) for key in curve.keyframe_points] for curve in curves}
+        event_curve = curves.new(data_path='pose.bones["root"]["event_weight"]')
+        event_curve.keyframe_points.insert(1, 123)
+        for frame, (yaw, pitch) in enumerate(vertices, start=2):
+            event_curve.keyframe_points.insert(frame, yaw + 10 * pitch)
+        event_curve.update()
+        resample_screen_event_curves(animation, converter.frame_samples[0], preserved)
+        self.assertEqual(len(event_curve.keyframe_points), 10)
+        self.assertAlmostEqual(event_curve.evaluate(1), 123)
+        for frame, (yaw, pitch) in enumerate(legacy_screen_vertices(), start=2):
+            self.assertAlmostEqual(event_curve.evaluate(frame), max(-1, min(1, yaw)) + 10 * max(-1, min(1, pitch)))
+        for curve in curves:
+            if curve.as_pointer() in preserved:
+                self.assertEqual([tuple(key.co) for key in curve.keyframe_points], original[curve.as_pointer()])
+
+    def test_reverse_action_folds_missing_pedestal_into_legacy_root(self):
+        tag = object.__new__(AnimationTag)
+        tag._legacy_conversion = True
+        pedestal, root = Node('pedestal'), Node('root')
+        root.parent, root.parent_index = pedestal, 0
+        self.arm.animation_data_create()
+        action = bpy.data.actions.new('reverse turn')
+        slot = action.slots.new('OBJECT', self.arm.name)
+        self.arm.animation_data.action = action
+        self.arm.animation_data.action_slot = slot
+        transforms = {frame: {pedestal: Matrix.Rotation(frame / 3, 4, 'Z'),
+                              root: Matrix.Translation((1, 0, 1))} for frame in range(1, 4)}
+        tag._to_armature_action(transforms, self.arm, action, [pedestal, root], [], None, {}, set(),
+                                node_usages={'pedestal': 0})
+        curves, _ = _fcurve_map(action, self.arm)
+        rest = {bone.name: _rest_local_matrix(bone) for bone in self.arm.pose.bones}
+        for frame, pose in transforms.items():
+            result = _sample_local_matrices(self.arm, curves, frame, rest)
+            self.assertMatrix(result['root'], pose[pedestal] @ pose[root])
 
     def test_blend_screen_keys_correct_action_and_replaces_wrap_events(self):
         names = prepare_reach_skeleton(self.arm)
@@ -324,9 +440,9 @@ class LegacyImportTests(unittest.TestCase):
                 importer = SimpleNamespace(
                     import_info_sources_for_tag=lambda file: [], scene_nwo=self.nwo,
                     context=bpy.context, tags_dir='', tag_animation_filter='',
-                    graph_convert_to_reach=enabled, graph_import_ik_chains=False,
+                    convert_animations=enabled, graph_import_ik_chains=False,
                     graph_import_animations=import_animations, corinth=False,
-                    graph_scale_animations_to_skeleton=False, convert_animation_names=True,
+                    graph_scale_animations_to_skeleton=False, game=game,
                     target_game='reach', graph_generate_renames=True,
                     graph_import_events=False, register_control_rig_actions=MagicMock(),
                 )
@@ -344,6 +460,35 @@ class LegacyImportTests(unittest.TestCase):
                     self.assertEqual(generated.animation_renames[0].name, 'combat pistol aim_walk_front')
                     self.assertIn(generated.action_tracks[0].action, actions)
                 importer.register_control_rig_actions.assert_called_once_with(self.arm, actions)
+
+    def test_reverse_conversion_gating_and_source_file_bypass(self):
+        for source, target, enabled, expected in (
+                ('reach', 'halo2', True, True), ('reach', 'halo1', True, True),
+                ('halo4', 'halo3', True, True), ('halo2a', 'halo3odst', True, True),
+                ('reach', 'halo2', False, False), ('reach', 'reach', True, False),
+                ('halo2', 'halo3', True, False)):
+            with self.subTest(source=source, target=target, enabled=enabled):
+                metadata = MagicMock(game=source)
+                metadata.force_uncompressed_for_import.return_value = (0, False)
+                metadata.__enter__.return_value = metadata
+                graph = MagicMock()
+                graph.to_blender.return_value = ([], [])
+                graph.legacy_frame_maps = {}
+                graph.__enter__.return_value = graph
+                importer = SimpleNamespace(
+                    import_info_sources_for_tag=lambda file: ['source.jmo'] if expected else [],
+                    scene_nwo=self.nwo, context=bpy.context, tags_dir='', tag_animation_filter='',
+                    convert_animations=enabled, graph_import_ik_chains=False, graph_import_animations=True,
+                    corinth=False, graph_scale_animations_to_skeleton=False, game=source, target_game=target,
+                    graph_generate_renames=False, graph_import_events=False, register_control_rig_actions=MagicMock(),
+                )
+                with patch.object(importer_module.utils, 'TagImportMover'), \
+                        patch.object(importer_module, 'AnimationGraphTag', return_value=metadata), \
+                        patch.object(importer_module, 'AnimationTag', return_value=graph):
+                    importer_module.NWOImporter.import_animation_graph(importer, 'test.model_animation_graph', self.arm, None)
+                self.assertEqual(graph.to_blender.call_args.kwargs['convert_to_legacy'], expected)
+                self.assertFalse(graph.to_blender.call_args.kwargs['convert_to_reach'])
+                self.assertEqual(graph.to_blender.call_args.kwargs['convert_animation_names'], enabled)
 
     def make_turn_aim_overlay(self, name='combat rifle aim_still_up'):
         animation = self.add_overlay_fixture_animation(name, overlay=True)

@@ -2822,7 +2822,7 @@ class ExportScene:
                     with AnimationGraphTag(tag_must_exist=False) as animation:
                         animation.set_compression(
                             self.exported_animations,
-                            self.scene_nwo.forced_animation_compression,
+                            self.scene_settings.forced_animation_compression,
                         )
 
         if self.asset_type == AssetType.SCENARIO:

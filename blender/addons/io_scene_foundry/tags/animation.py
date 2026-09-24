@@ -3774,8 +3774,10 @@ class AnimationTag(AnimationGraphTag):
 
     def _animation_transforms(self, tag_animation, defaults, overlay_defaults, nodes, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations):
         animation_data = self._build_animation(tag_animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations)
+        converter = getattr(self, '_legacy_converter', None)
+        frames = converter.frames(tag_animation, animation_data) if converter else animation_data.frame_matrices()
         transforms = {}
-        for frame_index, frame_matrices in enumerate(animation_data.frame_matrices(), start=1):
+        for frame_index, frame_matrices in enumerate(frames, start=1):
             frame_transforms = {}
             for node, matrix in zip(nodes, frame_matrices):
                 matrix = import_transform.armature_bone_matrix(matrix, root=node.parent is None)
@@ -3833,6 +3835,7 @@ class AnimationTag(AnimationGraphTag):
         scale_animations_to_skeleton=False,
         metadata: AnimationGraphImportMetadata | None = None,
         convert_to_reach=False,
+        convert_to_legacy=False,
         legacy_blend_screens=None,
         convert_animation_names=False,
         target_game: str = '',
@@ -3842,6 +3845,9 @@ class AnimationTag(AnimationGraphTag):
         self._native_node_usages = metadata.node_usages
         self.scale_animations_to_skeleton = scale_animations_to_skeleton
         self._reach_conversion = convert_to_reach
+        self._legacy_conversion = convert_to_legacy
+        self._legacy_converter = None
+        self.legacy_frame_maps = {}
         self._reach_pedestal_node = None
         self._reach_unmoved_roots = {}
         reach_bones = None
@@ -3882,25 +3888,41 @@ class AnimationTag(AnimationGraphTag):
                 armature.animation_data_create()
                 
             tag_animations = self.get_animations()
-            self._convert_animation_names = convert_animation_names
+            # Decode using source graph paths when converting back: H1 hyphens
+            # and mode names must not interfere with Reach base-pose matching.
+            defer_name_conversion = convert_to_legacy or target_game == 'halo1'
+            self._convert_animation_names = convert_animation_names and not defer_name_conversion
             self._animation_name_target_game = target_game
-            if convert_animation_names:
+            if convert_animation_names and not defer_name_conversion:
                 for tag_animation in tag_animations:
                     tag_animation.source_name = tag_animation.name
                     converted_name = convert_animation_name_for_project(
                         tag_animation.name.tag_name, self.game, target_game)
                     tag_animation.name = utils.AnimationName(converted_name)
             graph = self.to_dict(tag_animations)
+            self._convert_animation_names = convert_animation_names
+            if convert_to_legacy:
+                from ..tools.animation.reach_import import LegacyAnimationConverter
+                self._legacy_converter = LegacyAnimationConverter(
+                    self, native_nodes, tag_animations,
+                    lambda animation: self._build_animation(
+                        animation, defaults, overlay_defaults, graph, shared_static_codec,
+                        native_resource_cache, native_animation_cache, tag_animations),
+                )
             self._cached_graph_animation_rename_map = animation_rename_map(graph)
             self._cached_graph_animation_rename_graph_id = id(graph)
             grounding_offset_cache = {}
 
             for tag_animation in tag_animations:
                 source_name = getattr(tag_animation, 'source_name', tag_animation.name)
+                animation_name = tag_animation.name.data_name
+                if convert_animation_names and defer_name_conversion:
+                    animation_name = convert_animation_name_for_project(animation_name, self.game, target_game)
                 if not (filter in tag_animation.name.tag_name or
                         filter.replace(" ", ":") in tag_animation.name.tag_name or
                         filter in source_name.tag_name or
-                        filter.replace(" ", ":") in source_name.tag_name):
+                        filter.replace(" ", ":") in source_name.tag_name or
+                        filter in animation_name.replace(' ', ':')):
                     continue
                 
                 overlay = tag_animation.animation_type == AnimationType.OVERLAY
@@ -3910,7 +3932,6 @@ class AnimationTag(AnimationGraphTag):
                 if tag_animation.frame_count < 1:
                     continue
 
-                animation_name = tag_animation.name.data_name
                 utils.print_step(animation_name)
                 blender_animation = self.scene_nwo.animations.add()
                 blender_animation.name = animation_name
@@ -3931,7 +3952,7 @@ class AnimationTag(AnimationGraphTag):
                 action.use_frame_range = True
                 
                 if tag_animation.contains_pca_data:
-                    pca_animations[source_name.tag_name] = tag_animation.name.data_name
+                    pca_animations[source_name.tag_name] = animation_name
 
                 match tag_animation.animation_type:
                     case AnimationType.NONE | AnimationType.BASE:
@@ -4009,8 +4030,14 @@ class AnimationTag(AnimationGraphTag):
                 track.object = armature
                 track.action = action
                 transforms = self._animation_transforms(tag_animation, defaults, overlay_defaults, native_nodes, graph, shared_static_codec, native_resource_cache,native_animation_cache, tag_animations)
+                converted_screen = (self._legacy_converter is not None
+                                    and tag_animation.index in self._legacy_converter.frame_maps)
                 if transforms:
-                    blender_animation.frame_end = max(blender_animation.frame_end, max(transforms))
+                    blender_animation.frame_end = (max(transforms) if converted_screen else
+                                                   max(blender_animation.frame_end, max(transforms)))
+                if converted_screen:
+                    blender_animation.pose_overlay = False
+                    self.legacy_frame_maps[animation_name] = self._legacy_converter.frame_maps[tag_animation.index]
 
                 scale_animations_to_skeleton = (
                     getattr(self, "scale_animations_to_skeleton", False)
@@ -4053,8 +4080,15 @@ class AnimationTag(AnimationGraphTag):
                 )
                 actions.append(action)
                 action.frame_end = blender_animation.frame_end
+                preserved_curves = ({curve.as_pointer() for curve in utils.get_fcurves(action, armature) or ()}
+                                    if converted_screen else set())
                 self._apply_regular_animation_events(tag_animation, blender_animation, armature, actions)
-                self._infer_wrap_events(tag_animation, blender_animation, armature, native_nodes, transforms, node_usages)
+                if converted_screen:
+                    from ..tools.animation.reach_import import resample_screen_event_curves
+                    resample_screen_event_curves(blender_animation,
+                        self._legacy_converter.frame_samples[tag_animation.index], preserved_curves)
+                if not converted_screen:
+                    self._infer_wrap_events(tag_animation, blender_animation, armature, native_nodes, transforms, node_usages)
                 settings = metadata.settings.get(source_name.tag_name)
                 if settings is None:
                     raise ValueError(
@@ -4130,6 +4164,22 @@ class AnimationTag(AnimationGraphTag):
         key_options = {'FAST'}
 
         self._match_animation_nodes_to_pose_bones(nodes, armature.pose.bones)
+        legacy_conversion = getattr(self, '_legacy_conversion', False)
+        if legacy_conversion:
+            from ..tools.animation.reach_import import retarget_frame_parents
+            transforms = {frame: retarget_frame_parents(pose, nodes) for frame, pose in transforms.items()}
+            if grounding_context is not None:
+                grounding_context = dict(grounding_context)
+                for key in ('idle_transforms', 'source_idle_transforms'):
+                    if grounding_context.get(key):
+                        grounding_context[key] = {frame: retarget_frame_parents(pose, nodes)
+                                                 for frame, pose in grounding_context[key].items()}
+        mapped_parents = {node: node.parent for node in nodes}
+        if legacy_conversion:
+            bone_nodes = {node.pose_bone.name: node for node in nodes if node.pose_bone is not None}
+            mapped_parents = {node: bone_nodes.get(node.pose_bone.parent.name)
+                              if node.pose_bone is not None and node.pose_bone.parent else None
+                              for node in nodes}
         valid_nodes = []
 
         for node in nodes:
@@ -4164,7 +4214,7 @@ class AnimationTag(AnimationGraphTag):
         
         bone_base_matrices = {}
         for bone in bones_ordered:
-            if getattr(self, '_reach_conversion', False) or getattr(self, '_reach_pedestal_node', None) is not None:
+            if legacy_conversion or getattr(self, '_reach_conversion', False) or getattr(self, '_reach_pedestal_node', None) is not None:
                 rest = bone.bone.matrix_local
                 bone_base_matrices[bone] = (bone.parent.bone.matrix_local.inverted_safe() @ rest
                                             if bone.parent else rest.copy())
@@ -4182,6 +4232,9 @@ class AnimationTag(AnimationGraphTag):
         pedestal_index = node_usages.get("pedestal")
         if pedestal_index is not None:
             root_motion_node_indices.add(pedestal_index)
+        if legacy_conversion:
+            root_motion_node_indices.update(node_indices[node] for node in valid_nodes
+                                            if mapped_parents[node] is None)
 
         root_translation_scale_node_indices = set(root_motion_node_indices)
         for node in nodes:
@@ -4230,7 +4283,8 @@ class AnimationTag(AnimationGraphTag):
                 if local_matrix is None:
                     return None
 
-                parent_matrix = node_world_matrix(node.parent) if node.parent in valid_node_set else None
+                parent = mapped_parents[node]
+                parent_matrix = node_world_matrix(parent) if parent in valid_node_set else None
                 world_matrix = parent_matrix @ local_matrix if parent_matrix is not None else local_matrix
                 world_cache[node] = world_matrix
                 return world_matrix
@@ -4306,8 +4360,8 @@ class AnimationTag(AnimationGraphTag):
                 if node is grounding_node and abs(grounding_offset) > tolerance:
                     local_matrix = bone_base_matrices[node.pose_bone] @ Matrix.LocRotScale(loc, rot, sca)
                     parent_world_matrix = Matrix.Identity(4)
-                    if node.parent in valid_node_set:
-                        parent_world_matrix = frame_world_matrices(nodes_transforms).get(node.parent, parent_world_matrix)
+                    if mapped_parents[node] in valid_node_set:
+                        parent_world_matrix = frame_world_matrices(nodes_transforms).get(mapped_parents[node], parent_world_matrix)
                     local_offset_matrix = parent_world_matrix.inverted_safe() @ Matrix.Translation(Vector((0.0, 0.0, grounding_offset))) @ parent_world_matrix
                     loc, rot, sca = (bind_inv @ (local_offset_matrix @ local_matrix)).decompose()
 

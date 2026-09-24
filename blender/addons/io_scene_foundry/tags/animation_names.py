@@ -57,14 +57,16 @@ REACH_PLUS_GAMES = {'reach', 'halo4', 'halo2a'}
 
 def convert_animation_name_for_project(
         name: str, source_game: str, target_game: str) -> str:
-    """Convert legacy animation-name tokens to the target project's style."""
+    """Convert animation-name tokens in either direction between game styles."""
     if not name:
         return name
 
     h1_to_h2 = source_game == 'halo1' and target_game != 'halo1'
+    to_h1 = source_game != 'halo1' and target_game == 'halo1'
     legacy_to_reach = (source_game in LEGACY_GAMES and
                        target_game in REACH_PLUS_GAMES)
-    if not h1_to_h2 and not legacy_to_reach:
+    reach_to_legacy = (source_game in REACH_PLUS_GAMES and target_game in LEGACY_GAMES)
+    if not any((h1_to_h2, to_h1, legacy_to_reach, reach_to_legacy)):
         return name
 
     variant = None
@@ -72,6 +74,14 @@ def convert_animation_name_for_project(
     if variant_match is not None:
         variant = variant_match.group(1)
         name = name[:variant_match.start()]
+    later_variant = re.search(r'([ :]+)var([0-9]+)$', name, re.IGNORECASE)
+    variant_suffix = ''
+    if later_variant is not None:
+        variant_suffix = name[later_variant.start():]
+        name = name[:later_variant.start()]
+        if to_h1:
+            variant = later_variant.group(2)
+            variant_suffix = ''
 
     parts = re.split(r'([ :]+)', name)
     tokens = parts[::2]
@@ -79,6 +89,10 @@ def convert_animation_name_for_project(
         (index for index, token in enumerate(tokens) if token == '2'), None)
     mode_indices = {1 if tokens and tokens[0].casefold() == 'stance' else 0}
     state_indices = {len(tokens) - 1}
+    damage = (len(tokens) >= 3 and tokens[-3].lower().replace('-', '_') in DAMAGE_STATES
+              and tokens[-2].lower() in DIRECTIONS)
+    if damage:
+        state_indices = {len(tokens) - 3}
     if transition_index is not None:
         if transition_index > 0:
             state_indices.add(transition_index - 1)
@@ -96,15 +110,30 @@ def convert_animation_name_for_project(
             token = H1_REGION_CONVERSIONS.get(key, token)
             token = token.replace('-', '_')
             key = token.casefold()
-        if legacy_to_reach and key == 'berserk':
+        if legacy_to_reach and key == 'berserk' and token_index in state_indices:
             token = 'go_berserk'
+        elif reach_to_legacy and key == 'go_berserk' and token_index in state_indices:
+            token = 'berserk'
+        if to_h1:
+            if token_index in mode_indices:
+                token = {value: key for key, value in H1_MODE_CONVERSIONS.items()}.get(key, token)
+                token = token.replace('_', '-')
+            if token_index in state_indices:
+                token = {value: key for key, value in H1_STATE_CONVERSIONS.items()}.get(key, token)
+                token = token.replace('_', '-')
+            if damage and token_index == len(tokens) - 1:
+                token = {value: key for key, value in H1_REGION_CONVERSIONS.items()}.get(key, token)
+                token = token.replace('_', '-')
         parts[part_index] = token
 
     converted = ''.join(parts)
     if variant is not None:
-        separator = ':' if ':' in converted and ' ' not in converted else ' '
-        converted = f'{converted}{separator}var{variant}'
-    return converted
+        if to_h1:
+            converted = f'{converted}%{variant}'
+        else:
+            separator = ':' if ':' in converted and ' ' not in converted else ' '
+            converted = f'{converted}{separator}var{variant}'
+    return converted + variant_suffix
 
 
 def _strip_trailing_any(tokens: list[str]) -> list[str]:

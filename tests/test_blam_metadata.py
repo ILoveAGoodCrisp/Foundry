@@ -66,6 +66,22 @@ class MetadataTests(unittest.TestCase):
             convert('stand rifle idle%1', 'halo1', 'halo1'),
             'stand rifle idle%1')
 
+    def test_animation_names_convert_back_to_legacy(self):
+        convert = animation_names.convert_animation_name_for_project
+        for source in ('reach', 'halo4', 'halo2a'):
+            for target in ('halo1', 'halo2', 'halo3', 'halo3odst'):
+                expected = 'stand rifle berserk%2' if target == 'halo1' else 'combat rifle berserk var2'
+                self.assertEqual(convert('combat rifle go_berserk var2', source, target), expected)
+        for legacy_mode, later_mode in animation_names.H1_MODE_CONVERSIONS.items():
+            self.assertEqual(convert(f'{later_mode}:rifle:aim_still_up:var3', 'reach', 'halo1'),
+                             f'{legacy_mode}:rifle:aim-still%3')
+        self.assertEqual(convert('combat h_kill front l_leg', 'reach', 'halo1'), 'stand h-kill front l-thigh')
+        self.assertEqual(convert('combat idle 2 warthog_d aim_still_up', 'reach', 'halo1'),
+                         'stand idle 2 w-driver aim-still')
+        self.assertEqual(convert('combat go_berserk idle', 'reach', 'halo2'), 'combat go_berserk idle')
+        self.assertEqual(convert('combat beam_rifle turn_left', 'reach', 'halo1'), 'stand beam_rifle turn-left')
+        self.assertEqual(convert('combat rifle idle var1', 'reach', 'reach'), 'combat rifle idle var1')
+
     def test_native_pca_render_metadata_and_coefficients(self):
         import struct
         pca = importlib.import_module('foundry_native_tags.pca')
