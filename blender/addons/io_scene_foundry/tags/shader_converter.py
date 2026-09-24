@@ -1425,9 +1425,184 @@ class ShaderTag(BlenderTag, TagDocument):
             if flags is not None and flags.TestBit("only render for shields"):
                 utils.material_add_shield(blender_material)
 
+    def _to_nodes_halo1_group(self, blender_material: bpy.types.Material, shader_type: str):
+        """Populate the Halo 1 resource groups from their classic tag layouts."""
+        group_tree = utils.add_node_from_resources('h1_nodes', f'foundry_h1.{shader_type}')
+        if group_tree is None:
+            utils.print_warning(f'Missing Halo 1 node group for {shader_type}; using basic material')
+            return False
+
+        blender_material.use_nodes = True
+        tree = blender_material.node_tree
+        nodes = tree.nodes
+        nodes.clear()
+        output = nodes.new('ShaderNodeOutputMaterial')
+        output.location = (400, 0)
+        group = nodes.new('ShaderNodeGroup')
+        group.node_tree = group_tree
+        group.location = (0, 0)
+        tree.links.new(group.outputs['Shader'], output.inputs['Surface'])
+        root = self.tag.root()
+
+        def child(struct, name):
+            return self.required_field(struct, name).as_struct()
+
+        def copy_value(struct, field_name, socket_name=None):
+            value = self.value(struct, field_name)
+            if hasattr(value, 'red'):
+                value = (value.red, value.green, value.blue, 1.0)
+            group.inputs[socket_name or field_name.title()].default_value = value
+
+        def enum_name(struct, name):
+            return self.required_field(struct, name).options().current_name
+
+        def copy_menu(struct, field_name, socket_name=None):
+            # The resource menus use Guerilla's display spelling rather than
+            # the normalized names in the native tag schemas.
+            value = enum_name(struct, field_name)
+            value = value.replace('double biased', 'double/biased')
+            value = value.replace('self illumination', 'self-illumination')
+            value = value.replace('change color', 'change-color')
+            value = value.replace('auxiliary mask', 'multipurpose map alpha')
+            group.inputs[socket_name or field_name.title()].default_value = value
+
+        def scale(struct, name):
+            return float(self.value(struct, name)) or 1.0
+
+        texcoord = None
+
+        def bitmap(struct, name, socket_name=None, *, non_color=False,
+                   tiling=(1.0, 1.0), reflection=False):
+            nonlocal texcoord
+            reference = TagDocument.reference(self, struct, name)
+            if reference is None or not reference.RelativePath:
+                return None
+            result = bitmap_to_image(reference.Filename, self.always_extract_bitmaps)
+            if result.image is None:
+                return None
+            image_node = nodes.new('ShaderNodeTexEnvironment' if result.cubemap
+                                   else 'ShaderNodeTexImage')
+            image_node.name = name
+            image_node.label = name
+            image_node.location = (-400, -240 * sum(
+                n.type in {'TEX_IMAGE', 'TEX_ENVIRONMENT'} for n in nodes))
+            image_node.image = result.image
+            if non_color:
+                image_node.image.colorspace_settings.name = 'Non-Color'
+            socket_name = socket_name or name.title()
+            tree.links.new(image_node.outputs['Color'], group.inputs[socket_name])
+            alpha_input = group.inputs.get(socket_name + ' Alpha')
+            alpha_output = image_node.outputs.get('Alpha')
+            if alpha_input is not None and alpha_output is not None:
+                tree.links.new(alpha_output, alpha_input)
+
+            if texcoord is None:
+                texcoord = nodes.new('ShaderNodeTexCoord')
+                texcoord.location = (-1000, 0)
+            vector = texcoord.outputs['Reflection' if reflection else
+                                      'Generated' if self.generated_uvs else 'UV']
+            if not reflection and tiling != (1.0, 1.0):
+                mapping = nodes.new('ShaderNodeMapping')
+                mapping.label = name + ' scale'
+                mapping.location = (-700, image_node.location.y)
+                mapping.inputs['Scale'].default_value = (*tiling, 1.0)
+                tree.links.new(vector, mapping.inputs['Vector'])
+                vector = mapping.outputs['Vector']
+            tree.links.new(vector, image_node.inputs['Vector'])
+            return image_node
+
+        radiosity = child(root, 'radiosity')
+        copy_value(radiosity, 'power')
+        copy_value(radiosity, 'color of emitted light', 'Color of Emitted Light')
+        properties = child(root, 'properties')
+        flags = self.required_field(properties, 'flags')
+        illumination = child(root, 'self-illumination')
+        reflection = child(root, 'reflection')
+        blender_material.surface_render_method = 'DITHERED'
+
+        if shader_type == 'shader_model':
+            for flag, socket in (
+                    ('detail after reflection', 'Detail After Reflections'),
+                    ('two sided', 'Two-Sided'),
+                    ('not alpha tested', 'Not Alpha-Tested'),
+                    ('alpha blended decal', 'Alpha-Blended Decal'),
+                    ('use xbox multipurpose channel order',
+                     'Multipurpose Map Uses OG Xbox Channel Order')):
+                group.inputs[socket].default_value = flags.get_flag(flag)
+            if flags.get_flag('alpha blended decal'):
+                blender_material.surface_render_method = 'BLENDED'
+
+            change = child(root, 'change color')
+            attribute_name = {'a': 'Primary Color', 'b': 'Secondary Color',
+                              'c': 'Tertiary Color', 'd': 'Quaternary Color'}.get(
+                                  enum_name(change, 'change color source'))
+            if attribute_name is not None:
+                attribute = nodes.new('ShaderNodeAttribute')
+                attribute.attribute_type = 'INSTANCER'
+                attribute.attribute_name = attribute_name
+                attribute.location = (-400, 240)
+                tree.links.new(attribute.outputs['Color'], group.inputs['Primary Change Color'])
+
+            copy_value(illumination, 'animation color lower bound')
+            copy_value(illumination, 'animation color upper bound')
+            # Keep a static preview for classic animation functions, as before.
+            group.inputs['Animation Color Bound Factor'].default_value = (
+                0.0 if enum_name(illumination, 'animation function') == 'zero' else 1.0)
+            maps = child(root, 'maps')
+            uv_scale = (scale(maps, 'map u scale'), scale(maps, 'map v scale'))
+            bitmap(maps, 'base map', tiling=uv_scale)
+            bitmap(maps, 'multipurpose map', non_color=True, tiling=uv_scale)
+            copy_menu(maps, 'detail function')
+            copy_menu(maps, 'detail mask')
+            detail_scale = scale(maps, 'detail map scale')
+            detail_v_scale = float(self.value(maps, 'detail map v scale')) or detail_scale
+            bitmap(maps, 'detail map', tiling=(uv_scale[0] * detail_scale,
+                                              uv_scale[1] * detail_v_scale))
+            specular = child(reflection, 'cube map properties')
+            for field in ('perpendicular brightness', 'parallel brightness',
+                          'perpendicular tint color', 'parallel tint color'):
+                copy_value(specular, field)
+            bitmap(reflection, 'cube map', 'Reflection Cube Map', reflection=True)
+        else:
+            group.inputs['Alpha Tested'].default_value = flags.get_flag('alpha tested')
+            copy_menu(properties, 'shader environment type', 'Blend Type')
+            diffuse = child(root, 'diffuse')
+            bitmap(diffuse, 'base map')
+            copy_menu(diffuse, 'detail map function')
+            copy_menu(diffuse, 'micro detail map function')
+            for name in ('primary detail map', 'secondary detail map', 'micro detail map'):
+                detail_scale = scale(diffuse, name + ' scale')
+                bitmap(diffuse, name, tiling=(detail_scale, detail_scale))
+
+            bump = child(root, 'bump')
+            bump_scale = scale(bump, 'bump map scale')
+            bump_node = bitmap(bump, 'bump map', non_color=True,
+                               tiling=(bump_scale, bump_scale))
+            group.inputs['Bump Strength'].default_value = 1.0 if bump_node else 0.0
+            for layer in ('primary', 'secondary', 'plasma'):
+                copy_value(illumination, layer + ' on color')
+                copy_value(illumination, layer + ' off color')
+                group.inputs[layer.title() + ' Self-Illumination Activation Level'].default_value = (
+                    0.0 if enum_name(illumination, layer + ' animation function') == 'zero' else 1.0)
+            illumination_scale = scale(illumination, 'map scale')
+            bitmap(illumination, 'map', 'Self-Illumination Map', non_color=True,
+                   tiling=(illumination_scale, illumination_scale))
+            specular = child(root, 'specular')
+            for field in ('brightness', 'perpendicular color', 'parallel color'):
+                copy_value(specular, field)
+            for field in ('perpendicular brightness', 'parallel brightness'):
+                copy_value(reflection, field)
+            bitmap(reflection, 'reflection cube map', reflection=True)
+        return True
+
     def _to_nodes_halo1(self, blender_material: bpy.types.Material):
-        """Build a basic material from Halo 1's shader-family layouts."""
+        """Use Halo 1 resource groups, with basic materials for other families."""
         from .backend import TagDocument
+
+        shader_type = self.system_path.suffix[1:].casefold()
+        if shader_type in {'shader_model', 'shader_environment'}:
+            if self._to_nodes_halo1_group(blender_material, shader_type):
+                return
 
         blender_material.use_nodes = True
         tree = blender_material.node_tree
@@ -1440,7 +1615,6 @@ class ShaderTag(BlenderTag, TagDocument):
         tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
 
         root = self.tag.root()
-        shader_type = self.system_path.suffix[1:].casefold()
         transparent = (shader_type.startswith('shader_transparent_')
                        or shader_type == 'decal')
 
