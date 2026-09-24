@@ -821,20 +821,57 @@ class NWO_OT_AddEmissiveNode(bpy.types.Operator):
         utils.setup_emissive_attributes(context.object.data)
         return {"FINISHED"}
         
+def face_attribute_shader():
+    info = gpu.types.GPUShaderCreateInfo()
+    info.push_constant('MAT4', "model_view_projection")
+    info.push_constant('VEC4', "color")
+    info.vertex_in(0, 'VEC3', "pos")
+    info.fragment_out(0, 'VEC4', "frag_color")
+    info.vertex_source("""
+        void main()
+        {
+            gl_Position = model_view_projection * vec4(pos, 1.0);
+            // Pull the overlay forward in depth-buffer space without changing
+            // its silhouette. Object-space offsets become unreliable with
+            // different mesh scales and at grazing view angles.
+            gl_Position.z -= 0.00001 * gl_Position.w;
+        }
+    """)
+    info.fragment_source("""
+        void main()
+        {
+            frag_color = color;
+        }
+    """)
+    return gpu.shader.create_from_info(info)
+
+
 def draw(op):
     if not op.batch:
         return
-    gpu.state.blend_set('ALPHA')
-    gpu.state.depth_mask_set(False)
-    gpu.state.depth_test_set('LESS_EQUAL')
 
-    op.shader.bind()
-    op.shader.uniform_float("color", (*op.color, op.alpha))
-    op.batch.draw(op.shader)
+    blend = gpu.state.blend_get()
+    depth_mask = gpu.state.depth_mask_get()
+    depth_test = gpu.state.depth_test_get()
 
-    gpu.state.depth_test_set('NONE')
-    gpu.state.depth_mask_set(True)
-    gpu.state.blend_set('NONE')
+    try:
+        gpu.state.blend_set('ALPHA')
+        gpu.state.depth_mask_set(False)
+        gpu.state.depth_test_set('LESS_EQUAL')
+
+        model_view_projection = (
+            gpu.matrix.get_projection_matrix()
+            @ gpu.matrix.get_model_view_matrix()
+            @ op.ob.matrix_world
+        )
+        op.shader.bind()
+        op.shader.uniform_float("model_view_projection", model_view_projection)
+        op.shader.uniform_float("color", (*op.color, op.alpha))
+        op.batch.draw(op.shader)
+    finally:
+        gpu.state.depth_test_set(depth_test)
+        gpu.state.depth_mask_set(depth_mask)
+        gpu.state.blend_set(blend)
 
 
 class NWO_OT_FaceAttributeColorAll(bpy.types.Operator):
@@ -893,19 +930,12 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
                     area.tag_redraw()
 
     def shader_prep(self, context):
-        self.shader = gpu.shader.from_builtin("UNIFORM_COLOR")
+        self.shader = face_attribute_shader()
 
         bm = bmesh.from_edit_mesh(self.me)
         self.volume = bm.calc_volume()
 
         cm = bm.copy()
-        cm.normal_update()
-        scene_nwo = utils.get_scene_props()
-        offset = 0.005 if scene_nwo.scale == 'max' else 0.0005
-        for v in cm.verts:
-            v.co += v.normal * offset
-            
-        bmesh.ops.transform(cm, matrix=context.object.matrix_world, verts=cm.verts)
 
         self.attribute = cm.faces.layers.bool.get(self.attribute_name)
         if self.attribute is None:
@@ -941,7 +971,7 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
            or event.value == "CLICK_DRAG":
             self.alpha = 0
         else:
-            self.alpha = 0.25
+            self.alpha = 0.5
 
         global int_highlight
         kill = (
