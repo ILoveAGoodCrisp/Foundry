@@ -14,9 +14,58 @@ metadata = importlib.import_module('foundry_native_tags.metadata')
 backend = importlib.import_module('foundry_native_tags.backend')
 lighting = importlib.import_module('foundry_native_tags.lighting')
 lighting = importlib.import_module('foundry_native_tags.lighting')
+animation_names = importlib.import_module('foundry_native_tags.animation_names')
 
 
 class MetadataTests(unittest.TestCase):
+    def test_animation_names_convert_for_target_project(self):
+        convert = animation_names.convert_animation_name_for_project
+        mode_names = {
+            'stand': 'combat', 'B-driver': 'banshee_d',
+            'W-driver': 'warthog_d', 'W-gunner': 'warthog_g',
+            'W-passenger': 'warthog_p', 'scorpion-driver': 'scorpion_d',
+            'GT-gunner': 'shade_g', 'G-driver': 'ghost_d',
+            'P-riderLB02': 'pelican_p_l05', 'P-riderLB01': 'pelican_p_l04',
+            'P-riderLB': 'pelican_p_l03', 'P-riderLM': 'pelican_p_l02',
+            'P-riderLF': 'pelican_p_l01', 'P-riderRB02': 'pelican_p_r05',
+            'P-riderRB01': 'pelican_p_r04', 'P-riderRB': 'pelican_p_r03',
+            'P-riderRM': 'pelican_p_r02', 'P-riderRF': 'pelican_p_r01',
+            'scorpionLF': 'scorpion_p_lf', 'scorpionLB': 'scorpion_p_lb',
+            'scorpionRF': 'scorpion_p_rf', 'scorpionRB': 'scorpion_p_rb',
+            'wraith-driver': 'wraith_d', 'CD-passenger01': 'fork_p_r1',
+            'CD-passengerL01': 'fork_p_l1',
+        }
+        for source, target in mode_names.items():
+            with self.subTest(source=source):
+                self.assertEqual(
+                    convert(f'{source} rifle idle', 'halo1', 'halo2'),
+                    f'{target} rifle idle')
+
+        self.assertEqual(
+            convert('stand unarmed aim-move%12', 'halo1', 'reach'),
+            'combat unarmed aim_move_up var12')
+        self.assertEqual(
+            convert('W-driver:any:any:any:aim-still%2', 'halo1', 'halo3'),
+            'warthog_d:any:any:any:aim_still_up:var2')
+        self.assertEqual(
+            convert('stand idle 2 W-driver aim-still', 'halo1', 'halo2'),
+            'combat idle 2 warthog_d aim_still_up')
+        self.assertEqual(
+            convert('stand h-kill front l-thigh', 'halo1', 'halo2'),
+            'combat h_kill front l_leg')
+        self.assertEqual(
+            convert('stand h-kill back r-thigh', 'halo1', 'reach'),
+            'combat h_kill back r_leg')
+        self.assertEqual(
+            convert('combat stand idle', 'halo1', 'halo2'),
+            'combat stand idle')
+        self.assertEqual(
+            convert('combat rifle berserk', 'halo3', 'reach'),
+            'combat rifle go_berserk')
+        self.assertEqual(
+            convert('stand rifle idle%1', 'halo1', 'halo1'),
+            'stand rifle idle%1')
+
     def test_native_pca_render_metadata_and_coefficients(self):
         import struct
         pca = importlib.import_module('foundry_native_tags.pca')

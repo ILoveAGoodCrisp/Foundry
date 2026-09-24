@@ -50,6 +50,7 @@ from ..tags.object_blender import ObjectTag
 from ..tags.particle_model import ParticleModelTag
 from ..tags.scenario_structure_bsp import ScenarioStructureBspTag
 from ..tags.animation import AnimationTag
+from ..tags.animation_names import convert_animation_name_for_project
 from ..tags.pca_blender import PCAAnimationTag
 from ..tags.render_model_blender import RenderModelTag
 from ..tags.physics_blender import PhysicsTag
@@ -246,10 +247,13 @@ def draw_import_template(operator, layout):
     row = layout.row()
     row.prop(operator, "import_template", text="Template")
 
-def draw_reach_animation_conversion(operator, layout):
+def draw_animation_conversions(operator, layout):
     row = layout.row()
     row.enabled = operator.graph_import_animations
     row.prop(operator, "graph_convert_to_reach")
+    row = layout.row()
+    row.enabled = operator.graph_import_animations
+    row.prop(operator, "convert_animation_names")
 
 
 def draw_animation_graph_import_options(operator, layout, corinth, include_generate_frames=False):
@@ -259,7 +263,7 @@ def draw_animation_graph_import_options(operator, layout, corinth, include_gener
     col.enabled = operator.tag_animation
     col.prop(operator, "tag_animation_filter")
     col.prop(operator, "graph_import_animations")
-    draw_reach_animation_conversion(operator, col)
+    draw_animation_conversions(operator, col)
     row = col.row()
     row.enabled = operator.tag_animation and operator.graph_import_animations
     row.prop(operator, "graph_bake_to_control_rig")
@@ -279,7 +283,7 @@ def draw_animation_graph_import_options(operator, layout, corinth, include_gener
 def draw_graph_import_options(operator, layout, corinth):
     layout.prop(operator, "tag_animation_filter")
     layout.prop(operator, "graph_import_animations")
-    draw_reach_animation_conversion(operator, layout)
+    draw_animation_conversions(operator, layout)
     row = layout.row()
     row.enabled = operator.graph_import_animations
     row.prop(operator, "graph_bake_to_control_rig")
@@ -1370,6 +1374,12 @@ class NWO_Import(bpy.types.Operator):
         default=False,
     )
 
+    convert_animation_names: bpy.props.BoolProperty(
+        name="Convert Animation names for Project",
+        description="Converts imported legacy animation names to the naming style used by the current project",
+        default=True,
+    )
+
     use_import_info: bpy.props.BoolProperty(
         name="Use Import Info",
         description="Imports embedded JMS, ASS, and JMA source data instead of compiled tag data when available. GR2 source data is currently ignored",
@@ -1446,6 +1456,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.add_import_info_sources(filepaths)
                 importer.graph_bake_to_control_rig = self.graph_bake_to_control_rig
                 importer.graph_convert_to_reach = self.graph_convert_to_reach
+                importer.convert_animation_names = self.convert_animation_names
                 importer.render_lod = self.render_lod
                 switch_blender_scene = None
                 
@@ -2421,6 +2432,12 @@ class NWO_Import(bpy.types.Operator):
             box = layout.box()
             box.label(text="JMS/ASS Settings")
             box.prop(self, "legacy_type")
+
+        if 'jma' in scope_items and not ({'model', 'object'} & scope_items):
+            box = layout.box()
+            box.label(text="Animation Settings")
+            box.prop(self, "generate_frames")
+            box.prop(self, "convert_animation_names")
         
         if not self.scope or ('bitmap' in self.scope):
             box = layout.box()
@@ -2633,6 +2650,8 @@ class NWOImporter:
         self.scene_nwo = utils.get_scene_props()
         self.scene_nwo_export = utils.get_export_props()
         self.game = utils.get_project(self.scene_nwo.scene_project).game
+        self.target_game = utils.get_project(
+            self.scene_nwo.scene_project, use_external=False).game
         self.filepaths = list(filepaths) if filepaths else []
         self.context = context
         self.scene = context.scene
@@ -2654,6 +2673,7 @@ class NWOImporter:
         self.graph_scale_animations_to_skeleton = False
         self.tag_animation = False
         self.graph_convert_to_reach = False
+        self.convert_animation_names = True
         self.graph_import_animations = False
         self.graph_bake_to_control_rig = True
         self.graph_import_pca_data = False
@@ -3968,6 +3988,8 @@ class NWOImporter:
                             metadata=graph_metadata,
                             convert_to_reach=convert_to_reach,
                             legacy_blend_screens=legacy_blend_screens,
+                            convert_animation_names=self.convert_animation_names,
+                            target_game=self.target_game,
                         )
                         if result is not None:
                             actions, animations, pca_animations, pca_groups, pca_path = result
@@ -3988,6 +4010,8 @@ class NWOImporter:
                             metadata=graph_metadata,
                             convert_to_reach=convert_to_reach,
                             legacy_blend_screens=legacy_blend_screens,
+                            convert_animation_names=self.convert_animation_names,
+                            target_game=self.target_game,
                         )
                         if result is not None:
                             actions, animations = result
@@ -3995,12 +4019,15 @@ class NWOImporter:
             if self.graph_generate_renames:
                 utils.print_bullet("Generating Animation Renames")
                 with AnimationGraphTag(path=mover.tag_path) as graph:
-                    graph.generate_renames(filter)
+                    graph.generate_renames(
+                        filter, self.convert_animation_names, self.target_game)
             if self.graph_import_events:
                 utils.print_bullet("Importing Frame Events")
                 imported_animations = self.scene_nwo.animations[imported_animation_start:]
                 with AnimationGraphTag(path=mover.tag_path) as graph:
-                    count = graph.events_to_blender(imported_animations)
+                    count = graph.events_to_blender(
+                        imported_animations, self.convert_animation_names,
+                        self.target_game)
                 utils.print_bullet(f"Imported {count} frame events")
 
             if do_reset:
@@ -4815,11 +4842,15 @@ class NWOImporter:
         # existing_animations = bpy.data.actions[:]
         extension = path.suffix.strip('.')
         anim_name = path.with_suffix("").name
+        if self.convert_animation_names:
+            anim_name = convert_animation_name_for_project(
+                anim_name, 'halo1', self.target_game)
         print(f"--- {anim_name}")
         jma = JMA()
         jma.from_file(path)
         action = jma.to_armature_action(arm)
         if action is not None:
+            action.name = anim_name
             self.actions.append(action)
             animation = self.scene_nwo.animations.add()
             animation.name = anim_name
@@ -5307,6 +5338,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         default=False,
     )
 
+    convert_animation_names: bpy.props.BoolProperty(
+        name="Convert Animation names for Project",
+        description="Converts imported legacy animation names to the naming style used by the current project",
+        default=True,
+    )
+
     use_import_info: bpy.props.BoolProperty(
         name="Use Import Info",
         description="Imports embedded JMS, ASS, and JMA source data instead of compiled tag data when available. GR2 source data is currently ignored",
@@ -5531,6 +5568,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "legacy_type", expand=True)
             case "jmm" | "jma" | "jmt" | "jmz" | "jmv" | "jmw" | "jmo" | "jmr" | "jmrx":
                 layout.prop(self, "generate_frames")
+                layout.prop(self, "convert_animation_names")
             
 
 class NWO_FH_Import(bpy.types.FileHandler):

@@ -9,7 +9,12 @@ from typing import TYPE_CHECKING, Protocol, cast
 
 from .backend import RelativeTagPath, TagDocument, TagPathInput, TagReference
 from .blender import BlenderTag
-from .animation_names import DIRECTIONS, REGIONS, renames_from_paths
+from .animation_names import (
+    DIRECTIONS,
+    REGIONS,
+    convert_animation_name_for_project,
+    renames_from_paths,
+)
 
 if TYPE_CHECKING:
     import blam_tags
@@ -362,25 +367,34 @@ class AnimationGraphTag(BlenderTag, TagDocument):
     def animation_renames(self) -> list[tuple[str, str]]:
         return renames_from_paths(self.animation_state_paths())
 
-    def generate_renames(self, contains: str = '') -> tuple[int, int]:
+    def generate_renames(
+            self, contains: str = '', convert_names=False,
+            target_game: str = '') -> tuple[int, int]:
         """Add mode/state aliases from this graph to matching Blender animations."""
         blender_animations = {
             animation.name.replace(' ', ':'): animation
             for animation in self.scene_nwo.animations
-            if not contains or contains in animation.name.replace(' ', ':')
         }
         renames = self.animation_renames()
         applied = 0
         for source_name, rename in renames:
-            animation = blender_animations.get(source_name)
+            converted_source = (convert_animation_name_for_project(
+                source_name, self.game, target_game) if convert_names else source_name)
+            converted_rename = (convert_animation_name_for_project(
+                rename, self.game, target_game) if convert_names else rename)
+            if (contains and contains not in source_name and
+                    contains not in converted_source):
+                continue
+            animation = blender_animations.get(converted_source.replace(' ', ':'))
             if animation is None:
                 continue
             existing = {entry.name.replace(' ', ':')
                         for entry in animation.animation_renames}
-            if rename not in existing:
-                animation.animation_renames.add().name = rename.replace(':', ' ')
+            converted_rename = converted_rename.replace(' ', ':')
+            if converted_rename not in existing:
+                animation.animation_renames.add().name = converted_rename.replace(':', ' ')
             applied += 1
-            print(f'renamed "{source_name}" ==> "{rename}"')
+            print(f'renamed "{converted_source}" ==> "{converted_rename}"')
         print(f'Generated {len(renames)} renames from tag and applied these to '
               f'{applied} Blender animation entries')
         return len(renames), applied
@@ -1124,7 +1138,9 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             result[name] = collapse_events(events)
         return result
 
-    def events_to_blender(self, imported_animations) -> int:
+    def events_to_blender(
+            self, imported_animations, convert_names=False,
+            target_game: str = '') -> int:
         from .frame_event_list import FrameEventListTag, apply_event_map_to_blender
         from .. import utils
 
@@ -1140,10 +1156,17 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 utils.print_warning(
                     f'Frame events list tag does not exist: {event_list.Filename}')
             else:
-                animation_names = {
-                    animation.name for animation in imported_animations
-                    if animation.export_this
+                imported_names = {
+                    animation.name.replace(':', ' ')
+                    for animation in imported_animations if animation.export_this
                 }
+                animation_names = set()
+                for source_name in self.animation_names():
+                    converted_name = (convert_animation_name_for_project(
+                        source_name, self.game, target_game)
+                        if convert_names else source_name)
+                    if converted_name.replace(':', ' ') in imported_names:
+                        animation_names.add(source_name)
                 with FrameEventListTag(path=event_list) as external:
                     external_events = external.collect_events(animation_names)
                 for name, list_events in external_events.items():
@@ -1152,6 +1175,13 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                         event for event in graph_events
                         if not any(event == external_event for external_event in list_events)
                     ]
+        if convert_names:
+            converted_events = {}
+            for name, animation_events in events.items():
+                converted_name = convert_animation_name_for_project(
+                    name, self.game, target_game)
+                converted_events.setdefault(converted_name, []).extend(animation_events)
+            events = converted_events
         return apply_event_map_to_blender(events, imported_animations)
 
     @staticmethod

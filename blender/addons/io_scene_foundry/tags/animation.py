@@ -21,6 +21,7 @@ from ..tags.animation_names import (
     DIRECTIONS as directions,
     REGIONS as regions,
     animation_rename_map,
+    convert_animation_name_for_project,
     normalized_animation_graph_path,
 )
 
@@ -3823,6 +3824,8 @@ class AnimationTag(AnimationGraphTag):
         metadata: AnimationGraphImportMetadata | None = None,
         convert_to_reach=False,
         legacy_blend_screens=None,
+        convert_animation_names=False,
+        target_game: str = '',
     ):
         if metadata is None:
             raise ValueError('Native animation graph metadata is required')
@@ -3869,13 +3872,25 @@ class AnimationTag(AnimationGraphTag):
                 armature.animation_data_create()
                 
             tag_animations = self.get_animations()
+            self._convert_animation_names = convert_animation_names
+            self._animation_name_target_game = target_game
+            if convert_animation_names:
+                for tag_animation in tag_animations:
+                    tag_animation.source_name = tag_animation.name
+                    converted_name = convert_animation_name_for_project(
+                        tag_animation.name.tag_name, self.game, target_game)
+                    tag_animation.name = utils.AnimationName(converted_name)
             graph = self.to_dict(tag_animations)
             self._cached_graph_animation_rename_map = animation_rename_map(graph)
             self._cached_graph_animation_rename_graph_id = id(graph)
             grounding_offset_cache = {}
 
             for tag_animation in tag_animations:
-                if not (filter in tag_animation.name.tag_name or filter.replace(" ", ":") in tag_animation.name.tag_name):
+                source_name = getattr(tag_animation, 'source_name', tag_animation.name)
+                if not (filter in tag_animation.name.tag_name or
+                        filter.replace(" ", ":") in tag_animation.name.tag_name or
+                        filter in source_name.tag_name or
+                        filter.replace(" ", ":") in source_name.tag_name):
                     continue
                 
                 overlay = tag_animation.animation_type == AnimationType.OVERLAY
@@ -3906,7 +3921,7 @@ class AnimationTag(AnimationGraphTag):
                 action.use_frame_range = True
                 
                 if tag_animation.contains_pca_data:
-                    pca_animations[tag_animation.name.tag_name] = tag_animation.name.data_name
+                    pca_animations[source_name.tag_name] = tag_animation.name.data_name
 
                 match tag_animation.animation_type:
                     case AnimationType.NONE | AnimationType.BASE:
@@ -4030,11 +4045,11 @@ class AnimationTag(AnimationGraphTag):
                 action.frame_end = blender_animation.frame_end
                 self._apply_regular_animation_events(tag_animation, blender_animation, armature, actions)
                 self._infer_wrap_events(tag_animation, blender_animation, armature, native_nodes, transforms, node_usages)
-                settings = metadata.settings.get(tag_animation.name.tag_name)
+                settings = metadata.settings.get(source_name.tag_name)
                 if settings is None:
                     raise ValueError(
                         f'Missing native settings for animation '
-                        f'{tag_animation.name.tag_name!r}')
+                        f'{source_name.tag_name!r}')
                 self._add_animation_settings(tag_animation, blender_animation, settings)
                 if reach_bones:
                     armature.animation_data.action = action
@@ -4046,7 +4061,7 @@ class AnimationTag(AnimationGraphTag):
                             bone.matrix_basis = Matrix.Identity(4)
                             bone.keyframe_insert(data_path='rotation_quaternion', frame=1)
                 if reach_bones and legacy_blend_screens:
-                    record = legacy_blend_screens.get(tag_animation.name.tag_name)
+                    record = legacy_blend_screens.get(source_name.tag_name)
                     if record is not None:
                         from ..tools.animation.legacy_import import convert_blend_screen
                         convert_blend_screen(armature, blender_animation, action, slot, record, reach_bones)
@@ -4062,6 +4077,28 @@ class AnimationTag(AnimationGraphTag):
         
         return actions, animations
     
+    @staticmethod
+    def _match_animation_nodes_to_pose_bones(nodes, pose_bones):
+        """Match exact names first so distinct legacy prefixes remain distinct."""
+        pose_bones = list(pose_bones)
+        exact_bones = {bone.name.casefold(): bone for bone in pose_bones}
+        normalized_bones = {}
+        for bone in pose_bones:
+            key = utils.remove_node_prefix(bone.name).casefold()
+            normalized_bones.setdefault(key, []).append(bone)
+
+        claimed_bones = set()
+        for node in nodes:
+            pose_bone = exact_bones.get(node.name.casefold())
+            if pose_bone is None or id(pose_bone) in claimed_bones:
+                candidates = [bone for bone in normalized_bones.get(
+                    utils.remove_node_prefix(node.name).casefold(), ())
+                    if id(bone) not in claimed_bones]
+                pose_bone = candidates[0] if len(candidates) == 1 else None
+            node.pose_bone = pose_bone
+            if pose_bone is not None:
+                claimed_bones.add(id(pose_bone))
+
     def _to_armature_action(
         self,
         transforms,
@@ -4081,12 +4118,11 @@ class AnimationTag(AnimationGraphTag):
         fcurves.clear()
         
         key_options = {'FAST'}
-        
-        armature_bone_names = {utils.remove_node_prefix(bone.name): bone for bone in armature.pose.bones}
+
+        self._match_animation_nodes_to_pose_bones(nodes, armature.pose.bones)
         valid_nodes = []
-        
+
         for node in nodes:
-            node.pose_bone = armature_bone_names.get(utils.remove_node_prefix(node.name))
             if node.pose_bone is None:
                 continue
             bone_path = node.pose_bone.path_from_id()
@@ -4539,30 +4575,37 @@ class AnimationTag(AnimationGraphTag):
         animations_by_index = {animation.index: animation for animation in tag_animations}
         graph: dict[str, dict] = {}
 
+        def converted_label(value) -> str:
+            label = str(value)
+            if not getattr(self, '_convert_animation_names', False):
+                return label
+            return convert_animation_name_for_project(
+                label, self.game, self._animation_name_target_game)
+
         def add_entry(target: dict, label: str, element, state_type: str) -> None:
             index = self._animation_path_index(element)
             animation = animations_by_index.get(index)
             if animation is None:
                 return
             animation.state_types.add(state_type)
-            target[label] = animation
+            target[converted_label(label)] = animation
 
         content = self.required_field(self.tag.root(), 'content').as_struct()
         if content is None:
             raise TypeError(f'{self.path}: content is not a structure')
         for mode in self.block(content, 'modes'):
-            mode_graph = graph.setdefault(str(self.value(mode, 'label')), {})
+            mode_graph = graph.setdefault(converted_label(self.value(mode, 'label')), {})
             for weapon_class in self.block(mode, 'weapon class'):
                 class_graph = mode_graph.setdefault(
-                    str(self.value(weapon_class, 'label')), {})
+                    converted_label(self.value(weapon_class, 'label')), {})
                 for weapon_type in self.block(weapon_class, 'weapon type'):
                     type_graph = class_graph.setdefault(
-                        str(self.value(weapon_type, 'label')), {})
+                        converted_label(self.value(weapon_type, 'label')), {})
                     sets_field = weapon_type.field('sets')
                     sets = None if sets_field is None else sets_field.as_block()
                     set_records = ((weapon_type, type_graph),) if sets is None else tuple(
                         (animation_set, type_graph.setdefault(
-                            str(self.value(animation_set, 'label')), {}))
+                            converted_label(self.value(animation_set, 'label')), {}))
                         for animation_set in sets)
                     for animation_set, set_graph in set_records:
                         actions: dict[str, Animation] = set_graph.setdefault('actions', {})
@@ -4581,7 +4624,7 @@ class AnimationTag(AnimationGraphTag):
                             'death_and_damage', {})
                         for damage in self.block(animation_set, 'death and damage'):
                             direction_graph = damage_graph.setdefault(
-                                str(self.value(damage, 'label')), {})
+                                converted_label(self.value(damage, 'label')), {})
                             for direction_index, direction in enumerate(
                                     self.block(damage, 'directions')):
                                 if direction_index >= len(directions):
@@ -4600,14 +4643,14 @@ class AnimationTag(AnimationGraphTag):
                             source_field = ('full name' if self.game in {'halo2', 'halo3', 'halo3odst'}
                                             else 'state name')
                             destinations = transition_graph.setdefault(
-                                str(self.value(transition, source_field)), {})
+                                converted_label(self.value(transition, source_field)), {})
                             for destination in self.block(transition, 'destinations'):
                                 if self.game in {'halo2', 'halo3', 'halo3odst'}:
-                                    mode_name = str(self.value(destination, 'full name'))
-                                    state_name = str(self.value(destination, 'mode'))
+                                    mode_name = converted_label(self.value(destination, 'full name'))
+                                    state_name = converted_label(self.value(destination, 'mode'))
                                 else:
-                                    mode_name = str(self.value(destination, 'mode name'))
-                                    state_name = str(self.value(destination, 'state name'))
+                                    mode_name = converted_label(self.value(destination, 'mode name'))
+                                    state_name = converted_label(self.value(destination, 'state name'))
                                 add_entry(destinations, f'2:{mode_name}:{state_name}',
                                           destination, 'transition')
         return graph

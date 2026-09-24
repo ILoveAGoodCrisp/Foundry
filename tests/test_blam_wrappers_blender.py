@@ -36,6 +36,30 @@ from io_scene_foundry.tags.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_legacy_animation_nodes_prefer_exact_prefixed_bones(self):
+        from io_scene_foundry.tags.animation import AnimationTag
+
+        frame_head = SimpleNamespace(name='frame head')
+        bip_head = SimpleNamespace(name='bip01 head')
+        nodes = [
+            SimpleNamespace(name='frame head', pose_bone=None),
+            SimpleNamespace(name='bip01 head', pose_bone=None),
+        ]
+        AnimationTag._match_animation_nodes_to_pose_bones(
+            nodes, [frame_head, bip_head])
+        self.assertIs(nodes[0].pose_bone, frame_head)
+        self.assertIs(nodes[1].pose_bone, bip_head)
+
+        fallback = SimpleNamespace(name='head', pose_bone=None)
+        AnimationTag._match_animation_nodes_to_pose_bones(
+            [fallback], [frame_head])
+        self.assertIs(fallback.pose_bone, frame_head)
+
+        ambiguous = SimpleNamespace(name='head', pose_bone=None)
+        AnimationTag._match_animation_nodes_to_pose_bones(
+            [ambiguous], [frame_head, bip_head])
+        self.assertIsNone(ambiguous.pose_bone)
+
     def test_material_opens_in_generation_specific_tag_editor(self):
         from io_scene_foundry.ui.panel import material
         from io_scene_foundry.tools import halo_launcher

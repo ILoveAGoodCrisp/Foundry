@@ -2497,8 +2497,8 @@ def current_project_valid():
     
     return bool(project)
 
-def get_project(project_name=None):
-    if _external_project is not None:
+def get_project(project_name=None, use_external=True):
+    if use_external and _external_project is not None:
         return _external_project
     if project_name is None:
         project_name = get_scene_props().scene_project
