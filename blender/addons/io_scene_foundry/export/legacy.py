@@ -243,7 +243,8 @@ class LegacyExportScene(ExportScene):
                     child_name = filename(child_name)
                     jmi_children.append(child_name)
                     output_path = Path(
-                        self.asset_path, child_name, child_name + '.jms')
+                        self.asset_path, child_name, 'render',
+                        child_name + '.jms')
                 else:
                     output_path = Path(
                         self.asset_path, folder,
@@ -806,6 +807,24 @@ class LegacyExportScene(ExportScene):
                 marker_name = f'({name} {region}){node.name}' if nwo.marker_uses_regions and self.jms_version >= 8205 else node.name
                 asset.markers.append(jms.Marker(marker_name, asset.regions.index(region) if nwo.marker_uses_regions else -1,
                     parent, transform(matrix, self.to_halo_scale), node.props.get('bungie_mesh_primitive_sphere_radius', 1)))
+        if self.asset_type.name == 'PARTICLE_MODEL':
+            vertex_bones = []
+            for vertex in asset.vertices:
+                influences = [bone for bone, weight in vertex.influences
+                              if bone >= 0 and weight > 0.0]
+                if len(influences) != 1:
+                    raise ValueError(
+                        'H2 particle-model geometry must be rigid; each vertex '
+                        'must have exactly one bone influence')
+                vertex_bones.append(influences[0])
+            section_bones = defaultdict(set)
+            for triangle in asset.triangles:
+                section_bones[(triangle.region, triangle.material)].update(
+                    vertex_bones[index] for index in triangle.vertices)
+            if any(len(bones) != 1 for bones in section_bones.values()):
+                raise ValueError(
+                    'H2 particle-model geometry must be rigid; each material '
+                    'section must use one bone')
         return asset
 
     def ass_asset(self, name, nodes, markers=(), lights=()):

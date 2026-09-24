@@ -87,6 +87,12 @@ settings remain intact. H2 particle-model and decorator-set exports write an
 `import-particle-model` or `import-decorator-set` command and verify the expected
 tag was created.
 
+An isolated H2 Tool acceptance run compiled a rigid one-bone child from the
+generated `<child>/render/<child>.jms` layout through `import-particle-model` and
+created the expected `.particle_model` tag. Tool rejects skinned particle-model
+sections, so Foundry now validates that every particle vertex has one influence
+and every material section uses one bone before invoking Tool.
+
 ## Current limits
 
 - Tag compilation for other non-model legacy asset types is not implemented.

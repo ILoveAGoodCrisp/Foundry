@@ -29,6 +29,11 @@ JMS/ASS XREF tag-reference records and compiles particle-model/decorator-set JMI
 sources with their dedicated Tool commands. The remaining work is concentrated
 in less common resource layouts and broad visual/editing-kit acceptance.
 
+The H2 JMI path has direct Tool acceptance: an 8210 manifest with one rigid child
+at `<child>/render/<child>.jms` compiled through `import-particle-model` and
+created the expected native tag. A deliberately unsuitable skinned model was also
+rejected by Tool, confirming that particle-model children must use rigid weights.
+
 ## Editing-kit import acceptance (2026-09-22)
 
 A Blender 5.1 background sweep now covers H3, ODST, Reach, H4 and H2AMP with
