@@ -5983,8 +5983,12 @@ def set_two_sided(mesh, is_io=False):
         if preserve_normals:
             apply_loop_normals(mesh)
 
-def join_objects(objects: list[bpy.types.Object]) -> bpy.types.Object:
-    """Joins an iterable of objects together, ensuring no material or face property conflicts. All objects are joined into the first object in the list"""
+def join_objects(objects: list[bpy.types.Object], *, cleanup_geometry=True) -> bpy.types.Object:
+    """Join into the first object, preserving materials and face properties.
+
+    Disable cleanup_geometry when the caller must preserve exact coordinates
+    and topology (e.g. reconstructed render/collision surface boundaries).
+    """
     active = objects[0]
     objects = objects[1:]
     # consolidate_face_attributes(active.data)
@@ -6032,8 +6036,9 @@ def join_objects(objects: list[bpy.types.Object]) -> bpy.types.Object:
     bm.to_mesh(active.data)
     bm.free()
     apply_loop_normals(active.data)
-    set_two_sided(active.data)
-    loop_normal_magic(active.data)
+    if cleanup_geometry:
+        set_two_sided(active.data)
+        loop_normal_magic(active.data)
     consolidate_face_attributes(active.data)
     
     uv = active.data.uv_layers[0]

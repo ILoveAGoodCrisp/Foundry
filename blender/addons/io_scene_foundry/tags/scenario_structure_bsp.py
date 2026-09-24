@@ -15,12 +15,86 @@ from .. import import_transform
 from ..utils import jstr
 from .. import utils
 from .prefab import ScenarioStructureBspMetadataTag, StructureBspHavokGeometry
+from .classic_geometry import merge_classic_surfaces
 
 class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
     tag_ext = 'scenario_structure_bsp'
 
+    @staticmethod
+    def _bake_classic_objects(objects: list[bpy.types.Object]) -> None:
+        """Make classic BSP instances unique and move them into a common space."""
+        source_meshes = {ob.data for ob in objects}
+        for ob in objects:
+            mesh = ob.data.copy()
+            mesh.transform(ob.matrix_world)
+            ob.data = mesh
+            ob.matrix_world = Matrix.Identity(4)
+        for mesh in source_meshes:
+            if mesh.users == 0:
+                bpy.data.meshes.remove(mesh)
+
+    def _merge_classic_structure_geometry(
+        self, objects: list[bpy.types.Object], skip_structure_merge: bool,
+    ) -> list[bpy.types.Object]:
+        """Infer the render/collision mapping absent from H1/H2 BSP tags."""
+        if skip_structure_merge:
+            return objects
+
+        render_objects = [
+            ob for ob in objects
+            if ob.type == 'MESH'
+            and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure'
+        ]
+        collision_objects = [
+            ob for ob in objects
+            if ob.type == 'MESH'
+            and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_collision'
+        ]
+        if not render_objects or not collision_objects:
+            return objects
+        unmerged_objects = [
+            ob for ob in objects
+            if ob not in render_objects and ob not in collision_objects
+        ]
+
+        # Classic BSP geometry can be emitted as several transformed instances.
+        # Bake those transforms before comparing or joining their polygons.
+        self._bake_classic_objects(render_objects + collision_objects)
+        # The generic join welds within a fixed distance. That can move thin
+        # surfaces and destroy the correspondence, especially at Blender scale.
+        render_object = utils.join_objects(render_objects, cleanup_geometry=False)
+        collision_object = utils.join_objects(collision_objects, cleanup_geometry=False)
+        render_object.name = f"{self.tag_path.ShortName}_structure"
+
+        collision_mesh = collision_object.data
+        merge_classic_surfaces(
+            render_object.data, collision_mesh,
+            # Classic compilers perturb shared vertices/planes slightly. This
+            # is 0.00025 tag world units, independent of Blender scene scale.
+            tolerance=0.025 * import_transform.scale_factor())
+
+        collision_only_count = len(collision_mesh.polygons)
+        if collision_only_count:
+            utils.join_objects([render_object, collision_object], cleanup_geometry=False)
+            if collision_mesh.users == 0:
+                bpy.data.meshes.remove(collision_mesh)
+        else:
+            bpy.data.objects.remove(collision_object)
+            bpy.data.meshes.remove(collision_mesh)
+
+        render_object.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
+        utils.calc_face_prop_counts(render_object.data)
+        utils.consolidate_face_attributes(render_object.data)
+        utils.consolidate_materials(render_object.data)
+        utils.print_step(
+            f"Merged classic structure geometry "
+            f"({collision_only_count} collision-only faces)"
+        )
+
+        return unmerged_objects + [render_object]
+
     def _classic_render_objects(
-        self, collection: bpy.types.Collection,
+        self, collection: bpy.types.Collection, skip_structure_merge=False,
     ) -> tuple[list[bpy.types.Object], list[bpy.types.Object]]:
         material_names, material_paths, mesh_records, instances = self.classic_render_scene()
         materials = {}
@@ -92,7 +166,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         for sources in source_objects.values():
             for source in sources:
                 bpy.data.objects.remove(source)
-        return objects, game_objects
+        return self._merge_classic_structure_geometry(
+            objects, skip_structure_merge), game_objects
     
     def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1, import_havok=False, skip_structure_merge=False):
         
@@ -107,7 +182,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
 
         if self.game in {'halo1', 'halo2'}:
             if import_geometry:
-                classic_objects, classic_game_objects = self._classic_render_objects(collection)
+                classic_objects, classic_game_objects = self._classic_render_objects(
+                    collection, skip_structure_merge)
                 objects.extend(classic_objects)
                 game_objects.extend(classic_game_objects)
             return objects, game_objects, bvh

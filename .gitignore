@@ -43,6 +43,7 @@ copy to add-ons.bat
 !/tests/test_blam_packaging.py
 !/tests/test_legacy_animation_import_blender.py
 !/tests/test_shader_collections.py
+!/tests/test_classic_bsp_merge_blender.py
 
 # Generated from blam-tags by blender/build_blam_tags.py before packaging.
 /blender/addons/io_scene_foundry/tags/definitions/
