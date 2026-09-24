@@ -24,8 +24,9 @@ completed visual or editing-kit acceptance.
 object/model geometry, all H2 LODs, collision/physics, classic animation decoding,
 bitmap and cubemap extraction, broad shader construction, scenario metadata,
 native legacy export dispatch and inline animation-event writing, and scenario BSP
-render/collision geometry are connected. The remaining work is concentrated in
-less common resource layouts and broad visual/editing-kit acceptance.
+render/collision geometry are connected. H2 legacy export also preserves native
+JMS/ASS XREF tag-reference records. The remaining work is concentrated in less
+common resource layouts and broad visual/editing-kit acceptance.
 
 ## Editing-kit import acceptance (2026-09-22)
 

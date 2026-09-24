@@ -153,8 +153,11 @@ class LegacyExportScene(ExportScene):
             if node.invalid:
                 continue
             if node.props.get('bungie_object_type') == 2:
-                if node.ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance':
-                    raise ValueError(f'{node.name}: legacy export of tag references is not implemented yet')
+                if (not single_animation and 'markers' in self.export_tag_types and
+                        self.jms_version < 8201 and
+                        node.ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance'):
+                    raise ValueError(
+                        f'{node.name}: H1 JMS cannot encode tag-reference markers')
                 markers.append(node)
             if node.mesh is None or node.mesh.invalid:
                 continue
@@ -197,13 +200,28 @@ class LegacyExportScene(ExportScene):
                                 (markers and 'markers' in self.export_tag_types)):
                 grouped[('models' if self.target_game == 'halo1' else 'render',
                          'default')] = []
+            structure_names = {key_name for (key_folder, key_name) in grouped
+                               if key_folder == 'structure'}
+            if len(structure_names) > 1:
+                for marker in markers:
+                    if (marker.ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and
+                            marker.region not in structure_names):
+                        raise ValueError(
+                            f'{marker.name}: assign this tag-reference marker to one of the '
+                            f'exported BSPs ({", ".join(sorted(structure_names))})')
             for (folder, name), nodes in grouped.items():
                 use_ass = self.ass_version is not None and (folder == 'structure' or
                     (folder == 'render' and any(n.props.get('bungie_mesh_type') == 11 for n in nodes)))
                 lights = tuple(ob for ob, bsp in self.lights.items()
                                if folder == 'structure' and bsp == name)
+                ass_markers = ()
+                if folder == 'render':
+                    ass_markers = markers
+                elif folder == 'structure':
+                    ass_markers = tuple(marker for marker in markers
+                                        if len(structure_names) == 1 or marker.region == name)
                 asset = (self.ass_asset(
-                    name, nodes, markers if folder == 'render' else (), lights)
+                    name, nodes, ass_markers, lights)
                     if use_ass else self.jms_asset(name, nodes, markers, folder))
                 outputs.append((Path(self.asset_path, folder, name + ('.ass' if use_ass else '.jms')), asset))
         for animation in self.virtual_scene.animations:
@@ -546,6 +564,50 @@ class LegacyExportScene(ExportScene):
                 tuple(influences), tuple(tuple(float(c) for c in uv[i][:2]) for uv in mesh.texcoords), color))
         return vertices
 
+    def xref_record(self, node) -> tuple[str, str, int]:
+        """Return the legacy XREF path, object name and signed identifier."""
+        source = getattr(node.ob, 'ob', node.ob)
+        get = getattr(source, 'get', lambda _name, default=None: default)
+        imported_path = str(get('jms_xref_path', '') or
+                            get('ass_xref_path', '') or '')
+        tag_path = str(node.props.get('bungie_marker_game_instance_tag_name', '') or
+                       node.ob.nwo.marker_game_instance_tag_name or '')
+        if not imported_path and not tag_path:
+            raise ValueError(f'{node.name}: tag-reference marker has no tag path')
+        if imported_path:
+            path = imported_path.replace('/', '\\')
+            default_name = Path(path.replace('\\', '/')).stem
+        else:
+            relative = Path(tag_path.replace('\\', '/'))
+            if relative.is_absolute():
+                try:
+                    relative = relative.relative_to(self.tags_dir)
+                except ValueError:
+                    raise ValueError(
+                        f'{node.name}: tag-reference path is outside this project: '
+                        f'{tag_path}') from None
+            elif relative.parts and relative.parts[0].casefold() == 'tags':
+                relative = Path(*relative.parts[1:])
+            default_name = relative.stem
+            asset_dir = relative.parent
+            if asset_dir.name.casefold() != default_name.casefold():
+                asset_dir /= default_name
+            # H2 Tool derives the referenced tag from the source-model path and
+            # object name. Match the paths written by the H2 Max exporter even
+            # when the original source file is no longer present.
+            path = str(Path(self.data_dir, asset_dir, 'render',
+                            default_name + '.max'))
+        xref_name = str(get('jms_xref_name', '') or get('ass_xref_name', '') or
+                        default_name)
+        raw_identifier = get('jms_identifier', '')
+        try:
+            identifier = int(raw_identifier)
+        except (TypeError, ValueError):
+            identity = str(node.props.get('bungie_object_ID', '') or
+                           f'{node.name}\0{path}\0{xref_name}')
+            identifier = utils.id_from_string(identity)
+        return path, xref_name, identifier
+
     def jms_asset(self, name, nodes, markers, folder):
         asset = jms.JMS(name=name, version=self.jms_version)
         if self.bones:
@@ -604,8 +666,8 @@ class LegacyExportScene(ExportScene):
                 else:
                     # Convex records can represent arbitrary evaluated physics meshes.
                     points = tuple(v.position for v in self.vertices(node, matrix, False))
-                asset.shapes.append(jms.Shape('convex', node.name, parent, material,
-                    jms.Transform((0, 0, 0, 1), (0, 0, 0)), vertices=points))
+                    asset.shapes.append(jms.Shape('convex', node.name, parent, material,
+                        jms.Transform((0, 0, 0, 1), (0, 0, 0)), vertices=points))
                 continue
             offset = len(asset.vertices)
             asset.vertices.extend(self.vertices(
@@ -661,12 +723,24 @@ class LegacyExportScene(ExportScene):
                     transform(parent_matrix, self.to_halo_scale),
                     transform(child_matrix, self.to_halo_scale), limits))
         if folder in {'render', 'models'} and 'markers' in self.export_tag_types:
+            xref_indices = {}
             for node in markers:
                 nwo = node.ob.nwo
                 permutations = {p.name for p in nwo.marker_permutations}
                 if nwo.marker_uses_regions and permutations:
                     if (name in permutations) == (nwo.marker_permutation_type == 'exclude'):
                         continue
+                if nwo.marker_type == '_connected_geometry_marker_type_game_instance':
+                    path, xref_name, identifier = self.xref_record(node)
+                    key = path.casefold(), xref_name.casefold()
+                    xref_index = xref_indices.get(key)
+                    if xref_index is None:
+                        xref_index = len(asset.xrefs)
+                        xref_indices[key] = xref_index
+                        asset.xrefs.append((path, xref_name))
+                    asset.instances.append((node.name, identifier, xref_index,
+                                            transform(node.matrix_world, self.to_halo_scale)))
+                    continue
                 parent = self.parent_index(node, implied_root=True)
                 matrix = node.matrix_world
                 if parent != -1 and self.bones:
@@ -744,10 +818,25 @@ class LegacyExportScene(ExportScene):
                 parent, 0, local, ass.Transform(), geometry_bones))
             node_instances[id(node)] = instance_index
         if 'markers' in self.export_tag_types:
+            xref_geometries = {}
             for node in markers:
                 nwo = node.ob.nwo
                 permutations = {p.name for p in nwo.marker_permutations}
                 if nwo.marker_uses_regions and permutations and (name in permutations) == (nwo.marker_permutation_type == 'exclude'):
+                    continue
+                if nwo.marker_type == '_connected_geometry_marker_type_game_instance':
+                    path, xref_name, identifier = self.xref_record(node)
+                    key = path.casefold(), xref_name.casefold()
+                    geometry_index = xref_geometries.get(key)
+                    if geometry_index is None:
+                        geometry_index = len(asset.geometries)
+                        xref_geometries[key] = geometry_index
+                        asset.geometries.append(ass.Geometry(
+                            'MESH', xref_path=path, xref_name=xref_name))
+                    value = transform(node.matrix_world, self.to_halo_scale)
+                    asset.instances.append(ass.Instance(
+                        geometry_index, node.name, identifier, 0, 0,
+                        ass.Transform(value.rotation, value.translation), ass.Transform()))
                     continue
                 parent = self.parent_index(node)
                 matrix = node.matrix_world

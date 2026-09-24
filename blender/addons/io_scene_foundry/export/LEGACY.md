@@ -93,7 +93,14 @@ settings remain intact.
   not implemented.
 - Physics meshes write native sphere, box, pill or convex records for H2/H3/ODST.
   Hinge and socket markers write hinge/ragdoll constraint records. Mixed-material
-  shapes must be split before export. Tag-reference markers are rejected.
+  shapes must be split before export. H2-ODST tag-reference markers write native
+  JMS XREF tables/instances or ASS referenced geometries. Imported XREF paths,
+  object names and JMS identifiers are retained. New references derive the H2
+  `data/.../<asset>/render/<asset>.max` source convention from the Foundry tag
+  path, use the asset filename as the object name and a stable signed identifier. H1's
+  JMS 8200 dialect cannot represent XREF records and rejects these markers.
+  Classic XREF records have no object-variant field, so a marker's requested
+  variant is not serialized.
 - Animation composites, external GR2 references, PCA and vector events are not
   representable by this path and are rejected. H1/H2 frame, sound and effect data
   are written to the compiled classic tag where that game's layout supports them.
