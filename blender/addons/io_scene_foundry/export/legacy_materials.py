@@ -28,9 +28,11 @@ def material_variant(shader, props, global_material='default', ass_version=None,
              bool(get('no_lightmap')), False, bool(get('decal_offset')), bool(get('slip_surface'))]
     suffixes = ('%', '#', '?', '!', '@', '*', '$', '^', '-', '&', '=', '', ';', ')', '', '<', '|', '~', '{', '}', '[', ']')
     name += ''.join(s for flag, s in zip(flags, suffixes) if flag)
-    lmres = get('lightmap_resolution_scale', 3)
-    if lmres != 3:
-        name += f' lm:{lmres / 3:g}'
+    legacy_resolution = target_game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
+    lmres = get('lightmap_resolution_scale', 1 if legacy_resolution else 3)
+    lmres_scale = lmres if legacy_resolution else lmres / 3
+    if lmres != (1 if legacy_resolution else 3):
+        name += f' lm:{lmres_scale:g}'
     power = get('lighting_emissive_power')
     if power:
         name += f' lp:{power:g}'
@@ -41,7 +43,7 @@ def material_variant(shader, props, global_material='default', ass_version=None,
         color = tuple(get('lighting_emissive_color', (1, 1, 1)))[:3]
         lighting = (
             'BM_FLAGS ' + ''.join('1' if v else '0' for v in flags),
-            'BM_LMRES ' + ' '.join(map(str, (lmres / 3, 1, *tint,
+            'BM_LMRES ' + ' '.join(map(str, (lmres_scale, 1, *tint,
                 int(get('lightmap_transparency_override')), *additive, int(get('lighting_use_shader_gel')),
                 int(get('lightmap_ignore_default_resolution_scale'))))),
             'BM_LIGHTING_BASIC ' + ' '.join(map(str, (power, *color, get('lighting_emissive_quality', 1),

@@ -3308,6 +3308,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.prop(item, "material_lighting_use_shader_gel", text="Shader Gel")
                     row = box.row()
                     row.prop(item, "material_lighting_emissive_per_unit")
+                case 'lightmap_resolution_scale':
+                    project = utils.get_project(self.scene_nwo.scene_project)
+                    if project and project.game in {'halo2', 'halo3', 'halo3odst'}:
+                        col.prop(item, 'lightmap_resolution_scale_legacy')
+                    else:
+                        col.prop(item, 'lightmap_resolution_scale')
                 case _:
                     col.prop(item, item.type)
             

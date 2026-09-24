@@ -251,7 +251,7 @@ face_mode_items = (
     'render_only',
     'collision_only',
     'sphere_collision_only',
-    # 'shadow_only',
+    'shadow_only',
     'breakable',
     'lightmap_only',
 )
@@ -260,39 +260,53 @@ face_mode_items = (
 # reuse removed values (6 was collision_type). Give new properties new numbers.
 face_prop_type_items = [
             ('face_mode', "Face Mode", ":", 0),
-            ('render_only', "Render Only", "reach,corinth:scenario,prefab", 1),
-            ('collision_only', "Collision Only", "reach,corinth:scenario,prefab", 2),
-            ('sphere_collision_only', "Sphere Collision Only", "reach,corinth:scenario,prefab", 3),
+            ('render_only', "Render Only", "halo1,halo2,halo3,halo3odst,reach,corinth:scenario,prefab", 1),
+            ('collision_only', "Collision Only", "halo1,halo2,halo3,halo3odst,reach,corinth:scenario,prefab", 2),
+            ('sphere_collision_only', "Sphere Collision Only", "halo1,halo2,halo3,halo3odst,reach,corinth:scenario,prefab", 3),
             # ('shadow_only', "Shadow Only", "reach,corinth:model,sky"), 
-            ('breakable', "Breakable", "reach:scenario", 4),
-            ('lightmap_only', "Lightmap Only", "reach,corinth:scenario,prefab", 5),
-            ('face_sides', "Two-Sided", "reach,corinth:model,scenario,prefab,sky", 7), # face_two_sided & face_two_sided_type
-            ('transparent', "Transparent", "reach,corinth:model,scenario,prefab,sky", 8),
-            ('region', "Region", "reach,corinth:model,sky", 9),
+            ('breakable', "Breakable", "halo1,halo2,halo3,halo3odst,reach:scenario", 4),
+            # Reach deliberately has no lightmap-only face mode.
+            ('lightmap_only', "Lightmap Only", "halo2,halo3,halo3odst,corinth:scenario,prefab", 5),
+            ('face_sides', "Two-Sided", "halo1,halo2,halo3,halo3odst,reach,corinth:model,scenario,prefab,sky", 7), # face_two_sided & face_two_sided_type
+            ('transparent', "Transparent", "halo1,halo2,halo3,halo3odst,reach,corinth:model,scenario,prefab,sky", 8),
+            ('region', "Region", "halo1,halo2,halo3,halo3odst,reach,corinth:model,sky", 9),
             ('draw_distance', "Draw Distance", "reach,corinth:model,sky", 10),
-            ('global_material', "Collision Material", "reach,corinth:model,scenario,prefab", 11),
-            ('ladder', "Ladder", "reach:model,scenario", 12),
-            ('slip_surface', "Slip Surface", "reach:model,scenario", 13),
-            ('decal_offset', "Decal Offset", "reach,corinth:model,scenario,prefab,sky", 14),
-            ('no_shadow', "No Shadow", "reach,corinth:model,scenario,prefab,sky", 15),
-            ('precise_position', "Precise", "reach,corinth:model,scenario,prefab,sky", 16),
+            ('global_material', "Collision Material", "halo1,halo2,halo3,halo3odst,reach,corinth:model,scenario,prefab", 11),
+            ('ladder', "Ladder", "halo1,halo2,halo3,halo3odst,reach:model,scenario", 12),
+            ('slip_surface', "Slip Surface", "halo3,halo3odst,reach:model,scenario", 13),
+            ('decal_offset', "Decal Offset", "halo2,halo3,halo3odst,reach,corinth:model,scenario,prefab,sky", 14),
+            ('no_shadow', "No Shadow", "halo2,halo3,halo3odst,reach,corinth:model,scenario,prefab,sky", 15),
+            ('precise_position', "Precise", "halo2,halo3,halo3odst,reach,corinth:model,scenario,prefab,sky", 16),
             ('uncompressed', "Uncompressed", "corinth:model,scenario,prefab,sky", 17),
             ('additional_compression', "Additional Compression", "reach,corinth:model,scenario,prefab,sky", 18),
-            ('no_lightmap', "No Lightmap", "corinth:model,scenario,prefab,sky", 19),
+            ('no_lightmap', "No Lightmap", "halo2,halo3,halo3odst,corinth:model,scenario,prefab,sky", 19),
             ('no_pvs', "No PVS", "corinth:model,scenario,prefab,sky", 20),
             ('mesh_tessellation_density', "Tessellation Density", "reach,corinth:model,scenario,prefab,sky", 21),
-            ('lightmap_resolution_scale', "Lightmap Resolution", "reach:scenario", 22),
-            ('lightmap_ignore_default_resolution_scale', "Lightmap Resolution Ignore Default", "reach,corinth:scenario,prefab", 23),
+            ('lightmap_resolution_scale', "Lightmap Resolution", "halo2,halo3,halo3odst,reach:scenario", 22),
+            ('lightmap_ignore_default_resolution_scale', "Lightmap Resolution Ignore Default", "halo3,halo3odst,reach,corinth:scenario,prefab", 23),
             ('lightmap_chart_group', "Lightmap Chart Group", "reach,corinth:scenario,prefab", 24),
             ('lightmap_type', "Lightmap Type", "reach,corinth:scenario,prefab", 25),
-            ('lightmap_additive_transparency', "Lightmap Additive Transparency", "reach,corinth:scenario,prefab", 26),
-            ('lightmap_transparency_override', "Lightmap Transparency Override", "reach,corinth:scenario,prefab", 27),
+            ('lightmap_additive_transparency', "Lightmap Additive Transparency", "halo3,halo3odst,reach,corinth:scenario,prefab", 26),
+            ('lightmap_transparency_override', "Lightmap Transparency Override", "halo3,halo3odst,reach,corinth:scenario,prefab", 27),
             ('lightmap_analytical_bounce_modifier', "Sunlight Bounce", "reach,corinth:scenario,prefab", 28),
             ('lightmap_general_bounce_modifier', "Light Bounce", "reach,corinth:scenario,prefab", 29),
-            ('lightmap_translucency_tint_color', "Lightmap Translucency", "reach,corinth:scenario,prefab", 30),
+            ('lightmap_translucency_tint_color', "Lightmap Translucency", "halo3,halo3odst,reach,corinth:scenario,prefab", 30),
             ('lightmap_lighting_from_both_sides', "Light Both Sides", "reach,corinth:scenario,prefab", 31),
-            ('emissive', "Emissive", "reach,corinth:scenario,prefab", 32), # all emissive props
+            ('emissive', "Emissive", "halo3,halo3odst,reach,corinth:scenario,prefab", 32), # all emissive props
+            ('shadow_only', "Shadow Only", "halo2,halo3,halo3odst:scenario", 33),
         ]
+
+
+def face_prop_game_supported(prop_type: str, game: str, face_mode: str | None = None) -> bool:
+    """Return whether a face property has an interchange representation in a game."""
+    if prop_type == 'face_mode' and face_mode == 'normal':
+        return True
+    lookup = face_mode if prop_type == 'face_mode' else prop_type
+    for name, _display_name, mask, _number in face_prop_type_items:
+        if name == lookup:
+            games = mask.partition(':')[0].split(',')
+            return game in games
+    return False
 
 face_prop_descriptions = {
     'face_mode': "By default the game will build multiple versions of this geometry for different uses, such as building the visible mesh and the collision mesh. You can use this to specify a specific type of geometry only to be built",

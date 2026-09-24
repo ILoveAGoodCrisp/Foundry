@@ -72,6 +72,7 @@ from ..constants import (
     OBJECT_TAG_EXTS,
     VALID_MESHES,
     WU_SCALAR,
+    face_prop_game_supported,
 )
 from ..tags.connected_material import GameFunctionType, game_functions
 from .. import utils
@@ -2431,6 +2432,7 @@ class JMSMaterialSlot:
         
         # lighting props
         self.lightmap_resolution_scale = None
+        self.lightmap_resolution_scale_legacy = None
         self.lightmap_translucency_tint_color = None
         self.lightmap_additive_transparency = None
         self.lightmap_transparency_override = None
@@ -2445,7 +2447,9 @@ class JMSMaterialSlot:
                 match match_groups[0]:
                     # Only handling lightmap res currently
                     case 'lm:':
-                        self.lightmap_resolution_scale = utils.clamp(int(float(match_groups[1]) * 3), 1, 7)
+                        value = float(match_groups[1])
+                        self.lightmap_resolution_scale_legacy = value
+                        self.lightmap_resolution_scale = utils.clamp(int(value * 3), 1, 7)
         
     def __eq__(self, __value: 'JMSMaterialSlot') -> bool:
         if not isinstance(__value, self.__class__):
@@ -2496,6 +2500,7 @@ class JMSMaterialSlot:
             return False
         
         if self.lightmap_resolution_scale != __value.lightmap_resolution_scale: return False
+        if self.lightmap_resolution_scale_legacy != __value.lightmap_resolution_scale_legacy: return False
         if self.lightmap_translucency_tint_color != __value.lightmap_translucency_tint_color: return False
         if self.lightmap_additive_transparency != __value.lightmap_additive_transparency: return False
         if self.lightmap_transparency_override != __value.lightmap_transparency_override: return False
@@ -2913,34 +2918,37 @@ class NWOImporter:
         driver.expression = var.name
 
     def _apply_jms_material_props(self, mesh: bpy.types.Mesh, nwo, jms_mat: 'JMSMaterialSlot', indices=None, apply_object_props=True):
-        if jms_mat.two_sided or jms_mat.transparent_two_sided:
+        game = getattr(self, 'game', None)
+        supports = lambda prop_type, face_mode=None: not game or face_prop_game_supported(prop_type, game, face_mode)
+
+        if (jms_mat.two_sided or jms_mat.transparent_two_sided) and supports('face_sides'):
             utils.add_face_prop(mesh, "face_sides", indices)
 
-        if jms_mat.transparent_one_sided or jms_mat.transparent_two_sided:
+        if (jms_mat.transparent_one_sided or jms_mat.transparent_two_sided) and supports('transparent'):
             utils.add_face_prop(mesh, "transparent", indices)
-        if jms_mat.render_only and not mesh.nwo.proxy_collision:
+        if jms_mat.render_only and not mesh.nwo.proxy_collision and supports('face_mode', 'render_only'):
             utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'render_only'
-        if jms_mat.collision_only:
+        if jms_mat.collision_only and supports('face_mode', 'collision_only'):
             utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'collision_only'
-        if jms_mat.sphere_collision_only:
+        if jms_mat.sphere_collision_only and supports('face_mode', 'sphere_collision_only'):
             utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'sphere_collision_only'
 
-        if jms_mat.ladder:
+        if jms_mat.ladder and supports('ladder'):
             utils.add_face_prop(mesh, "ladder", indices)
-        if jms_mat.breakable:
+        if jms_mat.breakable and supports('face_mode', 'breakable'):
             utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'breakable'
 
         if apply_object_props:
             nwo.portal_ai_deafening = jms_mat.ai_deafening
 
-        if jms_mat.no_shadow:
+        if jms_mat.no_shadow and supports('no_shadow'):
             utils.add_face_prop(mesh, "no_shadow", indices)
 
-        if jms_mat.lightmap_only:
+        if jms_mat.lightmap_only and supports('face_mode', 'lightmap_only'):
             utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'lightmap_only'
-        if jms_mat.shadow_only:
+        if jms_mat.shadow_only and supports('face_mode', 'shadow_only'):
             utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'shadow_only'
-        if jms_mat.precise:
+        if jms_mat.precise and supports('precise_position'):
             utils.add_face_prop(mesh, "precise_position", indices)
 
         if apply_object_props:
@@ -2951,26 +2959,30 @@ class NWOImporter:
                 nwo.portal_type = '_connected_geometry_portal_type_no_way'
             nwo.portal_blocks_sounds = jms_mat.blocks_sound
 
-        if jms_mat.ignored_by_lightmaps:
+        if jms_mat.ignored_by_lightmaps and supports('no_lightmap'):
             utils.add_face_prop(mesh, "no_lightmap", indices)
 
-        if jms_mat.decal_offset:
+        if jms_mat.decal_offset and supports('decal_offset'):
             utils.add_face_prop(mesh, "decal_offset", indices)
 
-        if jms_mat.slip_surface:
+        if jms_mat.slip_surface and supports('slip_surface'):
             utils.add_face_prop(mesh, "slip_surface", indices)
 
-        # Low (3) is Foundry's default and needs no face override.
-        if jms_mat.lightmap_resolution_scale and jms_mat.lightmap_resolution_scale != 3:
-            utils.add_face_prop(mesh, "lightmap_resolution_scale", indices).lightmap_resolution_scale = str(jms_mat.lightmap_resolution_scale)
-        if jms_mat.lightmap_additive_transparency:
+        # Legacy games store a multiplier (default 1); Reach stores a size-class
+        # enum (default 3). Preserve both interpretations on the same face prop.
+        legacy_resolution = getattr(jms_mat, 'lightmap_resolution_scale_legacy', None)
+        if legacy_resolution is not None and legacy_resolution != 1 and supports('lightmap_resolution_scale'):
+            prop = utils.add_face_prop(mesh, "lightmap_resolution_scale", indices)
+            prop.lightmap_resolution_scale_legacy = legacy_resolution
+            prop.lightmap_resolution_scale = str(jms_mat.lightmap_resolution_scale)
+        if jms_mat.lightmap_additive_transparency and supports('lightmap_additive_transparency'):
             utils.add_face_prop(mesh, "lightmap_additive_transparency", indices).lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
-        if jms_mat.lightmap_translucency_tint_color:
+        if jms_mat.lightmap_translucency_tint_color and supports('lightmap_translucency_tint_color'):
             utils.add_face_prop(mesh, "lightmap_translucency_tint_color", indices).lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
-        if jms_mat.lightmap_transparency_override:
+        if jms_mat.lightmap_transparency_override and supports('lightmap_transparency_override'):
             utils.add_face_prop(mesh, "lightmap_transparency_override", indices)
 
-        if jms_mat.emissive_power:
+        if jms_mat.emissive_power and supports('emissive'):
             prop = utils.add_face_prop(mesh, "emissive", indices)
             prop.material_lighting_emissive_power = jms_mat.emissive_power
             prop.material_lighting_emissive_color = jms_mat.emissive_color

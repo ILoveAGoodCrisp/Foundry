@@ -57,7 +57,7 @@ from ..auto_bsp import AutoBSPAssigner
 from .virtual_geometry import AnimatedBone, VectorEvent, VirtualAnimation, VirtualNode, VirtualScene
 from ..granny import Granny
 from .. import utils
-from ..constants import GENERAL_OBJECTS, IK_INFLUENCE_ROUNDING_TOLERANCE, VALID_MESHES, VALID_OBJECTS, WU_SCALAR
+from ..constants import GENERAL_OBJECTS, IK_INFLUENCE_ROUNDING_TOLERANCE, VALID_MESHES, VALID_OBJECTS, WU_SCALAR, face_prop_game_supported
 from ..tools.asset_types import AssetType
 
 MAXIMUM_CINEMATIC_SHOTS = 64
@@ -87,6 +87,8 @@ class ExportScene:
     def __init__(self, context: bpy.types.Context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings, start_scene):
         self.context = context
         self.legacy_export = utils.uses_legacy_export(scene_settings.scene_project)
+        project = utils.get_project(scene_settings.scene_project)
+        self.project_game = project.game if project else ('corinth' if corinth else 'reach')
         self.asset_type = AssetType[asset_type.upper()]
         self.supports_bsp = self.asset_type.supports_bsp
         self.asset_name = asset_name
@@ -1516,6 +1518,8 @@ class ExportScene:
                 face_props.extend(data_nwo.face_props)
         
         for prop in face_props:
+            if not face_prop_game_supported(prop.type, self.project_game, prop.face_mode if prop.type == 'face_mode' else None):
+                continue
             if prop.type in ('face_sides', 'transparent'):
                 face_sides_props.append(prop)
             elif prop.type == 'global_material' and self.asset_type.supports_global_materials:
@@ -1599,7 +1603,8 @@ class ExportScene:
                     mesh_props["bungie_mesh_tessellation_density"] = MeshTessellationDensity[prop.mesh_tessellation_density].value
                 
                 case 'lightmap_resolution_scale':
-                    mesh_props["bungie_lightmap_resolution_scale"] = int(prop.lightmap_resolution_scale)
+                    mesh_props["bungie_lightmap_resolution_scale"] = (prop.lightmap_resolution_scale_legacy
+                        if self.legacy_export else int(prop.lightmap_resolution_scale))
                 case 'lightmap_ignore_default_resolution_scale':
                     mesh_props["bungie_lightmap_ignore_default_resolution_scale"] = int(prop.lightmap_ignore_default_resolution_scale)
                 case 'lightmap_chart_group':

@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED = {'face_mode': 0, 'render_only': 1, 'collision_only': 2, 'sphere_collision_only': 3, 'breakable': 4, 'lightmap_only': 5, 'face_sides': 7, 'transparent': 8, 'region': 9, 'draw_distance': 10, 'global_material': 11, 'ladder': 12, 'slip_surface': 13, 'decal_offset': 14, 'no_shadow': 15, 'precise_position': 16, 'uncompressed': 17, 'additional_compression': 18, 'no_lightmap': 19, 'no_pvs': 20, 'mesh_tessellation_density': 21, 'lightmap_resolution_scale': 22, 'lightmap_ignore_default_resolution_scale': 23, 'lightmap_chart_group': 24, 'lightmap_type': 25, 'lightmap_additive_transparency': 26, 'lightmap_transparency_override': 27, 'lightmap_analytical_bounce_modifier': 28, 'lightmap_general_bounce_modifier': 29, 'lightmap_translucency_tint_color': 30, 'lightmap_lighting_from_both_sides': 31, 'emissive': 32}
+EXPECTED = {'face_mode': 0, 'render_only': 1, 'collision_only': 2, 'sphere_collision_only': 3, 'breakable': 4, 'lightmap_only': 5, 'face_sides': 7, 'transparent': 8, 'region': 9, 'draw_distance': 10, 'global_material': 11, 'ladder': 12, 'slip_surface': 13, 'decal_offset': 14, 'no_shadow': 15, 'precise_position': 16, 'uncompressed': 17, 'additional_compression': 18, 'no_lightmap': 19, 'no_pvs': 20, 'mesh_tessellation_density': 21, 'lightmap_resolution_scale': 22, 'lightmap_ignore_default_resolution_scale': 23, 'lightmap_chart_group': 24, 'lightmap_type': 25, 'lightmap_additive_transparency': 26, 'lightmap_transparency_override': 27, 'lightmap_analytical_bounce_modifier': 28, 'lightmap_general_bounce_modifier': 29, 'lightmap_translucency_tint_color': 30, 'lightmap_lighting_from_both_sides': 31, 'emissive': 32, 'shadow_only': 33}
 
 
 def enum_items():
@@ -28,6 +28,15 @@ class FacePropertyEnumTests(unittest.TestCase):
         self.assertNotIn('collision_type', actual)
         self.assertNotIn(6, actual.values())
         self.assertEqual(len(set(actual.values())), len(items))
+
+    def test_legacy_game_masks(self):
+        masks = {name: mask.partition(':')[0].split(',') for name, _label, mask, _number in enum_items()}
+        self.assertIn('halo3', masks['lightmap_only'])
+        self.assertNotIn('reach', masks['lightmap_only'])
+        self.assertIn('halo2', masks['lightmap_resolution_scale'])
+        self.assertIn('halo3odst', masks['lightmap_resolution_scale'])
+        self.assertNotIn('corinth', masks['lightmap_resolution_scale'])
+        self.assertEqual(masks['shadow_only'], ['halo2', 'halo3', 'halo3odst'])
 
     def test_blender_saved_values(self):
         try:

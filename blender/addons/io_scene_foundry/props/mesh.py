@@ -5,7 +5,7 @@ from math import radians
 import bpy
 
 from .. import utils
-from ..constants import face_prop_type_items, face_prop_descriptions
+from ..constants import face_prop_type_items, face_prop_descriptions, face_prop_game_supported
 
 from ..tools.property_apply import apply_props_material_data
 
@@ -19,6 +19,29 @@ class LightmapResolution(Enum):
     high = 5
     very_high = 6
     highest = 7
+
+
+FACE_MODE_UI_ITEMS = (
+    ('normal', "Render & Collision", "Mesh will be used to build both render geometry and collision", 0),
+    ('render_only', "Render Only", "Mesh will be visible but will not build collision", 1),
+    ('collision_only', "Collision Only", "Mesh will build collision but will not be visible", 2),
+    ('sphere_collision_only', "Sphere Collision Only", "Only physics objects collide with this invisible mesh", 3),
+    ('shadow_only', "Shadow Only", "Mesh is invisible except for casting shadows", 4),
+    ('lightmap_only', "Lightmap Only", "Mesh is used only by the lightmapper", 5),
+    ('breakable', "Breakable", "Collision geometry can be destroyed", 6),
+)
+
+
+def face_mode_ui_items(_self, context):
+    if not hasattr(utils, 'get_project'):
+        return list(FACE_MODE_UI_ITEMS)
+    scene_nwo = utils.get_scene_props()
+    project = utils.get_project(scene_nwo.scene_project)
+    if project is None:
+        return list(FACE_MODE_UI_ITEMS)
+    game = project.game
+    return [item for item in FACE_MODE_UI_ITEMS
+            if item[0] == 'normal' or face_prop_game_supported('face_mode', game, item[0])]
 
 class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     attribute_name: bpy.props.StringProperty(options={'HIDDEN'})
@@ -50,7 +73,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     def get_name(self):
         match self.type:
             case 'face_mode':
-                return f"{self.face_mode.replace('_', ' ').title()}"
+                return self.face_mode.replace('_', ' ').title() or "Unsupported Face Mode"
             case 'face_sides':
                 return "Two-Sided" if self.two_sided else "One-Sided"
             case 'transparent':
@@ -112,15 +135,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         name="Face Mode",
         description=face_prop_descriptions['face_mode'],
         options=set(),
-        items=[
-            ('normal', "Render & Collision", "Mesh will be used to build both render geometry and collision"),
-            ('render_only', "Render Only", "Mesh will be visible but the game will not build a collision representation of this mesh. It will not be collidable to either objects or projectiles"),
-            ('collision_only', "Collision Only", "Objects and projectiles will collide with this mesh but it will not be visible"),
-            ('sphere_collision_only', "Sphere Collision Only", "Only physics objects collide with this mesh. Projectiles will pass through it. Invisible"),
-            ('shadow_only', "Shadow Only", "Model only, invisible except to cast shadows"),
-            ('lightmap_only', "Lightmap Only", "Mesh will be invisible and uncollidable. It will only be used by the lightmapper"),
-            ('breakable', "Breakable", "Allows collision geometry to be destroyed. Mesh will be used to build both render geometry and collision. This type is non-functional in Halo 4 and Halo 2AMP"),
-        ]
+        items=face_mode_ui_items,
     )
     
     two_sided: bpy.props.BoolProperty(
@@ -283,6 +298,17 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             ('6', "Very High", "Default resolution = 256"),
             ('7', "Highest", "Default resolution = 512"),
         ]
+    )
+
+    # Halo 2, Halo 3, and ODST store a free-form multiplier. Keep it beside the
+    # Reach size-class enum so imported assets can be retargeted without losing
+    # either interpretation.
+    lightmap_resolution_scale_legacy: bpy.props.FloatProperty(
+        name="Lightmap Resolution Scale",
+        description="Legacy (Halo 2 through ODST) lightmap resolution multiplier",
+        options=set(),
+        default=1.0,
+        min=0.001,
     )
     
     lightmap_ignore_default_resolution_scale: bpy.props.BoolProperty(

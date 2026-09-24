@@ -279,7 +279,8 @@ class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
         scene_nwo = utils.get_scene_props()
-        corinth = utils.is_corinth(context)
+        project = utils.get_project(scene_nwo.scene_project)
+        game = project.game if project else 'reach'
         asset_type = scene_nwo.asset_type
         
         for name, display_name, mask, _ in sorted(face_prop_type_items, key=lambda x: x[1]):
@@ -287,9 +288,7 @@ class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
             games = games.split(",")
             asset_types = asset_types.split(",")
             if asset_type != 'resource':
-                if corinth and "corinth" not in games:
-                    continue
-                elif not corinth and "reach" not in games:
+                if game not in games:
                     continue
                 elif asset_type not in asset_types:
                     continue
@@ -299,7 +298,7 @@ class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
                     continue
                 elif name in {'global_material', 'slip_surface', 'ladder'} and asset_type == "model" and context.object.data.nwo.mesh_type != '_connected_geometry_mesh_type_collision':
                     continue
-                elif name == 'global_material' and asset_type != "model" and not corinth:
+                elif name == 'global_material' and asset_type != "model" and game != 'corinth':
                     continue
             layout.operator("nwo.face_attribute_add", text=display_name).options = name
 

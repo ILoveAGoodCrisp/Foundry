@@ -28,7 +28,7 @@ from ..tools.asset_types import AssetType
 
 from .cinematic import Actor, Frame
 
-from ..constants import IDENTITY_MATRIX, IK_INFLUENCE_ROUNDING_TOLERANCE, VALID_MESHES, WU_SCALAR
+from ..constants import IDENTITY_MATRIX, IK_INFLUENCE_ROUNDING_TOLERANCE, VALID_MESHES, WU_SCALAR, face_prop_game_supported
 NORMAL_FIX_MATRIX = Matrix(((1, 0, 0), (0, -1, 0), (0, 0, -1)))
 logging.basicConfig(level=logging.DEBUG)
 
@@ -2597,6 +2597,7 @@ class VirtualScene:
         self.time_step = time_step
         # self.time_step = 1.0010000467300415 / 30
         self.corinth = corinth
+        self.game = project.game if project else ('corinth' if corinth else 'reach')
         self.export_info: ExportInfo = None
         self.valid_bones = []
         self.structure = set()
@@ -3350,6 +3351,8 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     
     for material, material_indices in prop_mats_dict.items():
         for prop in material.nwo.material_props:
+            if not face_prop_game_supported(prop.type, scene.game, prop.face_mode if prop.type == 'face_mode' else None):
+                continue
             match prop.type:
                 case 'face_mode':
                     if props.get("bungie_face_mode") is None:
@@ -3431,7 +3434,11 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         face_properties.setdefault("bungie_mesh_tessellation_density", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_tessellation_density"], dtype=np.int32))).update_from_material(mesh, material_indices, MeshTessellationDensity[prop.mesh_tessellation_density].value)
                 case 'lightmap_resolution_scale':
                     if props.get("bungie_lightmap_resolution_scale") is None:
-                        face_properties.setdefault("bungie_lightmap_resolution_scale", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_resolution_scale"], dtype=np.int32))).update_from_material(mesh, material_indices, int(prop.lightmap_resolution_scale))
+                        legacy = scene.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
+                        default = 1.0 if legacy else face_prop_defaults["bungie_lightmap_resolution_scale"]
+                        value = prop.lightmap_resolution_scale_legacy if legacy else int(prop.lightmap_resolution_scale)
+                        dtype = np.single if legacy else np.int32
+                        face_properties.setdefault("bungie_lightmap_resolution_scale", FaceSet(np.full(num_faces, default, dtype=dtype))).update_from_material(mesh, material_indices, value)
                 case 'lightmap_ignore_default_resolution_scale':
                     if props.get("bungie_lightmap_ignore_default_resolution_scale") is None:
                         face_properties.setdefault("bungie_lightmap_ignore_default_resolution_scale", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_ignore_default_resolution_scale"], dtype=np.int32))).update_from_material(mesh, material_indices, int(prop.lightmap_ignore_default_resolution_scale))
@@ -3477,6 +3484,8 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
         
     
     for prop in mesh_props.face_props:
+        if not face_prop_game_supported(prop.type, scene.game, prop.face_mode if prop.type == 'face_mode' else None):
+            continue
         match prop.type:
             case 'face_mode':
                 if props.get("bungie_face_mode") is None:
@@ -3567,7 +3576,11 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     face_properties.setdefault("bungie_mesh_tessellation_density", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_tessellation_density"], dtype=np.int32))).update(mesh, prop, MeshTessellationDensity[prop.mesh_tessellation_density].value)
             case 'lightmap_resolution_scale':
                 if props.get("bungie_lightmap_resolution_scale") is None:
-                    face_properties.setdefault("bungie_lightmap_resolution_scale", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_resolution_scale"], dtype=np.int32))).update(mesh, prop, int(prop.lightmap_resolution_scale))
+                    legacy = scene.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
+                    default = 1.0 if legacy else face_prop_defaults["bungie_lightmap_resolution_scale"]
+                    value = prop.lightmap_resolution_scale_legacy if legacy else int(prop.lightmap_resolution_scale)
+                    dtype = np.single if legacy else np.int32
+                    face_properties.setdefault("bungie_lightmap_resolution_scale", FaceSet(np.full(num_faces, default, dtype=dtype))).update(mesh, prop, value)
             case 'lightmap_ignore_default_resolution_scale':
                 if props.get("bungie_lightmap_ignore_default_resolution_scale") is None and prop.lightmap_ignore_default_resolution_scale:
                     face_properties.setdefault("bungie_lightmap_ignore_default_resolution_scale", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_ignore_default_resolution_scale"], dtype=np.int32))).update(mesh, prop, 1)

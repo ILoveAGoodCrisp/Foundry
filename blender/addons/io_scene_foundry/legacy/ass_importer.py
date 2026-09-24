@@ -13,6 +13,7 @@ from .ass_format import ASS, ASSError
 from .jms_format import JMS, Material, Node, Transform, Shape
 from .jms_importer import JMSImporter
 from .. import utils
+from ..constants import face_prop_game_supported
 
 
 class ASSImporter(JMSImporter):
@@ -114,6 +115,7 @@ class ASSImporter(JMSImporter):
                         nums = [float(v) for v in values]
                         if len(nums) not in (3, 5, 10, 11):
                             raise ValueError('unexpected lightmap record length')
+                        p.lightmap_resolution_scale_legacy = nums[0]
                         p.lightmap_resolution_scale = utils.clamp(int(nums[0] * 3), 1, 7)
                         tint = (nums[2],) * 3 if len(nums) == 3 else tuple(nums[2:5])
                         p.lightmap_translucency_tint_color = tint if any(tint) else None
@@ -145,7 +147,9 @@ class ASSImporter(JMSImporter):
         if self.active_kind == 'collision' and not self.is_model:
             utils.add_face_prop(ob.data, 'face_mode').face_mode = 'collision_only'
         for index, faces in faces_by_material.items():
-            if index in self.props and self.props[index].ignore_default_resolution and faces:
+            game = getattr(self.owner, 'game', None)
+            if (index in self.props and self.props[index].ignore_default_resolution and faces
+                    and (not game or face_prop_game_supported('lightmap_ignore_default_resolution_scale', game))):
                 mask = [False] * len(ob.data.polygons)
                 for face in faces:
                     mask[face] = True
