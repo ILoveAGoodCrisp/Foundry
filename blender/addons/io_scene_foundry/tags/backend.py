@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from types import TracebackType
 from typing import TYPE_CHECKING, Protocol, Self, cast, runtime_checkable
+import zlib
 
 if TYPE_CHECKING:
     import blam_tags
@@ -41,6 +42,10 @@ class ArrayValue(Protocol):
 
 TagPathInput = str | PathLike[str] | RelativeTagPath
 ControlPoint = tuple[tuple[float, float, float], tuple[float, float, float, float]]
+LEGACY_IMPORT_INFO_SUFFIXES = frozenset({
+    '.ass', '.jms', '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo',
+    '.jmr', '.jmrx',
+})
 
 PROFILES: dict[str, str] = {
     'halo1': 'haloce_mcc', 'halo2': 'halo2_mcc', 'halo3': 'halo3_mcc',
@@ -77,6 +82,26 @@ class TagReference:
 
     def IsTagFileAccessible(self) -> bool:
         return Path(self.Filename).is_file()
+
+
+@dataclass(frozen=True)
+class ImportInfoSource:
+    """One source file retained in a tag's import-information metadata."""
+
+    path: str
+    size: int
+    compressed_data: bytes
+
+    @property
+    def suffix(self) -> str:
+        return Path(self.path.replace('\\', '/')).suffix.lower()
+
+    def decompressed_data(self) -> bytes:
+        data = zlib.decompress(self.compressed_data)
+        if len(data) != self.size:
+            raise ValueError(
+                f'{self.path}: import-info size is {self.size}, decompressed to {len(data)} bytes')
+        return data
 
 
 @lru_cache(maxsize=32)
@@ -222,6 +247,53 @@ class TagDocument:
         if field.value != value:
             field.set(value)
             self.tag_has_changes = True
+
+    def import_info_sources(self) -> list[ImportInfoSource]:
+        """Return JMS/ASS/JMA payloads from modern or classic import info.
+
+        Modern tags store import information as a separate top-level struct. Halo 2
+        stores the same records in an ``import info`` block on the tag root. GR2 and
+        all other source formats are deliberately omitted until their importers exist.
+        """
+        info_structs: list[blam_tags.TagStruct] = []
+        attached = self.tag.import_info()
+        if attached is not None:
+            info_structs.append(attached)
+        else:
+            embedded = self.tag.root().field('import info')
+            if embedded is not None:
+                block = embedded.as_block()
+                if block is not None:
+                    info_structs.extend(block[index] for index in range(len(block)))
+                else:
+                    struct = embedded.as_struct()
+                    if struct is not None:
+                        info_structs.append(struct)
+
+        sources: list[ImportInfoSource] = []
+        for info in info_structs:
+            files_field = info.field('files')
+            files = None if files_field is None else files_field.as_block()
+            if files is None:
+                continue
+            for element in files:
+                path_field = element.field('path')
+                data_field = element.field('zipped data')
+                size_field = element.field('size')
+                if path_field is None or data_field is None or size_field is None:
+                    continue
+                path = str(path_field.value or '').strip()
+                suffix = Path(path.replace('\\', '/')).suffix.lower()
+                if not path or suffix not in LEGACY_IMPORT_INFO_SUFFIXES:
+                    continue
+                compressed_data = data_field.as_data()
+                if not compressed_data:
+                    continue
+                size = int(size_field.value)
+                if size < 0:
+                    continue
+                sources.append(ImportInfoSource(path, size, compressed_data))
+        return sources
 
     @staticmethod
     def path_exists(path: TagReference | None) -> bool:

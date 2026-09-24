@@ -6,8 +6,10 @@ from math import radians
 import os
 from pathlib import Path, PureWindowsPath
 import re
+from tempfile import TemporaryDirectory
 import time
 import traceback
+import zlib
 from uuid import uuid4
 import bmesh
 import bpy
@@ -33,7 +35,7 @@ from ..tags.structure_design_blender import StructureDesignTag
 
 from ..tags.globals import FPARMS, GlobalsTag
 
-from ..tags.backend import TagDocument
+from ..tags.backend import ImportInfoSource, TagDocument
 from ..tags.multiplayer import MultiplayerObjectTypeListTag
 from ..tags.prefab import PrefabTag
 from ..tags.scenario import ScenarioMetadataTag
@@ -1341,6 +1343,12 @@ class NWO_Import(bpy.types.Operator):
         description="Builds an FK & IK control rig for imported models",
         default=False,
     )
+
+    use_import_info: bpy.props.BoolProperty(
+        name="Use Import Info",
+        description="Imports embedded JMS, ASS, and JMA source data instead of compiled tag data when available. GR2 source data is currently ignored",
+        default=False,
+    )
     
     def execute(self, context):
         global deferred_ops
@@ -1388,7 +1396,7 @@ class NWO_Import(bpy.types.Operator):
         scene_collection_map = defaultdict(set)
         scene_datas = []
 
-        with utils.ExportManager():
+        with TemporaryDirectory(prefix="foundry_import_info_") as import_info_directory, utils.ExportManager():
             utils.clear_output()
             
             if not self.place_at_mouse and scene_nwo_export.show_output:
@@ -1407,6 +1415,9 @@ class NWO_Import(bpy.types.Operator):
                     scope_list = self.scope.split(',')
                     
                 importer = NWOImporter(context, filepaths, scope_list)
+                if self.use_import_info:
+                    importer.configure_import_info(Path(import_info_directory))
+                    importer.add_import_info_sources(filepaths)
                 importer.graph_bake_to_control_rig = self.graph_bake_to_control_rig
                 importer.graph_convert_to_reach = self.graph_convert_to_reach
                 importer.render_lod = self.render_lod
@@ -2292,6 +2303,10 @@ class NWO_Import(bpy.types.Operator):
         layout.scale_y = 1.25
         corinth = utils.is_corinth(context)
         scope_items = set(self.scope.split(',')) if self.scope else set()
+        if not scope_items or any(item not in {'jms', 'jma'} for item in scope_items):
+            box = layout.box()
+            box.label(text="Tag Source Data")
+            box.prop(self, "use_import_info")
         if not self.scope or ('jms' in self.scope or 'model' in self.scope or 'object' in self.scope or 'render_model' in self.scope):
             box = layout.box()
             box.label(text="Model Settings")
@@ -2633,6 +2648,10 @@ class NWOImporter:
         self.control_rig_action_batches = []
         
         self.tag_model_override_type = None
+        self.use_import_info = False
+        self.import_info_output_root = None
+        self.import_info_source_cache = {}
+        self.import_info_source_index = 0
         
         clear_cache()
         
@@ -2665,6 +2684,102 @@ class NWOImporter:
             filetype_dict[k] = list(v)
                 
         return filetype_dict
+
+    @staticmethod
+    def _import_info_output_path(root: Path, source: ImportInfoSource, index: int) -> Path:
+        parts = [
+            part for part in PureWindowsPath(source.path).parts
+            if part not in {'\\', '/', '.', '..'} and ':' not in part
+        ]
+        data_index = next(
+            (i for i, part in enumerate(parts) if part.casefold() == 'data'), None)
+        relative_parts = parts[data_index + 1:] if data_index is not None else parts[-1:]
+        if not relative_parts:
+            relative_parts = [f"source_{index}{source.suffix}"]
+        return root.joinpath(*relative_parts)
+
+    def configure_import_info(self, output_root: Path):
+        self.use_import_info = True
+        self.import_info_output_root = output_root
+
+    def import_info_sources_for_tag(self, tag_path) -> list[str]:
+        if not self.use_import_info or self.import_info_output_root is None:
+            return []
+        key = os.path.normcase(os.path.abspath(tag_path))
+        cached = self.import_info_source_cache.get(key)
+        if cached is not None:
+            return cached
+        self.import_info_source_cache[key] = []
+        if Path(tag_path).suffix.lower() in legacy_model_formats + legacy_animation_formats:
+            return []
+        try:
+            with utils.TagImportMover(self.tags_dir, tag_path) as mover:
+                with TagDocument(
+                    mover.tag_path,
+                    tags_root=self.tags_dir,
+                    game=self.game,
+                    must_exist=True,
+                ) as document:
+                    sources = document.import_info_sources()
+        except Exception as exc:
+            utils.print_warning(f"Could not read import info from {tag_path}: {exc}")
+            return []
+
+        tag_output = self.import_info_output_root / f"tag_{self.import_info_source_index:04d}"
+        self.import_info_source_index += 1
+        extracted = []
+        extraction_failed = False
+        for source_index, source in enumerate(sources):
+            try:
+                output_path = self._import_info_output_path(tag_output, source, source_index)
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                if output_path.exists():
+                    output_path = output_path.with_name(
+                        f"{output_path.stem}_{source_index}{output_path.suffix}")
+                output_path.write_bytes(source.decompressed_data())
+            except (OSError, ValueError, zlib.error) as exc:
+                utils.print_warning(
+                    f"Could not extract import-info source {source.path}: {exc}")
+                extraction_failed = True
+                continue
+            extracted.append(str(output_path))
+
+        if extraction_failed:
+            utils.print_warning(
+                f"Falling back to compiled tag data for {Path(tag_path).name}")
+            return []
+
+        self.import_info_source_cache[key] = extracted
+        if extracted:
+            utils.print_tag(
+                f"Using {len(extracted)} import-info source file"
+                f"{'' if len(extracted) == 1 else 's'} from {Path(tag_path).name}")
+        return extracted
+
+    def add_import_info_sources(self, tag_paths):
+        """Substitute import-info sources for selected compiled tags."""
+        replacements = set()
+        extracted = []
+        for tag_path in tag_paths:
+            tag_sources = self.import_info_sources_for_tag(tag_path)
+            if tag_sources:
+                replacements.add(os.path.normcase(os.path.abspath(tag_path)))
+                extracted.extend(tag_sources)
+
+        if not extracted:
+            return
+
+        for filetype, paths in self.sorted_filepaths.items():
+            self.sorted_filepaths[filetype] = [
+                path for path in paths
+                if os.path.normcase(os.path.abspath(path)) not in replacements
+            ]
+
+        for path in extracted:
+            suffix = Path(path).suffix.lower()
+            filetype = 'jms' if suffix in legacy_model_formats else 'jma'
+            self.sorted_filepaths.setdefault(filetype, []).append(path)
+            self.extensions.add(filetype)
         
     # Utility functions
 
@@ -3638,6 +3753,14 @@ class NWOImporter:
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False, allow_control_rig=True):
         if not skip_print:
             utils.print_tag("Importing Render Model")
+        source_files = [
+            path for path in self.import_info_sources_for_tag(file)
+            if Path(path).suffix.lower() in legacy_model_formats
+        ]
+        if source_files:
+            objects = self.import_jms_files(source_files, 'model')
+            armature = next((ob for ob in objects if ob.type == 'ARMATURE'), existing_armature)
+            return objects, armature
         render_model_objects = []
         armature = None
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
@@ -3651,6 +3774,12 @@ class NWOImporter:
     
     def import_collision_model(self, file, armature, model_collection,allowed_region_permutations):
         print("Importing Collision Model")
+        source_files = [
+            path for path in self.import_info_sources_for_tag(file)
+            if Path(path).suffix.lower() in legacy_model_formats
+        ]
+        if source_files:
+            return self.import_jms_files(source_files, 'model')
         collision_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
         collection.hide_render = True
@@ -3663,6 +3792,12 @@ class NWOImporter:
     
     def import_physics_model(self, file, armature, model_collection, allowed_region_permutations):
         print("Importing Physics Model")
+        source_files = [
+            path for path in self.import_info_sources_for_tag(file)
+            if Path(path).suffix.lower() in legacy_model_formats
+        ]
+        if source_files:
+            return self.import_jms_files(source_files, 'model')
         physics_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
         collection.hide_render = True
@@ -3674,6 +3809,15 @@ class NWOImporter:
         return physics_model_objects
     
     def import_animation_graph(self, file, armature, render, return_animations=False):
+        source_files = [
+            path for path in self.import_info_sources_for_tag(file)
+            if Path(path).suffix.lower() in legacy_animation_formats
+        ]
+        if source_files:
+            imported_animation_start = len(self.scene_nwo.animations)
+            actions = self.import_jma_files(source_files, armature)
+            animations = list(self.scene_nwo.animations[imported_animation_start:])
+            return (actions, animations) if return_animations else actions
         actions = []
         animations = []
         imported_animation_start = len(self.scene_nwo.animations)
@@ -4131,6 +4275,12 @@ class NWOImporter:
         bsp_name = Path(file).with_suffix("").name
         bvh = None
         utils.print_tag(f"Importing BSP {bsp_name}")
+        source_files = [
+            path for path in self.import_info_sources_for_tag(file)
+            if Path(path).suffix.lower() in legacy_model_formats
+        ]
+        if source_files:
+            return self.import_jms_files(source_files, 'bsp'), None
         bsp_objects = []
         collection = bpy.data.collections.get(bsp_name)
         if collection is not None and collection.nwo.type != 'region':
@@ -4203,6 +4353,12 @@ class NWOImporter:
     def import_structure_design(self, file, scenario_collection=None):
         design_name = Path(file).with_suffix("").name
         print(f"\nImporting Structure Design {design_name}")
+        source_files = [
+            path for path in self.import_info_sources_for_tag(file)
+            if Path(path).suffix.lower() in legacy_model_formats
+        ]
+        if source_files:
+            return self.import_jms_files(source_files, 'bsp')
         design_objects = []
         collection = bpy.data.collections.get(design_name)
         if collection is None:
@@ -4244,6 +4400,17 @@ class NWOImporter:
             bsp_ref = prefab.bsp_path()
             if bsp_ref is None:
                 return
+
+        source_files = [
+            path for path in self.import_info_sources_for_tag(bsp_ref.Filename)
+            if Path(path).suffix.lower() in legacy_model_formats
+        ]
+        if source_files:
+            objects = self.import_jms_files(source_files, 'bsp')
+            bpy.data.collections.remove(collection)
+            if is_game_object:
+                return objects[0].users_collection[0] if objects else None
+            return objects
             
         with ScenarioStructureBspTag(path=bsp_ref) as bsp:
             bsp_objects, _, _ = bsp.to_blend_objects(collection, self.tag_bsp_render_only, import_geometry=self.tag_bsp_import_geometry, import_lights=self.tag_import_lights, import_havok=self.tag_bsp_import_havok, skip_structure_merge=self.tag_bsp_skip_structure_merge)
@@ -4278,6 +4445,12 @@ class NWOImporter:
     def import_particle_model(self, file):
         filename = Path(file).with_suffix("").name
         print(f"Importing Particle Model: {filename}")
+        source_files = [
+            path for path in self.import_info_sources_for_tag(file)
+            if Path(path).suffix.lower() in legacy_model_formats
+        ]
+        if source_files:
+            return self.import_jms_files(source_files, 'model')
         particle_model_objects = []
         collection = bpy.data.collections.new(f"{filename}_particle")
         self.scene_collection.children.link(collection)
@@ -4302,6 +4475,16 @@ class NWOImporter:
             if only_single_type is not None:
                 global last_used_decorator_type
                 last_used_decorator_type = single_type
+
+        source_files = [
+            path for path in self.import_info_sources_for_tag(file)
+            if Path(path).suffix.lower() in legacy_model_formats
+        ]
+        if source_files:
+            objects = self.import_jms_files(source_files, 'model')
+            if is_game_object:
+                return objects[0].users_collection[0] if objects else None
+            return objects
             
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name))
         self.scene_collection.children.link(collection)
@@ -5009,6 +5192,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="Builds an FK and IK control rig for imported models",
         default=False,
     )
+
+    use_import_info: bpy.props.BoolProperty(
+        name="Use Import Info",
+        description="Imports embedded JMS, ASS, and JMA source data instead of compiled tag data when available. GR2 source data is currently ignored",
+        default=False,
+    )
     
     @classmethod
     def poll(cls, context):
@@ -5134,6 +5323,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         layout.use_property_split = True
         layout.label(text=f"Importing: {Path(self.filepath).name}")
         corinth = utils.is_corinth(context)
+        if self.import_type not in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
+            layout.prop(self, "use_import_info")
         match self.import_type:
             case "model" | "biped" | "crate" | "creature" | "device_control" | "device_dispenser" | "effect_scenery" | "equipment" | "giant" | "device_machine" | "projectile" | "scenery" | "spawner" | "sound_scenery" | "device_terminal" | "vehicle" | "weapon":
                 if self.place_at_mouse:

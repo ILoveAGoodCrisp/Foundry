@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+import zlib
 
 ADDON = Path(__file__).resolve().parents[1] / 'blender/addons/io_scene_foundry'
 spec = importlib.util.spec_from_file_location('foundry_tags', ADDON / 'tags/backend.py')
@@ -15,6 +16,73 @@ POINTS = [((1., 2., 3.), (0., 0., 0., 1.)), ((4., 5., 6.), (0., 0., 1., 0.))]
 
 
 class BackendTests(unittest.TestCase):
+    class _Field:
+        def __init__(self, value=None, *, block=None, struct=None, data=None):
+            self.value = value
+            self._block = block
+            self._struct = struct
+            self._data = data
+
+        def as_block(self):
+            return self._block
+
+        def as_struct(self):
+            return self._struct
+
+        def as_data(self):
+            return self._data
+
+    class _Struct:
+        def __init__(self, **fields):
+            self._fields = fields
+
+        def field(self, name):
+            return self._fields.get(name)
+
+    class _Tag:
+        def __init__(self, root, attached=None):
+            self._root = root
+            self._attached = attached
+
+        def root(self):
+            return self._root
+
+        def import_info(self):
+            return self._attached
+
+    @classmethod
+    def _source_element(cls, path, data):
+        return cls._Struct(**{
+            'path': cls._Field(path),
+            'size': cls._Field(len(data)),
+            'zipped data': cls._Field(data=zlib.compress(data)),
+        })
+
+    def test_modern_import_info_returns_only_supported_legacy_sources(self):
+        jms = self._source_element(r'data\objects\test.jms', b'jms data')
+        gr2 = self._source_element(r'data\objects\test.gr2', b'gr2 data')
+        info = self._Struct(files=self._Field(block=[jms, gr2]))
+        document = backend.TagDocument.__new__(backend.TagDocument)
+        document._tag = self._Tag(self._Struct(), attached=info)
+
+        sources = document.import_info_sources()
+
+        self.assertEqual([source.path for source in sources], [r'data\objects\test.jms'])
+        self.assertEqual(sources[0].decompressed_data(), b'jms data')
+
+    def test_classic_embedded_import_info_and_size_validation(self):
+        ass = self._source_element(r'data\levels\test.ass', b'ass data')
+        info = self._Struct(files=self._Field(block=[ass]))
+        root = self._Struct(**{'import info': self._Field(block=[info])})
+        document = backend.TagDocument.__new__(backend.TagDocument)
+        document._tag = self._Tag(root)
+
+        source = document.import_info_sources()[0]
+        self.assertEqual(source.suffix, '.ass')
+        with self.assertRaisesRegex(ValueError, 'decompressed to'):
+            backend.ImportInfoSource(source.path, source.size + 1,
+                                     source.compressed_data).decompressed_data()
+
     def test_all_title_schemas_roundtrip_and_replace(self):
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root:
