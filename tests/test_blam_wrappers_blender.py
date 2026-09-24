@@ -36,6 +36,110 @@ from io_scene_foundry.tags.material_shader import MaterialShaderTag
 
 
 class WrapperTests(unittest.TestCase):
+    def test_material_opens_in_generation_specific_tag_editor(self):
+        from io_scene_foundry.ui.panel import material
+        from io_scene_foundry.tools import halo_launcher
+
+        with tempfile.TemporaryDirectory() as root:
+            tag_path = Path(root, 'test.shader_model')
+            tag_path.touch()
+            context = SimpleNamespace(
+                object=SimpleNamespace(
+                    active_material=SimpleNamespace(
+                        nwo=SimpleNamespace(shader_path=tag_path.name))))
+            operator = SimpleNamespace(report=lambda *_args: None)
+
+            with patch.object(material.utils, 'get_tags_path', return_value=root), \
+                 patch.object(material.utils, 'run_ek_cmd') as run, \
+                 patch.object(halo_launcher, 'tag_editor_executable', return_value='guerilla.exe'):
+                material.NWO_OT_MaterialOpenTag.execute(operator, context)
+                run.assert_called_once_with(['guerilla.exe', str(tag_path)], True)
+
+            with patch.object(material.utils, 'get_tags_path', return_value=root), \
+                 patch.object(material.utils, 'run_ek_cmd') as run, \
+                 patch.object(halo_launcher, 'tag_editor_executable', return_value='Foundation.exe'):
+                material.NWO_OT_MaterialOpenTag.execute(operator, context)
+                run.assert_called_once_with(
+                    ['Foundation.exe', '/dontloadlastopenedwindows', str(tag_path)], True)
+
+    def test_halo1_import_sets_classic_model_templates(self):
+        from io_scene_foundry.tools import importer
+        from io_scene_foundry.tools import get_tag_list
+
+        with tempfile.TemporaryDirectory() as root:
+            render_path = Path('objects/test/test.gbxmodel')
+            for extension in ('.gbxmodel', '.model_collision_geometry',
+                              '.model_animations', '.scenery'):
+                path = Path(root, render_path.with_suffix(extension))
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+
+            scene_nwo = SimpleNamespace(
+                template_model='stale.model',
+                template_render_model='',
+                template_collision_model='stale.collision_model',
+                template_model_animation_graph='stale.model_animation_graph',
+                template_physics_model='stale.physics_model',
+            )
+            armature = SimpleNamespace(
+                type='ARMATURE', name='test',
+                nwo=SimpleNamespace(node_order_source=str(render_path)))
+            class FakeAnimation:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *_args):
+                    pass
+
+                def get_nodes(self):
+                    return []
+
+                def node_usages(self):
+                    return {}
+
+            with patch.object(importer.utils, 'get_scene_props', return_value=scene_nwo), \
+                 patch.object(importer.utils, 'get_project', return_value=SimpleNamespace(game='halo1')), \
+                 patch.object(importer.utils, 'get_tags_path', return_value=root), \
+                 patch.object(importer, 'AnimationGraphTag', return_value=FakeAnimation()):
+                importer.set_asset('.scenery', armature)
+
+            self.assertEqual(scene_nwo.template_model, '')
+            self.assertEqual(scene_nwo.template_render_model, str(render_path))
+            self.assertEqual(
+                scene_nwo.template_collision_model,
+                str(render_path.with_suffix('.model_collision_geometry')))
+            self.assertEqual(
+                scene_nwo.template_model_animation_graph,
+                str(render_path.with_suffix('.model_animations')))
+            self.assertEqual(scene_nwo.template_physics_model, '')
+
+            with patch.object(utils, 'valid_nwo_asset', return_value=True), \
+                 patch.object(utils, 'get_asset_info', return_value=(str(render_path.parent), 'test')), \
+                 patch.object(utils, 'get_project', return_value=SimpleNamespace(game='halo1')), \
+                 patch.object(utils, 'get_tags_path', return_value=root):
+                self.assertEqual(utils.get_asset_render_model(), str(render_path))
+                self.assertEqual(
+                    utils.get_asset_collision_model(),
+                    str(render_path.with_suffix('.model_collision_geometry')))
+                self.assertEqual(
+                    utils.get_asset_animation_graph(),
+                    str(render_path.with_suffix('.model_animations')))
+
+            with patch.object(get_tag_list, 'get_project',
+                              return_value=SimpleNamespace(game='halo1')):
+                self.assertEqual(
+                    get_tag_list.extensions_from_type('template_render_model'),
+                    ('.model', '.gbxmodel'))
+                self.assertEqual(
+                    get_tag_list.extensions_from_type('template_collision_model'),
+                    '.model_collision_geometry')
+                self.assertEqual(
+                    get_tag_list.extensions_from_type('template_model_animation_graph'),
+                    '.model_animations')
+                self.assertEqual(
+                    get_tag_list.get_glob_from_prop('template_render_model'),
+                    '*.model;*.gbxmodel')
+
     def test_halo1_render_mesh_skips_unsupported_face_properties(self):
         from io_scene_foundry.tags import connected_geometry as geometry
 
@@ -1467,6 +1571,50 @@ class WrapperTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, 'invalid edge loop'):
                         tag.read_collision()
                 self.assertEqual((Path(root) / 'test.collision_model').read_bytes(), before)
+
+    def test_halo1_collision_uses_node_region_and_bsp_permutation(self):
+        from io_scene_foundry.tags.collision_blender import CollisionTag
+
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(utils, 'get_scene_props', return_value=SimpleNamespace(scene_project='test')), \
+             patch.object(utils, 'get_project', return_value=SimpleNamespace(game='halo1')), \
+             patch.object(utils, 'get_tags_path', return_value=root):
+            with CollisionTag('test.model_collision_geometry') as tag:
+                def add(parent, name):
+                    block = tag.block(parent, name)
+                    return block[block.add()]
+
+                region = add(tag.tag.root(), 'regions')
+                tag.required_field(region, 'name').set('__unnamed')
+                permutation = add(region, 'permutations')
+                tag.required_field(permutation, 'name').set('base00')
+
+                node = add(tag.tag.root(), 'nodes')
+                tag.required_field(node, 'name').set('frame rock')
+                tag.required_field(node, 'region').set(0)
+                bsp = add(node, 'bsps')
+                for point in ((0., 0., 0.), (1., 0., 0.), (0., 1., 0.)):
+                    vertex = add(bsp, 'vertices')
+                    field = tag.required_field(vertex, 'point')
+                    field.set(type(field.value)(*point))
+                for i in range(3):
+                    edge = add(bsp, 'edges')
+                    for name, value in (
+                            ('start vertex', i), ('end vertex', (i + 1) % 3),
+                            ('forward edge', (i + 1) % 3), ('reverse edge', -1),
+                            ('left surface', 0), ('right surface', -1)):
+                        tag.required_field(edge, name).set(value)
+                surface = add(bsp, 'surfaces')
+                tag.required_field(surface, 'first edge').set(0)
+                tag.required_field(surface, 'material').set(-1)
+
+            with CollisionTag('test.model_collision_geometry') as tag:
+                meshes, _spheres = tag.read_collision()
+
+            self.assertEqual(len(meshes), 1)
+            self.assertEqual(meshes[0].region, '__unnamed')
+            self.assertEqual(meshes[0].permutation, 'base00')
+            self.assertEqual(meshes[0].bone, 'frame rock')
 
     def test_native_pca_creates_shape_keys_and_animation(self):
         import bpy

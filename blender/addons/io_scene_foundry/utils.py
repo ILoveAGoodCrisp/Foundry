@@ -4327,7 +4327,9 @@ def area_light_to_emissive(light_ob: bpy.types.Object, corinth: bool):
 def get_asset_animation_graph(full=False):
     if valid_nwo_asset(bpy.context):
         asset_dir, asset_name = get_asset_info()
-        tag_path = Path(asset_dir, asset_name).with_suffix(".model_animation_graph")
+        project = get_project()
+        extension = ".model_animations" if project is not None and project.game == 'halo1' else ".model_animation_graph"
+        tag_path = Path(asset_dir, asset_name).with_suffix(extension)
         full_path = Path(get_tags_path(), tag_path)
         if full_path.exists():
             if full:
@@ -4338,18 +4340,23 @@ def get_asset_animation_graph(full=False):
 def get_asset_render_model(full=False):
     if valid_nwo_asset(bpy.context):
         asset_dir, asset_name = get_asset_info()
-        tag_path = Path(asset_dir, asset_name).with_suffix(".render_model")
-        full_path = Path(get_tags_path(), tag_path)
-        if full_path.exists():
-            if full:
-                return str(full_path)
-            else:
-                return str(tag_path)
+        project = get_project()
+        extensions = (".gbxmodel", ".model") if project is not None and project.game == 'halo1' else (".render_model",)
+        for extension in extensions:
+            tag_path = Path(asset_dir, asset_name).with_suffix(extension)
+            full_path = Path(get_tags_path(), tag_path)
+            if full_path.exists():
+                if full:
+                    return str(full_path)
+                else:
+                    return str(tag_path)
             
 def get_asset_collision_model(full=False):
     if valid_nwo_asset(bpy.context):
         asset_dir, asset_name = get_asset_info()
-        tag_path = Path(asset_dir, asset_name).with_suffix(".collision_model")
+        project = get_project()
+        extension = ".model_collision_geometry" if project is not None and project.game == 'halo1' else ".collision_model"
+        tag_path = Path(asset_dir, asset_name).with_suffix(extension)
         full_path = Path(get_tags_path(), tag_path)
         if full_path.exists():
             if full:

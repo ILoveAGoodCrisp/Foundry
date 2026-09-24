@@ -3472,13 +3472,23 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     animation_tag_props_expanded: bpy.props.BoolProperty(default=False, options=set())
 
     def render_clean_tag_path(self, context):
-        self["template_render_model"] = utils.clean_tag_path(self["template_render_model"],
-            "render_model"
-        ).strip('"')
+        path = utils.clean_tag_path(self["template_render_model"]).strip('"')
+        if not path:
+            self["template_render_model"] = ""
+            return
+        project = utils.get_project()
+        if project is not None and project.game == 'halo1':
+            if Path(path).suffix.lower() not in {'.model', '.gbxmodel'}:
+                path = str(Path(path).with_suffix('.gbxmodel'))
+        else:
+            path = utils.clean_tag_path(path, "render_model").strip('"')
+        self["template_render_model"] = path
     def collision_clean_tag_path(self, context):
+        project = utils.get_project()
+        extension = "model_collision_geometry" if project is not None and project.game == 'halo1' else "collision_model"
         self["template_collision_model"] = utils.clean_tag_path(
             self["template_collision_model"],
-            "collision_model"
+            extension
         ).strip('"')
     def physics_clean_tag_path(self, context):
         self["template_physics_model"] = utils.clean_tag_path(
@@ -3486,15 +3496,24 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             "physics_model"
         ).strip('"')
     def animation_clean_tag_path(self, context):
+        project = utils.get_project()
+        extension = "model_animations" if project is not None and project.game == 'halo1' else "model_animation_graph"
         self["template_model_animation_graph"] = utils.clean_tag_path(
             self["template_model_animation_graph"],
-            "model_animation_graph"
+            extension
         ).strip('"')
     def render_model_clean_tag_path(self, context):
-        self["render_model_path"] = utils.clean_tag_path(
-            self["render_model_path"],
-            "render_model"
-        ).strip('"')
+        path = utils.clean_tag_path(self["render_model_path"]).strip('"')
+        if not path:
+            self["render_model_path"] = ""
+            return
+        project = utils.get_project()
+        if project is not None and project.game == 'halo1':
+            if Path(path).suffix.lower() not in {'.model', '.gbxmodel'}:
+                path = str(Path(path).with_suffix('.gbxmodel'))
+        else:
+            path = utils.clean_tag_path(path, "render_model").strip('"')
+        self["render_model_path"] = path
 
     # render_model_from_blend : bpy.props.BoolProperty(name="Render Model built from Blend", default=True)
     template_render_model : bpy.props.StringProperty(
@@ -3837,9 +3856,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     #             animation.set_parent_graph(value)
         
     def parent_animation_clean_tag_path(self, context):
+        project = utils.get_project()
+        extension = "model_animations" if project is not None and project.game == 'halo1' else "model_animation_graph"
         self["parent_animation_graph"] = utils.clean_tag_path(
             self["parent_animation_graph"],
-            "model_animation_graph"
+            extension
         ).strip('"')
         self.parent_animation_graph_helper = self["parent_animation_graph"]
     

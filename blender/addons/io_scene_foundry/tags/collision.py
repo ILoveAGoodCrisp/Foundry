@@ -79,11 +79,24 @@ class CollisionDocument(TagDocument):
                                  vertices=vertices, surfaces=surfaces, polygons=polygons))
         if self.game == 'halo1':
             # Halo 1 stores collision BSPs directly below each skeleton node.
+            # The node selects a region, and each BSP position selects the
+            # permutation at the same position in that region.
+            regions = list(self.block(root, 'regions'))
             for node_index, node_element in enumerate(node_elements):
                 node_name = nodes[node_index]
+                region_index = int(self.value(node_element, 'region'))
+                if 0 <= region_index < len(regions):
+                    region = regions[region_index]
+                    region_name = self.value(region, 'name')
+                    permutations = list(self.block(region, 'permutations'))
+                else:
+                    region_name = node_name
+                    permutations = []
                 for bsp_index, bsp in enumerate(self.block(node_element, 'bsps')):
+                    permutation_name = (self.value(permutations[bsp_index], 'name')
+                                        if bsp_index < len(permutations) else 'default')
                     read_bsp(bsp, index=bsp_index, node=node_index,
-                             region_name=node_name, permutation_name='default')
+                             region_name=region_name, permutation_name=permutation_name)
         else:
             for region in self.block(root, 'regions'):
                 for permutation in self.block(region, 'permutations'):

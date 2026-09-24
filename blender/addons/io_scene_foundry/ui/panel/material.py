@@ -7,13 +7,19 @@ from ...constants import face_prop_type_items, face_prop_descriptions, face_mode
 
 class NWO_OT_MaterialOpenTag(bpy.types.Operator):
     bl_idname = "nwo.open_halo_material"
-    bl_label = "Open in Foundation"
-    bl_description = "Opens the active material's Halo Shader/Material in Foundation"
+    bl_label = "Open in Tag Editor"
+    bl_description = "Opens the active material's Halo Shader/Material in the current project's tag editor"
 
     def execute(self, context):
         tag_path = Path(utils.get_tags_path(), context.object.active_material.nwo.shader_path)
         if tag_path.exists():
-            utils.run_ek_cmd(["foundation", "/dontloadlastopenedwindows", str(tag_path)], True)
+            from ...tools.halo_launcher import tag_editor_executable
+            executable = tag_editor_executable(context)
+            launch_args = [executable]
+            if executable == "Foundation.exe":
+                launch_args.append("/dontloadlastopenedwindows")
+            launch_args.append(str(tag_path))
+            utils.run_ek_cmd(launch_args, True)
         else:
             if utils.is_corinth(context):
                 self.report({"ERROR_INVALID_INPUT"}, "Material tag does not exist")

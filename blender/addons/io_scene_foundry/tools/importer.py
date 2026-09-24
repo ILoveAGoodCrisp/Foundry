@@ -39,6 +39,7 @@ from ..tags.backend import ImportInfoSource, TagDocument
 from ..tags.multiplayer import MultiplayerObjectTypeListTag
 from ..tags.prefab import PrefabTag
 from ..tags.scenario import ScenarioMetadataTag
+from ..tags.sky_blender import SkyTag
 
 from .animation.generate_frames import FrameGenerator
 
@@ -190,6 +191,7 @@ MODEL_IMPORT_TYPES = {
 TEMPLATED_IMPORT_TYPES = MODEL_IMPORT_TYPES | {
     "render_model",
     "gbxmodel",
+    "sky",
     "scenario",
     "scenario_structure_bsp",
     "prefab",
@@ -199,6 +201,7 @@ TEMPLATED_IMPORT_SCOPES = {
     "model",
     "object",
     "render_model",
+    "sky",
     "scenario",
     "scenario_structure_bsp",
     "prefab",
@@ -753,7 +756,7 @@ def ensure_import_operator_enum_defaults(keywords):
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "jms", "jma", "bitmap", "camera_track", "model", "render_model", "scenario", "scenario_structure_bsp", "scenario_structure_lighting_info", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
+formats = "jms", "jma", "bitmap", "camera_track", "model", "render_model", "sky", "scenario", "scenario_structure_bsp", "scenario_structure_lighting_info", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
 
 xref_tag_types = (
     ".crate",
@@ -787,6 +790,7 @@ filetype_suffixes = (
     ("camera_track", (".camera_track",)),
     ("model", (".model",)),
     ("render_model", (".render_model", ".gbxmodel")),
+    ("sky", (".sky",)),
     ("scenario", (".scenario",)),
     ("scenario_structure_bsp", (".scenario_structure_bsp",)),
     ("scenario_structure_lighting_info", (".scenario_structure_lighting_info",)),
@@ -808,12 +812,15 @@ deferred_ops = []
 
 def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
     scene_nwo = utils.get_scene_props()
-    is_model = tag_ext == ".model"
-    if is_model or tag_ext in object_tag_types:
+    project = utils.get_project()
+    halo1 = project is not None and project.game == 'halo1'
+    is_model = tag_ext == ".model" or (halo1 and tag_ext == ".gbxmodel")
+    if is_sky or is_model or tag_ext in object_tag_types:
         tags_dir = utils.get_tags_path()
         scene_nwo.asset_type = 'sky' if is_sky else 'model'
-        if ob.type != 'ARMATURE':
-            return utils.print_warning(f"Tried to setup {ob.name} as an asset but it is not an armature")
+        if ob is None or ob.type != 'ARMATURE':
+            name = ob.name if ob is not None else 'imported tag'
+            return utils.print_warning(f"Tried to setup {name} as an asset but it is not an armature")
         render_path = ob.nwo.node_order_source
         if not render_path.strip():
             return utils.print_warning(f"Tried to setup {ob.name} as an asset but it has not render model source path")
@@ -831,12 +838,26 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
             for tag_type in object_tag_types:
                 enable_output_tag(tag_type)
                 
-        scene_nwo.template_model = str(path.with_suffix(".model"))
-        scene_nwo.template_render_model = str(path.with_suffix(".render_model"))
-        if Path(tags_dir, path).with_suffix(".collision_model").exists():
-            scene_nwo.template_collision_model = str(path.with_suffix(".collision_model"))
-        if Path(tags_dir, path).with_suffix(".model_animation_graph").exists():
-            scene_nwo.template_model_animation_graph = str(path.with_suffix(".model_animation_graph"))
+        if halo1:
+            scene_nwo.template_model = ""
+            scene_nwo.template_render_model = render_path
+            scene_nwo.template_collision_model = ""
+            scene_nwo.template_model_animation_graph = ""
+            collision_extension = ".model_collision_geometry"
+            animation_extension = ".model_animations"
+            scene_nwo.template_physics_model = ""
+        else:
+            scene_nwo.template_model = str(path.with_suffix(".model"))
+            scene_nwo.template_render_model = str(path.with_suffix(".render_model"))
+            collision_extension = ".collision_model"
+            animation_extension = ".model_animation_graph"
+
+        collision_path = Path(tags_dir, path).with_suffix(collision_extension)
+        if collision_path.exists():
+            scene_nwo.template_collision_model = str(path.with_suffix(collision_extension))
+        animation_path = Path(tags_dir, path).with_suffix(animation_extension)
+        if animation_path.exists():
+            scene_nwo.template_model_animation_graph = str(path.with_suffix(animation_extension))
             with AnimationGraphTag(path=scene_nwo.template_model_animation_graph) as animation:
                 skeleton_node_names = animation.get_nodes()
                 for usage_name, node_index in animation.node_usages().items():
@@ -845,7 +866,7 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
                         node = skeleton_node_names[node_index]
                         setattr(scene_nwo, f"node_usage_{usage}", node)
                     
-        if Path(tags_dir, path).with_suffix(".physics_model").exists():
+        if not halo1 and Path(tags_dir, path).with_suffix(".physics_model").exists():
             scene_nwo.template_physics_model = str(path.with_suffix(".physics_model"))
              
     else:
@@ -1608,6 +1629,26 @@ class NWO_Import(bpy.types.Operator):
                         imported_render_objects.extend(render_model_objects)
                         
                     imported_objects.extend(imported_render_objects)
+
+                elif 'sky' in importer.extensions:
+                    importer.tag_render = self.tag_render
+                    importer.tag_markers = self.tag_markers
+                    importer.tag_animation = self.tag_animation
+                    importer.tag_animation_filter = self.tag_animation_filter
+                    importer.graph_import_animations = self.graph_import_animations
+                    importer.graph_import_pca_data = self.graph_import_pca_data
+                    importer.graph_generate_renames = self.graph_generate_renames
+                    importer.graph_import_events = self.graph_import_events
+                    importer.graph_scale_animations_to_skeleton = self.graph_scale_animations_to_skeleton
+                    importer.graph_import_ik_chains = self.graph_import_ik_chains
+                    importer.setup_as_asset = self.setup_as_asset
+                    importer.build_control_rig = self.build_control_rig
+                    existing_armature = utils.get_rig_prioritize_active(context) if self.reuse_armature else None
+                    sky_objects, sky_animations = importer.import_skies(
+                        importer.sorted_filepaths["sky"], existing_armature)
+                    imported_objects.extend(sky_objects)
+                    if sky_animations and set_animation_index:
+                        scene_nwo.active_animation_index = len(scene_nwo.animations) - 1
                     
                 elif 'animation' in importer.extensions:
                     importer.tag_animation_filter = self.tag_animation_filter
@@ -2263,6 +2304,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += '*.model;'
             if 'render_model' in self.scope:
                 self.filter_glob += '*.render_model;*.gbxmodel;'
+            if 'sky' in self.scope:
+                self.filter_glob += '*.sky;'
             if 'scenario' in self.scope:
                 self.filter_glob += '*.scenario;'
             if 'scenario_structure_bsp' in self.scope:
@@ -2308,7 +2351,7 @@ class NWO_Import(bpy.types.Operator):
             box = layout.box()
             box.label(text="Tag Source Data")
             box.prop(self, "use_import_info")
-        if not self.scope or ('jms' in self.scope or 'model' in self.scope or 'object' in self.scope or 'render_model' in self.scope):
+        if not self.scope or ('jms' in self.scope or 'model' in self.scope or 'object' in self.scope or 'render_model' in self.scope or 'sky' in self.scope):
             box = layout.box()
             box.label(text="Model Settings")
             tag_type = 'material' if utils.is_corinth(context) else 'shader'
@@ -2329,14 +2372,17 @@ class NWO_Import(bpy.types.Operator):
                 show_material_options=False,
             )
 
-        if 'render_model' in scope_items and 'model' not in scope_items and 'object' not in scope_items:
+        if ('render_model' in scope_items or 'sky' in scope_items) and 'model' not in scope_items and 'object' not in scope_items:
             box = layout.box()
-            box.label(text='Render Model Settings')
+            box.label(text='Sky Settings' if 'sky' in scope_items else 'Render Model Settings')
             box.prop(self, 'reuse_armature')
             box.prop(self, 'build_control_rig')
             box.prop(self, 'tag_render')
             box.prop(self, 'render_lod')
             box.prop(self, 'tag_markers')
+            if 'sky' in scope_items:
+                box.prop(self, 'tag_animation')
+                box.prop(self, 'setup_as_asset')
             
         if not self.scope or ('scenario' in scope_items) or ('scenario_structure_bsp' in scope_items):
             layout.label(text='Scenario Tag Settings')
@@ -3147,6 +3193,40 @@ class NWOImporter:
         return camera, action
     
     # Model Import
+
+    def import_skies(self, paths, existing_armature, parent_collection=None, make_non_export=False):
+        imported_objects = []
+        imported_animations = []
+        scene_collection = parent_collection or self.scene_collection
+        for file in paths:
+            utils.print_section(f'Importing Sky Tag: {Path(file).name}')
+            with utils.TagImportMover(self.tags_dir, file) as mover:
+                with SkyTag(path=mover.tag_path, raise_on_error=False) as sky:
+                    if not sky.valid:
+                        continue
+                    source_tag_root = mover.potential_source_tag_dir if mover.needs_to_move else self.tags_dir
+                    render = sky.get_model_path(source_tag_root)
+                    animation = sky.get_animation_path(source_tag_root)
+                    if not render or not Path(render).is_file():
+                        utils.print_warning(f'Sky tag [{Path(file).name}] has no valid model reference')
+                        continue
+
+                    model_collection = bpy.data.collections.new(sky.tag_path.ShortName)
+                    scene_collection.children.link(model_collection)
+                    if make_non_export:
+                        model_collection.nwo.type = 'exclude'
+                    render_objects, armature = self.import_render_model(
+                        render, model_collection, existing_armature, set())
+                    imported_objects.extend(render_objects)
+
+                    if animation and self.tag_animation and armature is not None and Path(animation).is_file():
+                        print('Importing Animations')
+                        imported_animations.extend(self.import_animation_graph(animation, armature, render))
+
+                    if self.setup_as_asset:
+                        set_asset(Path(render).suffix, armature, is_sky=True)
+
+        return imported_objects, imported_animations
     
     def import_models(self, paths, existing_armature):
         imported_objects = []
@@ -4155,7 +4235,16 @@ class NWOImporter:
                         sky_name = Path(self.tag_sky).with_suffix("").name
                         print(f"Importing Sky - {sky_name}")
                         self.tag_render = True
-                        sky_objects, _ = self.import_object([str(Path(utils.get_tags_path(), self.tag_sky))], None, make_non_export=True, parent_collection=scenario_collection if merge_sky_to_scenario_collection else None)
+                        sky_path = str(Path(utils.get_tags_path(), self.tag_sky))
+                        if Path(sky_path).suffix.lower() == '.sky':
+                            sky_objects, _ = self.import_skies(
+                                [sky_path], None,
+                                parent_collection=scenario_collection if merge_sky_to_scenario_collection else None,
+                                make_non_export=True)
+                        else:
+                            sky_objects, _ = self.import_object(
+                                [sky_path], None, make_non_export=True,
+                                parent_collection=scenario_collection if merge_sky_to_scenario_collection else None)
                         imported_objects.extend(sky_objects)
                             
                         factor = 1
@@ -5257,7 +5346,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         if self.import_type in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
             self.legacy_okay = True
 
-        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "gbxmodel", "scenario", "scenario_structure_bsp", "model_animation_graph", "model_animations", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "gbxmodel", "sky", "scenario", "scenario_structure_bsp", "model_animation_graph", "model_animations", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 global sky_items
@@ -5361,12 +5450,15 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                     layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
-            case "render_model" | "gbxmodel":
+            case "render_model" | "gbxmodel" | "sky":
                 draw_import_template(self, layout)
                 layout.prop(self, "build_control_rig")
                 if self.has_variants:
                     layout.prop(self, "tag_variant")
                 layout.prop(self, "tag_markers")
+                if self.import_type == 'sky':
+                    layout.prop(self, "tag_animation")
+                    layout.prop(self, "setup_as_asset")
                 # layout.prop(self, "from_vert_normals")
                 layout.prop(self, "build_blender_materials")
                 layout.prop(self, "always_extract_bitmaps")
@@ -5423,7 +5515,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.ass;.bitmap;.model;.gbxmodel;.render_model;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.model_animations;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
+    bl_file_extensions = ".jms;.ass;.bitmap;.model;.gbxmodel;.render_model;.sky;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.model_animations;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
 
     @classmethod
     def poll_drop(cls, context):

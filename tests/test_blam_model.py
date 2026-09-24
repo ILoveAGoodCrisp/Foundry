@@ -11,9 +11,38 @@ package = ModuleType('foundry_model_tags')
 package.__path__ = [str(ADDON / 'tags')]
 sys.modules[package.__name__] = package
 m = importlib.import_module('foundry_model_tags.model')
+s = importlib.import_module('foundry_model_tags.sky')
 
 
 class ModelTests(unittest.TestCase):
+    def test_halo1_sky_references_compiled_gbxmodel(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            with s.SkyDocument('test.sky', tags_root=root, game='halo1') as sky:
+                sky.set_reference(sky.tag.root(), 'model', 'levels/sky.model')
+                sky.set_reference(sky.tag.root(), 'animation graph', 'levels/sky.model_animations')
+            (root / 'levels').mkdir()
+            (root / 'levels/sky.gbxmodel').touch()
+            (root / 'levels/sky.model_animations').touch()
+
+            with s.SkyDocument('test.sky', tags_root=root, game='halo1') as sky:
+                self.assertEqual(sky.get_model_path(), str(root / 'levels/sky.gbxmodel'))
+                self.assertEqual(sky.get_animation_path(), str(root / 'levels/sky.model_animations'))
+
+    def test_halo2_sky_references_render_model(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            with s.SkyDocument('test.sky', tags_root=root, game='halo2') as sky:
+                sky.set_reference(sky.tag.root(), 'render model', 'levels/sky.render_model')
+                sky.set_reference(sky.tag.root(), 'animation graph', 'levels/sky.model_animation_graph')
+            (root / 'levels').mkdir()
+            (root / 'levels/sky.render_model').touch()
+            (root / 'levels/sky.model_animation_graph').touch()
+
+            with s.SkyDocument('test.sky', tags_root=root, game='halo2') as sky:
+                self.assertEqual(sky.get_model_path(), str(root / 'levels/sky.render_model'))
+                self.assertEqual(sky.get_animation_path(), str(root / 'levels/sky.model_animation_graph'))
+
     def test_reference_edits_and_rollback(self):
         for game in ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
             with self.subTest(game=game), tempfile.TemporaryDirectory() as root:

@@ -1178,25 +1178,32 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         self.draw_output_tag(box, nwo,'equipment')
                 
     def draw_model(self, box: bpy.types.UILayout, nwo):
-        draw_tag_path(box, nwo, "template_model")
-        if utils.valid_nwo_asset(self.context) and getattr(nwo, 'template_model'):
-            box.operator('nwo.load_template', icon='DUPLICATE').tag_type = 'model'
-        tag_path = utils.get_asset_tag(".model")
-        if tag_path:
-            row = box.row(align=True)
-            row.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Model Tag").tag_path = tag_path
-        self.draw_expandable_box(box.box(), nwo, 'render_model')
+        project = utils.get_project()
+        halo1 = project is not None and project.game == 'halo1'
+        if not halo1:
+            draw_tag_path(box, nwo, "template_model")
+            if utils.valid_nwo_asset(self.context) and getattr(nwo, 'template_model'):
+                box.operator('nwo.load_template', icon='DUPLICATE').tag_type = 'model'
+            tag_path = utils.get_asset_tag(".model")
+            if tag_path:
+                row = box.row(align=True)
+                row.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Model Tag").tag_path = tag_path
+        self.draw_expandable_box(box.box(), nwo, 'render_model', 'Model' if halo1 else '')
         self.draw_expandable_box(box.box(), nwo, 'collision_model')
         self.draw_expandable_box(box.box(), nwo, 'animation_graph')
-        self.draw_expandable_box(box.box(), nwo, 'physics_model')
+        if not halo1:
+            self.draw_expandable_box(box.box(), nwo, 'physics_model')
     
     def draw_render_model(self, box: bpy.types.UILayout, nwo):
         col = box.column()
-        draw_tag_path(col, nwo, "template_render_model")
+        project = utils.get_project()
+        halo1 = project is not None and project.game == 'halo1'
+        draw_tag_path(col, nwo, "template_render_model", text="Model Template" if halo1 else None)
         tag_path = utils.get_asset_render_model()
         if tag_path:
             col.separator()
-            col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Render Model Tag").tag_path = tag_path
+            text = "Open Model Tag" if halo1 else "Open Render Model Tag"
+            col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=text).tag_path = tag_path
     
     def draw_collision_model(self, box: bpy.types.UILayout, nwo):
         col = box.column()
@@ -4277,7 +4284,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.operator('nwo.foundry_import', text="Import Cinematic Objects", icon='IMPORT').scope = 'object'
             col.operator('nwo.foundry_import', text="Import Cinematic Scenarios", icon='IMPORT').scope = 'scenario'
         else:
-            col.operator('nwo.foundry_import', text="Import Models & Animations", icon='IMPORT').scope = 'jma,jms,model,render_model,scenario,scenario_structure_bsp,scenario_structure_lighting_info,particle_model,animation,prefab,structure_design,polyart_asset,decorator_set,cinematic'
+            col.operator('nwo.foundry_import', text="Import Models & Animations", icon='IMPORT').scope = 'jma,jms,model,render_model,sky,scenario,scenario_structure_bsp,scenario_structure_lighting_info,particle_model,animation,prefab,structure_design,polyart_asset,decorator_set,cinematic'
                 
             col.operator('nwo.foundry_import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
             col.operator('nwo.rename_import', text="Import Animation Renames & Copies", icon_value=get_icon_id("animation_rename"))
@@ -4799,7 +4806,7 @@ def blend_axis_name(name):
             
     return blend_axis_name, blend_axis_function
 
-def draw_tag_path(ui, prop_group, prop_name, override_name=None, set_row_split=False):
+def draw_tag_path(ui, prop_group, prop_name, override_name=None, set_row_split=False, text=None):
     
     row = ui.row(align=True)
     
@@ -4809,7 +4816,10 @@ def draw_tag_path(ui, prop_group, prop_name, override_name=None, set_row_split=F
     attr = getattr(prop_group, prop_name)
     
     row.alert = prop_path_should_alert(attr)
-    row.prop(prop_group, prop_name, icon_value=get_icon_id("tags"))
+    if text is None:
+        row.prop(prop_group, prop_name, icon_value=get_icon_id("tags"))
+    else:
+        row.prop(prop_group, prop_name, text=text, icon_value=get_icon_id("tags"))
     
     if override_name is not None:
         prop_name = override_name

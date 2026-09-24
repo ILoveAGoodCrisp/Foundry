@@ -3,7 +3,7 @@
 from pathlib import Path
 import bpy
 import os
-from ..utils import get_prefs, get_project_path, get_scene_props, get_tags_path, is_corinth, open_in_explorer, os_sep_partition, redraw_area, relative_path
+from ..utils import get_prefs, get_project, get_project_path, get_scene_props, get_tags_path, is_corinth, open_in_explorer, os_sep_partition, redraw_area, relative_path
 
 global_items = {}
 cinematic_event_props = ("sound_tag", "female_sound_tag", "effect", "music")
@@ -96,6 +96,8 @@ class NWO_GetTagsList(bpy.types.Operator):
         return {"FINISHED"}
     
 def extensions_from_type(list_type):
+    project = get_project()
+    halo1 = project is not None and project.game == 'halo1'
     match list_type:
         case "marker_game_instance_tag_name":
             return (".crate", ".scenery", ".effect_scenery", ".device_control", ".device_machine", ".device_terminal",
@@ -118,13 +120,13 @@ def extensions_from_type(list_type):
         case 'light_lens_flare_reference':
             return (".lens_flare")
         case 'template_render_model':
-            return (".render_model")
+            return (".model", ".gbxmodel") if halo1 else (".render_model")
         case 'template_collision_model':
-            return (".collision_model")
+            return (".model_collision_geometry") if halo1 else (".collision_model")
         case 'template_model_animation_graph':
-            return (".model_animation_graph")
+            return (".model_animations") if halo1 else (".model_animation_graph")
         case 'parent_animation_graph':
-            return (".model_animation_graph")
+            return (".model_animations") if halo1 else (".model_animation_graph")
         case 'template_physics_model':
             return (".physics_model")
         case 'fp_model_path':
@@ -132,7 +134,7 @@ def extensions_from_type(list_type):
         case 'gun_model_path':
             return (".render_model")
         case 'render_model_path':
-            return (".render_model")
+            return (".model", ".gbxmodel") if halo1 else (".render_model")
         case 'shader_path':
             return (".material", '.shader', '.shader_cortana', '.shader_custom', '.shader_decal', '.shader_foliage', '.shader_fur', '.shader_fur_stencil', '.shader_glass', '.shader_halogram', '.shader_mux', '.shader_mux_material', '.shader_screen', '.shader_skin', '.shader_terrain', 'shader_water')
         case 'template_model':
@@ -300,6 +302,8 @@ class NWO_TagExplore(bpy.types.Operator):
         pass
     
 def get_glob_from_prop(prop):
+    project = get_project()
+    halo1 = project is not None and project.game == 'halo1'
     match prop:
         case 'marker_game_instance_tag_name':
             return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light;dec*_set"
@@ -322,17 +326,17 @@ def get_glob_from_prop(prop):
         case 'light_lens_flare_reference':
             return "*.lens_flare"
         case 'template_render_model':
-            return "*.render_model"
+            return "*.model;*.gbxmodel" if halo1 else "*.render_model"
         case 'template_collision_model':
-            return "*.collision_mo*"
+            return "*.model_collision_geometry" if halo1 else "*.collision_mo*"
         case 'template_model_animation_graph':
-            return "*.model_*_graph"
+            return "*.model_animations" if halo1 else "*.model_*_graph"
         case 'parent_animation_graph':
-            return "*.model_*_graph"
+            return "*.model_animations" if halo1 else "*.model_*_graph"
         case 'template_physics_model':
             return "*.physics_model"
         case 'render_model_path':
-            return "*.render_model"
+            return "*.model;*.gbxmodel" if halo1 else "*.render_model"
         case 'shader_path':
             return "*.material;*.shade*"
         case 'template_model':
