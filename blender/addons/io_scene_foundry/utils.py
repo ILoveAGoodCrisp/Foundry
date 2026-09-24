@@ -1,4 +1,5 @@
 from collections import Counter, defaultdict
+import colorsys
 import copy
 import ctypes
 from enum import Enum, IntEnum, auto
@@ -35,7 +36,7 @@ import queue
 from .project import ExternalProject, GAME_INFO, external_project_from_tag, identify_game
 from . import foundry_output
 from .tools.node_tree_arrange import arrange
-from .constants import OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR, css_colors
+from .constants import OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR
 from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
 # import requests
@@ -71,7 +72,7 @@ _external_project: ExternalProject | None = None
 
 hit_target = False
 
-iter_css = iter(set(css_colors.values()))
+face_set_color_index = itertools.count(1)
 
 # Enums #
 
@@ -1612,14 +1613,12 @@ def layer_face_indices(bm, face_attribute):
     if face_attribute:
         return {face.index for face in bm.faces if face[face_attribute]}
 
-def random_color():
-    global iter_css
-    rgb = next(iter_css, None)
-    if rgb is None:
-        iter_css = iter(set(css_colors.values()))
-        return random_color()
-    
-    return rgb
+def random_color(index: int | None = None):
+    """Return a vibrant color in Blender's Sculpt Face Set hue order."""
+    if index is None:
+        index = next(face_set_color_index)
+    hue = (0.618033988749895 * index) % 1.0
+    return colorsys.hsv_to_rgb(hue, 0.8, 1.0)
 
 
 def nwo_enum(enum_name, display_name, description, icon="", index=-1, custom_icon=True) -> tuple:
@@ -4632,7 +4631,7 @@ def new_face_prop(data, attribute_name, display_name, override_prop, other_props
     layer = face_props.add()
     layer.attribute_name = attribute_name
     # layer.name = display_name
-    layer.color = random_color()
+    layer.color = random_color(len(face_props))
     setattr(layer, override_prop, True)
     for prop, value in other_props.items():
         setattr(layer, prop, value)
@@ -4739,7 +4738,7 @@ def copy_face_prop(mesh: bpy.types.Mesh, prop, copy_mesh: bpy.types.Mesh):
 def add_face_prop(mesh: bpy.types.Mesh, prop_type: str, values_map=None):
     prop = mesh.nwo.face_props.add()
     prop.type = prop_type
-    prop.color = random_color()
+    prop.color = random_color(len(mesh.nwo.face_props))
     attribute = None
     if isinstance(mesh, bpy.types.Mesh):
         has_any_values = values_map.any() if isinstance(values_map, np.ndarray) else bool(values_map)

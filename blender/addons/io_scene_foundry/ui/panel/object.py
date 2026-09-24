@@ -588,7 +588,7 @@ class NWO_OT_FaceAttributeAdd(bpy.types.Operator):
                 item.attribute_name = attribute.name
         
             
-        item.color = utils.random_color()
+        item.color = utils.random_color(len(nwo.face_props))
         if nwo.highlight and bpy.ops.nwo.face_attribute_color_all.poll():
             bpy.ops.nwo.face_attribute_color_all(enable_highlight=nwo.highlight)
 
