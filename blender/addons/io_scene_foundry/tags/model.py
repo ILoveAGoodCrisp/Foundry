@@ -49,6 +49,32 @@ class ModelDocument(TagDocument):
         )
         return list(dict.fromkeys(name for name in names if name))
 
+    def get_halo1_region_permutations(self, selected_permutation: str) -> set[tuple[str, str]]:
+        """Resolve one H1 permutation for every region in the model.
+
+        Halo 1 exposes permutation names globally in the import UI, but a name
+        need not exist in every region. In that case the engine-style fallback
+        is the region's first permutation rather than omitting the region.
+        """
+        if self.game != 'halo1' or not selected_permutation or selected_permutation == 'all_permutations':
+            return set()
+
+        selected = []
+        for region in self.block(self.tag.root(), 'regions'):
+            permutations = list(self.block(region, 'permutations'))
+            if not permutations:
+                continue
+            permutation = next(
+                (entry for entry in permutations
+                 if self.value(entry, 'name') == selected_permutation),
+                permutations[0],
+            )
+            selected.append((
+                cast(str, self.value(region, 'name')),
+                cast(str, self.value(permutation, 'name')),
+            ))
+        return set(selected)
+
     def get_render_model(self, optional_tag_root=None, override_type=None):
         reference = self.reference_render_model.Path
         if self.game in {'halo4', 'halo2a'} and override_type is not None:

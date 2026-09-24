@@ -3276,7 +3276,7 @@ class NWOImporter:
                         
                     render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root, override_type=self.tag_model_override_type)
                     
-                    allowed_region_permutations = (self.tag_permutation if model.game == 'halo1'
+                    allowed_region_permutations = (model.get_halo1_region_permutations(self.tag_permutation) if model.game == 'halo1'
                                                    else model.get_variant_regions_and_permutations(self.tag_variant, self.tag_state))
                     selection = self.tag_variant or self.tag_permutation
                     if selection:
@@ -3472,7 +3472,7 @@ class NWOImporter:
                                     imported_objects.extend(imported_file_objects)
                                     continue
                             
-                            allowed_region_permutations = (self.tag_permutation if obj.game == 'halo1'
+                            allowed_region_permutations = (model.get_halo1_region_permutations(self.tag_permutation) if obj.game == 'halo1'
                                                            else model.get_variant_regions_and_permutations(temp_variant, self.tag_state))
                             selection = temp_variant or self.tag_permutation
                             if selection:
@@ -3762,7 +3762,7 @@ class NWOImporter:
                     elif model.get_model_variants():
                         temp_variant = model.get_model_variants()[0]
 
-                allowed_region_permutations = (temp_variant if obj.game == 'halo1'
+                allowed_region_permutations = (model.get_halo1_region_permutations(temp_variant) if obj.game == 'halo1'
                                                else model.get_variant_regions_and_permutations(temp_variant, self.tag_state))
                 if temp_variant:
                     model_collection = bpy.data.collections.new(f"{model.tag_path.ShortName} [{temp_variant}]")

@@ -16,6 +16,26 @@ p = importlib.import_module('foundry_model_tags.physics')
 
 
 class ModelTests(unittest.TestCase):
+    def test_halo1_single_permutation_falls_back_per_region(self):
+        with tempfile.TemporaryDirectory() as root:
+            with m.ModelDocument('test.gbxmodel', tags_root=root, game='halo1') as model:
+                regions = model.block(model.tag.root(), 'regions')
+                for region_name, permutation_names in (
+                        ('body', ('base', 'damaged')),
+                        ('weapon', ('rifle', 'pistol'))):
+                    region = regions[regions.add()]
+                    model.required_field(region, 'name').set(region_name)
+                    permutations = model.block(region, 'permutations')
+                    for permutation_name in permutation_names:
+                        permutation = permutations[permutations.add()]
+                        model.required_field(permutation, 'name').set(permutation_name)
+
+                self.assertEqual(
+                    model.get_halo1_region_permutations('damaged'),
+                    {('body', 'damaged'), ('weapon', 'rifle')},
+                )
+                self.assertEqual(model.get_halo1_region_permutations('all_permutations'), set())
+
     def test_halo1_physics_mass_points(self):
         with tempfile.TemporaryDirectory() as root:
             with p.PhysicsDocument('test.physics', tags_root=root, game='halo1') as physics:

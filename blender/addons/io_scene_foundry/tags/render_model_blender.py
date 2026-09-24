@@ -21,6 +21,23 @@ class RenderModelTag(RenderModelMetadataTag):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.context = bpy.context
+
+    def _resolve_region_permutations(self, selection: set | str) -> set:
+        if not isinstance(selection, str):
+            return set(selection) if selection else set()
+        if selection == 'all_permutations':
+            return set()
+
+        resolved = set()
+        for region in self.regions:
+            if not region.permutations:
+                continue
+            permutation = next(
+                (entry for entry in region.permutations if entry.name == selection),
+                region.permutations[0],
+            )
+            resolved.add((region.name, permutation.name))
+        return resolved
         
     def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None, allowed_region_permutations=set(), from_vert_normals=False, no_io=False, no_armature=False, specific_io_index=None, build_control_rig=False, selected_lod: str = 'ALL'):
         self.collection = collection
@@ -39,13 +56,8 @@ class RenderModelTag(RenderModelMetadataTag):
         
         self.regions: list[Region] = [Region.from_native(record)
                                       for record in self._native_regions]
-        if isinstance(allowed_region_permutations, str):
-            allowed_region_permutations = {
-                (region.name, allowed_region_permutations)
-                for region in self.regions
-                if any(permutation.name == allowed_region_permutations
-                       for permutation in region.permutations)
-            }
+        allowed_region_permutations = self._resolve_region_permutations(
+            allowed_region_permutations)
         
         if render:
             # print("Creating Render Geometry")
@@ -213,10 +225,8 @@ class RenderModelTag(RenderModelMetadataTag):
                 lod_collections[lod] = collection
             return collection
 
-        if isinstance(allowed_region_permutations, str): # if str use all regions but only the given perm
-            allowed_region_permutations = {(region.name, allowed_region_permutations) for region in self.regions}
-        elif allowed_region_permutations:
-            allowed_region_permutations = set(allowed_region_permutations)
+        allowed_region_permutations = self._resolve_region_permutations(
+            allowed_region_permutations)
 
         valid_instance_indexes = set() if allowed_region_permutations else None
         ob_region_perms = {}
