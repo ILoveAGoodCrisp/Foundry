@@ -1,0 +1,247 @@
+"""Halo 1 BSP auxiliary geometry and surface annotations."""
+import bmesh
+import bpy
+import numpy as np
+from mathutils import Matrix, Vector
+from mathutils.bvhtree import BVHTree
+from mathutils.geometry import points_in_planes
+
+from .. import import_transform, utils
+from ..tools.append_foundry_materials import ensure_special_material
+from ..tools.materials import sky as sky_material_definition, seamsealer
+from .connected_geometry import StructureMarker
+
+
+def material(name):
+    return bpy.data.materials.get(name) or bpy.data.materials.new(name)
+
+
+def plane_values(plane):
+    return plane.i, plane.j, plane.k, plane.d
+
+
+def cluster_sky_lookup(tag):
+    """Locate a point through the collision BSP; render leaves share its indices."""
+    root = tag.tag.root()
+    skies = [int(tag.value(c, 'sky')) for c in tag.block(root, 'clusters')]
+    leaves = [int(tag.value(leaf, 'cluster')) for leaf in tag.block(root, 'leaves')]
+    bsps = list(tag.block(root, 'collision bsp'))
+    if not bsps:
+        return lambda point: skies[0] if len(skies) == 1 else None
+    bsp = bsps[0]
+    planes = [plane_values(tag.value(p, 'plane')) for p in tag.block(bsp, 'planes')]
+    nodes = [tuple(int(tag.value(n, field)) for field in ('plane', 'back child', 'front child'))
+             for n in tag.block(bsp, 'bsp3d nodes')]
+
+    def lookup(point):
+        index = 0
+        for _ in range(len(nodes) + 1):
+            index &= 0xffffffff
+            if index == 0xffffffff:
+                return None  # Solid space.
+            if index & 0x80000000:
+                leaf = index & 0x7fffffff
+                cluster = leaves[leaf] if leaf < len(leaves) else -1
+                return skies[cluster] if 0 <= cluster < len(skies) else None
+            if index >= len(nodes):
+                return None
+            plane_index, back, front = nodes[index]
+            if not 0 <= plane_index < len(planes):
+                return None
+            x, y, z, distance = planes[plane_index]
+            index = front if x*point.x + y*point.y + z*point.z >= distance else back
+        return None
+    return lookup
+
+
+def replace_collision_only(objects, tag=None):
+    """Use each collision shell face's adjacent cluster to select its material."""
+    lookup = cluster_sky_lookup(tag) if tag is not None else lambda point: 0
+    to_tag = import_transform.transform_matrix(Matrix.Scale(100, 4)).inverted_safe() if tag is not None else Matrix.Identity(4)
+    unresolved = 0
+    for ob in objects:
+        if ob.type != 'MESH':
+            continue
+        mesh = ob.data
+        local_to_tag = to_tag @ ob.matrix_world
+        for index in reversed(range(len(mesh.nwo.face_props))):
+            prop = mesh.nwo.face_props[index]
+            if prop.type != 'face_mode' or prop.face_mode != 'collision_only':
+                continue
+            attribute = mesh.attributes.get(prop.attribute_name)
+            if attribute is None:
+                continue
+            mask = np.empty(len(mesh.polygons), dtype=np.int32)
+            attribute.data.foreach_get('value', mask)
+            for face in mesh.polygons:
+                if mask[face.index]:
+                    points = [local_to_tag @ mesh.vertices[v].co for v in face.vertices]
+                    center = sum(points, Vector()) / len(points)
+                    normal = (points[1] - points[0]).cross(points[2] - points[0]).normalized()
+                    # Probe off the boundary into the adjacent non-solid leaf.
+                    sky_index = lookup(center + normal * 0.00025)
+                    if sky_index is None:
+                        sky_index = lookup(center - normal * 0.00025)
+                    if sky_index is None:
+                        sky_index = lookup(center)
+                    if sky_index is None:
+                        unresolved += 1
+                    definition = seamsealer if sky_index == -1 else sky_material_definition
+                    mat = ensure_special_material(definition)
+                    slot = next((i for i, existing in enumerate(mesh.materials) if existing == mat), None)
+                    if slot is None:
+                        slot = len(mesh.materials)
+                        mesh.materials.append(mat)
+                    face.material_index = slot
+            mesh.attributes.remove(attribute)
+            mesh.nwo.face_props.remove(index)
+    if unresolved:
+        utils.print_warning(f'Could not resolve clusters for {unresolved} H1 shell faces; kept +sky fallback')
+
+
+def apply_collision_surface_flags(tag, objects):
+    """Transfer explicit H1 collision flags to the final imported faces."""
+    root = tag.tag.root()
+    indices = {int(tag.value(entry, 'collision surface index'))
+               for entry in tag.block(root, 'breakable surfaces')}
+    bsps = list(tag.block(root, 'collision bsp'))
+    if not bsps:
+        if indices:
+            utils.print_warning('H1 breakable surfaces reference a missing collision BSP')
+        return
+    bsp = bsps[0]
+    vertices = [Vector(tag.value(v, 'point').to_array()) * 100
+                for v in tag.block(bsp, 'vertices')]
+    transform = import_transform.transform_matrix(Matrix.Identity(4))
+    vertices = [transform @ v for v in vertices]
+    edges = list(tag.block(bsp, 'edges'))
+    surfaces = list(tag.block(bsp, 'surfaces'))
+    polygons = {'face_sides': [], 'ladder': [], 'breakable': []}
+    for index in sorted(indices - set(range(len(surfaces)))):
+        utils.print_warning(f'H1 breakable collision surface {index} is out of range')
+    for index, surface in enumerate(surfaces):
+        flags = tag.required_field(surface, 'flags')
+        enabled = {
+            'face_sides': flags.get_flag('two sided'),
+            'ladder': flags.get_flag('climbable'),
+            'breakable': flags.get_flag('breakable') or index in indices,
+        }
+        if not any(enabled.values()):
+            continue
+        first = int(tag.value(surfaces[index], 'first edge')) & 0xffff
+        current, visited, polygon = first, set(), []
+        while current not in visited and 0 <= current < len(edges):
+            visited.add(current)
+            edge = edges[current]
+            if (int(tag.value(edge, 'left surface')) & 0xffff) == index:
+                vertex, following = 'start vertex', 'forward edge'
+            elif (int(tag.value(edge, 'right surface')) & 0xffff) == index:
+                vertex, following = 'end vertex', 'reverse edge'
+            else:
+                break
+            polygon.append(int(tag.value(edge, vertex)) & 0xffff)
+            current = int(tag.value(edge, following)) & 0xffff
+            if current == first:
+                break
+        if current != first or len(polygon) < 3 or any(v >= len(vertices) for v in polygon):
+            utils.print_warning(f'H1 collision surface {index} has an invalid edge loop')
+            continue
+        for name, active in enabled.items():
+            if active:
+                polygons[name].append(polygon)
+    trees = {name: BVHTree.FromPolygons(vertices, faces) for name, faces in polygons.items() if faces}
+    if not trees:
+        return
+    tolerance = 0.025 * import_transform.scale_factor()
+    for ob in objects:
+        if ob.type != 'MESH' or ob.data.nwo.mesh_type not in {
+                '_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision'}:
+            continue
+        mesh = ob.data
+        masks = {name: np.zeros(len(mesh.polygons), dtype=np.int8) for name in trees}
+        for face in mesh.polygons:
+            points = [ob.matrix_world @ mesh.vertices[v].co for v in face.vertices]
+            points.append(sum(points, Vector()) / len(points))
+            for name, tree in trees.items():
+                if all((hit := tree.find_nearest(point))[0] is not None
+                       and hit[3] <= tolerance for point in points):
+                    masks[name][face.index] = 1
+        for name, mask in masks.items():
+            if mask.any():
+                prop = utils.add_face_prop(mesh, 'face_mode' if name == 'breakable' else name,
+                                           None if mask.all() else mask)
+                if name == 'breakable':
+                    prop.face_mode = 'breakable'
+        utils.consolidate_face_attributes(mesh)
+        utils.calc_face_prop_counts(mesh)
+
+
+def create_helpers(tag, collection):
+    objects = []
+    root = tag.tag.root()
+    helper_collections = {}
+
+    def helper_collection(kind):
+        if kind not in helper_collections:
+            child = bpy.data.collections.new(f'{collection.name}_{kind}')
+            collection.children.link(child)
+            helper_collections[kind] = child
+        return helper_collections[kind]
+
+    def mesh_object(name, vertices, faces, mesh_type, mat):
+        mesh = bpy.data.meshes.new(name)
+        mesh.from_pydata(vertices, [], faces)
+        mesh.update()
+        mesh.materials.append(material(mat))
+        mesh.nwo.mesh_type = '_connected_geometry_mesh_type_' + mesh_type
+        ob = bpy.data.objects.new(name, mesh)
+        ob.matrix_world = import_transform.transform_matrix(Matrix.Scale(100, 4))
+        ob.display_type = 'WIRE'
+        ob.show_in_front = True
+        kind = 'fog_planes' if mesh_type == 'planar_fog_volume' else 'weather_polyhedra'
+        helper_collection(kind).objects.link(ob)
+        objects.append(ob)
+        return ob
+
+    for index, fog in enumerate(tag.block(root, 'fog planes')):
+        vertices = [Vector(tag.value(v, 'point').to_array()) for v in tag.block(fog, 'vertices')]
+        if len(vertices) < 3:
+            utils.print_warning(f'H1 fog plane {index} has fewer than three vertices')
+            continue
+        plane = plane_values(tag.value(fog, 'plane'))
+        face = list(range(len(vertices)))
+        normal = sum((vertices[i].cross(vertices[(i + 1) % len(vertices)])
+                      for i in range(len(vertices))), Vector())
+        if normal.dot(Vector(plane[:3])) < 0:
+            face.reverse()
+        ob = mesh_object(f'+fog_{index}', vertices, [face], 'planar_fog_volume', '+fog')
+        ob['h1_front_region'] = int(tag.value(fog, 'front region'))
+        ob['h1_plane'] = plane
+
+    for index, weather in enumerate(tag.block(root, 'weather polyhedra')):
+        planes = [plane_values(tag.value(p, 'plane')) for p in tag.block(weather, 'planes')]
+        # H1 weather normals point inward (n.dot(p) >= d). mathutils
+        # expects outward planes with n.dot(p) + w <= 0.
+        vertices, _ = points_in_planes([Vector((-p[0], -p[1], -p[2], p[3])) for p in planes])
+        if len(vertices) < 4:
+            utils.print_warning(f'H1 weather polyhedron {index} does not enclose a volume')
+            continue
+        bm = bmesh.new()
+        try:
+            for v in vertices:
+                bm.verts.new(v)
+            bmesh.ops.convex_hull(bm, input=list(bm.verts))
+            bm.verts.index_update()
+            ob = mesh_object(f'+weather_{index}', [tuple(v.co) for v in bm.verts],
+                             [[v.index for v in f.verts] for f in bm.faces],
+                             'weather_polyhedron', '+weather')
+        finally:
+            bm.free()
+        ob['h1_bounding_sphere_center'] = tuple(tag.value(weather, 'bounding sphere center').to_array())
+        ob['h1_bounding_sphere_radius'] = float(tag.value(weather, 'bounding sphere radius'))
+
+    for record in tag.markers():
+        ob = StructureMarker(record).to_object()
+        helper_collection('markers').objects.link(ob)
+        objects.append(ob)
+    return objects

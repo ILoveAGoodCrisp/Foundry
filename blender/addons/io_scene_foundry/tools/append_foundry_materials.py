@@ -26,18 +26,27 @@ class NWO_AppendFoundryMaterials(bpy.types.Operator):
             self.report({'INFO'}, f'Added {count} material{"s" if count > 1 else ""} to blend file')
         return {"FINISHED"}
     
+def ensure_special_material(definition):
+    """Create a Foundry special material without changing an existing one."""
+    mat = bpy.data.materials.get(definition.name)
+    if mat is not None:
+        return mat
+    mat = bpy.data.materials.new(definition.name)
+    mat.use_fake_user = True
+    mat.diffuse_color = definition.color
+    bsdf = next(node for node in mat.node_tree.nodes if node.type == 'BSDF_PRINCIPLED')
+    bsdf.inputs['Base Color'].default_value = definition.color
+    bsdf.inputs['Alpha'].default_value = definition.color[3]
+    mat.blend_method = 'BLEND'
+    return mat
+
+
 def add_special_materials(game, asset_type):
     blender_materials = bpy.data.materials
     count = 0
     for m in special_materials:
         if game in m.games and asset_type in m.asset_types and not blender_materials.get(m.name):
-            mat = blender_materials.new(m.name)
-            mat.use_fake_user = True
-            mat.diffuse_color = m.color
-            bsdf = mat.node_tree.nodes[0]
-            bsdf.inputs[0].default_value = m.color
-            bsdf.inputs[4].default_value = m.color[3]
-            mat.blend_method = 'BLEND'
+            ensure_special_material(m)
             count += 1
             
     return count

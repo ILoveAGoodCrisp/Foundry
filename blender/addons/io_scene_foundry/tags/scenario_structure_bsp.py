@@ -205,6 +205,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             mesh_type = instance['mesh_type']
             is_weather = (mesh_type == 'helper'
                           and name.casefold().startswith('+weather'))
+            if self.game == 'halo1' and (mesh_type == 'marker' or is_weather):
+                continue  # Read the original H1 blocks explicitly below.
             if (instance['object_index'] < 0 or name == 'Scene Root'
                     or mesh_type == 'portal'
                     or (mesh_type == 'helper' and not is_weather)):
@@ -409,6 +411,12 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     merge_render_collision=merge_render_collision if self.game == 'halo1' else True)
                 objects.extend(classic_objects)
                 game_objects.extend(classic_game_objects)
+                if self.game == 'halo1':
+                    from .halo1_bsp_blender import replace_collision_only, apply_collision_surface_flags, create_helpers
+                    replace_collision_only(classic_objects, self)
+                    apply_collision_surface_flags(self, classic_objects)
+                    if not for_cinematic:
+                        objects.extend(create_helpers(self, collection))
                 if not for_cinematic:
                     objects.extend(self._create_classic_portals(collection))
             return objects, game_objects, bvh

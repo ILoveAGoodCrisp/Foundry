@@ -55,6 +55,112 @@ def area(mesh, indices=None):
 
 
 class ClassicMergeTests(unittest.TestCase):
+    def test_halo1_shell_materials_follow_clusters_after_joining(self):
+        from io_scene_foundry.tags.backend import TagDocument
+        from io_scene_foundry.tags.halo1_bsp_blender import replace_collision_only, cluster_sky_lookup
+        from io_scene_foundry import import_transform
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(import_transform, 'transform_matrix', return_value=Matrix.Identity(4)):
+            with TagDocument('clusters.scenario_structure_bsp', tags_root=root, game='halo1') as tag:
+                def add(parent, name):
+                    block = tag.block(parent, name)
+                    return block[block.add()]
+                for i, sky in enumerate((-1, 0)):
+                    cluster = add(tag.tag.root(), 'clusters')
+                    tag.required_field(cluster, 'sky').set(sky)
+                    leaf = add(tag.tag.root(), 'leaves')
+                    tag.required_field(leaf, 'cluster').set(i)
+                bsp = add(tag.tag.root(), 'collision bsp')
+                plane = tag.required_field(add(bsp, 'planes'), 'plane')
+                plane.set(type(plane.value)(1, 0, 0, 0))
+                node = add(bsp, 'bsp3d nodes')
+                for name, value in (('plane', 0), ('back child', -2147483648), ('front child', -2147483647)):
+                    tag.required_field(node, name).set(value)
+                mesh = make_mesh([(-2, 0, 0), (-1, 0, 0), (-2, 1, 0),
+                                  (1, 0, 0), (2, 0, 0), (1, 1, 0)], [(0, 1, 2), (3, 4, 5)])
+                utils.add_face_prop(mesh, 'face_mode').face_mode = 'collision_only'
+                ob = bpy.data.objects.new('mixed_shell', mesh)
+                replace_collision_only([ob], tag)
+                self.assertEqual([mesh.materials[p.material_index].name for p in mesh.polygons],
+                                 ['+seamsealer', '+sky'])
+                seal = bpy.data.materials['+seamsealer']
+                self.assertAlmostEqual(seal.diffuse_color[3], 0.05)
+                self.assertTrue(seal.use_fake_user)
+
+    def test_halo1_collision_only_becomes_sky(self):
+        from io_scene_foundry.tags.halo1_bsp_blender import replace_collision_only
+        mesh = make_mesh(SQUARE, [(0, 1, 2), (0, 2, 3)])
+        utils.add_face_prop(mesh, 'face_mode', [1, 0]).face_mode = 'collision_only'
+        ob = bpy.data.objects.new('sky_test', mesh)
+        replace_collision_only([ob])
+        self.assertEqual(mesh.materials[mesh.polygons[0].material_index].name, '+sky')
+        self.assertNotEqual(mesh.materials[mesh.polygons[1].material_index].name, '+sky')
+        self.assertFalse(any(p.face_mode == 'collision_only' for p in mesh.nwo.face_props))
+
+    def test_halo1_auxiliary_blocks(self):
+        from io_scene_foundry.tags.backend import TagDocument
+        from io_scene_foundry.tags.prefab import ScenarioStructureBspMetadataTag
+        from io_scene_foundry.tags.halo1_bsp_blender import create_helpers, apply_collision_surface_flags
+        from io_scene_foundry import import_transform
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(import_transform, 'transform_matrix', side_effect=lambda m: m), \
+             patch.object(import_transform, 'marker_matrix', side_effect=lambda m: m), \
+             patch.object(import_transform, 'scale_factor', return_value=1):
+            with TagDocument('test.scenario_structure_bsp', tags_root=root, game='halo1') as tag:
+                def add(parent, name):
+                    block = tag.block(parent, name)
+                    return block[block.add()]
+                def vector(element, name, values):
+                    field = tag.required_field(element, name)
+                    field.set(type(field.value)(*values))
+                root_element = tag.tag.root()
+                fog = add(root_element, 'fog planes')
+                vector(fog, 'plane', (0, 0, 1, 2))
+                tag.required_field(fog, 'front region').set(3)
+                for point in ((0, 0, 2), (1, 0, 2), (1, 1, 2), (0, 1, 2)):
+                    vector(add(fog, 'vertices'), 'point', point)
+                weather = add(root_element, 'weather polyhedra')
+                vector(weather, 'bounding sphere center', (0, 0, 0))
+                tag.required_field(weather, 'bounding sphere radius').set(2)
+                for plane in ((1, 0, 0, -1), (-1, 0, 0, -1), (0, 1, 0, -1),
+                              (0, -1, 0, -1), (0, 0, 1, -1), (0, 0, -1, -1)):
+                    vector(add(weather, 'planes'), 'plane', plane)
+                marker = add(root_element, 'markers')
+                tag.required_field(marker, 'name').set('test_marker')
+                vector(marker, 'rotation', (0, 0, 0, 1))
+                vector(marker, 'position', (1, 2, 3))
+                tag.markers = lambda: ScenarioStructureBspMetadataTag.markers(tag)
+                objects = create_helpers(tag, bpy.context.scene.collection)
+                self.assertEqual(len(objects), 3)
+                self.assertEqual(objects[0]['h1_front_region'], 3)
+                self.assertGreater(objects[0].data.polygons[0].normal.z, 0.9)
+                self.assertEqual(len(objects[1].data.vertices), 8)
+                self.assertEqual(len(objects[1].data.polygons), 12)
+                self.assertEqual(tuple(objects[2].matrix_world.translation), (100, 200, 300))
+                bsp = add(root_element, 'collision bsp')
+                for point in ((0, 0, 0), (1, 0, 0), (0, 1, 0)):
+                    vector(add(bsp, 'vertices'), 'point', point)
+                for i in range(3):
+                    edge = add(bsp, 'edges')
+                    for name, value in (('start vertex', i), ('end vertex', (i+1)%3),
+                                        ('forward edge', (i+1)%3), ('reverse edge', -1),
+                                        ('left surface', 0), ('right surface', -1)):
+                        tag.required_field(edge, name).set(value)
+                surface = add(bsp, 'surfaces')
+                tag.required_field(surface, 'first edge').set(0)
+                flags = tag.required_field(surface, 'flags')
+                for name in ('two sided', 'climbable', 'breakable'):
+                    flags.set_flag(name, True)
+                mesh = make_mesh([(0, 0, 0), (100, 0, 0), (0, 100, 0), (0, 0, 10)],
+                                 [(0, 1, 2), (0, 1, 3)])
+                mesh.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
+                ob = bpy.data.objects.new('breakable_test', mesh)
+                apply_collision_surface_flags(tag, [ob])
+                self.assertEqual(mode_faces(mesh, 'breakable'), {0})
+                for kind in ('face_sides', 'ladder'):
+                    prop = next(p for p in mesh.nwo.face_props if p.type == kind)
+                    self.assertEqual([v.value for v in mesh.attributes[prop.attribute_name].data], [True, False])
+
     def test_emissive_tool_connects_h1_area_and_preserves_later_games(self):
         mesh = make_mesh(SQUARE, [(0, 1, 2), (0, 2, 3)])
         material = bpy.data.materials.new('area_test')
