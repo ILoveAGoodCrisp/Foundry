@@ -499,14 +499,17 @@ class ClassicMergeTests(unittest.TestCase):
         mesh.materials.append(bpy.data.materials.new('emissive'))
         mesh.polygons[1].material_index = 1
 
-        ScenarioStructureBspTag._apply_classic_emissives(
-            mesh, {1: (4.5, (0.25, 0.5, 0.75))})
+        tag = ScenarioStructureBspTag.__new__(ScenarioStructureBspTag)
+        tag.game = 'halo1'
+        tag._apply_classic_emissives(mesh, {1: (4.5, (0.25, 0.5, 0.75))})
 
         props = [prop for prop in mesh.nwo.face_props if prop.type == 'emissive']
         self.assertEqual(len(props), 1)
         prop = props[0]
         self.assertAlmostEqual(prop.material_lighting_emissive_power, 4.5)
         self.assertEqual(tuple(prop.material_lighting_emissive_color), (0.25, 0.5, 0.75))
+        self.assertEqual(prop.material_lighting_attenuation_falloff, 0.0)
+        self.assertEqual(prop.material_lighting_attenuation_cutoff, 0.0)
         attribute = mesh.attributes[prop.attribute_name]
         self.assertEqual([value.value for value in attribute.data], [False, True])
 

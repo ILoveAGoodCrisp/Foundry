@@ -352,8 +352,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         values = (color.red, color.green, color.blue)
         return power, tuple(utils.srgb_to_linear(float(value)) for value in values[:3])
 
-    @staticmethod
-    def _apply_classic_emissives(mesh: bpy.types.Mesh, emissives: dict[int, tuple[float, tuple[float, float, float]]]) -> None:
+    def _apply_classic_emissives(self, mesh: bpy.types.Mesh, emissives: dict[int, tuple[float, tuple[float, float, float]]]) -> None:
         """Apply shader emission to every face using that material slot."""
         if not emissives or not mesh.polygons:
             return
@@ -367,6 +366,11 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 mesh, 'emissive', None if mask.all() else mask.astype(np.int8))
             prop.material_lighting_emissive_power = power
             prop.material_lighting_emissive_color = color
+            if self.game == 'halo1':
+                # H1 shader radiosity defines emissive power/color but no
+                # custom attenuation distances. Zero selects natural falloff.
+                prop.material_lighting_attenuation_falloff = 0.0
+                prop.material_lighting_attenuation_cutoff = 0.0
 
     def _create_classic_portals(self, collection: bpy.types.Collection) -> list[bpy.types.Object]:
         records = self.portals()
