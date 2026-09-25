@@ -312,6 +312,24 @@ def draw_model_source_options(operator, layout, corinth, show_model_override, sh
             if getattr(operator, "tag_markers", False):
                 box.prop(operator, "import_variant_children")
 
+def draw_halo2_lod(operator, layout):
+    # The tag dialog establishes a source-project override before drawing.
+    # In the file browser, resolve the selection without changing that context.
+    project = utils.get_project()
+    filepath = getattr(operator, 'filepath', '')
+    if filepath:
+        path = Path(filepath).resolve()
+        for source_project in utils.get_prefs().projects:
+            try:
+                path.relative_to(Path(source_project.tags_directory).resolve())
+            except ValueError:
+                continue
+            project = source_project
+            break
+    if project is not None and project.game == 'halo2':
+        layout.prop(operator, "render_lod")
+
+
 def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, has_permutations=False, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True):
     if show_template:
         draw_import_template(operator, layout)
@@ -328,7 +346,7 @@ def draw_model_tag_import_sections(operator, layout, corinth, show_template=True
     core_box = layout.box()
     core_box.label(text="Core Model")
     core_box.prop(operator, "tag_render")
-    core_box.prop(operator, "render_lod")
+    draw_halo2_lod(operator, core_box)
     core_box.prop(operator, "tag_markers")
 
     reimport_box = layout.box()
@@ -2394,7 +2412,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'reuse_armature')
             box.prop(self, 'build_control_rig')
             box.prop(self, 'tag_render')
-            box.prop(self, 'render_lod')
+            draw_halo2_lod(self, box)
             box.prop(self, 'tag_markers')
             if 'sky' in scope_items:
                 box.prop(self, 'tag_animation')
@@ -5531,6 +5549,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case "render_model" | "gbxmodel" | "sky":
                 draw_import_template(self, layout)
                 layout.prop(self, "build_control_rig")
+                draw_halo2_lod(self, layout)
                 if self.has_variants:
                     layout.prop(self, "tag_variant")
                 layout.prop(self, "tag_markers")
