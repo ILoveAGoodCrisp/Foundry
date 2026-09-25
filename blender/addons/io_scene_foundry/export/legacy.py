@@ -560,8 +560,19 @@ class LegacyExportScene(ExportScene):
             print(f'--- Loaded template {destination}')
 
     def ensure_halo1_shaders(self, source_paths: list[Path], shader_type: str) -> None:
-        """Create unresolved H1 shaders before Tool can open its console prompt."""
+        """Localize referenced H1 shaders before Tool resolves JMS material names."""
+        if self.target_game != 'halo1':
+            return
         shader_root = Path(self.tags_dir, self.asset_path_relative)
+        materials = {}
+        for ob in self.ob_halo_data:
+            for slot in getattr(ob, 'material_slots', ()):
+                mat = slot.material
+                if mat is None or not mat.nwo.shader_path.strip():
+                    continue
+                path = Path(self.tags_dir, utils.relative_path(mat.nwo.shader_path))
+                key = filename(path.stem).casefold()
+                materials.setdefault(key, {})[mat.name] = (mat, path)
         existing = {
             path.stem.casefold()
             for path in shader_root.rglob('*')
@@ -576,9 +587,44 @@ class LegacyExportScene(ExportScene):
                     '',
                     material.name,
                 ).strip().rstrip("%#?!@*$^-&=.;><|~({]}[' ")
-                if not name or name.startswith('+') or name.casefold() in existing:
+                if not name or name.startswith('+'):
                     continue
                 name = filename(name)
+                candidates = list(materials.get(name.casefold(), {}).values())
+                if candidates:
+                    paths = {path.resolve() for _, path in candidates}
+                    if len(paths) != 1:
+                        raise ValueError(f'H1 materials reference different shaders named {name!r}')
+                    shader_source = candidates[0][1]
+                    if not shader_source.is_file():
+                        raise FileNotFoundError(f'Halo Shader Path does not exist: {shader_source}')
+                    if not shader_source.suffix.lower().startswith('.shader'):
+                        raise ValueError(f'Not an H1 shader tag: {shader_source}')
+                    destination = shader_root / 'shaders' / (name + shader_source.suffix)
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    if shader_source.resolve() != destination.resolve():
+                        utils.copy_file(shader_source, destination)
+                    # A previous blank shader may have a different class. Keep
+                    # a backup, but remove it from Tool's shader-name search.
+                    for old in destination.parent.iterdir():
+                        if (old.is_file() and old.stem.casefold() == name.casefold()
+                                and old.suffix.lower().startswith('.shader')
+                                and old.resolve() != destination.resolve()):
+                            backup = old.with_name(old.name + '.foundry-backup')
+                            index = 1
+                            while backup.exists():
+                                backup = old.with_name(old.name + f'.foundry-backup-{index}')
+                                index += 1
+                            old.rename(backup)
+                    for mat, _ in candidates:
+                        mat.nwo.shader_path = utils.relative_path(destination)
+                    materials[name.casefold()] = {
+                        mat.name: (mat, destination) for mat, _ in candidates}
+                    existing.add(name.casefold())
+                    print(f'--- Copied shader {destination}')
+                    continue
+                if name.casefold() in existing:
+                    continue
                 destination = Path(
                     shader_root, 'shaders', name + '.' + shader_type
                 )
