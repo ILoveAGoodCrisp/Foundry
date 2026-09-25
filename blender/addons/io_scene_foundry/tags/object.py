@@ -140,6 +140,19 @@ class ObjectDocument(TagDocument):
         if not len(colors):
             return None
         result = [(1.0, 1.0, 1.0, 1.0)] * 4
+        if self.game == 'halo1':
+            # A-D are ordered slots, not named model variants. Choose a stable
+            # preview from the weighted permutations rather than randomizing on
+            # every import; without permutations use the slot's own bounds.
+            for index, color in enumerate(colors):
+                if index >= len(result):
+                    break
+                permutations = self.block(color, 'permutations')
+                selected = max(permutations, key=lambda entry: self.value(entry, 'weight'),
+                               default=color)
+                rgb = self.value(selected, 'color upper bound')
+                result[index] = [rgb.red, rgb.green, rgb.blue, 1.0]
+            return result
         variant = variant or self.get_default_variant()
         if not variant:
             return result
