@@ -198,12 +198,16 @@ class ObjectDocument(TagDocument):
         return self.value(self.tag.root(), 'weapon class'), self.value(self.tag.root(), 'weapon name')
 
     def get_unit_weapons(self):
-        unit = self.nested(self.tag.root(), 'unit')
+        # H1 flattens inherited unit fields into the biped/vehicle root.
+        unit = self.tag.root() if self.game == 'halo1' else self.nested(self.tag.root(), 'unit')
         if unit.field('weapons') is None:
             return []
         return [ref for e in self.block(unit, 'weapons') if (ref := self.reference(e, 'weapon'))]
 
     def get_weapon_markers(self):
+        if self.game == 'halo1':
+            # H1 attaches the weapon origin to the unit's right-hand marker.
+            return 'right hand', ''
         unit = self.nested(self.tag.root(), 'unit')
         return (self.value(unit, 'right_hand_node'),
                 self.value(self.nested(unit, 'more damn nodes'), 'preferred_gun_node'))

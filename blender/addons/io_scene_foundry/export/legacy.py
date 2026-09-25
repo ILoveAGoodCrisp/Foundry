@@ -409,7 +409,7 @@ class LegacyExportScene(ExportScene):
                     continue
                 name = filename(name)
                 destination = Path(
-                    self.tags_dir, self.asset_path_relative, name + '.' + shader_type
+                    shader_root, 'shaders', name + '.' + shader_type
                 )
                 with TagDocument(
                     destination,

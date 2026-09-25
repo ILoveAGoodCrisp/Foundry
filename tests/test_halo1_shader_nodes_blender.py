@@ -5,7 +5,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from zipfile import ZipFile
 
 import bpy
@@ -21,6 +21,26 @@ sys.path.insert(0, _wheels.name)
 from io_scene_foundry import utils
 from io_scene_foundry.tags import shader_converter
 from io_scene_foundry.tags.shader_converter import ShaderTag
+from io_scene_foundry.tags import bitmap
+
+
+class BitmapFrameExtractionTests(unittest.TestCase):
+    def test_classic_multiframe_extraction_does_not_require_tool(self):
+        for game in ('halo1', 'halo2', 'reach'):
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as root:
+                first_frame = str(Path(root) / 'texture_00001.tiff')
+                tag = SimpleNamespace(
+                    game=game, block_bitmaps=[None, None], is_cubemap=False,
+                    _raw_tiff_save_path=lambda suffix: str(Path(root) / f'texture{suffix}.tiff'),
+                    _save_single=Mock(side_effect=[first_frame, str(Path(root) / 'texture_00002.tiff')]),
+                )
+                with patch.object(bitmap, 'path_cache', set()), patch.object(bitmap.utils, 'run_tool') as tool:
+                    self.assertEqual(bitmap.BitmapTag.save_to_tiff(tag), first_frame)
+                    self.assertEqual(tag._save_single.call_count, 2)
+                    if game in ('halo1', 'halo2'):
+                        tool.assert_not_called()
+                    else:
+                        tool.assert_called_once_with(['plate', str(Path(first_frame).with_suffix(''))], null_output=True)
 
 
 class Halo1ShaderNodeTests(unittest.TestCase):

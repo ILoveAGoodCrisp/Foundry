@@ -17,6 +17,23 @@ GAMES = ('halo3', 'halo3odst', 'reach', 'halo4', 'halo2a')
 
 
 class ObjectTests(unittest.TestCase):
+    def test_halo1_biped_weapons_and_attachment_markers(self):
+        with tempfile.TemporaryDirectory() as root:
+            args = dict(tags_root=root, game='halo1')
+            with m.ObjectDocument('test.biped', **args) as doc:
+                self.assertEqual(doc.get_unit_weapons(), [])
+                self.assertEqual(doc.get_weapon_markers(), ('right hand', ''))
+                weapons = doc.block(doc.tag.root(), 'weapons')
+                doc.set_reference(weapons[weapons.add()], 'weapon', 'weapons/pistol/pistol.weapon')
+                weapons.add()  # An empty weapon slot must not be imported.
+                doc.set_reference(weapons[weapons.add()], 'weapon', 'weapons/assault_rifle/assault_rifle.weapon')
+            with m.ObjectDocument('test.biped', **args) as doc:
+                self.assertEqual(
+                    [ref.RelativePathWithExtension.replace('\\', '/') for ref in doc.get_unit_weapons()],
+                    ['weapons/pistol/pistol.weapon', 'weapons/assault_rifle/assault_rifle.weapon'],
+                )
+                self.assertEqual(doc.get_weapon_markers(), ('right hand', ''))
+
     def test_h3_color_function_padding_conversion(self):
         with tempfile.TemporaryDirectory() as root:
             definitions = Path(root) / 'definitions'

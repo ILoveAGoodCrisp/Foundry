@@ -821,7 +821,9 @@ class BitmapTag(BlenderTag, TagDocument):
                     tiff_path = temp_path
             
             
-            if not self.is_cubemap:
+            # Classic frames are extracted natively; Blender uses the first
+            # frame, not a Tool-generated plate. Do not require a kit executable.
+            if not self.is_cubemap and self.game not in {'halo1', 'halo2'}:
                 full_tiff_path = Path(tiff_path)
                 utils.run_tool(["plate", str(full_tiff_path.with_suffix(""))], null_output=True)
                 # create plate but no longer use it blender

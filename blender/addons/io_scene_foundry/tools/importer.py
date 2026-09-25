@@ -36,7 +36,6 @@ from ..tags.structure_design_blender import StructureDesignTag
 from ..tags.globals import FPARMS, GlobalsTag
 
 from ..tags.backend import ImportInfoSource, TagDocument
-from ..tags.multiplayer import MultiplayerObjectTypeListTag
 from ..tags.prefab import PrefabTag
 from ..tags.scenario import ScenarioMetadataTag
 from ..tags.sky_blender import SkyTag
@@ -704,7 +703,7 @@ last_used_decorator_type = ""
 sky_items = []
 cinematic_scene_items = []
 BIPED_WEAPON_SOURCE_BIPED_TAG = "biped_tag_weapons"
-biped_weapon_source_item_cache = []
+biped_weapon_source_item_cache = {}
 
 zone_set_items = {"blah": "blah"}
 
@@ -714,30 +713,31 @@ tether_name = "tether_distance"
 checked_asset_once = False
 
 def biped_weapon_source_items(_self, _context):
-    global biped_weapon_source_item_cache
+    tags_dir = utils.get_tags_path()
+    cache_key = os.path.normcase(os.path.abspath(tags_dir)) if tags_dir else None
+    if cache_key in biped_weapon_source_item_cache:
+        return biped_weapon_source_item_cache[cache_key]
     items = [
         (BIPED_WEAPON_SOURCE_BIPED_TAG, "Default", "Import the weapons referenced by the biped tag"),
     ]
     weapon_paths = defaultdict(set)
 
-    try:
-        with MultiplayerObjectTypeListTag(
-                path=r"multiplayer\globals.multiplayer_object_type_list",
-                tag_must_exist=True) as mp_globals:
-            for object_tag_path in mp_globals.weapon_references():
-                folder = Path(object_tag_path.RelativePath).parent.parent
-                weapon_paths[folder.name].add(object_tag_path.RelativePathWithExtension)
-    except Exception:
-        biped_weapon_source_item_cache = items
-        return biped_weapon_source_item_cache
-    
-    for folder, paths in weapon_paths.items():
+    if tags_dir:
+        tags_root = Path(tags_dir)
+        for directory, _, filenames in os.walk(tags_root):
+            for filename in filenames:
+                if Path(filename).suffix.lower() != '.weapon':
+                    continue
+                path = (Path(directory) / filename).relative_to(tags_root)
+                weapon_paths[str(path.parent)].add(str(path))
+
+    for folder, paths in sorted(weapon_paths.items()):
         items.append(("", folder, ""))
         for path in sorted(paths, key=lambda p: Path(p).with_suffix("").name):
-            items.append((path, Path(path).with_suffix("").name, ""))
+            items.append((path, Path(path).stem, path))
 
-    biped_weapon_source_item_cache = items
-    return biped_weapon_source_item_cache
+    biped_weapon_source_item_cache[cache_key] = items
+    return items
 
 IMPORT_OPERATOR_ENUM_DEFAULTS = {
     "extracted_bitmap_format": "tiff",
@@ -3686,10 +3686,10 @@ class NWOImporter:
                                     for weapon in weapon_paths:
                                         weapon_name = Path(weapon.RelativePathWithExtension).name if hasattr(weapon, "RelativePathWithExtension") else PureWindowsPath(weapon).name
                                         utils.print_section(f"Importing Weapon: {weapon_name}")
-                                        child = ChildObject()
+                                        child = ChildObject(child_variant_name="")
                                         parent_marker, child_marker = obj.get_weapon_markers()
                                         child.parent_marker = parent_marker if parent_marker else "primary_weapon"
-                                        child.child_marker = child_marker if child_marker else "right_hand"
+                                        child.child_marker = child_marker if obj.game == 'halo1' else (child_marker or "right_hand")
                                         child.child_object = weapon
                                         imported_file_objects.extend(self.import_child_object(
                                             child,

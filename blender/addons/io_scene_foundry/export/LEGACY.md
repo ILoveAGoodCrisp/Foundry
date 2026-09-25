@@ -67,7 +67,8 @@ directories. H1 always launches `tool.exe`, even when the project preference is
 set to `tool_fast`, because H1 does not provide a compatible fast executable.
 Before H1 Tool runs, Foundry creates any unresolved material tags so Tool does
 not open its interactive shader-class prompt: scenario structure uses
-`shader_environment`, while all other asset types use `shader_model`. Animation
+`shader_environment`, while all other asset types use `shader_model`. Generated
+shaders are written to the asset's `shaders` folder under the tags directory. Animation
 sources use `animations` on H1 and `model-animations`
 on H2–ODST. Native
 `blam-tags` documents perform Foundry's tag pre-processing and post-processing,
