@@ -4451,7 +4451,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         project = utils.get_project(self.scene_nwo.scene_project)
         show_halo2_lod = (
             project is not None
-            and project.game == 'halo2'
+            and project.game in {'halo1', 'halo2'}
             and utils.poll_ui(('model', 'multi_model'))
             and is_mesh
             and nwo.mesh_type == '_connected_geometry_mesh_type_default'

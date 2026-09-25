@@ -311,7 +311,7 @@ def draw_model_source_options(operator, layout, corinth, show_model_override, sh
             if getattr(operator, "tag_markers", False):
                 box.prop(operator, "import_variant_children")
 
-def draw_halo2_lod(operator, layout):
+def render_lod_source_project(operator):
     # The tag dialog establishes a source-project override before drawing.
     # In the file browser, resolve the selection without changing that context.
     project = utils.get_project()
@@ -325,8 +325,13 @@ def draw_halo2_lod(operator, layout):
                 continue
             project = source_project
             break
-    if project is not None and project.game == 'halo2':
-        layout.prop(operator, "render_lod")
+    return project
+
+
+def draw_halo2_lod(operator, layout):
+    project = render_lod_source_project(operator)
+    if project is not None and project.game in {'halo1', 'halo2'}:
+        layout.prop(operator, "render_lod", text="Halo 1 LOD" if project.game == 'halo1' else "Halo 2 LOD")
 
 
 def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, has_permutations=False, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True):
@@ -751,7 +756,7 @@ IMPORT_OPERATOR_ENUM_DEFAULTS = {
 }
 
 RENDER_LOD_ITEMS = [
-    ("ALL", "All", "Import every available Halo 2 level of detail"),
+    ("ALL", "All", "Import every available level of detail"),
     ("L1", "L1", "Import the super-low detail geometry"),
     ("L2", "L2", "Import the low detail geometry"),
     ("L3", "L3", "Import the medium detail geometry"),
@@ -759,6 +764,21 @@ RENDER_LOD_ITEMS = [
     ("L5", "L5", "Import the default super-high detail geometry"),
     ("L6", "L6", "Import the cinematic geometry"),
 ]
+
+HALO1_RENDER_LOD_ITEMS = [
+    ("ALL", "All", "Import every available level of detail"),
+    ("L1", "Super Low", "Import the super-low detail geometry"),
+    ("L2", "Low", "Import the low detail geometry"),
+    ("L3", "Medium", "Import the medium detail geometry"),
+    ("L4", "High", "Import the high detail geometry"),
+    ("L5", "Super High", "Import the super-high detail geometry"),
+]
+
+
+def render_lod_items(operator, _context):
+    project = render_lod_source_project(operator)
+    return HALO1_RENDER_LOD_ITEMS if project is not None and project.game == 'halo1' else RENDER_LOD_ITEMS
+
 
 def ensure_import_operator_enum_defaults(keywords):
     for prop_name, default in IMPORT_OPERATOR_ENUM_DEFAULTS.items():
@@ -1092,10 +1112,10 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
     render_lod: bpy.props.EnumProperty(
-        name="Halo 2 LOD",
-        description="Level of detail to import from Halo 2 render models",
-        items=RENDER_LOD_ITEMS,
-        default="ALL",
+        name="LOD",
+        description="Level of detail to import from Halo 1 or Halo 2 models",
+        items=render_lod_items,
+        default=0,
         options={'SKIP_SAVE'},
     )
     tag_markers: bpy.props.BoolProperty(
@@ -5007,10 +5027,10 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         default=True,
     )
     render_lod: bpy.props.EnumProperty(
-        name="Halo 2 LOD",
-        description="Level of detail to import from Halo 2 render models",
-        items=RENDER_LOD_ITEMS,
-        default="ALL",
+        name="LOD",
+        description="Level of detail to import from Halo 1 or Halo 2 models",
+        items=render_lod_items,
+        default=0,
         options={'SKIP_SAVE'},
     )
     tag_markers: bpy.props.BoolProperty(

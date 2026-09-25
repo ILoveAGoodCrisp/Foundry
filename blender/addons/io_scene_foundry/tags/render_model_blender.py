@@ -256,10 +256,10 @@ class RenderModelTag(RenderModelMetadataTag):
                 if allowed_region_permutations and region_perm not in allowed_region_permutations:
                     continue
                     
-                meshes = (permutation.lod_mesh_indices if self.game == 'halo2'
+                meshes = (permutation.lod_mesh_indices if self.game in {'halo1', 'halo2'}
                           else tuple(('', permutation.mesh_index + i)
                                      for i in range(permutation.mesh_count)))
-                if self.game == 'halo2' and selected_lod != 'ALL':
+                if self.game in {'halo1', 'halo2'} and selected_lod != 'ALL':
                     meshes = tuple(mesh for mesh in meshes if mesh[0] == selected_lod)
                 for i, (lod, mesh_index) in enumerate(meshes):
                     real_mesh_idx = None

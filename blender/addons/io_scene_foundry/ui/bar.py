@@ -493,6 +493,12 @@ class NWO_HaloExportSettings(bpy.types.Panel):
             col.prop(scene_nwo_export, "event_level", text="")
         if asset_type == 'camera_track_set':
             return
+        if utils.uses_legacy_export(scene_nwo.scene_project):
+            if utils.get_project(scene_nwo.scene_project).game == 'halo1':
+                col.prop(scene_nwo_export, "legacy_maya_order")
+            col.prop(scene_nwo_export, "legacy_generate_checksum")
+            if not scene_nwo_export.legacy_generate_checksum:
+                col.prop(scene_nwo_export, "legacy_file_checksum")
         scenario = asset_type == "scenario"
         render = utils.poll_ui(("model", "sky"))
         scenario_lightmap = (h4 and render) or scenario
@@ -881,6 +887,22 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     )
 
     legacy_asset_path: bpy.props.StringProperty(name="Legacy Asset Folder", subtype='DIR_PATH')
+
+    legacy_maya_order: bpy.props.BoolProperty(
+        name="Use Maya Sorting",
+        description="Use H1 Maya biped child/sibling ordering for both JMS and JMA exports",
+        default=False, options=set(),
+    )
+    legacy_generate_checksum: bpy.props.BoolProperty(
+        name="Generate Node Checksum",
+        description="Calculate the node checksum from the exported hierarchy for both JMS and JMA",
+        default=True, options=set(),
+    )
+    legacy_file_checksum: bpy.props.IntProperty(
+        name="File Checksum",
+        description="Custom node checksum used when automatic generation is disabled",
+        default=0, options=set(),
+    )
 
     export_mode: bpy.props.EnumProperty(
         name="Export Mode",

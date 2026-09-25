@@ -21,10 +21,11 @@ from mathutils import Matrix, Quaternion, Vector
 
 from .process import ExportScene
 from .legacy_materials import material_variant
+from .cleanup import ANIMATION_EXTENSIONS, prune_intermediates
 from .shader_collections import ShaderCollections
 from ..legacy import jms_format as jms
 from ..legacy import ass_format as ass
-from ..legacy.writers import VERSIONS, TextWriter, hierarchy, node_checksum, write_jms, write_ass
+from ..legacy.writers import VERSIONS, TextWriter, hierarchy, legacy_bone_order, node_checksum, write_jms, write_ass
 from ..tags.backend import TagDocument
 from ..tags.animation_graph import AnimationGraphTag
 from ..tags.object import ObjectDocument
@@ -73,7 +74,7 @@ def transform(matrix, scale=1, inverse_rotation=False):
     return jms.Transform((rotation.x, rotation.y, rotation.z, rotation.w), tuple(matrix.translation * scale))
 
 
-def write_outputs(outputs):
+def write_outputs(outputs, *, maya_order=False):
     """Serialize and validate the whole batch before replacing any existing file."""
     staged = []
     try:
@@ -84,7 +85,7 @@ def write_outputs(outputs):
                 temporary = Path(stream.name)
                 staged.append((temporary, path))
                 if isinstance(asset, jms.JMS):
-                    write_jms(asset, stream)
+                    write_jms(asset, stream, maya_order=maya_order)
                 elif isinstance(asset, ass.ASS):
                     write_ass(asset, stream)
                 else:
@@ -168,6 +169,12 @@ class LegacyExportScene(ExportScene):
         skeleton = self.virtual_scene.skeleton_model
         if skeleton:
             self.bones = [b for b in skeleton.skeleton.bones if isinstance(b.bone, bpy.types.PoseBone)]
+            by_name = {b.name: b for b in self.bones}
+            parents = {
+                b.name: skeleton.skeleton.bones[b.parent_index].name if b.parent_index >= 0 else None
+                for b in self.bones
+            }
+            self.bones = [by_name[name] for name in legacy_bone_order(parents)]
         self.bone_index = {b.name: i for i, b in enumerate(self.bones)}
         self.bone_world = {b.name: b.matrix_world for b in self.bones}
         self.bone_parents = {}
@@ -207,6 +214,14 @@ class LegacyExportScene(ExportScene):
                 folder = {'render': 'models', 'collision': 'physics',
                           'physics': 'physics'}.get(folder, folder)
             name = node.region if folder == 'structure' else node.permutation or 'default'
+            if self.target_game == 'halo1' and folder == 'models':
+                # H1 Tool takes the LOD from the JMS filename, not materials.
+                lod_names = {'L1': 'superlow', 'L2': 'low', 'L3': 'medium',
+                             'L4': 'high', 'L5': 'superhigh'}
+                lod = node.ob.nwo.mesh_lod
+                if lod not in lod_names:
+                    raise ValueError(f'{node.name}: Halo 1 does not support LOD {lod}')
+                name = f'{name} {lod_names[lod]}'
             if node.tag_type == 'design':
                 name += '_design'
             if node.props.get('bungie_mesh_type') == 11:
@@ -227,7 +242,7 @@ class LegacyExportScene(ExportScene):
             if not grouped and ((self.bones and 'skeleton' in self.export_tag_types) or
                                 (markers and 'markers' in self.export_tag_types)):
                 grouped[('models' if self.target_game == 'halo1' else 'render',
-                         'default')] = []
+                         'default superhigh' if self.target_game == 'halo1' else 'default')] = []
             structure_names = {key_name for (key_folder, key_name) in grouped
                                if key_folder == 'structure'}
             if len(structure_names) > 1:
@@ -251,9 +266,14 @@ class LegacyExportScene(ExportScene):
                 elif folder == 'structure':
                     ass_markers = tuple(marker for marker in markers
                                         if len(structure_names) == 1 or marker.region == name)
+                # Keep the actual permutation name for marker inclusion tests;
+                # the LOD suffix belongs only to the output filename.
+                asset_name = name
+                if self.target_game == 'halo1' and folder == 'models':
+                    asset_name = (nodes[0].permutation or 'default') if nodes else 'default'
                 asset = (self.ass_asset(
                     name, nodes, ass_markers, lights)
-                    if use_ass else self.jms_asset(name, nodes, markers, folder))
+                    if use_ass else self.jms_asset(asset_name, nodes, markers, folder))
                 if uses_jmi:
                     if folder != 'render' or use_ass:
                         raise ValueError(
@@ -269,7 +289,7 @@ class LegacyExportScene(ExportScene):
                         self.asset_path, folder,
                         name + ('.ass' if use_ass else '.jms'))
                 outputs.append((output_path, asset))
-            if uses_jmi:
+            if uses_jmi and jmi_children:
                 outputs.append((
                     Path(self.asset_path, self.asset_name + '.jmi'),
                     jmi_text(self.jms_version, jmi_children),
@@ -281,13 +301,49 @@ class LegacyExportScene(ExportScene):
             raise ValueError('Legacy export of external animation files is not implemented; open their source asset to export JMA')
         if self.animation_composites:
             raise ValueError('JMA cannot encode animation composites; export the individual source animations')
-        if not outputs:
+        if not outputs and single_animation:
             raise ValueError('No JMS, ASS or JMA data matched the export selection')
         if len({str(path).casefold() for path, _ in outputs}) != len(outputs):
             raise ValueError('Legacy output names collide; rename the affected BSP, permutation or animation')
         if self.shader_collections.dirty:
             outputs.append((self.shader_collections.path, self.shader_collections.text()))
-        write_outputs(outputs)
+        write_outputs(outputs, maya_order=self.export_settings.legacy_maya_order)
+        if not single_animation:
+            self.cleanup_intermediates(outputs)
+
+    def cleanup_intermediates(self, outputs):
+        root = Path(self.asset_path)
+        expected = {path for path, _ in outputs}
+        # Unsampled animations still belong to the asset during ACTIVE/NONE
+        # exports. Include their current extension to remove obsolete variants.
+        expected.update(root / 'animations' / (
+            filename(animation.name.replace(':', ' ')) + self.animation_extension(animation))
+            for animation in self.virtual_scene.animations)
+        directories = {root / 'animations': ANIMATION_EXTENSIONS}
+        # Geometry output batches are filtered before serialization. Only prune
+        # folders for which this batch contains the complete inventory.
+        if not self.limit_bsps_to_selection and not self.limit_perms_to_selection:
+            roles = self.export_tag_types
+            if 'render' in roles:
+                directories[root / ('models' if self.target_game == 'halo1' else 'render')] = {'.jms', '.ass'}
+            if self.target_game == 'halo1':
+                if {'collision', 'physics'} <= roles:
+                    directories[root / 'physics'] = {'.jms'}
+            else:
+                for role in ('collision', 'physics'):
+                    if role in roles:
+                        directories[root / role] = {'.jms', '.ass'}
+            if {'structure', 'design'} <= roles:
+                directories[root / 'structure'] = {'.jms', '.ass'}
+            if (self.target_game == 'halo2' and 'render' in roles
+                    and self.asset_type.name in {'PARTICLE_MODEL', 'DECORATOR_SET'}):
+                directories[root] = {'.jmi'}
+                # JMI children use one render folder per child, rather than the
+                # asset's own render folder. Never descend into another asset.
+                for child in root.iterdir():
+                    if child.is_dir() and not child.is_symlink() and not any(child.glob('*.sidecar.xml')):
+                        directories[child / 'render'] = {'.jms'}
+        prune_intermediates(root, expected, directories)
 
     def write_tags(self, single_animation=False):
         """Compile legacy model sources, then update object tags natively."""
@@ -308,6 +364,7 @@ class LegacyExportScene(ExportScene):
         if self.target_game == 'halo1':
             # H1 has no usable tool_fast equivalent for these imports.
             halo1_tool_options = {'force_tool': True}
+            self.copy_halo1_templates(animation_only)
         if self.asset_type.name == 'SCENARIO':
             structure_dir = Path(self.asset_path, 'structure')
             structure_sources = sorted(
@@ -378,15 +435,129 @@ class LegacyExportScene(ExportScene):
         has_animation_sources = (animation_dir.is_dir() and any(
             path.is_file() and path.suffix.lower().startswith('.jm')
             for path in animation_dir.iterdir()))
-        if animation_only or (self.export_settings.export_animations != 'NONE'
-                              and has_animation_sources):
+        import_animations = self.has_blend_animations() and has_animation_sources
+        if import_animations:
             command = 'animations' if self.target_game == 'halo1' else 'model-animations'
+            animation_tool_options = dict(halo1_tool_options)
+            if self.target_game == 'halo1':
+                # H1 asks whether to save the graph after animations have been
+                # removed. The output viewer has no interactive stdin.
+                animation_tool_options['input_data'] = b'y\n'
             utils.run_tool([command, self.asset_path_relative],
                            event_level=self.export_settings.event_level,
-                           **halo1_tool_options)
+                           **animation_tool_options)
             self.write_classic_animation_events()
+        if self.target_game == 'halo1' and import_animations:
+            self.validate_halo1_animation_skeleton()
         if self.asset_type.name in {'MODEL', 'SKY'}:
             self.write_object_tags()
+
+    def has_blend_animations(self):
+        """Disk intermediates alone must never opt an asset into animation import."""
+        if self.export_settings.export_animations == 'NONE':
+            return False
+        animations = self.scene_settings.animations
+        if self.export_settings.export_animations == 'ACTIVE':
+            index = self.scene_settings.active_animation_index
+            return 0 <= index < len(animations) and animations[index].export_this
+        return any(animation.export_this for animation in animations)
+
+    def validate_halo1_animation_skeleton(self):
+        """Never silently accept a template graph with incompatible node indices."""
+        base = Path(self.tags_dir, self.asset_path_relative, self.asset_name)
+        model_path = base.with_suffix('.gbxmodel')
+        animation_path = base.with_suffix('.model_animations')
+        if not model_path.is_file() or not animation_path.is_file():
+            return
+        with TagDocument(model_path, tags_root=self.tags_dir, game='halo1', must_exist=True) as model, \
+                TagDocument(animation_path, tags_root=self.tags_dir, game='halo1', must_exist=True) as graph:
+            def skeleton(doc):
+                return [tuple(doc.value(node, field) for field in (
+                    'name', 'first child node', 'next sibling node'))
+                    for node in doc.block(doc.tag.root(), 'nodes')]
+            if skeleton(model) != skeleton(graph):
+                raise ValueError(
+                    'H1 model and animation node order differs. Export geometry and '
+                    'all animations together with the same sorting settings; '
+                    'rebuild intermediate files before using Tags Only.')
+            checksum = model.value(model.tag.root(), 'node list checksum')
+            count = len(model.block(model.tag.root(), 'nodes'))
+            for animation in graph.block(graph.tag.root(), 'animations'):
+                if (graph.value(animation, 'node list checksum') != checksum or
+                        graph.value(animation, 'node count') != count):
+                    raise ValueError(
+                        f'H1 animation {graph.value(animation, "name")!r} has an '
+                        'incompatible skeleton. Export all animations and geometry together.')
+
+    def copy_halo1_templates(self, animation_only=False):
+        """Seed H1 tags before Tool imports; explicit component templates win."""
+        templates = {}
+        component_fields = {
+            'model': 'gbxmodel',
+            'animation graph': 'model_animations',
+            'collision model': 'model_collision_geometry',
+            'physics': 'physics',
+        }
+        if self.asset_type.name in {'MODEL', 'ANIMATION', 'SINGLE_ANIMATION', 'SCENARIO'}:
+            outputs = {'scenario'} if self.asset_type.name == 'SCENARIO' else {
+                kind for kind in self.object_tag_types
+                if getattr(self.scene_settings, 'output_' + kind, False)
+            }
+            for kind in sorted(outputs):
+                template = getattr(self.scene_settings, 'template_' + kind, '').strip()
+                if not template:
+                    continue
+                source = Path(self.tags_dir, utils.relative_path(template))
+                if not source.is_file():
+                    raise FileNotFoundError(f'Tag template does not exist: {source}')
+                if not animation_only:
+                    templates[kind] = source
+                if kind != 'scenario':
+                    with TagDocument(source, tags_root=self.tags_dir, game='halo1',
+                                     must_exist=True) as tag:
+                        for field, extension in component_fields.items():
+                            ref = tag.reference(tag.tag.root(), field)
+                            if ref and (not animation_only or extension == 'model_animations'):
+                                templates.setdefault(extension, Path(ref.Filename))
+
+        for setting, extension in (
+            ('template_render_model', 'gbxmodel'),
+            ('template_collision_model', 'model_collision_geometry'),
+            ('template_physics_model', 'physics'),
+            ('template_model_animation_graph', 'model_animations'),
+        ):
+            if animation_only and extension != 'model_animations':
+                continue
+            template = getattr(self.scene_settings, setting, '').strip()
+            if template:
+                templates[extension] = Path(self.tags_dir, utils.relative_path(template))
+
+        # Validate and read the complete batch before replacing destinations.
+        # Reading first also handles templates that are another output's source.
+        copies = []
+        base = Path(self.tags_dir, self.asset_path_relative, self.asset_name)
+        for extension, source in templates.items():
+            destination = base.with_suffix('.' + extension)
+            if (extension == 'model_animations' and destination.is_file()
+                    and (not self.has_blend_animations()
+                         or not any(Path(self.asset_path, 'animations').glob('*.jm*')))):
+                # Tool will not rebuild this graph. Keep its compiled skeleton
+                # instead of replacing it with the template's old indices.
+                continue
+            if not source.is_file():
+                raise FileNotFoundError(f'Tag template does not exist: {source}')
+            if source.resolve() != destination.resolve():
+                copies.append((destination, source.read_bytes()))
+        for destination, data in copies:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with NamedTemporaryFile(dir=destination.parent, delete=False) as stream:
+                temporary = Path(stream.name)
+                stream.write(data)
+            try:
+                temporary.replace(destination)
+            finally:
+                temporary.unlink(missing_ok=True)
+            print(f'--- Loaded template {destination}')
 
     def ensure_halo1_shaders(self, source_paths: list[Path], shader_type: str) -> None:
         """Create unresolved H1 shaders before Tool can open its console prompt."""
@@ -420,12 +591,46 @@ class LegacyExportScene(ExportScene):
                 existing.add(name.casefold())
                 print(f'--- Created {destination}')
 
+    def halo1_object_references(self, base, object_template=''):
+        """Resolve components from the asset, never from stale output files alone."""
+        mesh_types = {data[0].get('bungie_mesh_type') for data in self.ob_halo_data.values()}
+        present = {
+            'model': bool(mesh_types.intersection({3, 11})),
+            'collision model': 2 in mesh_types,
+            'physics': 12 in mesh_types,
+            'animation graph': any(a.export_this for a in self.scene_settings.animations),
+        }
+        inherited = {}
+        if object_template:
+            source = Path(self.tags_dir, utils.relative_path(object_template))
+            with TagDocument(source, tags_root=self.tags_dir, game='halo1', must_exist=True) as tag:
+                for field in present:
+                    reference = tag.reference(tag.tag.root(), field)
+                    if reference:
+                        inherited[field] = reference.RelativePathWithExtension
+        result = {}
+        for field, setting, extension in (
+            ('model', 'template_render_model', 'gbxmodel'),
+            ('collision model', 'template_collision_model', 'model_collision_geometry'),
+            ('animation graph', 'template_model_animation_graph', 'model_animations'),
+            ('physics', 'template_physics_model', 'physics'),
+        ):
+            template = getattr(self.scene_settings, setting, '').strip()
+            if present[field] or template:
+                destination = base.with_suffix('.' + extension)
+                if not destination.is_file():
+                    raise FileNotFoundError(f'Asset component tag does not exist: {destination}')
+                result[field] = utils.relative_path(destination)
+            else:
+                result[field] = inherited.get(field)
+        return result
+
     def write_object_tags(self):
         """Create selected high-level object tags through blam-tags."""
         model_path = Path(self.tags_dir, self.asset_path_relative,
                           self.asset_name).with_suffix(
                               '.gbxmodel' if self.target_game == 'halo1' else '.model')
-        if not model_path.is_file():
+        if self.target_game != 'halo1' and not model_path.is_file():
             raise FileNotFoundError(
                 f'Model compilation did not create the expected tag: {model_path}')
 
@@ -456,15 +661,9 @@ class LegacyExportScene(ExportScene):
                                 game=self.target_game) as tag:
                 if self.target_game == 'halo1':
                     base = model_path.with_suffix('')
-                    tag.set_halo1_model_paths(
-                        model_reference,
-                        utils.relative_path(base.with_suffix('.model_collision_geometry'))
-                        if base.with_suffix('.model_collision_geometry').is_file() else None,
-                        utils.relative_path(base.with_suffix('.model_animations'))
-                        if base.with_suffix('.model_animations').is_file() else None,
-                        utils.relative_path(base.with_suffix('.physics'))
-                        if base.with_suffix('.physics').is_file() else None,
-                    )
+                    references = self.halo1_object_references(base, template)
+                    for field, path in references.items():
+                        tag.set_reference(tag.object_struct(), field, path)
                 else:
                     tag.set_model_tag_path(model_reference)
             print(f'--- Wrote {destination}')
@@ -696,7 +895,7 @@ class LegacyExportScene(ExportScene):
             asset.nodes.append(jms.Node(
                 'implied_root_node', -1,
                 jms.Transform((0, 0, 0, 1), (0, 0, 0))))
-        asset.checksum = node_checksum(asset.nodes)
+        asset.checksum = self.legacy_node_checksum(asset.nodes)
         cache = {}
         for node in nodes:
             materials = self.face_materials(node, asset, cache)
@@ -987,20 +1186,27 @@ class LegacyExportScene(ExportScene):
             return '.jmr'
         return {'none': '.jmm', 'xy': '.jma', 'xyyaw': '.jmt', 'xyzyaw': '.jmz'}.get(animation.movement, '.jma')
 
+    def legacy_node_checksum(self, nodes):
+        if not self.export_settings.legacy_generate_checksum:
+            return self.export_settings.legacy_file_checksum
+        return node_checksum(
+            nodes, halo1=self.target_game == 'halo1',
+            maya_order=self.export_settings.legacy_maya_order)
+
     def jma_text(self, animation):
         tracks = {name: (positions, rotations, scales) for name, positions, rotations, scales in animation.legacy_tracks}
         if not self.bones or set(self.bone_index) - tracks.keys():
             raise ValueError(f'{animation.name}: animation and exported skeleton do not match')
         stream = io.StringIO()
-        w = TextWriter(stream)
-        nodes = hierarchy([jms.Node(b.name, self.bone_parents[b.name], jms.Transform((0, 0, 0, 1), (0, 0, 0))) for b in self.bones])
+        w = TextWriter(stream, decimal_places=6 if self.target_game == 'halo1' else None)
+        nodes = hierarchy([jms.Node(b.name, self.bone_parents[b.name], jms.Transform((0, 0, 0, 1), (0, 0, 0))) for b in self.bones], halo1=self.target_game == 'halo1', maya_order=self.export_settings.legacy_maya_order)
         w.line(self.jma_version)
         if self.jma_version >= 16394:
-            w.line(node_checksum(nodes))
+            w.line(self.legacy_node_checksum(nodes))
         for value in (animation.frame_count, round(1 / self.virtual_scene.time_step), 1, self.asset_name, len(self.bones)):
             w.line(value)
         if self.jma_version < 16394:
-            w.line(node_checksum(nodes))
+            w.line(self.legacy_node_checksum(nodes))
         for node in nodes:
             w.line(node.name)
             if self.jma_version >= 16394:
@@ -1024,7 +1230,10 @@ class LegacyExportScene(ExportScene):
                 value = transform(matrix, self.to_halo_scale, self.jma_version <= 16394)
                 w.vector(value.translation)
                 w.vector(value.rotation)
-                w.vector((matrix.to_scale()[0],))
+                output_scale = matrix.to_scale()[0]
+                if self.target_game == 'halo1':
+                    output_scale = round(output_scale, 2)
+                w.vector((output_scale,))
         if self.jma_version >= 16395:
             w.line(0)  # No separate biped-controller track.
         return stream.getvalue()
@@ -1056,7 +1265,7 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
         export.get_initial_export_objects()
         export.map_halo_properties()
         if write_intermediates:
-            # Legacy export uses the prepared bone order because its tags use the older layout.
+            # Legacy serializers apply a shared deterministic order without tag templates.
             export.create_virtual_tree()
             export.sample_animations(single_animation)
             export.export_legacy(single_animation)

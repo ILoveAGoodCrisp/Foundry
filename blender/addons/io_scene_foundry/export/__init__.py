@@ -562,6 +562,11 @@ class NWO_ExportScene(Operator, ExportHelper):
         # if not scene_nwo.is_child_asset:
         if utils.uses_legacy_export(scene_nwo.scene_project):
             col.prop(scene_nwo_export, "legacy_asset_path")
+            if utils.get_project(scene_nwo.scene_project).game == 'halo1':
+                col.prop(scene_nwo_export, "legacy_maya_order")
+            col.prop(scene_nwo_export, "legacy_generate_checksum")
+            if not scene_nwo_export.legacy_generate_checksum:
+                col.prop(scene_nwo_export, "legacy_file_checksum")
         col.prop(scene_nwo_export, "export_mode", text="")
         col.prop(scene_nwo_export, "event_level", text="")
         if scene_nwo.asset_type == 'camera_track_set':

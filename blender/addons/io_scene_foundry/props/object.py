@@ -1999,7 +1999,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
 
     mesh_lod: bpy.props.EnumProperty(
         name="LOD",
-        description="Halo 2 model level of detail",
+        description="Halo 1 or Halo 2 model level of detail (L1 is lowest, L5 is highest; L6 is Halo 2 cinematic)",
         items=[
             ('L1', "L1", "Lowest-detail model"),
             ('L2', "L2", "Low-detail model"),

@@ -3739,6 +3739,9 @@ class AnimationTag(AnimationGraphTag):
                     pose_defaults = self._native_frame_tuples(base_animation.first_frame())
 
         native_pose = animation_pose(index, pose_defaults)
+        if self.game == 'halo1' and tag_animation.animation_type == AnimationType.OVERLAY:
+            from ..legacy.writers import halo1_overlay_pose
+            native_pose = halo1_overlay_pose(native_pose)
         animation_data = self._animation_data_from_native_pose(native_pose)
         if tag_animation.animation_type in (AnimationType.NONE, AnimationType.BASE):
             append_final_frame(animation_data)

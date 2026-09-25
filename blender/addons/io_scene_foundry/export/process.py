@@ -2701,7 +2701,11 @@ class ExportScene:
         #     self.sidecar.write_verification()
 
         # self.sidecar.get_child_elements()
-        self.sidecar.build()
+        # A single cinematic scene does not describe the other scenes' files.
+        cleanup = self.asset_type != AssetType.CINEMATIC or (
+            not self.export_settings.current_scene_only
+            and self.export_settings.cinematic_scope != 'CAMERA')
+        self.sidecar.build(cleanup=cleanup)
                     
         print(f"--- Saved to: {self.sidecar.sidecar_path}")
         

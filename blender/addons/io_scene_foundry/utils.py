@@ -495,8 +495,10 @@ def set_tool_event_level(event_level):
     except:
         print("Unable to replace bonobo_init.txt to set event level. It is currently read only")
 
-def run_tool(tool_args: list, in_background=False, null_output=False, event_level=None, force_tool=False, log_file=None, force_tool_fast=False, tool_patches=None):
+def run_tool(tool_args: list, in_background=False, null_output=False, event_level=None, force_tool=False, log_file=None, force_tool_fast=False, tool_patches=None, input_data=None):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
+    if in_background and input_data is not None:
+        raise ValueError('Tool input is only supported for synchronous commands')
     project_dir = get_project_path()
     os.chdir(project_dir)
     if force_tool:
@@ -535,21 +537,31 @@ def run_tool(tool_args: list, in_background=False, null_output=False, event_leve
             return _popen_tool(command, project_dir, stdout=output_stream, stderr=output_stream, tool_patches=tool_patches)
     else:
         if null_output:
-            return _check_call_tool(command, project_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, tool_patches=tool_patches)
+            return _check_call_tool(command, project_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, tool_patches=tool_patches, input_data=input_data)
         elif log_warnings:
             with open(tmp_log, "w") as file:
-                result = _check_call_tool(command, project_dir, stdout=output_stream, stderr=file, tool_patches=tool_patches)
+                result = _check_call_tool(command, project_dir, stdout=output_stream, stderr=file, tool_patches=tool_patches, input_data=input_data)
                 
             if tmp_log.exists() and os.path.getsize(tmp_log) > 0:
                 os.startfile(tmp_log)
             return result
         else:
-            return _check_call_tool(command, project_dir, stdout=output_stream, stderr=output_stream, tool_patches=tool_patches)
+            return _check_call_tool(command, project_dir, stdout=output_stream, stderr=output_stream, tool_patches=tool_patches, input_data=input_data)
 
 
-def _check_call_tool(command, cwd, stdout=None, stderr=None, tool_patches=None):
-    process = _popen_tool(command, cwd, stdout=stdout, stderr=stderr, tool_patches=tool_patches)
-    returncode = process.wait()
+def _check_call_tool(command, cwd, stdout=None, stderr=None, tool_patches=None, input_data=None):
+    if input_data is None:
+        process = _popen_tool(command, cwd, stdout=stdout, stderr=stderr, tool_patches=tool_patches)
+        returncode = process.wait()
+    else:
+        # Preload input without capturing output: Tool can buffer its prompt
+        # when redirected to the output window, making prompt detection hang.
+        with tempfile.TemporaryFile() as input_stream:
+            input_stream.write(input_data)
+            input_stream.seek(0)
+            process = _popen_tool(command, cwd, stdout=stdout, stderr=stderr,
+                                  tool_patches=tool_patches, stdin=input_stream)
+            returncode = process.wait()
     if returncode:
         raise subprocess.CalledProcessError(returncode, command)
     return 0
@@ -732,17 +744,17 @@ def _check_windows_call(result):
         raise ctypes.WinError(ctypes.get_last_error())
 
 
-def _popen_tool(command, cwd, stdout=None, stderr=None, tool_patches=None):
+def _popen_tool(command, cwd, stdout=None, stderr=None, tool_patches=None, stdin=None):
     if tool_patches and os.name == "nt":
-        return _create_patched_tool_process(command, cwd, stdout, stderr, tool_patches)
+        return _create_patched_tool_process(command, cwd, stdout, stderr, tool_patches, stdin=stdin)
 
     creationflags = _CREATE_NO_WINDOW if os.name == "nt" and (stdout is not None or stderr is not None) else 0
-    process = Popen(command, stdout=stdout, stderr=stderr, cwd=cwd, creationflags=creationflags)
+    process = Popen(command, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd, creationflags=creationflags)
     foundry_output.register_tool_process(process)
     return process
 
 
-def _create_patched_tool_process(command, cwd, stdout, stderr, tool_patches):
+def _create_patched_tool_process(command, cwd, stdout, stderr, tool_patches, stdin=None):
     kernel32, _ntdll = _windows_patch_api()
     startup = _STARTUPINFO()
     startup.cb = ctypes.sizeof(startup)
@@ -754,10 +766,10 @@ def _create_patched_tool_process(command, cwd, stdout, stderr, tool_patches):
     inherit_handles = False
 
     try:
-        if stdout is not None or stderr is not None:
+        if stdin is not None or stdout is not None or stderr is not None:
             inherit_handles = True
             startup.dwFlags |= _STARTF_USESTDHANDLES
-            startup.hStdInput = _stdio_child_handle(None, _STD_INPUT_HANDLE, "rb", handles_to_close, files_to_close)[0]
+            startup.hStdInput = _stdio_child_handle(stdin, _STD_INPUT_HANDLE, "rb", handles_to_close, files_to_close)[0]
             startup.hStdOutput, stdout_file = _stdio_child_handle(stdout, _STD_OUTPUT_HANDLE, "wb", handles_to_close, files_to_close)
             startup.hStdError, stderr_file = _stdio_child_handle(stderr, _STD_ERROR_HANDLE, "wb", handles_to_close, files_to_close)
 

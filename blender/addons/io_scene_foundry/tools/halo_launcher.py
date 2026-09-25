@@ -409,7 +409,8 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
     asset_path = scene_nwo.asset_directory
     asset_name = scene_nwo.asset_name
     project = get_project()
-    legacy_sapien = bool(is_sapien and project and project.game in LEGACY_SAPIEN_GAMES)
+    legacy_game = bool(project and project.game in LEGACY_SAPIEN_GAMES)
+    legacy_sapien = is_sapien and legacy_game
     
     prefs = get_prefs()
     
@@ -463,17 +464,19 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
 
     os.chdir(get_project_path())
     # Write the init file
+    init_filename = "init.txt" if legacy_game else "bonobo_init.txt"
+    init_backup = str(Path(init_filename).with_stem(Path(init_filename).stem + "_old"))
     init = ""
-    if os.path.exists("bonobo_init.txt"):
+    if os.path.exists(init_filename):
         try:
-            if os.path.exists("bonobo_init_old.txt"):
-                os.remove("bonobo_init_old.txt")
-            os.rename("bonobo_init.txt", "bonobo_init_old.txt")
-            init = "bonobo_init.txt"
+            if os.path.exists(init_backup):
+                os.remove(init_backup)
+            os.rename(init_filename, init_backup)
+            init = init_filename
         except:
-            print("Unable to replace bonobo_init.txt. It is currently read only")
+            print(f"Unable to replace {init_filename}. It is currently read only")
     else:
-        init = "bonobo_init.txt"
+        init = init_filename
 
     if init != "":
         h4_plus = is_corinth()
@@ -658,8 +661,9 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
                         
                         
             if not is_sapien:
+                start_command = "map_name" if project and project.game == "halo1" else "game_start"
                 file.write(
-                    f'game_start "{str(Path(relative_path(filepath)).with_suffix(""))}"\n'
+                    f'{start_command} "{str(Path(relative_path(filepath)).with_suffix(""))}"\n'
                 )
 
     # write last scenario to project

@@ -12,8 +12,9 @@ VERSIONS = {
 
 
 class TextWriter:
-    def __init__(self, stream, quoted=False):
+    def __init__(self, stream, quoted=False, decimal_places=None):
         self.stream, self.quoted = stream, quoted
+        self.decimal_places = decimal_places
 
     def line(self, value):
         if isinstance(value, str):
@@ -29,17 +30,81 @@ class TextWriter:
         values = tuple(float(v) for v in values)
         if not all(isfinite(v) for v in values):
             raise ValueError('Cannot export non-finite numeric data')
-        self.stream.write('\t'.join(format(v, '.10g') for v in values) + '\n')
+        precision = '.10g' if self.decimal_places is None else f'.{self.decimal_places}f'
+        self.stream.write('\t'.join(format(v, precision) for v in values) + '\n')
 
     def transform(self, value):
         self.vector(value.rotation)
         self.vector(value.translation)
 
 
-def hierarchy(nodes):
+def halo1_overlay_rotation(reference, rotation):
+    """Convert reference*delta poses to the delta*reference poses H1 Tool expects.
+
+    Inputs and result use the file's XYZW quaternion convention.
+    """
+    def multiply(a, b):
+        x, y, z, w = a
+        X, Y, Z, W = b
+        return (w*X + x*W + y*Z - z*Y,
+                w*Y - x*Z + y*W + z*X,
+                w*Z + x*Y - y*X + z*W,
+                w*W - x*X - y*Y - z*Z)
+    norm = sum(v*v for v in reference)
+    inverse = tuple((-v if i < 3 else v) / norm for i, v in enumerate(reference))
+    return multiply(multiply(inverse, rotation), reference)
+
+
+def halo1_overlay_pose(pose):
+    """Adapt native reference*delta rotations to H1's delta*reference convention.
+
+    Do this on import, so authored and imported actions share one convention
+    and the JMO exporter can serialize their evaluated poses directly.
+    """
+    reference = pose['leading_frame']
+    frames = []
+    for frame in pose['frames']:
+        if len(frame) != len(reference):
+            raise ValueError('H1 overlay reference and frame node counts differ')
+        frames.append([
+            (*node[:3], *halo1_overlay_rotation(base[3:7], node[3:7]), node[7])
+            for base, node in zip(reference, frame)
+        ])
+    return {**pose, 'frames': frames}
+
+
+def legacy_bone_order(parents):
+    """Order names by hierarchy depth, then alphabetically, independent of Blender order."""
+    depths = {}
+
+    def depth(name):
+        if name not in depths:
+            parent = parents[name]
+            depths[name] = depth(parent) + 1 if parent in parents else 0
+        return depths[name]
+
+    return sorted(parents, key=lambda name: (depth(name), name))
+
+
+def hierarchy_children(nodes, halo1=False, maya_order=False):
     children = {}
     for index, node in enumerate(nodes):
         children.setdefault(node.parent, []).append(index)
+    if halo1:
+        # H1 defaults to reverse alphabetical traversal. Maya ordering
+        # optionally prioritizes thighs and clavicles on biped skeletons.
+        for parent, indices in children.items():
+            indices.sort(key=lambda i: nodes[i].name, reverse=True)
+            if maya_order and parent != -1:
+                name = nodes[parent].name.lower()
+                priority = 'thigh' if 'pelvis' in name else 'clavicle' if 'spine1' in name else None
+                if priority:
+                    indices.sort(key=lambda i: priority not in nodes[i].name.lower())
+    return children
+
+
+def hierarchy(nodes, halo1=False, maya_order=False):
+    children = hierarchy_children(nodes, halo1, maya_order)
     result = [replace(n, child=-1, sibling=-1) for n in nodes]
     for parent, indices in children.items():
         if parent != -1:
@@ -49,13 +114,11 @@ def hierarchy(nodes):
     return result
 
 
-def node_checksum(nodes):
+def node_checksum(nodes, halo1=False, maya_order=False):
     """Halo's ordered hierarchy hash, with 32-bit rotation at each branch."""
     def rotate(value, count):
         return ((value << count) | (value >> (32 - count))) & 0xffffffff
-    children = {}
-    for index, node in enumerate(nodes):
-        children.setdefault(node.parent, []).append(index)
+    children = hierarchy_children(nodes, halo1, maya_order)
     checksum = 0
     stack = [(i, False) for i in reversed(children.get(-1, []))]
     while stack:
@@ -72,12 +135,12 @@ def node_checksum(nodes):
     return checksum if checksum < 0x80000000 else checksum - 0x100000000
 
 
-def write_jms(asset, stream):
+def write_jms(asset, stream, *, maya_order=False):
     """Write the game-selected H1, H2 or H3 dialect, without mutating the asset."""
     v = asset.version
     if v not in {8200, 8210, 8213}:
         raise ValueError(f'Unsupported JMS output version {v}')
-    nodes = hierarchy(asset.nodes)
+    nodes = hierarchy(asset.nodes, halo1=v == 8200, maya_order=maya_order)
     checked = replace(asset, nodes=nodes)
     checked.validate()
     w = TextWriter(stream)

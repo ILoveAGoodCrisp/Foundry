@@ -8,6 +8,7 @@ import xml.etree.cElementTree as ET
 import xml.dom.minidom
 
 from .cinematic import Actor
+from .cleanup import prune_intermediates
 
 from ..props.scene import NWO_ScenePropertiesGroup
 from ..tools.asset_types import AssetType
@@ -257,7 +258,7 @@ class Sidecar:
         except:
             utils.print_warning("Failed to write clone xml")
         
-    def build(self, actor_render_model_path=None):
+    def build(self, actor_render_model_path=None, cleanup=False):
         m_encoding = "utf-8"
         m_standalone = "yes"
         metadata = ET.Element("Metadata")
@@ -323,6 +324,30 @@ class Sidecar:
             for line in part2.splitlines():
                 if line.strip():
                     f.write(line + "\n")
+
+        if cleanup:
+            self.cleanup_intermediates(metadata)
+
+    def cleanup_intermediates(self, metadata):
+        expected = {self.data_dir / element.text
+                    for element in metadata.iter('IntermediateFile') if element.text}
+        # Some model groups are retained for partial exports even when the
+        # selected sidecar output tags do not reference them.
+        expected.update(self.data_dir / data.gr2_path
+                        for files in self.file_data.values() for data in files)
+        for scene in self.cinematic_scenes:
+            for actor in scene.actor_animations:
+                actor_path = self.data_dir / actor.sidecar
+                expected.update(actor_path.parent / f'{actor_path.name}_{kind}.gr2'
+                                for kind in ('render', 'skeleton'))
+        expected.update(path.with_suffix('.json') for path in tuple(expected)
+                        if path.suffix.lower() == '.gr2')
+        export = Path(self.asset_path) / 'export'
+        prune_intermediates(self.asset_path, expected, {
+            export / 'models': {'.gr2'},
+            export / 'animations': {'.gr2', '.json'},
+            export / 'cinematics': {'.gr2'},
+        })
 
     def _write_header(self, metadata):
         header = ET.SubElement(metadata, "Header")

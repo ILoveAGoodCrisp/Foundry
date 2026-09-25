@@ -172,7 +172,11 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
                     if self.game == 'halo1':
                         lod_indices = [int(self.value(permutation, name)) for name in
                                        ('super high', 'high', 'medium', 'low', 'super low')]
-                        lod_mesh_indices = ()
+                        lod_mesh_indices = tuple(
+                            (f'L{5 - index}', mesh_index)
+                            for index, mesh_index in enumerate(lod_indices)
+                            if mesh_index >= 0
+                        )
                         mesh_index = next((index for index in lod_indices if index >= 0), -1)
                     else:
                         lod_indices = [int(self.value(permutation, f'L{lod} section index'))
