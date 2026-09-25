@@ -55,6 +55,28 @@ def area(mesh, indices=None):
 
 
 class ClassicMergeTests(unittest.TestCase):
+    def test_emissive_tool_connects_h1_area_and_preserves_later_games(self):
+        mesh = make_mesh(SQUARE, [(0, 1, 2), (0, 2, 3)])
+        material = bpy.data.materials.new('area_test')
+        mesh.materials.clear()
+        mesh.materials.append(material)
+        prop = material.nwo.material_props.add()
+        prop.type = 'emissive'
+        prop.material_lighting_emissive_power = 4.5
+        with patch.object(utils, 'get_prefs', return_value=SimpleNamespace(link_resource_nodes=False)), \
+             patch.object(utils, 'arrange'):
+            utils.setup_emissive_attributes(mesh, 'halo1')
+            utils.setup_emissive_attributes(mesh, 'halo1')
+        self.assertEqual([v.value for v in mesh.attributes['foundry_h1_triangle_area'].data], [2.0, 2.0])
+        groups = [n for n in material.node_tree.nodes if n.type == 'GROUP'
+                  and n.node_tree.name == 'Halo Emissive']
+        self.assertEqual(len(groups), 1)
+        source = groups[0].inputs['H1 Triangle Area'].links[0].from_node
+        self.assertEqual(source.attribute_name, 'foundry_h1_triangle_area')
+        self.assertEqual(source.attribute_type, 'GEOMETRY')
+        utils.setup_emissive_attributes(mesh, 'reach')
+        self.assertEqual([v.value for v in mesh.attributes['foundry_h1_triangle_area'].data], [0.0, 0.0])
+
     def test_halo1_render_mesh_reverses_native_winding(self):
         from io_scene_foundry.tags.connected_geometry import Mesh
         from io_scene_foundry.tags.prefab import StructureBspRenderMesh, StructureBspRenderPart

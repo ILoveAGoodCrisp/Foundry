@@ -5882,7 +5882,7 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
         if emissive_meshes:
             print("Setting up emissive materials")
             for mesh in emissive_meshes:
-                utils.setup_emissive_attributes(mesh)
+                utils.setup_emissive_attributes(mesh, importer.game)
 
 
 class NWO_ImportGameInstanceTag(bpy.types.Operator):

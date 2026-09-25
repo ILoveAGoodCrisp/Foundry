@@ -1,6 +1,7 @@
 from enum import Enum
 from .. import icons
 from .. import utils
+from ..project import GAME_INFO
 
 class NWOAsset:
     def __init__(self, internal_name: str, display_name: str, icon: str, corinth_only: bool, description="") -> None:
@@ -48,28 +49,53 @@ multi_prefab = NWOAsset("multi_prefab", "Multiple Prefabs", "prefab", True, mult
 
 asset_types = [model, scenario, sky, decorator_set, particle_model, animation, camera_track_set, resource, cinematic, prefab, single_animation, multi_model, multi_prefab, polyart]
 
-def asset_type_items(self, context):
+# Support means a usable Foundry asset workflow, not merely existence of a
+# similarly named engine tag. Keep in sync with export/legacy.py:write_tags.
+# Camera tracks bypass that writer; resources intentionally do not export.
+_COMMON_ASSETS = frozenset({
+    'model', 'sky', 'animation', 'single_animation', 'camera_track_set', 'resource',
+})
+_REACH_ASSETS = frozenset(a.internal_name for a in asset_types if not a.corinth_only)
+_ALL_ASSETS = frozenset(a.internal_name for a in asset_types)
+SUPPORTED_ASSETS = {
+    'halo1': _COMMON_ASSETS | {'scenario'},
+    'halo2': _COMMON_ASSETS | {'scenario', 'particle_model', 'decorator_set'},
+    'halo3': _COMMON_ASSETS,
+    'halo3odst': _COMMON_ASSETS,
+    'reach': _REACH_ASSETS,
+    'halo4': _ALL_ASSETS,
+    'halo2a': _ALL_ASSETS,
+}
+
+# Blender requires callback enum strings to remain alive after the callback.
+_asset_type_item_cache = {}
+
+
+def _asset_type_items_for_game(game):
+    supported = SUPPORTED_ASSETS.get(game, _ALL_ASSETS)
+    game_name = GAME_INFO[game][1] if game in GAME_INFO else game
     items = []
-    corinth = utils.is_corinth(context)
-    for i, a in enumerate(asset_types):
-        if not corinth and a.corinth_only:
-            corinth_warning = " [HALO 4+ ONLY]"
-        else:
-            corinth_warning = ""
-        items.append((a.internal_name, f"{a.display_name}{corinth_warning}", a.description, a.icon, i))
-    
-    return items
+    for i, asset in enumerate(asset_types):
+        unsupported = asset.internal_name not in supported
+        suffix = f' (NOT SUPPORTED FOR {game_name})' if unsupported else ''
+        description = asset.description
+        if unsupported:
+            description += f'\n\nFoundry does not currently support this asset workflow for {game_name}.'
+        items.append((asset.internal_name, asset.display_name + suffix,
+                      description, asset.icon, i))
+    key = (game, tuple(item[3] for item in items))
+    return _asset_type_item_cache.setdefault(key, items)
+
+
+def asset_type_items(self, context):
+    project = utils.get_project(use_external=False)
+    return _asset_type_items_for_game(project.game if project else None)
 
 def asset_type_items_creator(self, context):
-    items = []
-    project = utils.get_project(self.project)
+    project = utils.get_project(self.project, use_external=False)
     if project is None:
         return asset_type_items(self, context)
-    corinth = project.corinth
-    for i, a in enumerate([a for a in asset_types if corinth or not a.corinth_only]):
-        items.append((a.internal_name, a.display_name, a.description, a.icon, i))
-    
-    return items
+    return _asset_type_items_for_game(project.game)
 
 class AssetType(Enum):
     MODEL = 0

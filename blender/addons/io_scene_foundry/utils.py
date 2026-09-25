@@ -6142,8 +6142,28 @@ def material_add_shield(material: bpy.types.Material):
 
 def material_add_emissive(material: bpy.types.Material):
     node_tree = material.node_tree
-    
-    if any(n.type == 'GROUP' and n.node_tree and n.node_tree.name == "Halo Emissive" for n in node_tree.nodes):
+
+    def connect_triangle_area(node):
+        socket = node.inputs.get('H1 Triangle Area')
+        if socket is None:
+            print_warning('Halo Emissive node group is outdated; reload it from shared_nodes.blend to enable H1 triangle area')
+            return
+        if socket.is_linked:
+            return
+        attribute = next((n for n in node_tree.nodes if n.type == 'ATTRIBUTE'
+                          and n.attribute_name == 'foundry_h1_triangle_area'), None)
+        if attribute is None:
+            attribute = node_tree.nodes.new('ShaderNodeAttribute')
+            attribute.attribute_name = 'foundry_h1_triangle_area'
+            attribute.attribute_type = 'GEOMETRY'
+            attribute.label = 'H1 Triangle Area'
+        node_tree.links.new(attribute.outputs['Fac'], socket)
+
+    existing = [n for n in node_tree.nodes if n.type == 'GROUP' and n.node_tree
+                and n.node_tree.name == 'Halo Emissive']
+    if existing:
+        for node in existing:
+            connect_triangle_area(node)
         return
 
     output_node = next((n for n in node_tree.nodes if n.type == 'OUTPUT_MATERIAL'), None)
@@ -6157,6 +6177,7 @@ def material_add_emissive(material: bpy.types.Material):
 
     emissive_node = node_tree.nodes.new('ShaderNodeGroup')
     emissive_node.node_tree = add_node_from_resources("shared_nodes", 'Halo Emissive')
+    connect_triangle_area(emissive_node)
 
     def first_socket(sockets, kind):
         for s in sockets:
@@ -6178,7 +6199,7 @@ def material_add_emissive(material: bpy.types.Material):
     arrange(node_tree)
 
 
-def mesh_add_emissive_attributes(mesh: bpy.types.Mesh):
+def mesh_add_emissive_attributes(mesh: bpy.types.Mesh, game=None):
     nwo = mesh.nwo
     
     if not isinstance(mesh, bpy.types.Mesh):
@@ -6244,6 +6265,25 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh):
     on_mask = power_data[:, 0] > 0.0
 
     if on_mask.any():
+        if game is None:
+            project = get_project()
+            game = project.game if project else None
+        # A face attribute cannot distinguish triangles within an n-gon.
+        # Use mean tessellated triangle area there; triangles are exact.
+        triangle_areas = np.zeros(face_count, dtype=np.single)
+        if game == 'halo1':
+            mesh.calc_loop_triangles()
+            counts = np.zeros(face_count, dtype=np.int32)
+            for triangle in mesh.loop_triangles:
+                triangle_areas[triangle.polygon_index] += triangle.area
+                counts[triangle.polygon_index] += 1
+            np.divide(triangle_areas, counts, out=triangle_areas, where=counts > 0)
+            triangle_areas[~on_mask] = 0.0
+        area_attribute = mesh.attributes.get('foundry_h1_triangle_area')
+        if area_attribute is None:
+            area_attribute = mesh.attributes.new('foundry_h1_triangle_area', 'FLOAT', 'FACE')
+        area_attribute.data.foreach_set('value', triangle_areas)
+
         color_attribute = mesh.attributes.get("foundry_color")
         if color_attribute is None:
             color_attribute = mesh.attributes.new("foundry_color", 'FLOAT_VECTOR', 'FACE')
@@ -6268,8 +6308,8 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh):
         
         return on_mask
 
-def setup_emissive_attributes(mesh: bpy.types.Mesh):
-    on_mask = mesh_add_emissive_attributes(mesh)
+def setup_emissive_attributes(mesh: bpy.types.Mesh, game=None):
+    on_mask = mesh_add_emissive_attributes(mesh, game)
     if on_mask is None:
         return
     
