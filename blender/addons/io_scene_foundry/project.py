@@ -7,10 +7,10 @@ from pathlib import Path
 
 # Identifier, display name, MCC name, icon, legacy datastore server.
 GAMES = {
-    "H1": ("halo1", "Halo 1", "Halo1", "halo_asset", ""),
-    "H2": ("halo2", "Halo 2", "Halo2", "halo_asset", ""),
-    "H3": ("halo3", "Halo 3", "Halo3", "halo_asset", ""),
-    "H3ODST": ("halo3odst", "Halo 3 ODST", "Halo3ODST", "halo_asset", ""),
+    "H1": ("halo1", "Halo 1", "Halo1", "halo_1", ""),
+    "H2": ("halo2", "Halo 2", "Halo2", "halo_2", ""),
+    "H3": ("halo3", "Halo 3", "Halo3", "halo_3", ""),
+    "H3ODST": ("halo3odst", "Halo 3 ODST", "Halo3ODST", "halo_odst", ""),
     "HR": ("reach", "Halo Reach", "HaloReach", "halo_reach", "bngtoolsql"),
     "H4": ("halo4", "Halo 4", "Halo4", "halo_4", "metawins"),
     "H2A": ("halo2a", "Halo 2AMP", "Halo2A", "halo_2amp", "episql.343i.selfhost.corp.microsoft.com"),
