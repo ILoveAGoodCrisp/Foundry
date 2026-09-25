@@ -6,6 +6,12 @@ import os
 from ..utils import get_prefs, get_project, get_project_path, get_scene_props, get_tags_path, is_corinth, open_in_explorer, os_sep_partition, redraw_area, relative_path
 
 global_items = {}
+HALO1_SHADER_EXTENSIONS = (
+    '.shader', '.shader_environment', '.shader_model',
+    '.shader_transparent_chicago', '.shader_transparent_chicago_extended',
+    '.shader_transparent_generic', '.shader_transparent_glass',
+    '.shader_transparent_meter', '.shader_transparent_plasma', '.shader_transparent_water',
+)
 cinematic_event_props = ("sound_tag", "female_sound_tag", "effect", "music")
 scene_props = ('template_render_model', 'template_collision_model', 'template_physics_model', 'template_model_animation_graph', 'parent_animation_graph', 'render_model_path', 
                'template_model', 'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
@@ -35,13 +41,12 @@ class NWO_GetTagsList(bpy.types.Operator):
 
     def tag_list_items(self, context):
         global global_items
-        if global_items.get(self.list_type, 0):
-            return global_items[self.list_type]
-        else:
-            global_items[self.list_type] = []
-
         tags_dir = get_tags_path()
         ext_list = extensions_from_type(self.list_type)
+        cache_key = (os.path.normcase(os.path.abspath(tags_dir)), self.list_type, ext_list)
+        if cache_key in global_items:
+            return global_items[cache_key]
+        global_items[cache_key] = []
         tags = walk_tags_dir(tags_dir, ext_list)
         for t in tags:
             if type(self.list_type) == str:
@@ -50,11 +55,11 @@ class NWO_GetTagsList(bpy.types.Operator):
                 display = str(Path(t).name)
                 
             if len(display) > 35:
-                global_items[self.list_type].append((t, f"...{display[-35:]}", ""))
+                global_items[cache_key].append((t, f"...{display[-35:]}", ""))
             else:
-                global_items[self.list_type].append((t, display, ""))
+                global_items[cache_key].append((t, display, ""))
 
-        return global_items[self.list_type]
+        return global_items[cache_key]
 
     tag_list: bpy.props.EnumProperty(
         name="Tags",
@@ -136,6 +141,8 @@ def extensions_from_type(list_type):
         case 'render_model_path':
             return (".model", ".gbxmodel") if halo1 else (".render_model")
         case 'shader_path':
+            if halo1:
+                return HALO1_SHADER_EXTENSIONS
             return (".material", '.shader', '.shader_cortana', '.shader_custom', '.shader_decal', '.shader_foliage', '.shader_fur', '.shader_fur_stencil', '.shader_glass', '.shader_halogram', '.shader_mux', '.shader_mux_material', '.shader_screen', '.shader_skin', '.shader_terrain', 'shader_water')
         case 'template_model':
             return (".model")
@@ -338,7 +345,7 @@ def get_glob_from_prop(prop):
         case 'render_model_path':
             return "*.model;*.gbxmodel" if halo1 else "*.render_model"
         case 'shader_path':
-            return "*.material;*.shade*"
+            return "*.shader;*.shader_*" if halo1 else "*.material;*.shade*"
         case 'template_model':
             return "*.model"
         case 'template_biped':
