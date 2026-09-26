@@ -117,10 +117,12 @@ class ShaderCustomTag(ShaderTag):
         e_environment_mapping = EnvironmentMapping(self._option_value_from_index(5))
         e_self_illumination = SelfIllumination(self._option_value_from_index(6))
         e_blend_mode = BlendMode(self._option_value_from_index(7))
-        # e_parallax = BlendMode(self._option_value_from_index(8))
-        e_misc = Misc(self._option_value_from_index(9))
         
-        self.has_rotating_bitmaps = e_misc == Misc.ROTATING_BITMAPS_SUPER_SLOW
+        self.has_rotating_bitmaps = self._misc_rotates_bitmaps()
+
+        if self.game in {'halo3', 'halo3odst'} and e_specular_mask == SpecularMask.SPECULAR_MASK_MULT_DIFFUSE:
+            utils.print_warning('Unsupported H3/ODST specular mask: MULT_DIFFUSE. Using FROM_DIFFUSE instead')
+            e_specular_mask = SpecularMask.SPECULAR_MASK_FROM_DIFFUSE
         
         if e_albedo == Albedo.MULTIPLY_MAP:
             old_albedo = e_albedo.name
@@ -151,7 +153,7 @@ class ShaderCustomTag(ShaderTag):
         self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
         self.shader_parameters.update(self.category_parameters["bump_mapping"][utils.game_str(e_bump_mapping.name)])
         self.shader_parameters.update(self.category_parameters["alpha_test"][utils.game_str(e_alpha_test.name)])
-        self.shader_parameters.update(self.category_parameters["specular_mask"][utils.game_str(e_specular_mask.name)])
+        self.shader_parameters.update(self.category_parameters["specular_mask"].get(utils.game_str(e_specular_mask.name), {}))
         self.shader_parameters.update(self.category_parameters["material_model"][utils.game_str(e_material_model.name)])
         self.shader_parameters.update(self.category_parameters["environment_mapping"][utils.game_str(e_environment_mapping.name)])
         self.shader_parameters.update(self.category_parameters["self_illumination"][utils.game_str(e_self_illumination.name)])

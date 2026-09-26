@@ -174,13 +174,28 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             codec = self._definitions().field('animation codec pack')
             if codec is not None:
                 codec.set(6)
+            if self.game == 'reach':
+                content = self.required_field(self.tag.root(), 'content').as_struct()
+                if content is None:
+                    raise TypeError(f'{self.path}: content is not a structure')
+                self.required_field(content, 'default gait group').set(-1)
             self.tag_has_changes = True
+
+    def _definitions_field_name(self) -> str:
+        root = self.tag.root()
+        preferred = 'resources' if self.game == 'halo2' else 'definitions'
+        if root.field(preferred) is not None:
+            return preferred
+        alternative = 'definitions' if preferred == 'resources' else 'resources'
+        if root.field(alternative) is not None:
+            return alternative
+        raise ValueError(f'{self.path}: missing animation graph definitions')
 
     def _definitions(self) -> blam_tags.TagStruct:
         root = self.tag.root()
         if self.game == 'halo1':
             return root
-        field_name = 'resources' if self.game == 'halo2' else 'definitions'
+        field_name = self._definitions_field_name()
         definitions = self.required_field(root, field_name).as_struct()
         if definitions is None:
             raise TypeError(f'{self.path}: {field_name} is not a structure')
@@ -509,12 +524,17 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                              for name, screen in assigned.items()}
         definitions = self._definitions()
         screens: list[AnimationBlendScreen] = []
-        for element in self.block(definitions, 'blend screens'):
+        screen_indices: dict[int, int] = {}
+        for index, element in enumerate(self.block(definitions, 'blend screens')):
+            label = str(self.value(element, 'label'))
+            if not label.strip():
+                continue
             aiming = self.required_field(element, 'aiming screen').as_struct()
             if aiming is None:
                 raise TypeError(f'{self.path}: aiming screen is not a structure')
+            screen_indices[index] = len(screens)
             screens.append(AnimationBlendScreen(
-                label=str(self.value(element, 'label')),
+                label=label,
                 right_yaw_per_frame=degrees(float(self.value(aiming, 'right yaw per frame'))),
                 left_yaw_per_frame=degrees(float(self.value(aiming, 'left yaw per frame'))),
                 right_frame_count=int(self.value(aiming, 'right frame count')),
@@ -530,8 +550,8 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             if field is None:
                 continue
             index = int(field.value)
-            if 0 <= index < len(screens):
-                assignments[str(self.value(animation, 'name'))] = index
+            if index in screen_indices:
+                assignments[str(self.value(animation, 'name'))] = screen_indices[index]
         return screens, assignments
 
     def blend_screens_to_blender(self) -> dict[str, str]:
@@ -568,13 +588,24 @@ class AnimationGraphTag(BlenderTag, TagDocument):
 
     def blend_screens_from_blender(self, blender_screens, blender_animations) -> int:
         """Replace classic screens and assign them to compiled overlays."""
-        screens = list(blender_screens)
-        labels: set[str] = set()
-        for screen in screens:
+        screen_fields = ('right_yaw_per_frame', 'left_yaw_per_frame', 'right_frame_count',
+                         'left_frame_count', 'down_pitch_per_frame', 'up_pitch_per_frame',
+                         'down_pitch_frame_count', 'up_pitch_frame_count')
+        screens = []
+        labels: dict[str, int] = {}
+        for index, screen in enumerate(blender_screens, 1):
             name = screen.name.strip()
-            if not name or name.casefold() in labels:
-                raise ValueError(f'{self.path}: blend screen labels must be unique and nonempty')
-            labels.add(name.casefold())
+            if not name:
+                if all(getattr(screen, field) == 0 for field in screen_fields):
+                    continue
+                raise ValueError(f'{self.path}: blend screen {index} has settings but no label')
+            key = name.casefold()
+            if key in labels:
+                raise ValueError(
+                    f'{self.path}: blend screens {labels[key]} and {index} '
+                    f'have the same label {name!r}')
+            labels[key] = index
+            screens.append(screen)
         choices = {
             self._screen_name(animation.name): animation.blend_screen.strip()
             for animation in blender_animations
@@ -656,9 +687,6 @@ class AnimationGraphTag(BlenderTag, TagDocument):
         # with identical settings. The Blender scene retains every label.
         preferred = {choice.casefold() for choice in (*choices.values(), *previous_choices.values())
                      if choice}
-        screen_fields = ('right_yaw_per_frame', 'left_yaw_per_frame', 'right_frame_count',
-                         'left_frame_count', 'down_pitch_per_frame', 'up_pitch_per_frame',
-                         'down_pitch_frame_count', 'up_pitch_frame_count')
         compiled_screens = []
         value_indices = {}
         indices = {}
@@ -1522,6 +1550,8 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             animation = self.required_field(element, 'animation').as_struct()
             if animation is None:
                 raise TypeError(f'{self.path}: blend screen {index} animation is not a struct')
+            if self.game == 'reach':
+                self.required_field(animation, 'graph index').set(-1)
             self.required_field(animation, 'animation').set(animation_index)
 
             state = name.rsplit(':', 1)[-1]
@@ -1531,9 +1561,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 ('weight source', weight), ('interpolation rate', rate),
             ):
                 self.required_field(element, field_name).set(value)
-            function_index = functions.get(state)
-            if function_index is not None:
-                self.required_field(element, 'weight function').set(function_index)
+            self.required_field(element, 'weight function').set(functions.get(state, -1))
             flags = self.required_field(element, 'flags')
             for flag_name in flag_names:
                 flags.set_flag(flag_name, True)

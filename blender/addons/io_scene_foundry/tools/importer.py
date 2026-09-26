@@ -334,6 +334,15 @@ def draw_halo2_lod(operator, layout):
         layout.prop(operator, "render_lod", text="Halo 1 LOD" if project.game == 'halo1' else "Halo 2 LOD")
 
 
+def draw_material_project_option(operator, layout):
+    if not hasattr(operator, "build_materials_for_project"):
+        return
+    row = layout.row()
+    project = utils.get_project(use_external=False)
+    row.enabled = operator.build_blender_materials and project is not None and project.game != 'halo2'
+    row.prop(operator, "build_materials_for_project")
+
+
 def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, has_permutations=False, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True):
     if show_template:
         draw_import_template(operator, layout)
@@ -375,6 +384,7 @@ def draw_model_tag_import_sections(operator, layout, corinth, show_template=True
         view_box.prop(operator, "biped_weapon_source")
     if show_material_options:
         view_box.prop(operator, "build_blender_materials")
+        draw_material_project_option(operator, view_box)
         view_box.prop(operator, "always_extract_bitmaps")
 
 def draw_scenario_import_sections(operator, layout, corinth, show_template=True, show_zone_set=False, show_sky=False, show_scenario_content=False, show_setup_as_asset=True):
@@ -423,6 +433,7 @@ def draw_scenario_import_sections(operator, layout, corinth, show_template=True,
         row.enabled = operator.tag_scenario_import_decorators
         row.prop(operator, "decorator_lod")
     view_box.prop(operator, "build_blender_materials")
+    draw_material_project_option(operator, view_box)
     view_box.prop(operator, "always_extract_bitmaps")
 
 def _set_vector_point_attribute(mesh, name, values):
@@ -1093,6 +1104,12 @@ class NWO_Import(bpy.types.Operator):
         description="Builds Blender material nodes for materials based off their shader/material tags (if found)",
         default=True,
     )
+
+    build_materials_for_project: bpy.props.BoolProperty(
+        name="Build Materials for Current Project",
+        description="Convert imported materials to the current project's game nodes and convert packed bitmap channels where possible. Unsupported effects are approximated. Halo 2 is supported as a source only",
+        default=False,
+    )
     
     import_images_to_blender: bpy.props.BoolProperty(
         name="Import to Blend",
@@ -1506,6 +1523,7 @@ class NWO_Import(bpy.types.Operator):
                     scope_list = self.scope.split(',')
                     
                 importer = NWOImporter(context, filepaths, scope_list)
+                importer.build_materials_for_project = self.build_materials_for_project
                 if self.use_import_info:
                     importer.configure_import_info(Path(import_info_directory))
                     importer.add_import_info_sources(filepaths)
@@ -2436,6 +2454,7 @@ class NWO_Import(bpy.types.Operator):
             tag_type = 'material' if utils.is_corinth(context) else 'shader'
             # box.prop(self, 'find_shader_paths', text=f"Find {tag_type.capitalize()} Tag Paths")
             box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
+            draw_material_project_option(self, box)
             box.prop(self, 'always_extract_bitmaps')
             
         if not self.scope or ('model' in self.scope) or ('object' in self.scope):
@@ -2515,6 +2534,7 @@ class NWO_Import(bpy.types.Operator):
             if self.decorator_single_lod:
                 box.prop(self, "decorator_lod")
             box.prop(self, 'build_blender_materials', text="Build Blender Material")
+            draw_material_project_option(self, box)
             box.prop(self, 'always_extract_bitmaps')
             box.prop(self, "setup_as_asset")
             
@@ -2535,6 +2555,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, "tag_scenario_import_decorators")
             box.prop(self, "setup_as_asset")
             box.prop(self, "build_blender_materials")
+            draw_material_project_option(self, box)
             box.prop(self, "always_extract_bitmaps")
             
 class JMSMaterialSlot:
@@ -2705,6 +2726,7 @@ class NWOImporter:
         self.game = utils.get_project(self.scene_nwo.scene_project).game
         self.target_game = utils.get_project(
             self.scene_nwo.scene_project, use_external=False).game
+        self.build_materials_for_project = False
         self.filepaths = list(filepaths) if filepaths else []
         self.context = context
         self.scene = context.scene
@@ -5099,6 +5121,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="Builds Blender material nodes for materials based off their shader/material tags (if found)",
         default=True,
     )
+
+    build_materials_for_project: bpy.props.BoolProperty(
+        name="Build Materials for Current Project",
+        description="Convert imported materials to the current project's game nodes and convert packed bitmap channels where possible. Unsupported effects are approximated. Halo 2 is supported as a source only",
+        default=False,
+    )
     
     import_images_to_blender: bpy.props.BoolProperty(
         name="Import to Blend",
@@ -5675,6 +5703,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         layout.prop(self, "decorator_lod")
                     layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
+                draw_material_project_option(self, layout)
                 layout.prop(self, "always_extract_bitmaps")
             case "render_model" | "gbxmodel" | "sky":
                 draw_import_template(self, layout)
@@ -5688,6 +5717,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                     layout.prop(self, "setup_as_asset")
                 # layout.prop(self, "from_vert_normals")
                 layout.prop(self, "build_blender_materials")
+                draw_material_project_option(self, layout)
                 layout.prop(self, "always_extract_bitmaps")
             case "physics_model" | "physics":
                 layout.prop(self, "reuse_armature")
@@ -5733,6 +5763,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_scenario_import_decorators")
                 layout.prop(self, "setup_as_asset")
                 layout.prop(self, "build_blender_materials")
+                draw_material_project_option(self, layout)
                 layout.prop(self, "always_extract_bitmaps")
             case "ass" | "jms":
                 layout.prop(self, "legacy_type", expand=True)
@@ -5968,7 +5999,9 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
             if shader_path:
                 existing_mat = processed_shader_paths.get(shader_path)
                 if existing_mat is None:
-                    result = tag_to_nodes(importer.corinth, mat, shader_path, always_extract_bitmaps)
+                    result = tag_to_nodes(
+                        importer.corinth, mat, shader_path, always_extract_bitmaps,
+                        target_game=importer.target_game if importer.build_materials_for_project else None)
                     processed_shader_paths[shader_path] = mat
                     if result is not None:
                         sequence_drivers.update(result)

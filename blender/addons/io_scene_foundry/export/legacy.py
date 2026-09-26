@@ -975,10 +975,13 @@ class LegacyExportScene(ExportScene):
             if world_animations:
                 graph.set_world_animations(world_animations)
             if write_screens:
-                screen_count = graph.blend_screens_from_blender(
-                    self.scene_settings.blend_screens,
-                    self.scene_settings.animations,
-                )
+                try:
+                    screen_count = graph.blend_screens_from_blender(
+                        self.scene_settings.blend_screens,
+                        self.scene_settings.animations,
+                    )
+                except ValueError as exc:
+                    raise ExportCancelled(str(exc)) from exc
         if animations:
             print(f'--- Updated inline events for {count} animation(s) in {destination}')
         if settings:

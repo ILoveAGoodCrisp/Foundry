@@ -198,7 +198,7 @@ class NWO_ShaderToNodes(bpy.types.Operator):
         layout = self.layout
         layout.prop(self, "always_extract_bitmaps")
 
-def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_extract_bitmaps=False) -> set | None:
+def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_extract_bitmaps=False, *, target_game=None) -> set | None:
     """Turns a shader/material tag into blender material nodes"""
     
     if not Path(utils.get_tags_path(), utils.relative_path(tag_path)).exists():
@@ -251,6 +251,16 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
     if shader is not None:
         mat.nwo.game_functions = ",".join(shader.game_functions)
         mat.nwo.object_functions = ",".join(shader.object_functions)
+        if target_game is not None:
+            from .material_game_mapping import convert_material_game
+            if convert_material_game(mat, shader.game, target_game):
+                # Keep provenance, but do not offer to overwrite a foreign
+                # shader or accidentally resolve its relative path in this kit.
+                mat['foundry_material_source_shader'] = str(shader.system_path)
+                mat.nwo['shader_path'] = ''
+                mat.nwo.prev_shader_path = ''
+                mat.nwo.material_shader = ''
+                mat.nwo.uses_blender_nodes = True
         if mat.node_tree is not None:
             arrange(mat.node_tree)
         return shader.sequence_drivers

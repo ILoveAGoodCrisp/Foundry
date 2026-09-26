@@ -245,7 +245,10 @@ class Animation:
             flags = shared_element.SelectField("flags")
             self.world_relative = flags.TestBit("world relative")
             return
-        if game == 'halo2':
+        # Some graphs in later projects retain the Halo 2 animation layout.
+        if game == 'halo2' or (game != 'halo1' and
+                              shared_element.SelectField('animation type') is None and
+                              shared_element.SelectField('type') is not None):
             self.animation_type = AnimationType(shared_element.SelectField("type").Value + 1)
             self.frame_info_type = FrameInfoType(shared_element.SelectField("frame info type").Value)
             self.compression = Compression.medium_compression
@@ -312,18 +315,19 @@ class AnimationTag(AnimationGraphTag):
             self.block_animations = self._native_root.SelectField("Block:animations")
             self.block_modes = None
             self.block_blend_screens = None
-        elif self.game == 'halo2':
+        elif self._definitions_field_name() == 'resources':
             self.block_animations = self._native_root.SelectField(
                 "Struct:resources[0]/Block:animations")
             self.block_modes = self._native_root.SelectField("Struct:content[0]/Block:modes")
             self.block_blend_screens = self._native_root.SelectField(
                 'Struct:resources[0]/Block:blend screens')
         else:
+            definitions = self._definitions_field_name()
             self.block_animations = self._native_root.SelectField(
-                "Struct:definitions[0]/Block:animations")
+                f"Struct:{definitions}[0]/Block:animations")
             self.block_modes = self._native_root.SelectField("Struct:content[0]/Block:modes")
             self.block_blend_screens = self._native_root.SelectField(
-                'Struct:definitions[0]/Block:NEW blend screens')
+                f'Struct:{definitions}[0]/Block:NEW blend screens')
         
         
     def get_animation_names(self, filter="") -> list[str]:

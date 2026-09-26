@@ -191,6 +191,12 @@ class Parallax(Enum):
 class Misc(Enum):
     DEFAULT = 0
     ROTATING_BITMAPS_SUPER_SLOW = 1
+
+class H3Misc(Enum):
+    FIRST_PERSON_NEVER = 0
+    FIRST_PERSON_SOMETIMES = 1
+    FIRST_PERSON_ALWAYS = 2
+    FIRST_PERSON_NEVER_W_ROTATING_BITMAPS = 3
     
 class Wetness(Enum):
     DEFAULT = 0
@@ -262,6 +268,19 @@ class ShaderTag(BlenderTag, TagDocument):
         if self.valid:
             self._native_root = NativeTagStruct(self, self.tag.root())
             self._read_fields()
+            if self.tag_is_new and not self.corinth and self.game not in {'halo1', 'halo2'}:
+                self._initialize_new_shader()
+
+    def _initialize_new_shader(self):
+        definition_name = self.system_path.suffix.lstrip('.').removeprefix('shader_')
+        definition_path = Path('shaders', f'{definition_name}.render_method_definition')
+        with RenderMethodDefinitionTag(path=definition_path) as definition:
+            option_count = len(definition.block(definition.tag.root(), 'categories'))
+        if not option_count:
+            raise ValueError(f'{definition_path}: render method has no categories')
+        self.definition.Path = self._TagPath_from_string(definition_path)
+        for _ in range(option_count):
+            self.block_options.AddElement().SelectField('short').SetStringData('0')
 
     def _TagPath_from_string(self, path: str | Path) -> TagReference:
         return self.reference_from_path(path)
@@ -1152,7 +1171,8 @@ class ShaderTag(BlenderTag, TagDocument):
         specular_mask = self.block_options.Elements[3].SelectField('short')
         self_illumination = self.block_options.Elements[6].SelectField('short')
         blend_mode = self.block_options.Elements[7].SelectField('short')
-        alpha_blend_source = self.block_options.Elements[11].SelectField('short')
+        alpha_blend_source = (self.block_options.Elements[11].SelectField('short')
+                              if self.game == 'reach' else None)
         # Set up shader parameters
         spec_alpha_from_diffuse = bool(map.get('specular_from_diffuse_alpha'))
         si_alpha_from_diffuse = bool(map.get('self_illum_from_diffuse_alpha'))
@@ -1239,7 +1259,7 @@ class ShaderTag(BlenderTag, TagDocument):
             if int(blend_mode.GetStringData()) < 1:
                 blend_mode.SetStringData('3')
             if map.get('alpha', 0):
-                if int(alpha_blend_source.GetStringData()) != 4:
+                if alpha_blend_source is not None and int(alpha_blend_source.GetStringData()) != 4:
                     alpha_blend_source.SetStringData('3') if map.get('alpha').inputs[0].links else alpha_blend_source.SetStringData('2')
                 element = self._setup_parameter(map['alpha'], 'opacity_map', 'bitmap')
                 if element:
@@ -1247,7 +1267,8 @@ class ShaderTag(BlenderTag, TagDocument):
         else:
             alpha_test.SetStringData('-1')
             blend_mode.SetStringData('-1')
-            alpha_blend_source.SetStringData('-1')
+            if alpha_blend_source is not None:
+                alpha_blend_source.SetStringData('-1')
           
     def _setup_parameter(self, source, parameter_name, parameter_type):
         element = self._Element_from_field_value(self.block_parameters, 'parameter name', parameter_name)
@@ -2820,6 +2841,12 @@ class ShaderTag(BlenderTag, TagDocument):
             tree.links.new(input=input, output=vec_node.outputs[0])
         else:
             tree.links.new(input=input, output=node.outputs[0])
+
+    def _misc_rotates_bitmaps(self):
+        option = self._option_value_from_index(9)
+        if self.game in {'halo3', 'halo3odst'}:
+            return option == H3Misc.FIRST_PERSON_NEVER_W_ROTATING_BITMAPS.value
+        return option == Misc.ROTATING_BITMAPS_SUPER_SLOW.value
     
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options
@@ -2831,12 +2858,13 @@ class ShaderTag(BlenderTag, TagDocument):
         e_environment_mapping = EnvironmentMapping(self._option_value_from_index(5))
         e_self_illumination = SelfIllumination(self._option_value_from_index(6))
         e_blend_mode = BlendMode(self._option_value_from_index(7))
-        e_parallax = Parallax(self._option_value_from_index(8))
-        e_misc = Misc(self._option_value_from_index(9))
-        e_wetness = Wetness(self._option_value_from_index(10))
         e_alpha_blend_source = AlphaBlendSource(self._option_value_from_index(11))
         
-        self.has_rotating_bitmaps = e_misc == Misc.ROTATING_BITMAPS_SUPER_SLOW
+        self.has_rotating_bitmaps = self._misc_rotates_bitmaps()
+
+        if self.game in {'halo3', 'halo3odst'} and e_specular_mask == SpecularMask.SPECULAR_MASK_MULT_DIFFUSE:
+            utils.print_warning('Unsupported H3/ODST specular mask: MULT_DIFFUSE. Using FROM_DIFFUSE instead')
+            e_specular_mask = SpecularMask.SPECULAR_MASK_FROM_DIFFUSE
         
         if e_material_model.value > 4:
             old_model = e_material_model.name
@@ -2862,14 +2890,11 @@ class ShaderTag(BlenderTag, TagDocument):
         self.shader_parameters.update(self.category_parameters["albedo"][utils.game_str(e_albedo.name)])
         self.shader_parameters.update(self.category_parameters["bump_mapping"][utils.game_str(e_bump_mapping.name)])
         self.shader_parameters.update(self.category_parameters["alpha_test"][utils.game_str(e_alpha_test.name)])
-        self.shader_parameters.update(self.category_parameters["specular_mask"][utils.game_str(e_specular_mask.name)])
+        self.shader_parameters.update(self.category_parameters["specular_mask"].get(utils.game_str(e_specular_mask.name), {}))
         self.shader_parameters.update(self.category_parameters["material_model"][utils.game_str(e_material_model.name)])
         self.shader_parameters.update(self.category_parameters["environment_mapping"][utils.game_str(e_environment_mapping.name)])
         self.shader_parameters.update(self.category_parameters["self_illumination"][utils.game_str(e_self_illumination.name)])
         self.shader_parameters.update(self.category_parameters["blend_mode"][utils.game_str(e_blend_mode.name)])
-        # self.shader_parameters.update(self.category_parameters[utils.game_str(e_parallax.name)])
-        # self.shader_parameters.update(self.category_parameters[utils.game_str(e_misc.name)])
-        # self.shader_parameters.update(self.category_parameters[utils.game_str(e_wetness.name)])
         alpha_blend_source = self.category_parameters.get("alpha_blend_source")
         if alpha_blend_source is not None:
             self.shader_parameters.update(

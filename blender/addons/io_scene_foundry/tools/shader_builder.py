@@ -115,12 +115,12 @@ def build_shader(material, corinth, folder="", report=None):
         shader_path = shader_path.with_suffix("")
         
     if corinth:
-        with MaterialTag(path=shader_path.with_suffix(".material")) as tag:
+        with MaterialTag(path=shader_path.with_suffix(".material"), tag_must_exist=False) as tag:
             nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes, material_shader=nwo.material_shader)
     else:
         if nwo.uses_blender_nodes:
             tag_class, suffix = _resolve_reach_shader_class(material, shader_path, nwo.shader_type)
-            with tag_class(path=shader_path.with_suffix(suffix)) as tag:
+            with tag_class(path=shader_path.with_suffix(suffix), tag_must_exist=False) as tag:
                 nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes)
         else:
             with EmptyShaderTag(path=shader_path.with_suffix(nwo.shader_type),
