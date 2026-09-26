@@ -495,7 +495,7 @@ def set_tool_event_level(event_level):
     except:
         print("Unable to replace bonobo_init.txt to set event level. It is currently read only")
 
-def run_tool(tool_args: list, in_background=False, null_output=False, event_level=None, force_tool=False, log_file=None, force_tool_fast=False, tool_patches=None, input_data=None):
+def run_tool(tool_args: list, in_background=False, null_output=False, event_level=None, force_tool=False, log_file=None, force_tool_fast=False, tool_patches=None, input_data=None, console_output=False):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     if in_background and input_data is not None:
         raise ValueError('Tool input is only supported for synchronous commands')
@@ -520,6 +520,12 @@ def run_tool(tool_args: list, in_background=False, null_output=False, event_leve
         tmp_log = Path(tempfile.gettempdir(), "halo_errors.txt")
     if event_level is not None and event_level not in {'DEFAULT', 'LOG'}:
         set_tool_event_level(event_level)
+
+    if console_output and os.name == 'nt':
+        if in_background or null_output or log_file or tool_patches or input_data is not None:
+            raise ValueError('Console output requires a foreground Tool command')
+        from .console_process import run_console_command
+        return run_console_command(command, project_dir, output_stream)
     
     if in_background:
         if log_file:

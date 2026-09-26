@@ -325,8 +325,27 @@ def _match_boundary_patches(render_mesh, collision_mesh, render, collision,
         render_groups[triangle.material].add(triangle.polygon)
     for triangle in collision:
         collision_groups[triangle.material].add(triangle.polygon)
-    for material in render_groups.keys() & collision_groups.keys():
-        render_faces, collision_faces = render_groups[material], collision_groups[material]
+    groups = [(render_groups[material], collision_groups[material])
+              for material in render_groups.keys() & collision_groups.keys()]
+    # Opposite sides of a sheet can have different diagonals. Combining both
+    # sides in an undirected edge map hides their boundary (or makes it appear
+    # non-manifold). Match each orientation separately as well. Try each axis
+    # so slightly warped faces near a dominant-axis tie stay in the same patch.
+    for axis in range(3):
+        oriented = []
+        for triangles in (render, collision):
+            directions = defaultdict(set)
+            for triangle in triangles:
+                component = triangle.normal[axis]
+                if abs(component) > 0.5:
+                    directions[triangle.material, component > 0].add(triangle.polygon)
+            oriented.append(directions)
+        for (material, sign), faces in oriented[0].items():
+            for other_sign in (sign, not sign):
+                other_faces = oriented[1].get((material, other_sign))
+                if other_faces:
+                    groups.append((faces, other_faces))
+    for render_faces, collision_faces in groups:
         render_edges = _patch_edges(render_mesh, render_ids, render_faces)
         collision_edges = _patch_edges(collision_mesh, collision_ids, collision_faces)
         common_edges = render_edges.keys() & collision_edges.keys()

@@ -71,7 +71,7 @@ def run_halo1_lightmapper(scenario_path, bsps, export_settings):
             export_settings.lightmap_stop_threshold_h1,
             export_settings.lightmap_noassert_h1):
         print(f"--- Lightmapping BSP {command[2]}")
-        utils.run_tool(command, force_tool=True,
+        utils.run_tool(command, force_tool=True, console_output=True,
                        event_level=export_settings.event_level)
 
 
