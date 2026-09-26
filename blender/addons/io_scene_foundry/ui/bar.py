@@ -482,6 +482,8 @@ class NWO_HaloExportSettings(bpy.types.Panel):
         scene_nwo_export = utils.get_export_props()
         h4 = utils.is_corinth(context)
         asset_type = scene_nwo.asset_type
+        project = utils.get_project(scene_nwo.scene_project)
+        halo1 = bool(project and project.game == 'halo1')
         layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
@@ -513,7 +515,7 @@ class NWO_HaloExportSettings(bpy.types.Panel):
         scenario = asset_type == "scenario"
         render = utils.poll_ui(("model", "sky"))
         scenario_lightmap = (h4 and render) or scenario
-        if render or scenario:
+        if (render and not halo1) or scenario:
             if scenario:
                 lighting_name = "Light Scenario"
             elif scenario_lightmap:
@@ -521,22 +523,31 @@ class NWO_HaloExportSettings(bpy.types.Panel):
             else:
                 lighting_name = "Light Model (PRT)"
             
-            if scenario_lightmap:
+            if scenario_lightmap and not halo1:
                 col.prop(scene_nwo_export, "update_lighting_info")
             col.prop(scene_nwo_export, "lightmap_structure", text=lighting_name)
             if scene_nwo_export.lightmap_structure and scenario_lightmap:
                 if asset_type == "scenario":
-                    if h4:
+                    if halo1:
+                        draw_halo1_lightmap_settings(col, scene_nwo_export)
+                    elif h4:
                         col.prop(scene_nwo_export, "lightmap_quality_h4")
                     else:
                         col.prop(scene_nwo_export, "lightmap_quality")
-                    if not h4 or scene_nwo_export.lightmap_quality_h4 in {'__custom__', '__asset__'}:
+                    if not halo1 and (not h4 or scene_nwo_export.lightmap_quality_h4 in {'__custom__', '__asset__'}):
                         col.prop(scene_nwo_export, "lightmap_region")
                     if not scene_nwo_export.lightmap_all_bsps:
                         col.prop(scene_nwo_export, "lightmap_specific_bsp")
                     col.prop(scene_nwo_export, "lightmap_all_bsps")
-                    if not h4:
+                    if not h4 and not halo1:
                         col.prop(scene_nwo_export, "lightmap_threads")
+
+
+def draw_halo1_lightmap_settings(layout, export):
+    layout.prop(export, "lightmap_quality_h1")
+    layout.prop(export, "lightmap_stop_threshold_h1")
+    layout.prop(export, "lightmap_noassert_h1")
+
 
 class NWO_HaloExportSettingsScope(bpy.types.Panel):
     bl_label = "Scope"
@@ -977,6 +988,29 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     # )
     lightmap_structure: bpy.props.BoolProperty(
         name="Burn Lighting",
+        default=False,
+        options=set(),
+    )
+
+    lightmap_quality_h1: bpy.props.EnumProperty(
+        name="Radiosity Quality",
+        description="Halo 1 Tool radiosity mode",
+        items=[('0', "Preview", "Fast radiosity for checking lighting"),
+               ('1', "Final", "Full radiosity for release lightmaps")],
+        default='0',
+        options=set(),
+    )
+    lightmap_stop_threshold_h1: bpy.props.FloatProperty(
+        name="Stop Threshold",
+        description="Stop when the residual light reaches this value; lower values take longer",
+        default=0.1,
+        min=0.000001,
+        precision=6,
+        options=set(),
+    )
+    lightmap_noassert_h1: bpy.props.BoolProperty(
+        name="Skip Error Checks (-noassert)",
+        description="Skip Tool's error checks on a structure already verified by a normal lightmap run",
         default=False,
         options=set(),
     )

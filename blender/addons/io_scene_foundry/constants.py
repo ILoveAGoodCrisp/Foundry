@@ -203,7 +203,7 @@ object_game_validation = {
     '_connected_geometry_mesh_type_obb_volume': ('corinth',),
     '_connected_geometry_mesh_type_cookie_cutter': ('reach',),
     '_connected_geometry_mesh_type_poop_rain_blocker': ('reach',),
-    # Internal Foundry type for Halo 2 legacy ASS export. H1/H2 run through
+    # Internal Foundry type for Halo 1 JMS / Halo 2 ASS export. H1/H2 run through
     # the pre-Corinth (``reach``) preparation path.
     '_connected_geometry_mesh_type_weather_polyhedron': ('reach',),
     # Marker

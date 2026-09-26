@@ -1,4 +1,5 @@
 import datetime
+import math
 from pathlib import Path
 import bpy
 from subprocess import CalledProcessError
@@ -43,6 +44,37 @@ def tool_error_code(error=None, returncode=None):
         return f"{signed_code} ({code})"
     return str(code)
 
+
+def halo1_lightmap_commands(scenario_path, bsps, quality, stop_threshold, noassert=False):
+    """Build H1 Tool arguments for a scenario tag path and BSP tag names."""
+    if quality not in {'0', '1'}:
+        raise ValueError(f"Invalid Halo 1 radiosity quality: {quality}")
+    threshold = float(stop_threshold)
+    if not math.isfinite(threshold) or threshold <= 0:
+        raise ValueError("Halo 1 lightmap stop threshold must be greater than zero")
+    if not bsps:
+        raise ValueError("No BSPs selected for Halo 1 lightmapping")
+    commands = []
+    for bsp in bsps:
+        if not bsp:
+            raise ValueError("Halo 1 lightmapping requires a BSP name")
+        command = ['lightmaps', str(scenario_path), bsp, quality, str(threshold)]
+        if noassert:
+            command.append('-noassert')
+        commands.append(command)
+    return commands
+
+
+def run_halo1_lightmapper(scenario_path, bsps, export_settings):
+    for command in halo1_lightmap_commands(
+            scenario_path, bsps, export_settings.lightmap_quality_h1,
+            export_settings.lightmap_stop_threshold_h1,
+            export_settings.lightmap_noassert_h1):
+        print(f"--- Lightmapping BSP {command[2]}")
+        utils.run_tool(command, force_tool=True,
+                       event_level=export_settings.event_level)
+
+
 class NWO_OT_Lightmap(bpy.types.Operator):
     bl_idname = "nwo.lightmap"
     bl_label = "Lightmap"
@@ -71,6 +103,8 @@ class NWO_OT_Lightmap(bpy.types.Operator):
         asset_path, asset_name = utils.get_asset_info()
         scenario_path = str(Path(asset_path, asset_name))
         is_corinth = utils.is_corinth(context)
+        project = utils.get_project(scene_nwo.scene_project)
+        halo1 = bool(project and project.game == 'halo1')
         utils.clear_output()
         if scene_nwo_export.show_output:
             utils.show_output()  # open Foundry Output so users can see progress
@@ -86,6 +120,10 @@ class NWO_OT_Lightmap(bpy.types.Operator):
                 return {'CANCELLED'}
             
         try:
+            if halo1:
+                selected_bsps = bsps if scene_nwo_export.lightmap_all_bsps else [scene_nwo_export.lightmap_specific_bsp]
+                run_halo1_lightmapper(scenario_path, selected_bsps, scene_nwo_export)
+                return {'FINISHED'}
             lightmap_results = run_lightmapper(
                 is_corinth,
                 scenario_path,
@@ -101,6 +139,9 @@ class NWO_OT_Lightmap(bpy.types.Operator):
             message = f"Lightmapping aborted because Tool.exe exited with code {tool_error_code(error)}"
             utils.print_error(message)
             self.report({'WARNING'}, message)
+            return {'CANCELLED'}
+        except ValueError as error:
+            self.report({'WARNING'}, str(error))
             return {'CANCELLED'}
         
         if lightmap_results.lightmap_failed:

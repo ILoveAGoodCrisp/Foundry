@@ -31,6 +31,7 @@ from ..tags.backend import TagDocument
 from ..tags.animation_graph import AnimationGraphTag
 from ..tags.object import ObjectDocument
 from ..tags.scenario import ScenarioDocument
+from ..tools.scenario.lightmap import run_halo1_lightmapper
 from .. import utils
 
 
@@ -1360,5 +1361,20 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
             export.write_tags(single_animation)
             if project.game != 'halo1':
                 export.postprocess_tags()
+            elif (scene_settings.asset_type == 'scenario' and
+                  export_settings.lightmap_structure):
+                scenario_path = Path(export.asset_path_relative, export.asset_name)
+                scenario_tag = Path(export.tags_dir, scenario_path).with_suffix('.scenario')
+                with ScenarioDocument(scenario_tag, tags_root=export.tags_dir,
+                                      game='halo1') as scenario:
+                    block = scenario.block(scenario.tag.root(), 'structure bsps')
+                    bsps = [reference.ShortName for entry in block
+                            if (reference := scenario.reference(entry, 'structure bsp')) is not None]
+                if not export_settings.lightmap_all_bsps:
+                    bsp = export_settings.lightmap_specific_bsp
+                    if bsp not in bsps:
+                        raise ValueError(f'Specified BSP [{bsp}] does not exist in {scenario_tag}')
+                    bsps = [bsp]
+                run_halo1_lightmapper(str(scenario_path), bsps, export_settings)
         finally:
             os.chdir(export.original_cwd)

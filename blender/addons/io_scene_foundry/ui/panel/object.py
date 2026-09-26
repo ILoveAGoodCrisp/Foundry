@@ -1318,7 +1318,7 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
                 layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Structure', icon_value=get_icon_id('structure')).m_type = 'structure'
-            if halo2:
+            if halo1 or halo2:
                 layout.operator('nwo.apply_type_mesh_single', text='Weather Polyhedron', icon_value=get_icon_id('rain_blocker')).m_type = 'weather_polyhedron'
             if not halo1:
                 layout.operator('nwo.apply_type_mesh_single', text='Seam', icon_value=get_icon_id('seam')).m_type = 'seam'

@@ -107,7 +107,7 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
         asset_type = nwo.asset_type
         h4 = utils.is_corinth(context)
         project = utils.get_project(nwo.scene_project)
-        halo2 = project is not None and project.game == 'halo2'
+        weather_polyhedra = project is not None and project.game in {'halo1', 'halo2'}
         index = 0
         if asset_type == 'model' or asset_type == 'resource' or asset_type == 'multi_model':
             # index += 1
@@ -165,13 +165,13 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
             items.append(
                 utils.nwo_enum("structure", "Structure", descrip, "structure", index)
             )
-            if halo2:
+            if weather_polyhedra:
                 index += 1
                 items.append(
                     utils.nwo_enum(
                         "weather_polyhedron",
                         "Weather Polyhedron",
-                        "Closed volume used by Halo 2 to define a region affected by a weather system",
+                        "Closed volume that blocks weather particles in Halo 1 and Halo 2",
                         "rain_blocker",
                         index,
                     )

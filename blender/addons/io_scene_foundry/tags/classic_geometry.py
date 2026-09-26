@@ -260,7 +260,8 @@ def _match_boundary_patches(render_mesh, collision_mesh, render, collision,
     vertices must lie on the opposite surface, so a raised detail cannot claim
     the collision of a flat polygon just because it has the same outside edge.
     """
-    if not any(uncovered for uncovered, _ in render_parts.values()):
+    if not any(uncovered for parts in (render_parts, collision_parts)
+               for uncovered, _ in parts.values()):
         return
     positions = {}
     render_ids = []
@@ -281,6 +282,42 @@ def _match_boundary_patches(render_mesh, collision_mesh, render, collision,
             collision_positions[key] = index
         collision_ids.append(index)
 
+    # At an intersection of planes, compiler roundoff can displace a corner
+    # farther than the surface tolerance while it remains within that
+    # tolerance of every incident plane. Recover its identity only when two
+    # already matched neighbours also establish the same edge connections.
+    # This does not move vertices or relax the planar overlap tests.
+    render_neighbours, collision_neighbours = defaultdict(set), defaultdict(set)
+    render_normals = defaultdict(list)
+    for triangles, mesh, ids, neighbours in (
+        (render, render_mesh, render_ids, render_neighbours),
+        (collision, collision_mesh, collision_ids, collision_neighbours),
+    ):
+        for triangle in triangles:
+            vertices = [ids[v] for v in mesh.polygons[triangle.polygon].vertices]
+            for a, b in zip(vertices, vertices[1:] + vertices[:1]):
+                neighbours[a].add(b)
+                neighbours[b].add(a)
+            if mesh == render_mesh:
+                for vertex in vertices:
+                    render_normals[vertex].append(triangle.normal)
+    corner_matches = {}
+    for point, index in collision_positions.items():
+        if index >= 0:
+            continue
+        candidates = []
+        for co, candidate, _ in tree.find_range(point, tolerance * 2):
+            if len(collision_neighbours[index] & render_neighbours[candidate]) < 2:
+                continue
+            displacement = np.subtract(point, co)
+            if all(abs(float(displacement @ normal)) <= tolerance
+                   for normal in render_normals[candidate]):
+                candidates.append(candidate)
+        if len(candidates) == 1:
+            corner_matches[index] = candidates[0]
+    if corner_matches:
+        collision_ids = [corner_matches.get(index, index) for index in collision_ids]
+
     # Material boundaries are authored boundaries too. A coplanar light/decal
     # must not become part of a wall's collision through this fallback match.
     render_groups, collision_groups = defaultdict(set), defaultdict(set)
@@ -300,7 +337,8 @@ def _match_boundary_patches(render_mesh, collision_mesh, render, collision,
             if len(rpatches) != 1 or len(cpatches) != 1:
                 continue
             rfaces, cfaces = rpatches[0], cpatches[0]
-            if not any(render_parts[f][0] for f in rfaces):
+            if not (any(render_parts[f][0] for f in rfaces)
+                    or any(collision_parts[f][0] for f in cfaces)):
                 continue
             if not _patch_vertices_match(render_mesh, rfaces, render_ids,
                                          collision_mesh, cfaces, collision_ids, tolerance):
@@ -321,7 +359,7 @@ def _match_collision_edge_slivers(render_mesh, collision_mesh, collision, partit
     H1 collision can contain an almost collinear triangle where render uses
     two edges through its middle vertex. Its unstable normal prevents a planar
     match, and keeping it adds a spurious shortcut across that vertex. Require
-    exact shared positions and two oppositely wound render faces on each short
+    exact shared positions and oppositely wound render faces on each short
     edge; proximity alone must not remove an authored thin collision surface.
     """
     edges = defaultdict(list)
@@ -351,7 +389,10 @@ def _match_collision_edge_slivers(render_mesh, collision_mesh, collision, partit
         material = triangle.material
         for start, end in ((a, c), (c, b)):
             forward, reverse = edges.get((start, end), ()), edges.get((end, start), ())
-            if len(forward) != 1 or len(reverse) != 1 or material not in (*forward, *reverse):
+            # Two-sided glass and coplanar detail can add more than one face
+            # in a direction. They do not invalidate an already supported
+            # edge chain, provided both directions and this shader exist.
+            if not forward or not reverse or material not in (*forward, *reverse):
                 break
         else:
             partitions[triangle.polygon] = ([], [points.tolist()])
@@ -394,7 +435,11 @@ def _replace_faces(mesh, partitions, render):
                     # A fan keeps normal storage compatible with Foundry's
                     # per-face ln0/ln1/ln2 attributes, including clipped quads.
                     for i in range(1, len(points) - 1):
-                        coords = [points[0], points[i], points[i + 1]]
+                        # Clipping uses doubles, but Blender stores float32
+                        # coordinates. Reject triangles which collapse at
+                        # that precision before creating faces/UV loops.
+                        coords = np.asarray([points[0], points[i], points[i + 1]],
+                                            dtype=np.float32).astype(np.float64)
                         if np.linalg.norm(np.cross(np.subtract(coords[1], coords[0]),
                                                    np.subtract(coords[2], coords[0]))) == 0:
                             continue

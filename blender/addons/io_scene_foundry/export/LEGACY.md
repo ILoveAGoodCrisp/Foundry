@@ -100,8 +100,10 @@ and every material section uses one bone before invoking Tool.
 - Tag compilation for other non-model legacy asset types is not implemented.
   Intermediate Files Only remains available for all supported legacy assets.
   H1 does not run the H2+ animation-graph pre/post-processing pass; Tool compiles
-  its `model_animations` tag directly. Legacy lightmapping and cache building are
-  not implemented.
+  its `model_animations` tag directly. H1 scenario exports can run Tool radiosity
+  after compiling BSP and scenario tags; each selected BSP uses its name, quality,
+  stop threshold and optional `-noassert` flag. H2/H3/ODST lightmapping and legacy
+  cache building are not implemented.
 - Physics meshes write native sphere, box, pill or convex records for H2/H3/ODST.
   Hinge and socket markers write hinge/ragdoll constraint records. Mixed-material
   shapes must be split before export. H2-ODST tag-reference markers write native

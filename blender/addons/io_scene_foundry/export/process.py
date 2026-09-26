@@ -1125,12 +1125,11 @@ class ExportScene:
                             if len(mesh.materials) == 1:
                                 mesh_type = '_connected_geometry_mesh_type_seam'
                     case '_connected_geometry_mesh_type_weather_polyhedron':
-                        project = utils.get_project(self.scene_settings.scene_project)
-                        if not self.legacy_export or project is None or project.game != 'halo2':
+                        if not self.legacy_export or self.project_game not in {'halo1', 'halo2'}:
                             raise ValueError(
-                                f'{ob.name}: weather polyhedra are only supported by Halo 2 legacy export')
-                        # Halo 2 represents these through ASS naming/material
-                        # conventions rather than a connected-geometry enum.
+                                f'{ob.name}: weather polyhedra are only supported by Halo 1 and Halo 2 legacy export')
+                        # H1 JMS and H2 ASS represent these through special
+                        # materials/names rather than a connected-geometry enum.
                         props['foundry_weather_polyhedron'] = True
                         mesh_type = '_connected_geometry_mesh_type_default'
 

@@ -31,7 +31,7 @@ from ..tags.polyart import export_polyart
 from .process import ExportScene
 
 from ..icons import get_icon_id, get_icon_id_in_directory
-from ..ui.bar import NWO_MT_ProjectChooserMenuDisallowNew
+from ..ui.bar import NWO_MT_ProjectChooserMenuDisallowNew, draw_halo1_lightmap_settings
 
 from ..utils import (
     clean_text,
@@ -549,6 +549,8 @@ class NWO_ExportScene(Operator, ExportHelper):
         box.label(text="Settings")
 
         h4 = is_corinth(context)
+        project = utils.get_project(scene_nwo.scene_project)
+        halo1 = bool(project and project.game == 'halo1')
 
         col = box.column()
         row = col.row()
@@ -576,7 +578,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         model = scene_nwo.asset_type == "model"
         animation = scene_nwo.asset_type == "animation"
         scenario_lightmap = (h4 and render) or scenario
-        if render or scenario:
+        if (render and not halo1) or scenario:
             if scenario:
                 lighting_name = "Light Scenario"
             elif scenario_lightmap:
@@ -584,19 +586,21 @@ class NWO_ExportScene(Operator, ExportHelper):
             else:
                 lighting_name = "Light Model (PRT)"
             
-            if scenario_lightmap:
+            if scenario_lightmap and not halo1:
                 col.prop(scene_nwo_export, "update_lighting_info")
             col.prop(scene_nwo_export, "lightmap_structure", text=lighting_name)
             if scene_nwo_export.lightmap_structure and scenario_lightmap:
                 if scene_nwo.asset_type == "scenario":
-                    if h4:
+                    if halo1:
+                        draw_halo1_lightmap_settings(col, scene_nwo_export)
+                    elif h4:
                         col.prop(scene_nwo_export, "lightmap_quality_h4")
                     else:
                         col.prop(scene_nwo_export, "lightmap_quality")
                     if not scene_nwo_export.lightmap_all_bsps:
                         col.prop(scene_nwo_export, "lightmap_specific_bsp")
                     col.prop(scene_nwo_export, "lightmap_all_bsps")
-                    if not h4:
+                    if not h4 and not halo1:
                         col.prop(scene_nwo_export, "lightmap_threads")
                         
         box = layout.box()
