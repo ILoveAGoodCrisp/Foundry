@@ -1126,8 +1126,8 @@ class ExportScene:
                                 mesh_type = '_connected_geometry_mesh_type_seam'
                     case '_connected_geometry_mesh_type_weather_polyhedron':
                         if not self.legacy_export or self.project_game not in {'halo1', 'halo2'}:
-                            raise ValueError(
-                                f'{ob.name}: weather polyhedra are only supported by Halo 1 and Halo 2 legacy export')
+                            warnings_append(f'{ob.name}: weather polyhedra are only supported by Halo 1 and Halo 2 legacy export. Skipping mesh')
+                            return
                         # H1 JMS and H2 ASS represent these through special
                         # materials/names rather than a connected-geometry enum.
                         props['foundry_weather_polyhedron'] = True
@@ -1138,17 +1138,20 @@ class ExportScene:
                         '_connected_geometry_mesh_type_poop_rain_blocker',
                         '_connected_geometry_mesh_type_poop_vertical_rain_sheet',
                     }:
-                        raise ValueError(f'{ob.name}: rain geometry is only supported by Reach')
+                        warnings_append(f'{ob.name}: rain geometry is only supported by Reach. Skipping mesh')
+                        return
                     if (self.project_game in {'halo1', 'halo2'}
                             and mesh_type == '_connected_geometry_mesh_type_boundary_surface'):
-                        raise ValueError(f'{ob.name}: boundary surfaces are not supported by {self.project_game}')
+                        warnings_append(f'{ob.name}: boundary surfaces are not supported by {self.project_game}. Skipping mesh')
+                        return
                     if self.project_game == 'halo1' and mesh_type in {
                         '_connected_geometry_mesh_type_seam',
                         '_connected_geometry_mesh_type_water_surface',
                         '_connected_geometry_mesh_type_lightmap_region',
                         '_connected_geometry_mesh_type_cookie_cutter',
                     }:
-                        raise ValueError(f'{ob.name}: this scenario mesh type is not supported by Halo 1')
+                        warnings_append(f'{ob.name}: this scenario mesh type is not supported by Halo 1. Skipping mesh')
+                        return
                         
                 match mesh_type:
                     case '_connected_geometry_mesh_type_poop':
@@ -1950,6 +1953,10 @@ class ExportScene:
     def sample_animations(self, single_animation=False):
         if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION} or not self.virtual_scene.skeleton_node:
             return
+        single_name = Path(bpy.data.filepath).stem if single_animation else ''
+        if single_animation and self.project_game == 'halo1' and len(single_name) >= 32:
+            self.warnings.append(f"{single_name}: Halo 1 animation names must be shorter than 32 characters. Skipping animation")
+            return
 
         if self.shape_key_unmutes:
             for kb in self.shape_key_unmutes:
@@ -1960,6 +1967,9 @@ class ExportScene:
         if not single_animation:
             for idx, animation in enumerate(self.scene_settings.animations):
                 if animation.export_this:
+                    if self.project_game == 'halo1' and len(animation.name) >= 32:
+                        self.warnings.append(f"{animation.name}: Halo 1 animation names must be shorter than 32 characters. Skipping animation")
+                        continue
                     if animation.name in animation_names:
                         self.warnings.append(f"Duplicate animation name found: {animation.name} [index {idx}]. Skipping animation")
                     elif animation.animation_type == 'composite':

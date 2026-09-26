@@ -66,7 +66,7 @@ class ShaderCollections:
         if ".." in path.parts:
             raise ValueError(f"Shader tag path cannot leave the tags directory: {shader_path}")
         suffix = path.suffix.casefold()
-        shader_name = path.stem if suffix.startswith(".shader") else path.name
+        shader_name = path.stem if self.game == "halo1" or suffix.startswith(".shader") else path.name
         if self.game == "halo1" or self.path is None or str(path.parent) == ".":
             return shader_name
 

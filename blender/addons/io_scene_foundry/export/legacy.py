@@ -165,6 +165,9 @@ class LegacyExportScene(ExportScene):
         self.jms_version, self.ass_version, self.jma_version = VERSIONS[self.target_game]
         self.shader_collections = ShaderCollections(self.tags_dir, self.target_game)
         self.granny_textures = False
+        self.warned_shader_paths = set()
+        self.shader_name_cache = {}
+        self.skipped_legacy_animations = set()
 
     def export_legacy(self, single_animation=False):
         self.bones = []
@@ -193,8 +196,8 @@ class LegacyExportScene(ExportScene):
                 if (not single_animation and 'markers' in self.export_tag_types and
                         self.jms_version < 8201 and
                         node.ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance'):
-                    raise ValueError(
-                        f'{node.name}: H1 JMS cannot encode tag-reference markers')
+                    self.warnings.append(f'{node.name}: H1 JMS cannot encode tag-reference markers. Skipping marker')
+                    continue
                 markers.append(node)
             if node.mesh is None or node.mesh.invalid:
                 continue
@@ -203,13 +206,15 @@ class LegacyExportScene(ExportScene):
             if self.limit_perms_to_selection and node.permutation not in self.selected_permutations and node.props.get('bungie_mesh_type') != 11:
                 continue
             if node.props.get('bungie_mesh_type') == 11 and self.ass_version is None:
-                raise ValueError(f'{node.name}: H1 does not support ASS model instances')
+                self.warnings.append(f'{node.name}: H1 does not support ASS model instances. Skipping mesh')
+                continue
             if node.tag_type not in self.export_tag_types:
                 continue
             folder = {'design': 'structure', 'structure': 'structure', 'render': 'render',
                       'collision': 'collision', 'physics': 'physics'}.get(node.tag_type)
             if folder is None:
-                raise ValueError(f'Unsupported legacy geometry role: {node.tag_type}')
+                self.warnings.append(f'{node.name}: unsupported legacy geometry role {node.tag_type}. Skipping mesh')
+                continue
             if self.target_game == 'halo1':
                 # H1 Tool scans ``models`` for render geometry and ``physics``
                 # for the JMS used by both collision-geometry and physics.
@@ -222,7 +227,8 @@ class LegacyExportScene(ExportScene):
                              'L4': 'high', 'L5': 'superhigh'}
                 lod = node.ob.nwo.mesh_lod
                 if lod not in lod_names:
-                    raise ValueError(f'{node.name}: Halo 1 does not support LOD {lod}')
+                    self.warnings.append(f'{node.name}: Halo 1 does not support LOD {lod}. Skipping mesh')
+                    continue
                 name = f'{name} {lod_names[lod]}'
             if node.tag_type == 'design' and self.target_game not in {'halo1', 'halo2'}:
                 name += '_design'
@@ -302,12 +308,24 @@ class LegacyExportScene(ExportScene):
                 ))
         for animation in self.virtual_scene.animations:
             if hasattr(animation, 'legacy_tracks'):
-                outputs.append((Path(self.asset_path, 'animations', filename(animation.name.replace(':', ' ')) + self.animation_extension(animation)), self.jma_text(animation)))
+                if self.target_game == 'halo1' and len(animation.name) >= 32:
+                    self.warnings.append(f'{animation.name}: Halo 1 animation names must be shorter than 32 characters. Skipping animation')
+                    self.skipped_legacy_animations.add(animation.name)
+                    continue
+                try:
+                    animation_text = self.jma_text(animation)
+                except ValueError as exc:
+                    self.warnings.append(f'{exc}. Skipping animation')
+                    self.skipped_legacy_animations.add(animation.name)
+                    continue
+                outputs.append((Path(self.asset_path, 'animations', filename(animation.name.replace(':', ' ')) + self.animation_extension(animation)), animation_text))
         if self.external_animations:
-            raise ValueError('Legacy export of external animation files is not implemented; open their source asset to export JMA')
+            self.warnings.append('Legacy export of external animation files is not implemented. Skipping external animations')
         if self.animation_composites:
-            raise ValueError('JMA cannot encode animation composites; export the individual source animations')
+            self.warnings.append('JMA cannot encode animation composites. Skipping composites')
         if not outputs and single_animation:
+            if self.skipped_legacy_animations:
+                return False
             raise ValueError('No JMS, ASS or JMA data matched the export selection')
         if len({str(path).casefold() for path, _ in outputs}) != len(outputs):
             raise ValueError('Legacy output names collide; rename the affected BSP, permutation or animation')
@@ -316,6 +334,7 @@ class LegacyExportScene(ExportScene):
         write_outputs(outputs, maya_order=self.export_settings.legacy_maya_order)
         if not single_animation:
             self.cleanup_intermediates(outputs)
+        return True
 
     def cleanup_intermediates(self, outputs):
         root = Path(self.asset_path)
@@ -324,7 +343,9 @@ class LegacyExportScene(ExportScene):
         # exports. Include their current extension to remove obsolete variants.
         expected.update(root / 'animations' / (
             filename(animation.name.replace(':', ' ')) + self.animation_extension(animation))
-            for animation in self.virtual_scene.animations)
+            for animation in self.virtual_scene.animations
+            if animation.name not in self.skipped_legacy_animations
+            and (self.target_game != 'halo1' or len(animation.name) < 32))
         directories = {root / 'animations': ANIMATION_EXTENSIONS}
         # Geometry output batches are filtered before serialization. Only prune
         # folders for which this batch contains the complete inventory.
@@ -460,7 +481,7 @@ class LegacyExportScene(ExportScene):
         has_animation_sources = (animation_dir.is_dir() and any(
             path.is_file() and path.suffix.lower().startswith('.jm')
             for path in animation_dir.iterdir()))
-        import_animations = self.has_blend_animations() and has_animation_sources
+        import_animations = (single_animation or self.has_blend_animations()) and has_animation_sources
         if import_animations:
             command = 'animations' if self.target_game == 'halo1' else 'model-animations'
             animation_tool_options = dict(halo1_tool_options)
@@ -484,8 +505,12 @@ class LegacyExportScene(ExportScene):
         animations = self.scene_settings.animations
         if self.export_settings.export_animations == 'ACTIVE':
             index = self.scene_settings.active_animation_index
-            return 0 <= index < len(animations) and animations[index].export_this
-        return any(animation.export_this for animation in animations)
+            return (0 <= index < len(animations) and animations[index].export_this
+                    and animations[index].name not in self.skipped_legacy_animations
+                    and (self.target_game != 'halo1' or len(animations[index].name) < 32))
+        return any(animation.export_this and animation.name not in self.skipped_legacy_animations
+                   and (self.target_game != 'halo1' or len(animation.name) < 32)
+                   for animation in animations)
 
     def validate_halo1_animation_skeleton(self):
         """Never silently accept a template graph with incompatible node indices."""
@@ -596,7 +621,11 @@ class LegacyExportScene(ExportScene):
                 if mat is None or not mat.nwo.shader_path.strip():
                     continue
                 path = Path(self.tags_dir, utils.relative_path(mat.nwo.shader_path))
-                key = filename(path.stem).casefold()
+                try:
+                    key = filename(path.stem).casefold()
+                except ValueError:
+                    self.warnings.append(f'{mat.name}: invalid Halo 1 shader path {mat.nwo.shader_path}. Using a default shader')
+                    continue
                 materials.setdefault(key, {})[mat.name] = (mat, path)
         existing = {
             path.stem.casefold()
@@ -618,37 +647,43 @@ class LegacyExportScene(ExportScene):
                 candidates = list(materials.get(name.casefold(), {}).values())
                 if candidates:
                     paths = {path.resolve() for _, path in candidates}
-                    if len(paths) != 1:
-                        raise ValueError(f'H1 materials reference different shaders named {name!r}')
                     shader_source = candidates[0][1]
-                    if not shader_source.is_file():
-                        raise FileNotFoundError(f'Halo Shader Path does not exist: {shader_source}')
-                    if not shader_source.suffix.lower().startswith('.shader'):
-                        raise ValueError(f'Not an H1 shader tag: {shader_source}')
-                    destination = shader_root / 'shaders' / (name + shader_source.suffix)
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    if shader_source.resolve() != destination.resolve():
-                        utils.copy_file(shader_source, destination)
-                    # A previous blank shader may have a different class. Keep
-                    # a backup, but remove it from Tool's shader-name search.
-                    for old in destination.parent.iterdir():
-                        if (old.is_file() and old.stem.casefold() == name.casefold()
-                                and old.suffix.lower().startswith('.shader')
-                                and old.resolve() != destination.resolve()):
-                            backup = old.with_name(old.name + '.foundry-backup')
-                            index = 1
-                            while backup.exists():
-                                backup = old.with_name(old.name + f'.foundry-backup-{index}')
-                                index += 1
-                            old.rename(backup)
-                    for mat, _ in candidates:
-                        mat.nwo.shader_path = utils.relative_path(destination)
-                    materials[name.casefold()] = {
-                        mat.name: (mat, destination) for mat, _ in candidates}
-                    existing.add(name.casefold())
-                    print(f'--- Copied shader {destination}')
-                    continue
+                    if (len(paths) != 1 or not shader_source.is_file()
+                            or not shader_source.suffix.lower().startswith('.shader')
+                            or not shader_source.resolve().is_relative_to(Path(self.tags_dir).resolve())):
+                        self.warnings.append(f'{name}: invalid or conflicting Halo 1 shader path. Using an asset shader')
+                    else:
+                        destination = shader_root / 'shaders' / (name + shader_source.suffix)
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                        if shader_source.resolve() != destination.resolve():
+                            utils.copy_file(shader_source, destination)
+                        # A previous blank shader may have a different class. Keep
+                        # a backup, but remove it from Tool's shader-name search.
+                        for old in destination.parent.iterdir():
+                            if (old.is_file() and old.stem.casefold() == name.casefold()
+                                    and old.suffix.lower().startswith('.shader')
+                                    and old.resolve() != destination.resolve()):
+                                backup = old.with_name(old.name + '.foundry-backup')
+                                index = 1
+                                while backup.exists():
+                                    backup = old.with_name(old.name + f'.foundry-backup-{index}')
+                                    index += 1
+                                old.rename(backup)
+                        for mat, _ in candidates:
+                            mat.nwo.shader_path = utils.relative_path(destination)
+                        materials[name.casefold()] = {
+                            mat.name: (mat, destination) for mat, _ in candidates}
+                        existing.add(name.casefold())
+                        print(f'--- Copied shader {destination}')
+                        continue
                 if name.casefold() in existing:
+                    if candidates:
+                        fallback = next((path for path in shader_root.rglob('*')
+                                         if path.is_file() and path.stem.casefold() == name.casefold()
+                                         and path.suffix.lower().startswith('.shader')), None)
+                        if fallback is not None:
+                            for mat, _ in candidates:
+                                mat.nwo.shader_path = utils.relative_path(fallback)
                     continue
                 destination = Path(
                     shader_root, 'shaders', name + '.' + shader_type
@@ -660,6 +695,8 @@ class LegacyExportScene(ExportScene):
                 ):
                     pass
                 existing.add(name.casefold())
+                for mat, _ in candidates:
+                    mat.nwo.shader_path = utils.relative_path(destination)
                 print(f'--- Created {destination}')
 
     def halo1_object_references(self, base, object_template=''):
@@ -801,8 +838,11 @@ class LegacyExportScene(ExportScene):
             for animation in self.virtual_scene.animations
             if (hasattr(animation, 'legacy_tracks')
                 or bool(animation.anim.animation_events))
+            and animation.name not in self.skipped_legacy_animations
         }
-        settings = self.anims_for_tag_info if self.target_game == 'halo1' else ()
+        settings = (tuple(animation for animation in self.anims_for_tag_info
+                          if animation.name not in self.skipped_legacy_animations)
+                    if self.target_game == 'halo1' else ())
         world_animations = (self.reach_world_animations
                             if self.target_game == 'halo1' else ())
         if not animations and not settings and not world_animations:
@@ -827,12 +867,43 @@ class LegacyExportScene(ExportScene):
             if event.event_type != '_connected_geometry_animation_event_type_frame'
         ]
         if unsupported:
-            raise ValueError(
+            self.warnings.append(
                 f'{animation.name}: classic animation tags cannot store event types: '
-                + ', '.join(sorted(set(unsupported))))
+                + ', '.join(sorted(set(unsupported))) + '. Skipping unsupported events')
         # JMA has no event channel. Frame events are written into the compiled
         # tag after Tool finishes, using the original Blender animation data.
         return [], []
+
+    def legacy_shader_name(self, mat):
+        path = mat.shader_path
+        if not path or not path.strip() or path in {'override', 'shaders\\invalid'}:
+            return mat.name
+        if path in self.shader_name_cache:
+            return self.shader_name_cache[path]
+        try:
+            name = self.shader_collections.material_name(path)
+        except ValueError as exc:
+            if path not in self.warned_shader_paths:
+                self.warnings.append(f'{mat.name}: {exc}. Using material name')
+                self.warned_shader_paths.add(path)
+            return mat.name
+        if self.target_game == 'halo1':
+            try:
+                filename(name)
+            except ValueError:
+                if path not in self.warned_shader_paths:
+                    self.warnings.append(f'{mat.name}: invalid Halo 1 shader path {path}. Using material name')
+                    self.warned_shader_paths.add(path)
+                return mat.name
+        source = Path(self.tags_dir, utils.relative_path(path))
+        invalid_source = (not source.is_file()
+                          or not source.resolve().is_relative_to(Path(self.tags_dir).resolve())
+                          or not source.suffix.lower().startswith('.shader'))
+        if invalid_source and path not in self.warned_shader_paths:
+            self.warnings.append(f'{mat.name}: shader path is invalid or missing: {path}')
+            self.warned_shader_paths.add(path)
+        self.shader_name_cache[path] = name
+        return name
 
     def parent_index(self, node, implied_root=False):
         if node.mesh is not None and len(node.mesh.bone_bindings) == 1 and node.mesh.bone_bindings[0] in self.bone_index:
@@ -863,8 +934,7 @@ class LegacyExportScene(ExportScene):
                     gm = globals_[gm]
                 if self.supports_bsp:
                     gm = 'default'  # Pre-H4 BSP surface types are resolved from shaders.
-                shader = (self.shader_collections.material_name(mat.shader_path)
-                          if mat.shader_path not in {'override', 'shaders\\invalid'} else mat.name)
+                shader = self.legacy_shader_name(mat)
                 name, lighting = material_variant(shader, props, gm,
                     asset.version if isinstance(asset, ass.ASS) else None,
                     self.target_game)
@@ -1081,7 +1151,11 @@ class LegacyExportScene(ExportScene):
                     if (name in permutations) == (nwo.marker_permutation_type == 'exclude'):
                         continue
                 if nwo.marker_type == '_connected_geometry_marker_type_game_instance':
-                    path, xref_name, identifier = self.xref_record(node)
+                    try:
+                        path, xref_name, identifier = self.xref_record(node)
+                    except ValueError as exc:
+                        self.warnings.append(f'{exc}. Skipping marker')
+                        continue
                     key = path.casefold(), xref_name.casefold()
                     xref_index = xref_indices.get(key)
                     if xref_index is None:
@@ -1193,7 +1267,11 @@ class LegacyExportScene(ExportScene):
                 if nwo.marker_uses_regions and permutations and (name in permutations) == (nwo.marker_permutation_type == 'exclude'):
                     continue
                 if nwo.marker_type == '_connected_geometry_marker_type_game_instance':
-                    path, xref_name, identifier = self.xref_record(node)
+                    try:
+                        path, xref_name, identifier = self.xref_record(node)
+                    except ValueError as exc:
+                        self.warnings.append(f'{exc}. Skipping marker')
+                        continue
                     key = path.casefold(), xref_name.casefold()
                     geometry_index = xref_geometries.get(key)
                     if geometry_index is None:
@@ -1222,7 +1300,8 @@ class LegacyExportScene(ExportScene):
                 'AREA': 'DIRECT_LGT', 'SUN': 'AMBIENT_LGT',
             }.get(data.type)
             if kind is None:
-                raise ValueError(f'{ob.name}: unsupported legacy light type {data.type}')
+                self.warnings.append(f'{ob.name}: unsupported legacy light type {data.type}. Skipping light')
+                continue
             hotspot = falloff = 0.0
             shape = 0
             aspect = 1.0
@@ -1321,6 +1400,10 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
         raise ValueError('JMS/ASS export requires an H1, H2, H3 or ODST project')
     if scene_settings.asset_type not in {'model', 'sky', 'scenario', 'prefab', 'particle_model', 'decorator_set', 'animation', 'single_animation', 'multi_model', 'multi_prefab'}:
         raise ValueError(f'JMS/ASS export does not support {scene_settings.asset_type} assets')
+    single_name = Path(bpy.data.filepath).stem if single_animation else ''
+    if single_animation and project.game == 'halo1' and len(single_name) >= 32:
+        utils.print_warning(f'{single_name}: Halo 1 animation names must be shorter than 32 characters. Skipping animation')
+        return
     write_intermediates = export_settings.export_mode in {'FULL', 'GRANNY'}
     write_tags = export_settings.export_mode in {'FULL', 'TAGS'}
     if not asset_path and single_animation:
@@ -1344,8 +1427,10 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
             # Legacy serializers apply a shared deterministic order without tag templates.
             export.create_virtual_tree()
             export.sample_animations(single_animation)
-            export.export_legacy(single_animation)
+            wrote_intermediates = export.export_legacy(single_animation)
             export.report_warnings()
+            if single_animation and not wrote_intermediates:
+                write_tags = False
     finally:
         try:
             export.restore_scene()
@@ -1354,6 +1439,7 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
 
     if write_tags:
         try:
+            warnings_before_tags = len(export.warnings)
             # H1 uses model_animations and distinct object references rather
             # than the H2+ model/animation-graph post-processing layout.
             if project.game != 'halo1':
@@ -1376,5 +1462,7 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
                         raise ValueError(f'Specified BSP [{bsp}] does not exist in {scenario_tag}')
                     bsps = [bsp]
                 run_halo1_lightmapper(str(scenario_path), bsps, export_settings)
+            for warning in export.warnings[warnings_before_tags:]:
+                utils.print_warning(warning)
         finally:
             os.chdir(export.original_cwd)
