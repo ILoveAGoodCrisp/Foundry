@@ -947,6 +947,8 @@ class LegacyExportScene(ExportScene):
                     self.warned_shader_paths.add(path)
                 return mat.name
         source = Path(self.tags_dir, utils.relative_path(path))
+        if self.target_game == 'halo2' and not source.suffix:
+            source = source.with_suffix('.shader')
         invalid_source = (not source.is_file()
                           or not source.resolve().is_relative_to(Path(self.tags_dir).resolve())
                           or not source.suffix.lower().startswith('.shader'))
@@ -1511,9 +1513,11 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
     if write_tags:
         try:
             warnings_before_tags = len(export.warnings)
-            # H1 uses model_animations and distinct object references rather
-            # than the H2+ model/animation-graph post-processing layout.
-            if project.game != 'halo1':
+            # Classic scenario compilation creates the scenario tag later in
+            # write_tags, so it cannot be opened during preprocessing.
+            classic_scenario = (scene_settings.asset_type == 'scenario'
+                                and project.game in {'halo1', 'halo2'})
+            if project.game != 'halo1' and not classic_scenario:
                 export.preprocess_tags()
             export.write_tags(single_animation)
             if project.game != 'halo1':

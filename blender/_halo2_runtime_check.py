@@ -53,6 +53,6 @@ meshes = [ob for ob in bpy.data.objects if ob.type == 'MESH']
 print('MESH_COUNT', len(meshes))
 print('MESH_SAMPLES', [(ob.name, len(ob.vertex_groups)) for ob in meshes[:8]])
 assert meshes
-assert any(group.name == 'l_clavicle' for ob in meshes for group in ob.vertex_groups)
-assert all(not group.name.startswith('b_') for ob in meshes for group in ob.vertex_groups)
+assert any(group.name == 'l_upperarm' for ob in meshes for group in ob.vertex_groups)
+assert all(group.name in armature.data.bones for ob in meshes for group in ob.vertex_groups)
 print('HALO2_IMPORT_INFO_CHECK_OK')

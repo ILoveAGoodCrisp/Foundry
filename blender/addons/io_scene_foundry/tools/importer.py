@@ -1032,11 +1032,23 @@ class XREF:
         if object_name.lower().startswith("?"):
             self.preferred_type = ".device_machine"
         if xref_path:
-            relative_path = utils.any_partition(xref_path, "\\data\\", True)
-            relative_dir = Path(relative_path).parent
-            self.preferred_dir = Path(utils.get_tags_path(), relative_dir)
+            source_path = PureWindowsPath(xref_path.replace('/', '\\'))
+            parts = source_path.parts
+            data_index = next((i for i, part in enumerate(parts)
+                               if part.casefold() == 'data'), None)
+            tags_index = next((i for i, part in enumerate(parts)
+                               if part.casefold() == 'tags'), None)
+            start = ((data_index + 1) if data_index is not None else
+                     (tags_index + 1) if tags_index is not None else
+                     0 if not source_path.is_absolute() else None)
+            if start is not None:
+                relative_parts = list(parts[start:-1])
+                if relative_parts and relative_parts[-1].casefold() in {'render', 'collision', 'physics'}:
+                    relative_parts.pop()
+                if not any(part in {'.', '..'} for part in relative_parts):
+                    self.preferred_dir = Path(utils.get_tags_path(), *relative_parts)
         
-        self.name = xref_name
+        self.name = xref_name or PureWindowsPath(xref_path.replace('/', '\\')).stem
 
 
 class NWO_Import(bpy.types.Operator):
@@ -3115,15 +3127,15 @@ class NWOImporter:
         tag_path = ""
         fallback_tag_path = ""
         if xref.preferred_dir is not None:
-            path = Path(xref.preferred_dir, xref.name, f"{xref.name}{xref.preferred_type}")
-            fallback_tag_path = str(path)
-            if path.exists():
-                return utils.relative_path(path), fallback_tag_path
-
-            if xref.preferred_dir.exists():
-                for xtype in xref_tag_types:
-                    path = Path(xref.preferred_dir, xref.name, f"{xref.name}{xtype}")
-                    if path.exists():
+            asset_dir = (xref.preferred_dir if xref.preferred_dir.name.casefold() == xref.name.casefold()
+                         else xref.preferred_dir / xref.name)
+            candidates = (asset_dir / xref.name, xref.preferred_dir / xref.name)
+            fallback_tag_path = utils.relative_path(
+                candidates[0].with_name(xref.name + xref.preferred_type))
+            for base in candidates:
+                for extension in (xref.preferred_type, *xref_tag_types):
+                    path = base.with_name(xref.name + extension)
+                    if path.is_file():
                         return utils.relative_path(path), fallback_tag_path
 
         tag_files_by_name = self._ensure_tag_files_cache()
