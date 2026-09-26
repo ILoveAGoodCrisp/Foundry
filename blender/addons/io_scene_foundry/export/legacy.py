@@ -1035,9 +1035,9 @@ class LegacyExportScene(ExportScene):
             normal.normalize()
             color = tuple(float(c) for c in mesh.vertex_colors[0][i][:3]) if mesh.vertex_colors else None
             texcoords = tuple(tuple(float(c) for c in uv[i][:2]) for uv in mesh.texcoords)
-            if self.target_game == 'halo1':
-                # VirtualMesh flips V for Granny. H1 JMS expects Blender's
-                # original UV orientation, as used by io_scene_halo.
+            if self.target_game in {'halo1', 'halo2'}:
+                # VirtualMesh flips V for Granny. H1 and H2 JMS expect
+                # Blender's original UV orientation.
                 texcoords = tuple((u, 1.0 - v) for u, v in texcoords)
             vertices.append(jms.Vertex(tuple((matrix @ Vector(position)) * self.to_halo_scale), tuple(normal),
                 tuple(influences), texcoords, color))
