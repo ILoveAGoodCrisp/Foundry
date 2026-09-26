@@ -292,7 +292,7 @@ face_prop_type_items = [
             ('lightmap_general_bounce_modifier', "Light Bounce", "reach,corinth:scenario,prefab", 29),
             ('lightmap_translucency_tint_color', "Lightmap Translucency", "halo3,halo3odst,reach,corinth:scenario,prefab", 30),
             ('lightmap_lighting_from_both_sides', "Light Both Sides", "reach,corinth:scenario,prefab", 31),
-            ('emissive', "Emissive", "halo3,halo3odst,reach,corinth:scenario,prefab", 32), # all emissive props
+            ('emissive', "Emissive", "halo1,halo2,halo3,halo3odst,reach,corinth:scenario,prefab", 32), # all emissive props
             ('shadow_only', "Shadow Only", "halo2,halo3,halo3odst:scenario", 33),
         ]
 

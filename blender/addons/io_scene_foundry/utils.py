@@ -6207,6 +6207,7 @@ def material_add_shield(material: bpy.types.Material):
     arrange(node_tree)
 
 def material_add_emissive(material: bpy.types.Material):
+    material.use_nodes = True
     node_tree = material.node_tree
 
     def connect_triangle_area(node):
@@ -6330,7 +6331,7 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh, game=None):
         
     on_mask = power_data[:, 0] > 0.0
 
-    if on_mask.any():
+    if on_mask.any() or mesh.attributes.get('foundry_power') is not None:
         if game is None:
             project = get_project()
             game = project.game if project else None

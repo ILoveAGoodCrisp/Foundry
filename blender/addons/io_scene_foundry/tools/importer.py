@@ -1412,7 +1412,7 @@ class NWO_Import(bpy.types.Operator):
     use_import_info: bpy.props.BoolProperty(
         name="Use Import Info",
         description="Imports embedded JMS, ASS, and JMA source data instead of compiled tag data when available. GR2 source data is currently ignored",
-        default=False,
+        default=True,
     )
     
     def execute(self, context):
@@ -5406,7 +5406,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     use_import_info: bpy.props.BoolProperty(
         name="Use Import Info",
         description="Imports embedded JMS, ASS, and JMA source data instead of compiled tag data when available. GR2 source data is currently ignored",
-        default=False,
+        default=True,
     )
     
     @classmethod
