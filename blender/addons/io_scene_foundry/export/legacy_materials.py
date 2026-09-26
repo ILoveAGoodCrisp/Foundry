@@ -10,11 +10,21 @@ def material_variant(shader, props, global_material='default', ass_version=None,
     name = shader
     special = {13: '+portal', 14: '+seam', 15: '+fog', 16: '+cookiecutter',
                17: '+water', 18: '+water', 8: '+rainblocker', 9: '+rain'}
+    if target_game == 'halo1':
+        # H1 has its own hard-coded BSP material names. Water uses a real
+        # shader, while standalone fog is the unused material with a $ flag.
+        special = {13: '+portal', 14: '+seamsealer', 15: '+unused',
+                   8: '+weatherpoly'}
+        if get('mesh_type') == 13 and shader.startswith('+exactportal'):
+            special[13] = '+exactportal'
+        if props.get('foundry_weather_polyhedron'):
+            return '+weatherpoly', ()
     name = special.get(get('mesh_type'), name)
     if get('face_type') == 1:
         name = '+seamsealer'
     elif get('face_type') == 2:
-        name = '+sky'
+        sky_index = get('sky_permutation_index')
+        name = '+sky' + (str(sky_index) if target_game == 'halo1' and sky_index else '')
     # These suffixes are also understood by Foundry's legacy importer.
     sides, mode = get('face_sides'), get('face_mode')
     if mode == 4 and (ass_version is None or ass_version < 4):
@@ -27,14 +37,20 @@ def material_variant(shader, props, global_material='default', ass_version=None,
              bool(get('portal_one_way')), bool(get('portal_door')), bool(get('portal_vis_blocker')),
              bool(get('no_lightmap')), False, bool(get('decal_offset')), bool(get('slip_surface'))]
     suffixes = ('%', '#', '?', '!', '@', '*', '$', '^', '-', '&', '=', '', ';', ')', '', '<', '|', '~', '{', '}', '[', ']')
+    if target_game == 'halo1':
+        flags[9] = bool(get('mesh_portal_ai_deafening'))
+        # Later games' symbols are not H1 material flags.
+        flags = [flag and symbol in '%#!@*$^-&' for flag, symbol in zip(flags, suffixes)]
+        if name == '+unused':
+            return '+unused$', ()
     name += ''.join(s for flag, s in zip(flags, suffixes) if flag)
     legacy_resolution = target_game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
     lmres = get('lightmap_resolution_scale', 1 if legacy_resolution else 3)
     lmres_scale = lmres if legacy_resolution else lmres / 3
-    if lmres != (1 if legacy_resolution else 3):
+    if target_game != 'halo1' and lmres != (1 if legacy_resolution else 3):
         name += f' lm:{lmres_scale:g}'
     power = get('lighting_emissive_power')
-    if power:
+    if power and target_game != 'halo1':
         name += f' lp:{power:g}'
     lighting = ()
     if ass_version and ass_version >= 4:

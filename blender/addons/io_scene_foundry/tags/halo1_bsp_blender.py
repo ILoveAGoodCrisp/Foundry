@@ -20,6 +20,33 @@ def plane_values(plane):
     return plane.i, plane.j, plane.k, plane.d
 
 
+def collision_point_is_solid(tag):
+    """Classify tag-space points without confusing unknown leaves with solid."""
+    bsps = list(tag.block(tag.tag.root(), 'collision bsp'))
+    if not bsps:
+        return lambda point: False
+    bsp = bsps[0]
+    planes = [plane_values(tag.value(p, 'plane')) for p in tag.block(bsp, 'planes')]
+    nodes = [tuple(int(tag.value(n, field)) for field in ('plane', 'back child', 'front child'))
+             for n in tag.block(bsp, 'bsp3d nodes')]
+
+    def is_solid(point):
+        index = 0
+        for _ in range(len(nodes) + 1):
+            index &= 0xffffffff
+            if index == 0xffffffff:
+                return True
+            if index & 0x80000000 or index >= len(nodes):
+                return False
+            plane, back, front = nodes[index]
+            if not 0 <= plane < len(planes):
+                return False
+            x, y, z, distance = planes[plane]
+            index = front if x*point.x + y*point.y + z*point.z >= distance else back
+        return False
+    return is_solid
+
+
 def cluster_sky_lookup(tag):
     """Locate a point through the collision BSP; render leaves share its indices."""
     root = tag.tag.root()
@@ -75,6 +102,16 @@ def replace_collision_only(objects, tag=None):
             attribute.data.foreach_get('value', mask)
             for face in mesh.polygons:
                 if mask[face.index]:
+                    # The native decoder uses an untextured "default" slot
+                    # for material-less shell surfaces. Other unmatched
+                    # collision faces (ramps, covers, player blockers) must
+                    # retain both their shader and Collision Only property.
+                    source_material = (mesh.materials[face.material_index]
+                                       if mesh.materials else None)
+                    if source_material is not None and (
+                            source_material.nwo.shader_path or
+                            source_material.name.split('.')[0] != 'default'):
+                        continue
                     points = [local_to_tag @ mesh.vertices[v].co for v in face.vertices]
                     center = sum(points, Vector()) / len(points)
                     normal = (points[1] - points[0]).cross(points[2] - points[0]).normalized()
@@ -93,8 +130,13 @@ def replace_collision_only(objects, tag=None):
                         slot = len(mesh.materials)
                         mesh.materials.append(mat)
                     face.material_index = slot
-            mesh.attributes.remove(attribute)
-            mesh.nwo.face_props.remove(index)
+                    mask[face.index] = 0
+            if mask.any():
+                attribute.data.foreach_set('value', mask)
+            else:
+                mesh.attributes.remove(attribute)
+                mesh.nwo.face_props.remove(index)
+        utils.calc_face_prop_counts(mesh)
     if unresolved:
         utils.print_warning(f'Could not resolve clusters for {unresolved} H1 shell faces; kept +sky fallback')
 
@@ -116,7 +158,7 @@ def apply_collision_surface_flags(tag, objects):
     vertices = [transform @ v for v in vertices]
     edges = list(tag.block(bsp, 'edges'))
     surfaces = list(tag.block(bsp, 'surfaces'))
-    polygons = {'face_sides': [], 'ladder': [], 'breakable': []}
+    polygons = {'face_sides': [], 'ladder': [], 'breakable': [], 'invisible': []}
     for index in sorted(indices - set(range(len(surfaces)))):
         utils.print_warning(f'H1 breakable collision surface {index} is out of range')
     for index, surface in enumerate(surfaces):
@@ -125,6 +167,7 @@ def apply_collision_surface_flags(tag, objects):
             'face_sides': flags.get_flag('two sided'),
             'ladder': flags.get_flag('climbable'),
             'breakable': flags.get_flag('breakable') or index in indices,
+            'invisible': flags.get_flag('invisible'),
         }
         if not any(enabled.values()):
             continue
@@ -159,7 +202,17 @@ def apply_collision_surface_flags(tag, objects):
             continue
         mesh = ob.data
         masks = {name: np.zeros(len(mesh.polygons), dtype=np.int8) for name in trees}
+        render_only = np.zeros(len(mesh.polygons), dtype=bool)
+        for prop in mesh.nwo.face_props:
+            if prop.type == 'face_mode' and prop.face_mode == 'render_only':
+                attribute = mesh.attributes.get(prop.attribute_name)
+                if attribute is not None:
+                    render_only |= np.array([entry.value for entry in attribute.data], dtype=bool)
         for face in mesh.polygons:
+            # The merge already established that these faces have no matching
+            # collision surface. A nearby wall must not supply its flags.
+            if render_only[face.index]:
+                continue
             points = [ob.matrix_world @ mesh.vertices[v].co for v in face.vertices]
             points.append(sum(points, Vector()) / len(points))
             for name, tree in trees.items():
@@ -168,11 +221,17 @@ def apply_collision_surface_flags(tag, objects):
                     masks[name][face.index] = 1
         for name, mask in masks.items():
             if mask.any():
-                prop = utils.add_face_prop(mesh, 'face_mode' if name == 'breakable' else name,
+                prop = utils.add_face_prop(mesh, 'face_mode' if name in {'breakable', 'invisible'} else name,
                                            None if mask.all() else mask)
                 if name == 'breakable':
                     prop.face_mode = 'breakable'
-        utils.consolidate_face_attributes(mesh)
+                elif name == 'invisible':
+                    prop.face_mode = 'collision_only'
+                elif name == 'face_sides':
+                    prop.two_sided = True
+        # H1 shell materials can carry explicit collision flags. The generic
+        # cleanup otherwise clears every face property on '+' materials.
+        utils.consolidate_face_attributes(mesh, preserve_special_faces=True)
         utils.calc_face_prop_counts(mesh)
 
 

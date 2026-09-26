@@ -17,7 +17,7 @@ from .. import import_transform
 from ..utils import jstr
 from .. import utils
 from .prefab import ScenarioStructureBspMetadataTag, StructureBspHavokGeometry
-from .classic_geometry import merge_classic_surfaces
+from .classic_geometry import merge_classic_surfaces, weld_classic_vertices
 from .halo2_geometry import bsp_mappings as halo2_bsp_mappings
 
 class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
@@ -378,6 +378,14 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         records = self.portals()
         if not records:
             return []
+        if self.game == 'halo1':
+            from .portal_reconstruction import reconstruct_portals
+            from .halo1_bsp_blender import collision_point_is_solid
+            source_count = len(records)
+            records, rebuilt = reconstruct_portals(records, is_solid=collision_point_is_solid(self))
+            utils.print_step(
+                f'Reconstructed H1 cutting portals from {rebuilt}/{source_count} fragments; '
+                f'{source_count - rebuilt} fragments retained unchanged')
         utils.print_step("Creating Portals")
         layer = utils.add_permutation("portals", utils.SetType.SCENARIO)
         portals_collection = bpy.data.collections.new(
@@ -415,6 +423,11 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     from .halo1_bsp_blender import replace_collision_only, apply_collision_surface_flags, create_helpers
                     replace_collision_only(classic_objects, self)
                     apply_collision_surface_flags(self, classic_objects)
+                    for ob in classic_objects:
+                        if ob.type == 'MESH':
+                            utils.set_two_sided(ob.data, match_collision_patches=True)
+                            weld_classic_vertices(ob.data)
+                            utils.calc_face_prop_counts(ob.data)
                     if not for_cinematic:
                         objects.extend(create_helpers(self, collection))
                 if not for_cinematic:

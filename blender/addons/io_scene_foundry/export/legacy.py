@@ -14,6 +14,7 @@ from tempfile import NamedTemporaryFile
 import io
 import os
 import re
+import subprocess
 import xml.etree.ElementTree as ET
 
 import bpy
@@ -222,7 +223,7 @@ class LegacyExportScene(ExportScene):
                 if lod not in lod_names:
                     raise ValueError(f'{node.name}: Halo 1 does not support LOD {lod}')
                 name = f'{name} {lod_names[lod]}'
-            if node.tag_type == 'design':
+            if node.tag_type == 'design' and self.target_game not in {'halo1', 'halo2'}:
                 name += '_design'
             if node.props.get('bungie_mesh_type') == 11:
                 nwo = node.ob.nwo
@@ -285,8 +286,12 @@ class LegacyExportScene(ExportScene):
                         self.asset_path, child_name, 'render',
                         child_name + '.jms')
                 else:
+                    # Keep the structure role for serialization, but H1 Tool's
+                    # structure command reads its JMS from the models folder.
+                    output_folder = ('models' if self.target_game == 'halo1'
+                                     and folder == 'structure' else folder)
                     output_path = Path(
-                        self.asset_path, folder,
+                        self.asset_path, output_folder,
                         name + ('.ass' if use_ass else '.jms'))
                 outputs.append((output_path, asset))
             if uses_jmi and jmi_children:
@@ -335,6 +340,8 @@ class LegacyExportScene(ExportScene):
                         directories[root / role] = {'.jms', '.ass'}
             if {'structure', 'design'} <= roles:
                 directories[root / 'structure'] = {'.jms', '.ass'}
+                if self.target_game == 'halo1':
+                    directories[root / 'models'] = {'.jms'}
             if (self.target_game == 'halo2' and 'render' in roles
                     and self.asset_type.name in {'PARTICLE_MODEL', 'DECORATOR_SET'}):
                 directories[root] = {'.jmi'}
@@ -366,11 +373,11 @@ class LegacyExportScene(ExportScene):
             halo1_tool_options = {'force_tool': True}
             self.copy_halo1_templates(animation_only)
         if self.asset_type.name == 'SCENARIO':
-            structure_dir = Path(self.asset_path, 'structure')
+            structure_dir = Path(
+                self.asset_path, 'models' if self.target_game == 'halo1' else 'structure')
             structure_sources = sorted(
                 path for path in structure_dir.iterdir()
                 if path.is_file() and path.suffix.lower() in {'.jms', '.ass'}
-                and not path.stem.endswith('_design')
             ) if structure_dir.is_dir() else []
             if not structure_sources:
                 raise FileNotFoundError(
@@ -379,11 +386,28 @@ class LegacyExportScene(ExportScene):
                 self.ensure_halo1_shaders(
                     structure_sources, 'shader_environment')
             for source in structure_sources:
-                utils.run_tool(
-                    ['structure', self.asset_path_relative, source.stem],
-                    event_level=self.export_settings.event_level,
-                    **halo1_tool_options,
-                )
+                error_path = source.with_name(source.stem + '_errors.wrl')
+                previous = error_path.stat() if error_path.is_file() else None
+                try:
+                    utils.run_tool(
+                        ['structure', self.asset_path_relative, source.stem],
+                        event_level=self.export_settings.event_level,
+                        **halo1_tool_options,
+                    )
+                except subprocess.CalledProcessError:
+                    # Scene restoration has already finished before write_tags.
+                    # Only display diagnostics produced by this Tool invocation.
+                    try:
+                        current = error_path.stat() if error_path.is_file() else None
+                        if current and (previous is None or
+                                (current.st_mtime_ns, current.st_size) !=
+                                (previous.st_mtime_ns, previous.st_size)):
+                            from ..legacy.wrl import import_errors
+                            import_errors(error_path, self.context.scene,
+                                          self.rotation_correction, self.to_halo_scale)
+                    except Exception as error:
+                        print(f'Could not import BSP error geometry: {error}')
+                    raise
             self.write_classic_scenario_tag(structure_sources)
             return
         if self.asset_type.name in {'PARTICLE_MODEL', 'DECORATOR_SET'}:
@@ -844,7 +868,7 @@ class LegacyExportScene(ExportScene):
                     asset.version if isinstance(asset, ass.ASS) else None,
                     self.target_game)
                 if props.get('foundry_weather_polyhedron'):
-                    name = '+weather'
+                    name = '+weatherpoly' if self.target_game == 'halo1' else '+weather'
                 if node.tag_type in {'collision', 'physics'}:
                     name = gm  # Physics/collision material names are surface types, not display shaders.
                 permutation = node.permutation or 'default'

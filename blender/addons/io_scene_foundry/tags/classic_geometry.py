@@ -65,6 +65,14 @@ class _Triangle:
     maximum: np.ndarray
     center: np.ndarray
     radius: float
+    material: object
+
+
+def _material_key(material):
+    """Compare shader references, not material slot numbers or display names."""
+    if material is not None and material.nwo.shader_path:
+        return material.nwo.shader_path.replace('/', '\\').strip('\\').casefold()
+    return material
 
 
 def _triangles(mesh):
@@ -77,7 +85,8 @@ def _triangles(mesh):
         material = mesh.materials[tri.material_index] if tri.material_index < len(mesh.materials) else None
         # Sky, seam sealers, ladders, etc. are authored helper geometry. Their
         # semantics come from the special material, not spatial coincidence.
-        if material is not None and material.name.lstrip().startswith('+'):
+        if (material is not None and material.name.lstrip().startswith('+')
+                and not material.nwo.shader_path):
             continue
         coords = positions[list(tri.vertices)]
         normal = np.cross(coords[1] - coords[0], coords[2] - coords[0])
@@ -88,7 +97,7 @@ def _triangles(mesh):
         center = (minimum + maximum) * 0.5
         result.append(_Triangle(
             tri.polygon_index, coords, normal / length, minimum, maximum,
-            center, float(np.linalg.norm(maximum - minimum) * 0.5)))
+            center, float(np.linalg.norm(maximum - minimum) * 0.5), _material_key(material)))
     return result
 
 
@@ -111,6 +120,8 @@ def _candidates(render, collision, tolerance):
         for tree, radius in trees:
             for _, render_index, _ in tree.find_range(c.center, c.radius + radius + tolerance):
                 r = render[render_index]
+                if r.material != c.material:
+                    continue
                 if np.any(c.maximum < r.minimum - tolerance) or np.any(r.maximum < c.minimum - tolerance):
                     continue
                 # Very thin compiled triangles have unstable normals. The
@@ -270,31 +281,80 @@ def _match_boundary_patches(render_mesh, collision_mesh, render, collision,
             collision_positions[key] = index
         collision_ids.append(index)
 
-    render_faces = {triangle.polygon for triangle in render}
-    collision_faces = {triangle.polygon for triangle in collision}
-    render_edges = _patch_edges(render_mesh, render_ids, render_faces)
-    collision_edges = _patch_edges(collision_mesh, collision_ids, collision_faces)
-    common_edges = render_edges.keys() & collision_edges.keys()
-    render_patches = _boundary_patches(render_edges, common_edges, render_faces)
-    collision_patches = _boundary_patches(collision_edges, common_edges, collision_faces)
-    for boundary, rpatches in render_patches.items():
-        cpatches = collision_patches.get(boundary, ())
-        if len(rpatches) != 1 or len(cpatches) != 1:
+    # Material boundaries are authored boundaries too. A coplanar light/decal
+    # must not become part of a wall's collision through this fallback match.
+    render_groups, collision_groups = defaultdict(set), defaultdict(set)
+    for triangle in render:
+        render_groups[triangle.material].add(triangle.polygon)
+    for triangle in collision:
+        collision_groups[triangle.material].add(triangle.polygon)
+    for material in render_groups.keys() & collision_groups.keys():
+        render_faces, collision_faces = render_groups[material], collision_groups[material]
+        render_edges = _patch_edges(render_mesh, render_ids, render_faces)
+        collision_edges = _patch_edges(collision_mesh, collision_ids, collision_faces)
+        common_edges = render_edges.keys() & collision_edges.keys()
+        render_patches = _boundary_patches(render_edges, common_edges, render_faces)
+        collision_patches = _boundary_patches(collision_edges, common_edges, collision_faces)
+        for boundary, rpatches in render_patches.items():
+            cpatches = collision_patches.get(boundary, ())
+            if len(rpatches) != 1 or len(cpatches) != 1:
+                continue
+            rfaces, cfaces = rpatches[0], cpatches[0]
+            if not any(render_parts[f][0] for f in rfaces):
+                continue
+            if not _patch_vertices_match(render_mesh, rfaces, render_ids,
+                                         collision_mesh, cfaces, collision_ids, tolerance):
+                continue
+            if not _patch_vertices_match(collision_mesh, cfaces, collision_ids,
+                                         render_mesh, rfaces, render_ids, tolerance):
+                continue
+            for mesh, faces, parts in ((render_mesh, rfaces, render_parts),
+                                       (collision_mesh, cfaces, collision_parts)):
+                for index in faces:
+                    parts[index] = ([], [[tuple(mesh.vertices[v].co)
+                                          for v in mesh.polygons[index].vertices]])
+
+
+def _match_collision_edge_slivers(render_mesh, collision_mesh, collision, partitions, tolerance):
+    """Discard compiler slivers along an already connected render edge chain.
+
+    H1 collision can contain an almost collinear triangle where render uses
+    two edges through its middle vertex. Its unstable normal prevents a planar
+    match, and keeping it adds a spurious shortcut across that vertex. Require
+    exact shared positions and two oppositely wound render faces on each short
+    edge; proximity alone must not remove an authored thin collision surface.
+    """
+    edges = defaultdict(list)
+    for face in render_mesh.polygons:
+        points = [tuple(render_mesh.vertices[v].co) for v in face.vertices]
+        material = render_mesh.materials[face.material_index] if render_mesh.materials else None
+        for a, b in zip(points, points[1:] + points[:1]):
+            edges[a, b].append(_material_key(material))
+
+    for triangle in collision:
+        face = collision_mesh.polygons[triangle.polygon]
+        if len(face.vertices) != 3:
             continue
-        rfaces, cfaces = rpatches[0], cpatches[0]
-        if not any(render_parts[f][0] for f in rfaces):
+        points = triangle.coords
+        longest = max(range(3), key=lambda i: np.linalg.norm(points[(i + 1) % 3] - points[i]))
+        a, b, c = (points[(longest + i) % 3] for i in range(3))
+        delta = b - a
+        length_squared = float(delta @ delta)
+        if not length_squared:
             continue
-        if not _patch_vertices_match(render_mesh, rfaces, render_ids,
-                                     collision_mesh, cfaces, collision_ids, tolerance):
+        fraction = float((c - a) @ delta) / length_squared
+        if not 0 < fraction < 1 or np.linalg.norm(c - (a + fraction * delta)) > tolerance:
             continue
-        if not _patch_vertices_match(collision_mesh, cfaces, collision_ids,
-                                     render_mesh, rfaces, render_ids, tolerance):
+        a, b, c = tuple(a), tuple(b), tuple(c)
+        if (a, b) in edges or (b, a) in edges:
             continue
-        for mesh, faces, parts in ((render_mesh, rfaces, render_parts),
-                                   (collision_mesh, cfaces, collision_parts)):
-            for index in faces:
-                parts[index] = ([], [[tuple(mesh.vertices[v].co)
-                                      for v in mesh.polygons[index].vertices]])
+        material = triangle.material
+        for start, end in ((a, c), (c, b)):
+            forward, reverse = edges.get((start, end), ()), edges.get((end, start), ())
+            if len(forward) != 1 or len(reverse) != 1 or material not in (*forward, *reverse):
+                break
+        else:
+            partitions[triangle.polygon] = ([], [points.tolist()])
 
 
 def _replace_faces(mesh, partitions, render):
@@ -379,5 +439,53 @@ def merge_classic_surfaces(render_mesh, collision_mesh, tolerance):
         mesh_partitions.append(partitions)
     _match_boundary_patches(render_mesh, collision_mesh, render, collision,
                            *mesh_partitions, tolerance)
+    _match_collision_edge_slivers(render_mesh, collision_mesh, collision,
+                                 mesh_partitions[1], tolerance)
     _replace_faces(render_mesh, mesh_partitions[0], True)
     _replace_faces(collision_mesh, mesh_partitions[1], False)
+
+
+def weld_classic_vertices(mesh):
+    """Reconnect exact shared vertices after surface reconstruction.
+
+    Tag meshes split vertices for UVs/normals, and clipping creates new vertices
+    per face. Blender stores those seams per corner, so they need not disconnect
+    editable geometry. Do not use a distance weld: thin BSP features must retain
+    their positions. Stacked faces are left for the explicit sidedness pass.
+    """
+    bm = bmesh.new()
+    try:
+        bm.from_mesh(mesh)
+        by_position = defaultdict(list)
+        by_face = defaultdict(list)
+        protected = set()
+        for vertex in bm.verts:
+            by_position[tuple(vertex.co)].append(vertex)
+        for face in bm.faces:
+            coords = frozenset(tuple(v.co) for v in face.verts)
+            by_face[coords].append(face)
+            if len(coords) != len(face.verts):
+                protected.update(face.verts)
+        for faces in by_face.values():
+            if len(faces) > 1:
+                protected.update(v for f in faces for v in f.verts)
+        targets = {}
+        for vertices in by_position.values():
+            if len(vertices) > 1 and not any(v in protected for v in vertices):
+                targets.update((v, vertices[0]) for v in vertices[1:])
+        if not targets:
+            return 0
+        preserve_normals = mesh.has_custom_normals
+        if preserve_normals and bm.faces:
+            utils.save_loop_normals(bm, mesh)
+        before = len(bm.faces)
+        bmesh.ops.weld_verts(bm, targetmap=targets)
+        if len(bm.faces) != before:
+            raise ValueError('Exact BSP vertex welding unexpectedly changed the face count')
+        bm.to_mesh(mesh)
+    finally:
+        bm.free()
+    if preserve_normals:
+        utils.apply_loop_normals(mesh)
+    mesh.update()
+    return len(targets)

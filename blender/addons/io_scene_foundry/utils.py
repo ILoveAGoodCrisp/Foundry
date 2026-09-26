@@ -5738,7 +5738,7 @@ def emissive_signature(prop):
         prop.debug_emissive_index,
     )
     
-def consolidate_face_attributes(mesh: bpy.types.Mesh):
+def consolidate_face_attributes(mesh: bpy.types.Mesh, *, preserve_special_faces=False):
     '''Consolidates face layers into the most minimal list'''
     if not isinstance(mesh, bpy.types.Mesh):
         return
@@ -5820,13 +5820,16 @@ def consolidate_face_attributes(mesh: bpy.types.Mesh):
         masks[prim] = m
         
     plus_faces = np.array([
+        # H1 also has real shaders named with a '+' prefix (for example
+        # a10's '+ladder stair'). Their collision flags are not helper data.
         mesh.materials[p.material_index].name.lstrip().startswith("+")
+        and not mesh.materials[p.material_index].nwo.shader_path.strip()
         if 0 <= p.material_index < len(mesh.materials)
            and mesh.materials[p.material_index] is not None
         else False
         for p in mesh.polygons
     ], dtype=bool)
-    if plus_faces.any():
+    if plus_faces.any() and not preserve_special_faces:
         for m in masks.values():
             m[plus_faces] = False
 
@@ -5955,7 +5958,7 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
     if preserve_normals:
         apply_loop_normals(mesh)
 
-def set_two_sided(mesh, is_io=False):
+def set_two_sided(mesh, is_io=False, match_collision_patches=False):
     face_dict = {}
     verts = mesh.vertices
     for face in mesh.polygons:
@@ -5969,13 +5972,58 @@ def set_two_sided(mesh, is_io=False):
 
     to_remove = set()
     two_sided = np.zeros(len(mesh.polygons), dtype=np.int8)
+    if match_collision_patches:
+        from .tags.collision_patches import opposite_patches
+        # Face overrides are part of the identity, not just the shader slot.
+        attributes = [a for a in mesh.attributes
+                      if a.domain == 'FACE' and a.data_type in {'BOOLEAN', 'INT', 'FLOAT'}]
+        records = [(tuple(tuple(verts[v].co) for v in f.vertices), tuple(f.normal),
+                    (f.material_index, tuple(a.data[f.index].value for a in attributes)))
+                   for f in mesh.polygons]
+        for keep, remove in opposite_patches(records):
+            to_remove.update(remove)
+            for index in keep:
+                two_sided[index] = True
     for faces in face_dict.values():
         for i, f1 in enumerate(faces):
+            if f1.index in to_remove:
+                continue
             for f2 in faces[i+1:]:
+                if f2.index in to_remove:
+                    continue
                 if f1.material_index == f2.material_index and {verts[v].co.to_tuple() for v in f1.vertices} == {verts[v].co.to_tuple() for v in reversed(f2.vertices)}:
                     to_remove.add(f2.index)
                     two_sided[f1.index] = True
                     break
+
+    if match_collision_patches:
+        from .tags.connected_geometry import get_blender_material
+        # Exact duplicate faces may already have been merged before the H1
+        # shell receives its sky material. Include that existing sidedness,
+        # even when this pass has no further geometry to remove.
+        shell_two_sided = two_sided.copy()
+        for prop in mesh.nwo.face_props:
+            if prop.type != 'face_sides' or not prop.two_sided:
+                continue
+            attribute = mesh.attributes.get(prop.attribute_name)
+            if attribute is not None:
+                values = np.empty(len(mesh.polygons), dtype=np.int8)
+                attribute.data.foreach_get('value', values)
+                shell_two_sided |= values
+        seam_index = None
+        for face in mesh.polygons:
+            if not shell_two_sided[face.index] or face.index in to_remove:
+                continue
+            material = mesh.materials[face.material_index] if mesh.materials else None
+            if material is not None and material.name.startswith('+sky'):
+                if seam_index is None:
+                    seam = get_blender_material('+seamsealer')
+                    seam_index = next((i for i, mat in enumerate(mesh.materials)
+                                       if mat == seam), None)
+                    if seam_index is None:
+                        seam_index = len(mesh.materials)
+                        mesh.materials.append(seam)
+                face.material_index = seam_index
 
     if to_remove:
         if len(mesh.polygons) == len(to_remove):

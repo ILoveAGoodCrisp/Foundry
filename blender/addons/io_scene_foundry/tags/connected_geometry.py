@@ -1592,7 +1592,7 @@ class BSP:
         bm.to_mesh(mesh)
         bm.free()
         
-        utils.set_two_sided(mesh)
+        utils.set_two_sided(mesh, match_collision_patches=isinstance(self, StructureCollision))
         
         utils.calc_face_prop_counts(mesh)
         
