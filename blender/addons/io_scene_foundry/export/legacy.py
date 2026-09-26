@@ -414,24 +414,28 @@ class LegacyExportScene(ExportScene):
         if self.asset_type.name == 'SCENARIO':
             structure_dir = Path(
                 self.asset_path, 'models' if self.target_game == 'halo1' else 'structure')
+            structure_extension = '.jms' if self.target_game == 'halo1' else '.ass'
             structure_sources = sorted(
                 path for path in structure_dir.iterdir()
-                if path.is_file() and path.suffix.lower() in {'.jms', '.ass'}
+                if path.is_file() and path.suffix.lower() == structure_extension
             ) if structure_dir.is_dir() else []
             if not structure_sources:
                 raise FileNotFoundError(
-                    f'No structure sources were found in {structure_dir}')
+                    f'No {structure_extension} structure sources were found in {structure_dir}')
             if self.target_game == 'halo1':
                 self.ensure_halo1_shaders(
                     structure_sources, 'shader_environment')
             for source in structure_sources:
                 error_path = source.with_name(source.stem + '_errors.wrl')
                 previous = error_path.stat() if error_path.is_file() else None
+                command = (['structure-new-from-ass', source.relative_to(self.data_dir)]
+                           if self.target_game == 'halo2' else
+                           ['structure', self.asset_path_relative, source.stem])
                 try:
                     utils.run_tool(
-                        ['structure', self.asset_path_relative, source.stem],
+                        command,
                         event_level=self.export_settings.event_level,
-                        **halo1_tool_options,
+                        force_tool=True,
                     )
                 except subprocess.CalledProcessError:
                     # Scene restoration has already finished before write_tags.
