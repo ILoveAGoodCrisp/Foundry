@@ -8,7 +8,6 @@ from collections import defaultdict
 from copy import copy
 from datetime import datetime
 from getpass import getuser
-from hashlib import sha1
 from math import degrees
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -19,7 +18,6 @@ import subprocess
 import xml.etree.ElementTree as ET
 
 import bpy
-from blam_tags import RealRgbColor
 from mathutils import Matrix, Quaternion, Vector
 
 from .process import ExportScene
@@ -31,6 +29,7 @@ from ..legacy import ass_format as ass
 from ..legacy.mirror import mirror_ass, mirror_jms, mirror_transform
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, legacy_bone_order, node_checksum, write_jms, write_ass
 from ..tags.backend import TagDocument
+from ..tags.halo1_emissive import material_emissive_matches, write_material_emissive
 from ..tags.animation_graph import AnimationGraphTag
 from ..tags.model_blender import ModelTag
 from ..tags.object import ObjectDocument
@@ -178,11 +177,9 @@ class LegacyExportScene(ExportScene):
         self.granny_textures = False
         self.warned_shader_paths = set()
         self.shader_name_cache = {}
-        self.halo1_emissive_variants = {}
         self.skipped_legacy_animations = set()
 
     def export_legacy(self, single_animation=False):
-        self.halo1_emissive_variants.clear()
         self.bones = []
         skeleton = self.virtual_scene.skeleton_model
         if skeleton:
@@ -424,6 +421,7 @@ class LegacyExportScene(ExportScene):
                 raise FileNotFoundError(
                     f'No {structure_extension} structure sources were found in {structure_dir}')
             if self.target_game == 'halo1':
+                self.update_halo1_material_emissives()
                 self.ensure_halo1_shaders(
                     structure_sources, 'shader_environment')
             for source in structure_sources:
@@ -670,6 +668,39 @@ class LegacyExportScene(ExportScene):
                 temporary.unlink(missing_ok=True)
             print(f'--- Loaded template {destination}')
 
+    def update_halo1_material_emissives(self) -> None:
+        """Apply explicit material emission before H1 Tool copies shader tags."""
+        requested = {}
+        for ob in self.ob_halo_data:
+            for slot in getattr(ob, 'material_slots', ()):
+                material = slot.material
+                if material is None:
+                    continue
+                prop = next((item for item in material.nwo.material_props
+                             if item.type == 'emissive'), None)
+                if prop is None:
+                    continue
+                tag_path = utils.relative_path(material.nwo.shader_path)
+                if Path(tag_path).suffix.lower() != '.shader_environment':
+                    raise ValueError(
+                        f'{material.name}: Halo 1 material emission requires a shader_environment tag')
+                key = str(Path(self.tags_dir, tag_path).resolve()).casefold()
+                values = (float(prop.material_lighting_emissive_power),
+                          tuple(float(channel) for channel in prop.material_lighting_emissive_color[:3]))
+                previous = requested.get(key)
+                if previous is not None and previous[1] != values:
+                    raise ValueError(
+                        f'{material.name}: materials sharing {tag_path} have conflicting emissive values')
+                requested[key] = (tag_path, values)
+
+        for tag_path, (power, color) in requested.values():
+            if utils.material_read_only(tag_path):
+                if not material_emissive_matches(tag_path, self.tags_dir, power, color):
+                    raise ValueError(f'{tag_path}: shader is protected from editing')
+                continue
+            if write_material_emissive(tag_path, self.tags_dir, power, color):
+                print(f'--- Updated emissive shader {tag_path}')
+
     def ensure_halo1_shaders(self, source_paths: list[Path], shader_type: str) -> None:
         """Localize referenced H1 shaders before Tool resolves JMS material names."""
         if self.target_game != 'halo1':
@@ -705,43 +736,6 @@ class LegacyExportScene(ExportScene):
                 if not name or name.startswith('+'):
                     continue
                 name = filename(name)
-                if name.casefold() in self.halo1_emissive_variants:
-                    source_path, power, color = self.halo1_emissive_variants[name.casefold()]
-                    source_valid = (source_path is not None and source_path.is_file()
-                                    and source_path.suffix.lower().startswith('.shader'))
-                    suffix = source_path.suffix if source_valid else '.' + shader_type
-                    destination = shader_root / 'shaders' / (name + suffix)
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    if source_valid:
-                        utils.copy_file(source_path, destination)
-                    else:
-                        # The normal H1 path also creates a default shader when
-                        # the Blender material has no usable shader tag.
-                        if source_path is not None:
-                            self.warnings.append(f'{name}: missing Halo 1 shader {source_path}. Using a default shader')
-                        destination.unlink(missing_ok=True)
-                        with TagDocument(destination, tags_root=self.tags_dir, game='halo1'):
-                            pass
-                    with TagDocument(destination, tags_root=self.tags_dir, game='halo1', must_exist=True) as shader:
-                        radiosity = shader.required_field(shader.tag.root(), 'radiosity').as_struct()
-                        if radiosity is None:
-                            raise ValueError(f'{destination}: shader has no radiosity struct')
-                        shader.required_field(radiosity, 'power').set(power)
-                        shader.required_field(radiosity, 'color of emitted light').set(RealRgbColor(*color))
-                        shader.tag_has_changes = True
-                    for old in destination.parent.iterdir():
-                        if (old.is_file() and old.stem.casefold() == name.casefold()
-                                and old.suffix.lower().startswith('.shader')
-                                and old.resolve() != destination.resolve()):
-                            backup = old.with_name(old.name + '.foundry-backup')
-                            index = 1
-                            while backup.exists():
-                                backup = old.with_name(old.name + f'.foundry-backup-{index}')
-                                index += 1
-                            old.rename(backup)
-                    existing.add(name.casefold())
-                    print(f'--- Wrote emissive shader {destination}')
-                    continue
                 candidates = list(materials.get(name.casefold(), {}).values())
                 if candidates:
                     paths = {path.resolve() for _, path in candidates}
@@ -843,8 +837,26 @@ class LegacyExportScene(ExportScene):
                 f'Model compilation did not create the expected tag: {model_path}')
 
         if self.target_game in {'halo2', 'halo3', 'halo3odst'}:
+            # A local component file can be left by an earlier export or by a
+            # model template. Only Blender content or an explicit component
+            # template makes its reference valid for this asset.
+            mesh_types = {data[0].get('bungie_mesh_type')
+                          for data in self.ob_halo_data.values()}
+            authored_components = {
+                'render_model': bool(mesh_types.intersection({3, 11})),
+                'collision_model': 2 in mesh_types,
+                'model_animation_graph': any(animation.export_this
+                                             for animation in self.scene_settings.animations),
+                'physics_model': 12 in mesh_types,
+            }
+            allowed_components = {
+                extension for extension, authored in authored_components.items()
+                if authored or (template := getattr(
+                    self.scene_settings, 'template_' + extension, '').strip())
+                and Path(self.tags_dir, utils.relative_path(template)).is_file()
+            }
             with ModelTag(path=model_path) as model:
-                model.set_asset_paths(preserve_missing=True)
+                model.set_asset_paths(allowed_components=allowed_components)
             print(f'--- Wrote model tag paths to {model_path}')
 
         if (self.asset_type.name == 'SKY'
@@ -1021,22 +1033,6 @@ class LegacyExportScene(ExportScene):
         self.shader_name_cache[path] = name
         return name
 
-    def halo1_emissive_shader_name(self, mat, shader: str, props: dict) -> str:
-        """Allocate a stable H1 shader name for one face emission setting."""
-        if 'bungie_lighting_emissive_power' not in props:
-            return shader
-        power = max(0.0, float(props['bungie_lighting_emissive_power']))
-        argb = props.get('bungie_lighting_emissive_color', (255, 255, 255, 255))
-        color = tuple(max(0.0, min(1.0, float(channel) / 255.0)) for channel in argb[1:4])
-        source = Path(self.tags_dir, utils.relative_path(mat.shader_path)) if mat.shader_path else None
-        if source is not None and not source.resolve().is_relative_to(Path(self.tags_dir).resolve()):
-            raise ValueError(f'{mat.name}: shader path is outside the tags directory')
-        identity = '|'.join((str(source).casefold() if source else shader.casefold(),
-                             f'{power:.9g}', *(f'{v:.9g}' for v in color)))
-        name = f'f_{shader[:10]}_{sha1(identity.encode("utf-8")).hexdigest()[:12]}'
-        self.halo1_emissive_variants[name.casefold()] = (source, power, color)
-        return name
-
     def parent_index(self, node, implied_root=False):
         if node.mesh is not None and len(node.mesh.bone_bindings) == 1 and node.mesh.bone_bindings[0] in self.bone_index:
             return self.bone_index[node.mesh.bone_bindings[0]]
@@ -1067,8 +1063,6 @@ class LegacyExportScene(ExportScene):
                 if self.supports_bsp:
                     gm = 'default'  # Pre-H4 BSP surface types are resolved from shaders.
                 shader = self.legacy_shader_name(mat)
-                if self.target_game == 'halo1' and self.supports_bsp:
-                    shader = self.halo1_emissive_shader_name(mat, shader, props)
                 name, lighting = material_variant(shader, props, gm,
                     asset.version if isinstance(asset, ass.ASS) else None,
                     self.target_game)

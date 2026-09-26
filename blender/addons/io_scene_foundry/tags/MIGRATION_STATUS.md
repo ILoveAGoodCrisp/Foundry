@@ -305,6 +305,8 @@ graph events and Reach/H4/H2AMP shared animation events now import natively too,
 including sound/effect/dialogue references and range collapsing. External event-list
 events retain priority when merged with inline graph events. H3/ODST still reject
 external event-list export because those layouts have no imported-event reference.
+H3/ODST inline event export writes frame, sound, effect and dialogue records;
+ODST effect events also retain their damage reporting type.
 Animation rename generation now traverses the mode/state graph through blam-tags
 for H3, ODST, Reach, H4 and H2AMP. It handles the older direct weapon-type layout,
 the newer animation-set layout, damage directions/regions and both transition
@@ -620,8 +622,9 @@ input variables, range variables and output modifiers. Unsupported mappings rais
 before Blender lights or nodes are allocated; the shared ManagedBlam editor fallback
 has been removed. Projected gel textures use the native bitmap wrapper and Foundry's
 Python image decoder. Static H4/H2AMP point, spot and
-directional light tags now convert natively; H3/ODST falloff conversion is explicitly unsupported because
-its fields differ from Reach. H3/ODST have no cheap-light tag group.
+directional light tags now convert natively. H3/ODST light tags use their maximum
+distance as the cutoff, with diffusion and angular smoothness approximated in
+Blender's fade controls. H3/ODST have no cheap-light tag group.
 
 A read-only sample of 120 real light/cheap-light tags across Reach, H4 and H2AMP
 decoded and byte-round-tripped all 330 mappings without fallback. Regression tests

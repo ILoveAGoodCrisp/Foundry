@@ -123,8 +123,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             utils.consolidate_materials(ob.data)
             utils.calc_face_prop_counts(ob.data)
         utils.print_step(
-            f"Merged classic structure geometry "
-            f"({collision_only_count} collision-only faces)"
+            f"Merged structure geometry"
         )
 
         return unmerged_objects + result
@@ -165,7 +164,16 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 material.nwo.shader_path = shader_path
                 emissive = self._classic_shader_emissive(shader_path)
                 if emissive is not None:
-                    emissives[index] = emissive
+                    if self.game == 'halo1' and Path(shader_path).suffix.lower() == '.shader_environment':
+                        prop = next((item for item in material.nwo.material_props
+                                     if item.type == 'emissive'), None)
+                        if prop is None:
+                            prop = material.nwo.material_props.add()
+                            prop.type = 'emissive'
+                        prop.material_lighting_emissive_power = emissive[0]
+                        prop.material_lighting_emissive_color = emissive[1]
+                    elif self.game != 'halo1':
+                        emissives[index] = emissive
             materials[index] = material
 
         halo2_mappings, halo2_collision, structure_collision = {}, {}, []
@@ -383,9 +391,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             from .halo1_bsp_blender import collision_point_is_solid
             source_count = len(records)
             records, rebuilt = reconstruct_portals(records, is_solid=collision_point_is_solid(self))
-            utils.print_step(
-                f'Reconstructed H1 cutting portals from {rebuilt}/{source_count} fragments; '
-                f'{source_count - rebuilt} fragments not reconstructed')
+            utils.print_step(f'Imported portals')
         utils.print_step("Creating Portals")
         layer = utils.add_permutation("portals", utils.SetType.SCENARIO)
         portals_collection = bpy.data.collections.new(

@@ -3341,15 +3341,19 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                             row.menu("NWO_MT_AddGlobalMaterialFace", text="", icon="DOWNARROW_HLT")
                 case 'emissive':
                     box = col.box()
-                    box.operator("nwo.add_emissive_node", icon='MATERIAL', text="Update Emissive Light")
+                    project = utils.get_project(self.scene_nwo.scene_project)
+                    halo1_material = bool(for_material and project and project.game == 'halo1')
+                    if halo1_material:
+                        box.operator("nwo.update_halo1_material_emissive", icon='MATERIAL', text="Update Shader Emission")
+                    else:
+                        box.operator("nwo.add_emissive_node", icon='MATERIAL', text="Update Emissive Light")
                     row = box.row()
                     row.label(text="Emissive Settings")
                     row = box.row()
                     row.prop(item, "material_lighting_emissive_color", text="Color")
                     row = box.row()
                     row.prop(item, "material_lighting_emissive_power", text="Power")
-                    project = utils.get_project(self.scene_nwo.scene_project)
-                    if not project or project.game != 'halo1':
+                    if not halo1_material:
                         row = box.row()
                         row.prop(item, "material_lighting_emissive_quality", text="Quality")
                         row = box.row()

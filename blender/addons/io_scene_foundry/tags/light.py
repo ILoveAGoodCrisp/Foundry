@@ -12,6 +12,22 @@ from .light_functions import light_functions, constant_light_value
 from .. import import_transform
 import bpy
 
+
+def h3_falloff(maximum_distance: float, distance_diffusion: float,
+               angular_smoothness: float) -> tuple[float, float, float]:
+    """Approximate H3's diffusion curve with Foundry's linear fade interval.
+
+    H3 stores a hard maximum and a diffusion control rather than Reach's start
+    and end distances. More diffusion keeps the light visible farther out.
+    """
+    maximum_distance = max(0.0, maximum_distance) if isfinite(maximum_distance) else 0.0
+    distance_diffusion = max(0.0, distance_diffusion) if isfinite(distance_diffusion) else 0.0
+    angular_smoothness = max(0.0, angular_smoothness) if isfinite(angular_smoothness) else 0.0
+    start = maximum_distance * distance_diffusion / (1.0 + distance_diffusion)
+    spot_blend = angular_smoothness / (1.0 + angular_smoothness)
+    return start, maximum_distance, spot_blend
+
+
 class LightTag(BlenderTag, TagDocument):
     tag_ext = 'light'
         
@@ -26,13 +42,21 @@ class LightTag(BlenderTag, TagDocument):
     def _convert(self, primary_scale, secondary_scale, attachment, color_function, intensity_function):
         root = self.tag.root()
         is_spot_light = enum_index(self.value(root, 'type'), ('sphere', 'frustum')) == 1
+        h3_falloff_values = None
+        if self.game in {'halo3', 'halo3odst'}:
+            h3_falloff_values = h3_falloff(
+                self.value(root, 'maximum distance'),
+                self.value(root, 'distance diffusion'),
+                self.value(root, 'angular smoothness'))
         data = bpy.data.lights.new(self.tag_path.ShortName, type='SPOT' if is_spot_light else 'POINT')
         # intensity_scale = 1
         if is_spot_light:
             # intensity_scale = 100
             hotspot_cutoff_size = self.value(root, 'frustum field of view')
             data.spot_size = radians(hotspot_cutoff_size)
-            if hotspot_cutoff_size > 0.0:
+            if h3_falloff_values is not None:
+                data.spot_blend = h3_falloff_values[2]
+            elif hotspot_cutoff_size > 0.0:
                 data.spot_blend = 1 - self.value(root, 'angular hotspot') / hotspot_cutoff_size
                 
         data.shadow_soft_size = 0.5 * (1 / 0.03048) * import_transform.scale_factor()
@@ -49,9 +73,12 @@ class LightTag(BlenderTag, TagDocument):
         strength_node = None
         intensity_function_name = f"{self.tag_path.ShortName}_strength"
         
-        atten_falloff = self.value(root, 'attenuation start distance')
+        if h3_falloff_values is not None:
+            atten_falloff, atten_cutoff, _ = h3_falloff_values
+        else:
+            atten_falloff = self.value(root, 'attenuation start distance')
+            atten_cutoff = self.value(root, 'attenuation end distance')
         data.nwo.light_far_attenuation_start = import_transform.distance(atten_falloff)
-        atten_cutoff = self.value(root, 'attenuation end distance')
         data.nwo.light_far_attenuation_end = import_transform.distance(atten_cutoff)
         
         if intensity_function.is_basic_function:
@@ -189,8 +216,6 @@ class LightTag(BlenderTag, TagDocument):
         return data
         
     def to_blender(self, primary_scale="", secondary_scale="", attachment=None):
-        if self.game in {'halo3', 'halo3odst'}:
-            raise NotImplementedError('Halo 3/ODST light falloff conversion is not implemented')
         if self.corinth:
             return self._to_blender_corinth(primary_scale, secondary_scale, attachment)
         else:

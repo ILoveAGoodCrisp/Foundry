@@ -4,6 +4,72 @@ from pathlib import Path
 import bpy
 from ... import utils
 from ...constants import face_prop_type_items, face_prop_descriptions, face_mode_items
+from ...tags.halo1_emissive import material_emissive_matches, shader_environment_path, write_material_emissive
+
+
+class NWO_OT_UpdateHalo1MaterialEmissive(bpy.types.Operator):
+    bl_idname = 'nwo.update_halo1_material_emissive'
+    bl_label = 'Update Shader Emission'
+    bl_description = 'Write this material emission to its Halo 1 shader_environment tag and Blender shader node'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        material = context.object.active_material if context.object else None
+        project = utils.get_project(utils.get_scene_props().scene_project)
+        return bool(project and project.game == 'halo1' and material and
+                    any(item.type == 'emissive' for item in material.nwo.material_props))
+
+    def execute(self, context):
+        material = context.object.active_material
+        prop = next(item for item in material.nwo.material_props if item.type == 'emissive')
+        try:
+            tag_path = utils.relative_path(material.nwo.shader_path)
+            shader_environment_path(tag_path, utils.get_tags_path())
+            if (utils.material_read_only(tag_path) and
+                    not material_emissive_matches(
+                        tag_path, utils.get_tags_path(),
+                        prop.material_lighting_emissive_power,
+                        prop.material_lighting_emissive_color)):
+                raise ValueError('This shader is protected from editing')
+
+            def groups():
+                if material.node_tree is None:
+                    return []
+                return [node for node in material.node_tree.nodes
+                        if node.type == 'GROUP' and node.node_tree and
+                        node.node_tree.name.startswith('foundry_h1.shader_environment')]
+
+            if not groups():
+                from ...tools.shader_reader import tag_to_nodes
+                tag_to_nodes(False, material, tag_path)
+            foundry_groups = groups()
+            if not foundry_groups:
+                raise ValueError('Could not create the Foundry shader_environment node')
+
+            changed = write_material_emissive(
+                tag_path, utils.get_tags_path(),
+                prop.material_lighting_emissive_power,
+                prop.material_lighting_emissive_color,
+            )
+            color = tuple(float(channel) ** (1 / 2.2)
+                          for channel in prop.material_lighting_emissive_color[:3]) + (1.0,)
+            for group in foundry_groups:
+                for socket_name, value in (
+                    ('Power', float(prop.material_lighting_emissive_power)),
+                    ('Color of Emitted Light', color),
+                ):
+                    socket = group.inputs.get(socket_name)
+                    if socket is None:
+                        raise ValueError(f'Foundry shader node is missing {socket_name}')
+                    for link in tuple(socket.links):
+                        material.node_tree.links.remove(link)
+                    socket.default_value = value
+            self.report({'INFO'}, 'Updated Halo 1 shader emission' if changed else 'Shader emission already matches')
+            return {'FINISHED'}
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            self.report({'ERROR'}, str(exc))
+            return {'CANCELLED'}
 
 class NWO_OT_MaterialOpenTag(bpy.types.Operator):
     bl_idname = "nwo.open_halo_material"
@@ -124,6 +190,8 @@ class NWO_MT_MaterialAttributeAddMenu(bpy.types.Menu):
                 elif name == 'global_material' and asset_type != "model" and game != 'corinth':
                     continue
             layout.operator("nwo.material_attribute_add", text=display_name).options = name
+        if game == 'halo1' and asset_type == 'scenario':
+            layout.operator("nwo.material_attribute_add", text="Emissive").options = 'emissive'
             
 class NWO_OT_MaterialAttributeAdd(bpy.types.Operator):
     bl_idname = "nwo.material_attribute_add"

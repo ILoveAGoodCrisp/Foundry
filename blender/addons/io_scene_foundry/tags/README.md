@@ -183,8 +183,8 @@ The fallback still needs editing-kit validation.
 Light wrappers now use native field reading and function decoding for Reach lights
 and Reach/H4/H2AMP cheap lights. Unsupported function shapes raise explicitly;
 gel bitmap conversion uses the native bitmap wrapper and Foundry's Python image
-decoder. H3/ODST light
-falloff remains unimplemented. Static H4/H2AMP point, spot and directional light
+decoder. H3/ODST light tags map maximum distance to cutoff and approximate
+distance diffusion and angular smoothness with Blender fade controls. Static H4/H2AMP point, spot and directional light
 tags now convert, including physical/artistic energy handling and shadow settings.
 Animated intensity is supported for artistic point/spot lights. Animated radius
 and cones, area lights and linked/projected physical or directional lights remain

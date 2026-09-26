@@ -2552,7 +2552,7 @@ def set_import_context_from_filepath(path: Path) -> None:
             remote_server_name=getattr(project, 'remote_server_name', ''),
             image_path=getattr(project, 'image_path', ''),
         )
-        print(f"Using {project.project_name} as temporary import context for {path} ({project.game})")
+        print(f"Using {project.project_name} as import context for {path} ({project.game})")
         return
 
     if not path.is_file() or not any(
@@ -6207,7 +6207,6 @@ def material_add_shield(material: bpy.types.Material):
     arrange(node_tree)
 
 def material_add_emissive(material: bpy.types.Material):
-    material.use_nodes = True
     node_tree = material.node_tree
 
     def connect_triangle_area(node):
@@ -6331,7 +6330,7 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh, game=None):
         
     on_mask = power_data[:, 0] > 0.0
 
-    if on_mask.any() or mesh.attributes.get('foundry_power') is not None:
+    if on_mask.any():
         if game is None:
             project = get_project()
             game = project.game if project else None

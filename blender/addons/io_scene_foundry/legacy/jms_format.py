@@ -106,7 +106,7 @@ class Reader:
             self.pending.extend(p.strip() for p in line.split('\t') if p.strip())
         return self.pending.popleft()
 
-    def number(self, integer=False):
+    def number(self, integer=False, allow_nonfinite=False):
         parts = self.text().split()
         if not parts:
             raise JMSError(f'Expected number at line {self.line}')
@@ -114,8 +114,12 @@ class Reader:
         try:
             if integer and re.fullmatch(r'[+-]?\d+', parts[0]):
                 return int(parts[0])
-            value = float(parts[0].replace(',', '.'))
-            if not math.isfinite(value) or (integer and value != int(value)):
+            token = parts[0].replace(',', '.')
+            if allow_nonfinite and re.fullmatch(r'[+-]?1\.#(?:QNAN|SNAN|IND|INF)\d*', token, re.I):
+                value = math.nan
+            else:
+                value = float(token)
+            if (not allow_nonfinite and not math.isfinite(value)) or (integer and value != int(value)):
                 raise ValueError
             return int(value) if integer else value
         except (ValueError, OverflowError):
@@ -130,8 +134,8 @@ class Reader:
             raise JMSError(f'Negative count at line {self.line}')
         return range(n)
 
-    def vector(self, size=3):
-        return tuple(self.number() for _ in range(size))
+    def vector(self, size=3, allow_nonfinite=False):
+        return tuple(self.number(allow_nonfinite=allow_nonfinite) for _ in range(size))
 
     def transform(self):
         return Transform(self.vector(4), self.vector())
@@ -223,7 +227,9 @@ class JMS:
                 weights = tuple((r.integer(), r.number()) for _ in r.count())
                 uvs = tuple(r.vector(2) for _ in r.count())
                 if v >= 8211:
-                    color = r.vector()
+                    color = r.vector(allow_nonfinite=True)
+                    if not all(math.isfinite(channel) for channel in color):
+                        color = None
             else:
                 if v == 8197:
                     region = r.integer()

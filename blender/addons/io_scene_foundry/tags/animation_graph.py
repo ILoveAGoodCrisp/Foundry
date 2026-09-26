@@ -569,20 +569,22 @@ class AnimationGraphTag(BlenderTag, TagDocument):
     def blend_screens_from_blender(self, blender_screens, blender_animations) -> int:
         """Replace classic screens and assign them to compiled overlays."""
         screens = list(blender_screens)
-        indices: dict[str, int] = {}
-        for index, screen in enumerate(screens):
+        labels: set[str] = set()
+        for screen in screens:
             name = screen.name.strip()
-            if not name or name.casefold() in indices:
+            if not name or name.casefold() in labels:
                 raise ValueError(f'{self.path}: blend screen labels must be unique and nonempty')
-            indices[name.casefold()] = index
+            labels.add(name.casefold())
         choices = {
             self._screen_name(animation.name): animation.blend_screen.strip()
             for animation in blender_animations
             if animation.animation_type == 'overlay'
         }
         for name, choice in choices.items():
-            if choice and choice.casefold() not in indices:
+            if choice and choice.casefold() not in labels:
                 raise ValueError(f'{self.path}: animation {name!r} references missing blend screen {choice!r}')
+
+        indices = {screen.name.strip().casefold(): index for index, screen in enumerate(screens)}
 
         definitions = self._definitions()
         animations = self.block(definitions, 'animations')
@@ -649,9 +651,37 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             self._screen_name(name): previous_screens[index].label
             for name, index in previous_assignments.items()
         }
+        # Classic H2/H3 graphs allow at most 64 blend screen records. Preserve
+        # labels used by animations, then share records for unassigned screens
+        # with identical settings. The Blender scene retains every label.
+        preferred = {choice.casefold() for choice in (*choices.values(), *previous_choices.values())
+                     if choice}
+        screen_fields = ('right_yaw_per_frame', 'left_yaw_per_frame', 'right_frame_count',
+                         'left_frame_count', 'down_pitch_per_frame', 'up_pitch_per_frame',
+                         'down_pitch_frame_count', 'up_pitch_frame_count')
+        compiled_screens = []
+        value_indices = {}
+        indices = {}
+        max_screens = 64 if self.game in {'halo2', 'halo3', 'halo3odst'} else 1024
+        ordered_screens = ([screen for screen in screens if screen.name.strip().casefold() in preferred]
+                           + [screen for screen in screens if screen.name.strip().casefold() not in preferred])
+        for screen in ordered_screens:
+            label = screen.name.strip().casefold()
+            values = tuple(getattr(screen, field) for field in screen_fields)
+            existing = value_indices.get(values)
+            if existing is not None and (label not in preferred or len(compiled_screens) >= max_screens):
+                indices[label] = existing
+                continue
+            if len(compiled_screens) >= max_screens:
+                raise ValueError(f'{self.path}: {len(screens)} Blender blend screens need more than '
+                                 f'{max_screens} distinct compiled entries')
+            index = len(compiled_screens)
+            compiled_screens.append(screen)
+            value_indices.setdefault(values, index)
+            indices[label] = index
         block = self.block(definitions, 'blend screens')
         block.clear()
-        for screen in screens:
+        for screen in compiled_screens:
             block = self.block(definitions, 'blend screens')
             element = block[block.add()]
             self.required_field(element, 'label').set(screen.name)
@@ -667,7 +697,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             choice = choices.get(name, previous_choices.get(name, ''))
             field.set(indices.get(choice.casefold(), -1) if choice else -1)
         self.tag_has_changes = True
-        return len(screens)
+        return len(compiled_screens)
 
     def nodes(self) -> list[AnimationGraphNode]:
         definitions = self._definitions()
@@ -909,7 +939,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
 
     def events_from_blender(self, blender_animations: dict[str, object] | None = None) -> None:
         definitions = self._definitions()
-        if self.game in {'halo1', 'halo2'}:
+        if self.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
             if blender_animations is None:
                 blender_animations = {
                     animation.name: animation
@@ -974,6 +1004,24 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 f'Classic {kind} animation references do not support model variants')
         return (path.replace('/', '\\').casefold(), *flags)
 
+    def _inline_reference_key(self, data: object, kind: str) -> tuple[object, ...]:
+        if self.game in {'halo1', 'halo2'}:
+            return self._classic_reference_key(data, kind)
+        path = str(getattr(data, f'event_{kind}_tag', '')).strip()
+        if not path:
+            raise ValueError(f'{self.game} {kind} animation event has no tag path')
+        if bool(getattr(data, 'flag_third_person_only', False)):
+            raise ValueError(f'{self.game} {kind} references do not support third-person only')
+        if str(getattr(data, 'event_model', '')).strip() or str(
+                getattr(data, 'variant', '')).strip():
+            raise ValueError(f'{self.game} {kind} references do not support model variants')
+        flags = tuple(bool(getattr(data, 'flag_' + attribute)) for attribute in (
+            'allow_on_player', 'left_arm_only', 'right_arm_only',
+            'first_person_only', 'forward_only', 'reverse_only',
+            'fp_no_aged_weapons',
+        ))
+        return (path.replace('/', '\\').casefold(), *flags)
+
     def _classic_reference_indices(
         self, kind: str, keys: set[tuple[object, ...]],
     ) -> dict[tuple[object, ...], int]:
@@ -983,6 +1031,8 @@ class AnimationGraphTag(BlenderTag, TagDocument):
         block = self.block(definitions, kind + ' references')
         flag_names = FrameEventListTag.reference_flags[:4] + \
             FrameEventListTag.reference_flags[5:7]
+        if self.game in {'halo3', 'halo3odst'}:
+            flag_names += FrameEventListTag.reference_flags[7:8]
         existing: dict[tuple[object, ...], int] = {}
         for index, element in enumerate(block):
             reference = self.reference(element, kind)
@@ -1021,12 +1071,12 @@ class AnimationGraphTag(BlenderTag, TagDocument):
     def inline_events_from_blender(
         self, blender_animations: dict[str, object],
     ) -> int:
-        """Write the inline event layouts used by Tool for Halo 1 and Halo 2."""
+        """Write Tool's inline animation events for Halo 1 through ODST."""
         from .. import utils
 
-        if self.game not in {'halo1', 'halo2'}:
+        if self.game not in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
             raise NotImplementedError(
-                f'{self.path}: inline event writing is only for Halo 1 and Halo 2')
+                f'{self.path}: inline event writing is only for Halo 1 through ODST')
 
         animations = self.block(self._definitions(), 'animations')
         compiled_names = [str(self.value(element, 'name')) for element in animations]
@@ -1052,7 +1102,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                     f'{self.path}: Tool did not create animation {supplied_name!r}')
             record: dict[str, object] = {
                 'left foot': 0, 'right foot': 0,
-                'frames': [], 'sounds': [], 'effects': [],
+                'frames': [], 'sounds': [], 'effects': [], 'dialogues': [],
             }
             for blender_event in blender_animation.animation_events:
                 if blender_event.event_type != '_connected_geometry_animation_event_type_frame':
@@ -1095,14 +1145,20 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                     if frame < 0:
                         raise ValueError(
                             f'{supplied_name}: invalid {kind} event frame {frame}')
-                    if kind not in {'sound', 'effect'}:
+                    if kind not in ({'sound', 'effect', 'dialogue'}
+                                     if self.game in {'halo3', 'halo3odst'}
+                                     else {'sound', 'effect'}):
                         raise ValueError(
                             f'{supplied_name}: {self.game} cannot store {kind} '
                             f'animation-event data')
+                    if kind == 'dialogue':
+                        cast(list[tuple[str, int]], record['dialogues']).append((
+                            str(data.dialogue_event), frame))
+                        continue
                     if self.game == 'halo1' and kind != 'sound':
                         raise ValueError(
                             f'{supplied_name}: Halo 1 cannot store {kind} animation events')
-                    key = self._classic_reference_key(data, kind)
+                    key = self._inline_reference_key(data, kind)
                     marker = self._blender_marker_name(data)
                     if self.game == 'halo1':
                         if marker or any(bool(value) for value in key[1:]):
@@ -1120,17 +1176,17 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                              record['sounds']).append((key, frame, marker))
                         sound_keys.add(key)
                     else:
-                        if marker:
+                        if self.game == 'halo2' and marker:
                             raise ValueError(
                                 f'{supplied_name}: Halo 2 effect events do not support markers')
                         reporting = self._event_key(
                             str(getattr(data, 'damage_effect_reporting_type', 'unknown')))
-                        if reporting != 'unknown':
+                        if self.game != 'halo3odst' and reporting != 'unknown':
                             raise ValueError(
-                                f'{supplied_name}: Halo 2 effect events do not store a '
+                                f'{supplied_name}: {self.game} effect events do not store a '
                                 'damage reporting type')
-                        cast(list[tuple[tuple[object, ...], int]],
-                             record['effects']).append((key, frame))
+                        cast(list[tuple[tuple[object, ...], int, str, str]],
+                             record['effects']).append((key, frame, marker, reporting))
                         effect_keys.add(key)
                     if self.game == 'halo1':
                         sound_keys.add(key)
@@ -1138,7 +1194,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
 
         sound_indices = self._classic_reference_indices('sound', sound_keys)
         effect_indices = (self._classic_reference_indices('effect', effect_keys)
-                          if self.game == 'halo2' else {})
+                          if self.game != 'halo1' else {})
         for index, _, record in owned:
             animation = self.block(self._definitions(), 'animations')[index]
             if self.game == 'halo1':
@@ -1153,7 +1209,10 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 self.required_field(animation, 'sound frame index').set(
                     sounds[0][1] if sounds else 0)
                 continue
-            for block_name in ('frame events', 'sound events', 'effect events'):
+            block_names = ['frame events', 'sound events', 'effect events']
+            if self.game in {'halo3', 'halo3odst'}:
+                block_names.append('dialogue events')
+            for block_name in block_names:
                 self.block(animation, block_name).clear()
                 animation = self.block(self._definitions(), 'animations')[index]
             for event_name, frame in cast(list[tuple[str, int]], record['frames']):
@@ -1170,11 +1229,25 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 self.required_field(element, 'frame').set(frame)
                 self.required_field(element, 'marker name').set(marker)
                 animation = self.block(self._definitions(), 'animations')[index]
-            for key, frame in cast(
-                    list[tuple[tuple[object, ...], int]], record['effects']):
+            for key, frame, marker, reporting in cast(
+                    list[tuple[tuple[object, ...], int, str, str]], record['effects']):
                 block = self.block(animation, 'effect events')
                 element = block[block.add()]
                 self.required_field(element, 'effect').set(effect_indices[key])
+                self.required_field(element, 'frame').set(frame)
+                if self.game in {'halo3', 'halo3odst'}:
+                    self.required_field(element, 'marker name').set(marker)
+                if self.game == 'halo3odst' and reporting != 'unknown':
+                    if element.field('damage effect reporting type') is None:
+                        raise ValueError(
+                            f'{self.path}: this ODST animation graph cannot store '
+                            'effect damage reporting types')
+                    self._set_event_enum(element, 'damage effect reporting type', reporting)
+                animation = self.block(self._definitions(), 'animations')[index]
+            for dialogue, frame in cast(list[tuple[str, int]], record['dialogues']):
+                block = self.block(animation, 'dialogue events')
+                element = block[block.add()]
+                self._set_event_enum(element, 'dialogue event', dialogue)
                 self.required_field(element, 'frame').set(frame)
                 animation = self.block(self._definitions(), 'animations')[index]
         if owned:

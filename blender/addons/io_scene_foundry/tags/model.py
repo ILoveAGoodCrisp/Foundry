@@ -109,11 +109,11 @@ class ModelDocument(TagDocument):
         return {self.value(e, 'material name'): self.value(e, 'global material name') or self.value(e, 'material name')
                 for e in self.block(self.tag.root(), name) if self.value(e, 'material name')}
 
-    def set_asset_paths(self, preserve_missing=False):
+    def set_asset_paths(self, preserve_missing=False, allowed_components: set[str] | None = None):
         for field, extension in (('render model', 'render_model'), ('collision model', 'collision_model'),
                                  ('animation', 'model_animation_graph'), ('physics_model', 'physics_model')):
             path = Path(self.asset_dir) / (self.asset_name + '.' + extension)
-            if (self.tags_root / path).is_file():
+            if (allowed_components is None or extension in allowed_components) and (self.tags_root / path).is_file():
                 self.set_reference(self.tag.root(), field, path)
             elif not preserve_missing:
                 self.set_reference(self.tag.root(), field, None)
