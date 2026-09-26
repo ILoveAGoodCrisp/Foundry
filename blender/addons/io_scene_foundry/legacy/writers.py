@@ -1,4 +1,5 @@
 """Text serializers for the shared legacy asset models; no Blender dependency."""
+from ..exceptions import ExportCancelled
 from dataclasses import replace
 from math import isfinite
 
@@ -19,7 +20,7 @@ class TextWriter:
     def line(self, value):
         if isinstance(value, str):
             if any(c in value for c in '\r\n"\t') or (not self.quoted and (value.startswith(';') or ' ;' in value)):
-                raise ValueError(f'Unrepresentable legacy string: {value!r}')
+                raise ExportCancelled(f'Unrepresentable legacy string: {value!r}')
             if self.quoted:
                 value = f'"{value}"'
             elif not value.strip():
@@ -29,7 +30,7 @@ class TextWriter:
     def vector(self, values):
         values = tuple(float(v) for v in values)
         if not all(isfinite(v) for v in values):
-            raise ValueError('Cannot export non-finite numeric data')
+            raise ExportCancelled('Cannot export non-finite numeric data')
         precision = '.10g' if self.decimal_places is None else f'.{self.decimal_places}f'
         self.stream.write('\t'.join(format(v, precision) for v in values) + '\n')
 
@@ -65,7 +66,7 @@ def halo1_overlay_pose(pose):
     frames = []
     for frame in pose['frames']:
         if len(frame) != len(reference):
-            raise ValueError('H1 overlay reference and frame node counts differ')
+            raise ExportCancelled('H1 overlay reference and frame node counts differ')
         frames.append([
             (*node[:3], *halo1_overlay_rotation(base[3:7], node[3:7]), node[7])
             for base, node in zip(reference, frame)
@@ -139,7 +140,7 @@ def write_jms(asset, stream, *, maya_order=False):
     """Write the game-selected H1, H2 or H3 dialect, without mutating the asset."""
     v = asset.version
     if v not in {8200, 8210, 8213}:
-        raise ValueError(f'Unsupported JMS output version {v}')
+        raise ExportCancelled(f'Unsupported JMS output version {v}')
     nodes = hierarchy(asset.nodes, halo1=v == 8200, maya_order=maya_order)
     checked = replace(asset, nodes=nodes)
     checked.validate()
@@ -147,7 +148,7 @@ def write_jms(asset, stream, *, maya_order=False):
     w.line(v)
     if v < 8205:
         if asset.shapes or asset.constraints or asset.xrefs or asset.instances:
-            raise ValueError('H1 JMS cannot represent these physics or instance records')
+            raise ExportCancelled('H1 JMS cannot represent these physics or instance records')
         w.line(asset.checksum)
     w.line(len(nodes))
     for n in nodes:
@@ -203,7 +204,7 @@ def write_jms(asset, stream, *, maya_order=False):
                 w.vector(vertex.color or (1, 1, 1))
         else:
             if len(weights) > 2:
-                raise ValueError('H1 JMS supports at most two influences per vertex')
+                raise ExportCancelled('H1 JMS supports at most two influences per vertex')
             weights += [(-1, 0)] * (2 - len(weights))
             w.line(weights[0][0])
             w.vector(vertex.position)
@@ -256,7 +257,7 @@ def write_jms(asset, stream, *, maya_order=False):
 
 def write_ass(asset, stream):
     if asset.version not in {2, 7}:
-        raise ValueError(f'Unsupported ASS output version {asset.version}')
+        raise ExportCancelled(f'Unsupported ASS output version {asset.version}')
     asset.validate()
     w = TextWriter(stream, quoted=True)
     w.line(asset.version)
@@ -298,7 +299,7 @@ def write_ass(asset, stream):
             w.vector(g.dimensions)
         elif g.kind == 'GENERIC_LIGHT':
             if g.light is None:
-                raise ValueError('ASS generic light geometry has no light data')
+                raise ExportCancelled('ASS generic light geometry has no light data')
             light = g.light
             w.line(light.kind)
             w.vector(light.color)
@@ -309,7 +310,7 @@ def write_ass(asset, stream):
                     light.shape, light.aspect):
                 w.line(value)
         else:
-            raise ValueError(f'Unsupported ASS output geometry {g.kind}')
+            raise ExportCancelled(f'Unsupported ASS output geometry {g.kind}')
     w.line(len(asset.instances))
     for i in asset.instances:
         for value in (i.geometry, i.name, i.unique_id, i.parent, i.inheritance):
@@ -317,7 +318,7 @@ def write_ass(asset, stream):
         for transform in (i.local, i.pivot):
             w.transform(transform)
             if max(transform.scale) - min(transform.scale) > 1e-5:
-                raise ValueError('ASS instance scale must be uniform; bake nonuniform scale into geometry')
+                raise ExportCancelled('ASS instance scale must be uniform; bake nonuniform scale into geometry')
             w.vector((transform.scale[0],))
         for bone in i.bones:
             w.line(bone)

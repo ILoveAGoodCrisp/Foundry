@@ -18,6 +18,8 @@ import time
 import os
 import ctypes
 import traceback
+import subprocess
+from ..exceptions import ExportCancelled
 
 from bpy_extras.io_utils import ExportHelper
 
@@ -442,13 +444,18 @@ class NWO_ExportScene(Operator, ExportHelper):
                 else:
                     export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_nwo, scene_nwo_export, is_corinth(context), single_animation, self.for_cache_build)
             
-            except Exception as e:
-                if isinstance(e, RuntimeError):
-                    self.fail_explanation = traceback.format_exception_only(e)[0][14:]
-                else:
-                    print_error("\n\nException hit. Please include in report\n")
-                    traceback.print_exc()
-                    self.failed = True
+            except ExportCancelled as e:
+                self.fail_explanation = str(e)
+            except subprocess.CalledProcessError as e:
+                self.fail_explanation = (
+                    f'Tool rejected the export (exit code {e.returncode}). '
+                    'Review the Tool output above and any imported BSP error geometry for details.')
+            except (FileNotFoundError, PermissionError) as e:
+                self.fail_explanation = str(e)
+            except Exception:
+                print_error("\n\nException hit. Please include in report\n")
+                traceback.print_exc()
+                self.failed = True
 
             # validate that a sidecar file exists
             if not legacy and not Path(sidecar_path_full).exists():
@@ -466,8 +473,9 @@ class NWO_ExportScene(Operator, ExportHelper):
                 )
                 
             elif self.fail_explanation:
-                    print_warning("\n\nEXPORT CANCELLED\n")
-                    print_error(self.fail_explanation)
+                print_warning("\n\nEXPORT CANCELLED\n")
+                print_error(self.fail_explanation)
+                self.report({'WARNING'}, self.fail_explanation)
 
             elif process_results and process_results.sidecar_import_failed:
                 print(
@@ -518,8 +526,11 @@ class NWO_ExportScene(Operator, ExportHelper):
 
         except KeyboardInterrupt:
             print_warning("\n\nEXPORT CANCELLED BY USER")
+            self.fail_explanation = "Export cancelled by user"
 
         utils.get_scene_props().export_in_progress = False
+        if self.failed or self.fail_explanation:
+            return {"CANCELLED"}
         return {"FINISHED"}
 
     def draw(self, context):
@@ -801,7 +812,7 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
         return export_current_action_as_camera_track(context, asset_path) # Return early if this is a camera track export
     if asset_type == 'polyart':
         if export_settings.export_mode == 'GRANNY':
-            raise RuntimeError("Polyart assets do not produce GR2 files. Use Full or Tags export mode")
+            raise ExportCancelled("Polyart assets do not produce GR2 files. Use Full or Tags export mode")
         print("\n\nWriting Polyart Tags")
         print("-----------------------------------------------------------------------\n")
         return export_polyart(context, asset_path)
@@ -845,7 +856,7 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
         scenes = [(context.scene, "default", None)]
         
     if not scenes:
-        raise RuntimeError("No valid scenes to export")
+        raise ExportCancelled("No valid scenes to export")
         
     if export_settings.export_mode in {'FULL', 'GRANNY'}:
         for bscene, scene_id, cinematic_scene_settings in scenes:

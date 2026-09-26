@@ -1,3 +1,4 @@
+from ..exceptions import ExportCancelled
 from collections import defaultdict
 from enum import Enum
 from functools import lru_cache
@@ -2673,7 +2674,7 @@ class ExportScene:
         
     def write_sidecar(self):
         if self.sidecar is None:
-            raise RuntimeError("Legacy exports do not use sidecars")
+            raise ExportCancelled("Legacy exports do not use sidecars")
         print("\n\nWriting Sidecar")
         print("-----------------------------------------------------------------------\n")
         self.sidecar.has_armature = bool(self.virtual_scene.skeleton_node)
@@ -2910,7 +2911,7 @@ class ExportScene:
         sidecar = ET.parse(Path(self.data_dir, sidecar_path))
         output = sidecar.find(".//OutputTag[@Type='model_animation_graph']")
         if output is None or not output.text or not output.text.strip():
-            raise RuntimeError("Parent sidecar has no animation graph output for frame events")
+            raise ExportCancelled("Parent sidecar has no animation graph output for frame events")
 
         graph_path = Path(output.text.strip()).with_suffix(".model_animation_graph")
         name = Path(bpy.data.filepath).stem.replace(":", " ")
@@ -2945,7 +2946,7 @@ class ExportScene:
                 print(dev_message)
                 print("")
                 print("+" * len(dev_message))
-            raise RuntimeError("Export failed due to Tool assertion. See above")
+            raise ExportCancelled("Export failed due to Tool assertion. See above")
     
     def invoke_tool_import(self):
         if self.has_no_virtual_scene:
@@ -3005,7 +3006,7 @@ class ExportScene:
                 print(dev_message)
                 print("")
                 print("+" * len(dev_message))
-            raise RuntimeError("Export failed due to Tool assertion. See above")
+            raise ExportCancelled("Export failed due to Tool assertion. See above")
             
             
     def print_pre(self, txt):

@@ -1,4 +1,5 @@
 """Translate resolved Foundry face properties into legacy material variants."""
+from ..exceptions import ExportCancelled
 from math import degrees
 
 
@@ -28,7 +29,7 @@ def material_variant(shader, props, global_material='default', ass_version=None,
     # These suffixes are also understood by Foundry's legacy importer.
     sides, mode = get('face_sides'), get('face_mode')
     if mode == 4 and (ass_version is None or ass_version < 4):
-        raise ValueError('Shadow Only requires ASS 7 material flags; this output dialect cannot encode it')
+        raise ExportCancelled('Shadow Only requires ASS 7 material flags; this output dialect cannot encode it')
     flags = [sides in {2, 3, 4, 5, 6, 7}, sides == 1, sides in {3, 5, 7},
              mode == 1, mode == 2, mode == 3, get('mesh_type') == 15,
              bool(get('ladder')), mode == 6, False, bool(get('no_shadow')),

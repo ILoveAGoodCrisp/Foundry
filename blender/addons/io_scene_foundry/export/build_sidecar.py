@@ -1,3 +1,4 @@
+from ..exceptions import ExportCancelled
 from collections import defaultdict
 from datetime import datetime
 from getpass import getuser
@@ -318,7 +319,7 @@ class Sidecar:
 
         if Path(self.sidecar_path_full).exists():
             if not os.access(self.sidecar_path_full, os.W_OK):
-                raise RuntimeError(f"Sidecar is read only, cannot complete export: {self.sidecar_path_full}\n")
+                raise ExportCancelled(f"Sidecar is read only, cannot complete export: {self.sidecar_path_full}\n")
         
         with open(self.sidecar_path_full, "w") as f:
             f.write(part1 + 'encoding="{}" standalone="{}"?>\n'.format(m_encoding, m_standalone))

@@ -1,5 +1,6 @@
 '''Classes to store intermediate geometry data to be passed to granny files'''
 
+from ..exceptions import ExportCancelled
 from collections import defaultdict
 from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
@@ -248,7 +249,7 @@ def simplify_water_physics_mesh(mesh: bpy.types.Mesh, scene: 'VirtualScene') -> 
 def frame_id_from_index(index: int) -> tuple[int, int]:
     # Tool sorts same-depth nodes by frame_ID1 and then frame_ID2, using signed longs.
     if index < 0 or index >= 0x7FFFFFFE:
-        raise RuntimeError(f"Cannot generate a valid frame ID for node index {index}")
+        raise ExportCancelled(f"Cannot generate a valid frame ID for node index {index}")
 
     return index + 1, 0
 
@@ -736,7 +737,7 @@ class VirtualAnimation:
 
         if scene.granny is None:
             if shape_key_data or vector_events:
-                raise RuntimeError('JMA export does not support PCA or vector animation events')
+                raise ExportCancelled('JMA export does not support PCA or vector animation events')
             self.legacy_tracks = [(bone.name, positions[bone], orientations[bone], scales[bone]) for bone in bones]
             return
         self.create_vector_track_groups(scene, vector_events)
@@ -2311,7 +2312,7 @@ class VirtualSkeleton:
                 while current is not None:
                     parent_fb = start_bones_dict.get((arm, current.name))
                     if parent_fb is None:
-                        raise RuntimeError(f"Missing parent bone mapping: {current.name}")
+                        raise ExportCancelled(f"Missing parent bone mapping: {current.name}")
                     if parent_fb.export:
                         return parent_fb
                     current = current.parent
@@ -2350,7 +2351,7 @@ class VirtualSkeleton:
 
                     parent_fb = resolve_export_parent_from_pose_bone(main_arm, parent_pb)
                     if parent_fb is None:
-                        raise RuntimeError(
+                        raise ExportCancelled(
                             f"Could not resolve an exported parent bone for support armature {child.name}"
                         )
 
@@ -2455,7 +2456,7 @@ class VirtualSkeleton:
                     b.matrix_local = bone_inverse_matrices[fb.parent.bone] @ b.matrix_world
                 else:
                     if root_bone_found:
-                        raise RuntimeError(f"Armature {ob.name} has multiple root bones: {[bone.name for bone in valid_bones if not bone.parent]}. Halo requires that models have a single root bone. If one of the root bones is a control bone, ensure the deform checkbox is toggled off")
+                        raise ExportCancelled(f"Armature {ob.name} has multiple root bones: {[bone.name for bone in valid_bones if not bone.parent]}. Halo requires that models have a single root bone. If one of the root bones is a control bone, ensure the deform checkbox is toggled off")
                     root_bone_found = True
                     root_bone = fb.bone
                     b.parent_index = 0

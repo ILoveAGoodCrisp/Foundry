@@ -3,6 +3,7 @@
 Halo 1 finds shader tags by simple name.  Halo 2, Halo 3 and ODST use a
 shader-collection prefix to constrain that lookup to the selected tag folder.
 """
+from ..exceptions import ExportCancelled
 from hashlib import sha1
 from pathlib import Path, PureWindowsPath
 
@@ -64,7 +65,7 @@ class ShaderCollections:
     def material_name(self, shader_path) -> str:
         path = _tag_path(shader_path)
         if ".." in path.parts:
-            raise ValueError(f"Shader tag path cannot leave the tags directory: {shader_path}")
+            raise ExportCancelled(f"Shader tag path cannot leave the tags directory: {shader_path}")
         suffix = path.suffix.casefold()
         shader_name = path.stem if self.game == "halo1" or suffix.startswith(".shader") else path.name
         if self.game == "halo1" or self.path is None or str(path.parent) == ".":
@@ -86,7 +87,7 @@ class ShaderCollections:
         while prefix.casefold() in used:
             length += 1
             if length > len(digest):
-                raise ValueError(f"Could not allocate a shader collection prefix for {directory}")
+                raise ExportCancelled(f"Could not allocate a shader collection prefix for {directory}")
             prefix = "f_" + digest[:length]
         self.pending[prefix] = directory
         return f"{prefix} {shader_name}"

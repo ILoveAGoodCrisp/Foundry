@@ -1,3 +1,4 @@
+from ..exceptions import ExportCancelled
 from collections import defaultdict
 from enum import Enum
 from math import degrees, isfinite
@@ -691,7 +692,7 @@ class QUA:
             match actor.lighting:
                 case ActorLighting.PERSIST:
                     if not self.shots:
-                        raise ValueError(f"{actor.name}: persistent lighting requires a shot")
+                        raise ExportCancelled(f"{actor.name}: persistent lighting requires a shot")
                     add_lighting(0, True)
                 case ActorLighting.PER_SHOT:
                     for shot_index in actor.shots_active:

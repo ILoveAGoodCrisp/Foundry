@@ -4,6 +4,7 @@ The normal export path owns evaluation, filtering, triangulation, face overrides
 animation sampling and restoration. This adapter only converts that result into
 the reusable legacy format models and writes files below the data asset folder.
 """
+from ..exceptions import ExportCancelled
 from collections import defaultdict
 from copy import copy
 from datetime import datetime
@@ -59,16 +60,16 @@ def legacy_instance_name(name: str, props: dict, mesh_type: int) -> str:
 
 def filename(name):
     if not name or name in {'.', '..'} or any(c in name for c in '<>:"/\\|?*\r\n') or name.endswith((' ', '.')):
-        raise ValueError(f'Invalid legacy export filename: {name!r}')
+        raise ExportCancelled(f'Invalid legacy export filename: {name!r}')
     return name
 
 
 def jmi_text(version: int, children: list[str]) -> str:
     """Serialize the small manifest consumed by H2 bulk asset importers."""
     if version < 8207:
-        raise ValueError(f'JMI is unavailable for JMS version {version}')
+        raise ExportCancelled(f'JMI is unavailable for JMS version {version}')
     if not children:
-        raise ValueError('JMI requires at least one child model')
+        raise ExportCancelled('JMI requires at least one child model')
     return '\n'.join((str(version), str(len(children)), *children, ''))
 
 
@@ -267,7 +268,7 @@ class LegacyExportScene(ExportScene):
                 for marker in markers:
                     if (marker.ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and
                             marker.region not in structure_names):
-                        raise ValueError(
+                        raise ExportCancelled(
                             f'{marker.name}: assign this tag-reference marker to one of the '
                             f'exported BSPs ({", ".join(sorted(structure_names))})')
             uses_jmi = (self.target_game == 'halo2' and self.asset_type.name in {
@@ -297,7 +298,7 @@ class LegacyExportScene(ExportScene):
                     (mirror_ass if use_ass else mirror_jms)(asset)
                 if uses_jmi:
                     if folder != 'render' or use_ass:
-                        raise ValueError(
+                        raise ExportCancelled(
                             f'{self.asset_type.name.lower()} JMI children must be render JMS files')
                     child_name = (self.asset_name if len(grouped) == 1 else name)
                     child_name = filename(child_name)
@@ -339,9 +340,9 @@ class LegacyExportScene(ExportScene):
         if not outputs and single_animation:
             if self.skipped_legacy_animations:
                 return False
-            raise ValueError('No JMS, ASS or JMA data matched the export selection')
+            raise ExportCancelled('No JMS, ASS or JMA data matched the export selection')
         if len({str(path).casefold() for path, _ in outputs}) != len(outputs):
-            raise ValueError('Legacy output names collide; rename the affected BSP, permutation or animation')
+            raise ExportCancelled('Legacy output names collide; rename the affected BSP, permutation or animation')
         if self.shader_collections.dirty:
             outputs.append((self.shader_collections.path, self.shader_collections.text()))
         write_outputs(outputs, maya_order=self.export_settings.legacy_maya_order)
@@ -395,7 +396,7 @@ class LegacyExportScene(ExportScene):
         if self.target_game == 'halo2':
             supported_asset_types.update({'PARTICLE_MODEL', 'DECORATOR_SET'})
         if self.asset_type.name not in supported_asset_types:
-            raise ValueError(
+            raise ExportCancelled(
                 f'Legacy tag writing is not implemented for {self.asset_type.name.lower()} assets')
 
         print("\n\nWriting Tags")
@@ -418,7 +419,7 @@ class LegacyExportScene(ExportScene):
                 if path.is_file() and path.suffix.lower() == structure_extension
             ) if structure_dir.is_dir() else []
             if not structure_sources:
-                raise FileNotFoundError(
+                raise ExportCancelled(
                     f'No {structure_extension} structure sources were found in {structure_dir}')
             if self.target_game == 'halo1':
                 self.update_halo1_material_emissives()
@@ -455,7 +456,7 @@ class LegacyExportScene(ExportScene):
         if self.asset_type.name in {'PARTICLE_MODEL', 'DECORATOR_SET'}:
             source = Path(self.asset_path, self.asset_name + '.jmi')
             if not source.is_file():
-                raise FileNotFoundError(
+                raise ExportCancelled(
                     f'No JMI source was found for {self.asset_type.name.lower()}: '
                     f'{source}')
             command = ('import-particle-model' if self.asset_type.name == 'PARTICLE_MODEL'
@@ -471,7 +472,7 @@ class LegacyExportScene(ExportScene):
                 '.particle_model' if self.asset_type.name == 'PARTICLE_MODEL'
                 else '.decorator_set')
             if not destination.is_file():
-                raise FileNotFoundError(
+                raise ExportCancelled(
                     f'{command} did not create the expected tag: {destination}')
             print(f'--- Wrote {destination}')
             return
@@ -552,7 +553,7 @@ class LegacyExportScene(ExportScene):
                     'name', 'first child node', 'next sibling node'))
                     for node in doc.block(doc.tag.root(), 'nodes')]
             if skeleton(model) != skeleton(graph):
-                raise ValueError(
+                raise ExportCancelled(
                     'H1 model and animation node order differs. Export geometry and '
                     'all animations together with the same sorting settings; '
                     'rebuild intermediate files before using Tags Only.')
@@ -561,7 +562,7 @@ class LegacyExportScene(ExportScene):
             for animation in graph.block(graph.tag.root(), 'animations'):
                 if (graph.value(animation, 'node list checksum') != checksum or
                         graph.value(animation, 'node count') != count):
-                    raise ValueError(
+                    raise ExportCancelled(
                         f'H1 animation {graph.value(animation, "name")!r} has an '
                         'incompatible skeleton. Export all animations and geometry together.')
 
@@ -682,21 +683,21 @@ class LegacyExportScene(ExportScene):
                     continue
                 tag_path = utils.relative_path(material.nwo.shader_path)
                 if Path(tag_path).suffix.lower() != '.shader_environment':
-                    raise ValueError(
+                    raise ExportCancelled(
                         f'{material.name}: Halo 1 material emission requires a shader_environment tag')
                 key = str(Path(self.tags_dir, tag_path).resolve()).casefold()
                 values = (float(prop.material_lighting_emissive_power),
                           tuple(float(channel) for channel in prop.material_lighting_emissive_color[:3]))
                 previous = requested.get(key)
                 if previous is not None and previous[1] != values:
-                    raise ValueError(
+                    raise ExportCancelled(
                         f'{material.name}: materials sharing {tag_path} have conflicting emissive values')
                 requested[key] = (tag_path, values)
 
         for tag_path, (power, color) in requested.values():
             if utils.material_read_only(tag_path):
                 if not material_emissive_matches(tag_path, self.tags_dir, power, color):
-                    raise ValueError(f'{tag_path}: shader is protected from editing')
+                    raise ExportCancelled(f'{tag_path}: shader is protected from editing')
                 continue
             if write_material_emissive(tag_path, self.tags_dir, power, color):
                 print(f'--- Updated emissive shader {tag_path}')
@@ -821,7 +822,7 @@ class LegacyExportScene(ExportScene):
             if present[field] or template_exists:
                 destination = base.with_suffix('.' + extension)
                 if not destination.is_file():
-                    raise FileNotFoundError(f'Asset component tag does not exist: {destination}')
+                    raise ExportCancelled(f'Asset component tag does not exist: {destination}')
                 result[field] = utils.relative_path(destination)
             else:
                 result[field] = inherited.get(field)
@@ -833,7 +834,7 @@ class LegacyExportScene(ExportScene):
                           self.asset_name).with_suffix(
                               '.gbxmodel' if self.target_game == 'halo1' else '.model')
         if self.target_game != 'halo1' and not model_path.is_file():
-            raise FileNotFoundError(
+            raise ExportCancelled(
                 f'Model compilation did not create the expected tag: {model_path}')
 
         if self.target_game in {'halo2', 'halo3', 'halo3odst'}:
@@ -906,7 +907,7 @@ class LegacyExportScene(ExportScene):
                 self.tags_dir, self.asset_path_relative, source.stem
             ).with_suffix('.scenario_structure_bsp')
             if not bsp.is_file():
-                raise FileNotFoundError(
+                raise ExportCancelled(
                     f'Structure compilation did not create the expected tag: {bsp}')
             bsp_paths.append(Path(utils.relative_path(bsp)))
 
@@ -931,7 +932,7 @@ class LegacyExportScene(ExportScene):
             else:
                 render_model = model_path.with_suffix('.render_model')
                 if not render_model.is_file():
-                    raise FileNotFoundError(
+                    raise ExportCancelled(
                         f'Sky compilation did not create the expected tag: {render_model}')
                 tag.set_reference(root, 'render model',
                                   utils.relative_path(render_model))
@@ -949,7 +950,7 @@ class LegacyExportScene(ExportScene):
             self.tags_dir, self.asset_path_relative, self.asset_name
         ).with_suffix('.' + extension)
         if not destination.is_file():
-            raise FileNotFoundError(
+            raise ExportCancelled(
                 f'Animation compilation did not create the expected tag: {destination}')
         animations = {
             animation.name: animation.anim
@@ -1094,7 +1095,7 @@ class LegacyExportScene(ExportScene):
                     if weight:
                         name = mesh.bone_bindings[int(index)]
                         if name not in self.bone_index:
-                            raise ValueError(f'{node.name}: unknown skin bone {name}')
+                            raise ExportCancelled(f'{node.name}: unknown skin bone {name}')
                         influences.append((self.bone_index[name], float(weight)))
                 total = sum(w for _, w in influences)
                 influences = [(b, w / total) for b, w in influences]
@@ -1104,9 +1105,9 @@ class LegacyExportScene(ExportScene):
             normal.normalize()
             color = tuple(float(c) for c in mesh.vertex_colors[0][i][:3]) if mesh.vertex_colors else None
             texcoords = tuple(tuple(float(c) for c in uv[i][:2]) for uv in mesh.texcoords)
-            if self.target_game in {'halo1', 'halo2'}:
-                # VirtualMesh flips V for Granny. H1 and H2 JMS expect
-                # Blender's original UV orientation.
+            if self.target_game in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
+                # VirtualMesh flips V for Granny. Legacy JMS and ASS
+                # intermediates expect Blender's original UV orientation.
                 texcoords = tuple((u, 1.0 - v) for u, v in texcoords)
             vertices.append(jms.Vertex(tuple((matrix @ Vector(position)) * self.to_halo_scale), tuple(normal),
                 tuple(influences), texcoords, color))
@@ -1121,7 +1122,7 @@ class LegacyExportScene(ExportScene):
         tag_path = str(node.props.get('bungie_marker_game_instance_tag_name', '') or
                        node.ob.nwo.marker_game_instance_tag_name or '')
         if not imported_path and not tag_path:
-            raise ValueError(f'{node.name}: tag-reference marker has no tag path')
+            raise ExportCancelled(f'{node.name}: tag-reference marker has no tag path')
         if imported_path:
             path = imported_path.replace('/', '\\')
             default_name = Path(path.replace('\\', '/')).stem
@@ -1131,7 +1132,7 @@ class LegacyExportScene(ExportScene):
                 try:
                     relative = relative.relative_to(self.tags_dir)
                 except ValueError:
-                    raise ValueError(
+                    raise ExportCancelled(
                         f'{node.name}: tag-reference path is outside this project: '
                         f'{tag_path}') from None
             elif relative.parts and relative.parts[0].casefold() == 'tags':
@@ -1175,7 +1176,7 @@ class LegacyExportScene(ExportScene):
             materials = self.face_materials(node, asset, cache)
             if folder == 'physics' and self.jms_version >= 8206:
                 if len({m[0] for m in materials.values()}) > 1:
-                    raise ValueError(f'{node.name}: split physics shapes with different collision materials into separate objects')
+                    raise ExportCancelled(f'{node.name}: split physics shapes with different collision materials into separate objects')
                 parent = self.parent_index(node, implied_root=True)
                 matrix = node.matrix_world
                 if parent != -1 and self.bones:
@@ -1205,7 +1206,7 @@ class LegacyExportScene(ExportScene):
                                         else bool(dimensions) and all(
                                             value > 0.0 for value in dimensions))
                     if not valid_dimensions:
-                        raise ValueError(
+                        raise ExportCancelled(
                             f'{node.name}: {kind} physics dimensions must be positive')
                     shape_transform = transform(matrix, self.to_halo_scale)
                     asset.shapes.append(jms.Shape(
@@ -1240,7 +1241,7 @@ class LegacyExportScene(ExportScene):
                 parent = self.bone_index.get(parent_name, -1)
                 child = self.bone_index.get(child_name, -1)
                 if parent < 0 or child < 0:
-                    raise ValueError(
+                    raise ExportCancelled(
                         f'{node.name}: physics constraint endpoints must name '
                         'bones in the exported skeleton')
                 parent_matrix = self.bones[parent].matrix_world.inverted() @ node.matrix_world
@@ -1310,7 +1311,7 @@ class LegacyExportScene(ExportScene):
                 influences = [bone for bone, weight in vertex.influences
                               if bone >= 0 and weight > 0.0]
                 if len(influences) != 1:
-                    raise ValueError(
+                    raise ExportCancelled(
                         f'H2 {asset_label} geometry must be rigid; each vertex '
                         'must have exactly one bone influence')
                 vertex_bones.append(influences[0])
@@ -1319,7 +1320,7 @@ class LegacyExportScene(ExportScene):
                 section_bones[(triangle.region, triangle.material)].update(
                     vertex_bones[index] for index in triangle.vertices)
             if any(len(bones) != 1 for bones in section_bones.values()):
-                raise ValueError(
+                raise ExportCancelled(
                     f'H2 {asset_label} geometry must be rigid; each material '
                     'section must use one bone')
         return asset
@@ -1479,7 +1480,7 @@ class LegacyExportScene(ExportScene):
     def jma_text(self, animation):
         tracks = {name: (positions, rotations, scales) for name, positions, rotations, scales in animation.legacy_tracks}
         if not self.bones or set(self.bone_index) - tracks.keys():
-            raise ValueError(f'{animation.name}: animation and exported skeleton do not match')
+            raise ExportCancelled(f'{animation.name}: animation and exported skeleton do not match')
         stream = io.StringIO()
         w = TextWriter(stream, decimal_places=6 if self.target_game == 'halo1' else None)
         nodes = hierarchy([jms.Node(b.name, self.bone_parents[b.name], jms.Transform((0, 0, 0, 1), (0, 0, 0))) for b in self.bones], halo1=self.target_game == 'halo1', maya_order=self.export_settings.legacy_maya_order)
@@ -1503,7 +1504,7 @@ class LegacyExportScene(ExportScene):
                 positions, rotations, scales = tracks[bone.name]
                 scale = [scales[frame * 9 + i] for i in (0, 4, 8)]
                 if max(scale) - min(scale) > 1e-5:
-                    raise ValueError(f'{animation.name}: JMA cannot represent nonuniform scale on {bone.name}')
+                    raise ExportCancelled(f'{animation.name}: JMA cannot represent nonuniform scale on {bone.name}')
                 x, y, z, q = rotations[frame * 4:frame * 4 + 4]
                 matrix = Matrix.LocRotScale(Vector(positions[frame * 3:frame * 3 + 3]), Quaternion((q, x, y, z)), Vector(scale))
                 parent = self.bone_parents[bone.name]
@@ -1527,9 +1528,9 @@ class LegacyExportScene(ExportScene):
 def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_settings, single_animation, collection_view_layer=None):
     project = utils.get_project(scene_settings.scene_project)
     if not project or project.game not in VERSIONS:
-        raise ValueError('JMS/ASS export requires an H1, H2, H3 or ODST project')
+        raise ExportCancelled('JMS/ASS export requires an H1, H2, H3 or ODST project')
     if scene_settings.asset_type not in {'model', 'sky', 'scenario', 'prefab', 'particle_model', 'decorator_set', 'animation', 'single_animation', 'multi_model', 'multi_prefab'}:
-        raise ValueError(f'JMS/ASS export does not support {scene_settings.asset_type} assets')
+        raise ExportCancelled(f'JMS/ASS export does not support {scene_settings.asset_type} assets')
     single_name = Path(bpy.data.filepath).stem if single_animation else ''
     if single_animation and project.game == 'halo1' and len(single_name) >= 32:
         utils.print_warning(f'{single_name}: Halo 1 animation names must be shorter than 32 characters. Skipping animation')
@@ -1544,7 +1545,7 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
     asset_name = path.name
     data = Path(utils.get_data_path()).resolve()
     if not path.is_relative_to(data) or path == data:
-        raise ValueError('Legacy exports must be inside an asset folder below the project data directory')
+        raise ExportCancelled('Legacy exports must be inside an asset folder below the project data directory')
     ensure_asset_marker(path, data, scene_settings)
     export = LegacyExportScene(context, '', '', scene_settings.asset_type, asset_name, str(path), False,
                                export_settings, scene_settings, context.scene)
@@ -1591,7 +1592,7 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
                 if not export_settings.lightmap_all_bsps:
                     bsp = export_settings.lightmap_specific_bsp
                     if bsp not in bsps:
-                        raise ValueError(f'Specified BSP [{bsp}] does not exist in {scenario_tag}')
+                        raise ExportCancelled(f'Specified BSP [{bsp}] does not exist in {scenario_tag}')
                     bsps = [bsp]
                 run_halo1_lightmapper(str(scenario_path), bsps, export_settings)
             for warning in export.warnings[warnings_before_tags:]:

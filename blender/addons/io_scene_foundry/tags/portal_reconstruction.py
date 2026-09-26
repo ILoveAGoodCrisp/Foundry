@@ -28,8 +28,16 @@ def _simplify_outline(vertices, protected, tolerance):
             incoming = tuple(p[i] - a[i] for i in range(3))
             outgoing = tuple(b[i] - p[i] for i in range(3))
             dot = sum(x*y for x, y in zip(incoming, outgoing))
-            lengths = sum(x*x for x in incoming) * sum(x*x for x in outgoing)
-            if dot <= 0 or dot*dot < lengths * (1 - 1e-6):
+            incoming_squared = sum(x*x for x in incoming)
+            outgoing_squared = sum(x*x for x in outgoing)
+            lengths = incoming_squared * outgoing_squared
+            # Clipping can leave a tiny bevel beside a real corner. Its angle
+            # is not collinear, but retaining it produces degenerate triangles
+            # in Tool. Allow its removal only beside a much longer edge, and
+            # still bound the displacement of every source point below.
+            tiny_bevel = (min(incoming_squared, outgoing_squared) <= (4*tolerance)**2
+                          and max(incoming_squared, outgoing_squared) > (100*tolerance)**2)
+            if not tiny_bevel and (dot <= 0 or dot*dot < lengths * (1 - 1e-4)):
                 continue  # Preserve real corners and edges which double back.
             delta = tuple(b[i] - a[i] for i in range(3))
             length_squared = sum(x*x for x in delta)

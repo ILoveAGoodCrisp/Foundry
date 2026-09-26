@@ -2,9 +2,9 @@
 import bmesh
 import bpy
 import numpy as np
+from itertools import combinations
 from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
-from mathutils.geometry import points_in_planes
 
 from .. import import_transform, utils
 from ..tools.append_foundry_materials import ensure_special_material
@@ -18,6 +18,45 @@ def material(name):
 
 def plane_values(plane):
     return plane.i, plane.j, plane.k, plane.d
+
+
+def weather_vertices(planes):
+    """Intersect inward weather planes in double precision before building a hull."""
+    planes = np.asarray(planes, dtype=np.float64)
+    if len(planes) < 4:
+        return []
+    normals, distances = planes[:, :3], planes[:, 3]
+    vertices = []
+    for indices in combinations(range(len(planes)), 3):
+        matrix = normals[list(indices)]
+        if abs(np.linalg.det(matrix)) < 1e-10:
+            continue
+        point = np.linalg.solve(matrix, distances[list(indices)])
+        if np.any(normals @ point < distances - 1e-7):
+            continue
+        if not any(np.linalg.norm(point - existing) <= 0.0001 for existing in vertices):
+            vertices.append(point)
+    # Redundant, almost parallel planes also introduce points along an edge,
+    # rather than at its endpoints. Remove those before float32 hull creation.
+    # Recheck every removed point against surviving segments to bound drift.
+    def on_segment(point, points):
+        for a, b in combinations(points, 2):
+            delta = b - a
+            fraction = float((point - a) @ delta) / float(delta @ delta)
+            if (0 < fraction < 1 and
+                    np.linalg.norm(point - a - fraction*delta) <= 0.0001):
+                return True
+        return False
+
+    remaining, removed = list(vertices), []
+    for point in vertices:
+        if len(remaining) <= 4:
+            break
+        candidates = [other for other in remaining if other is not point]
+        if all(on_segment(old, candidates) for old in [point, *removed]):
+            remaining = candidates
+            removed.append(point)
+    return remaining
 
 
 def collision_point_is_solid(tag):
@@ -279,9 +318,8 @@ def create_helpers(tag, collection):
 
     for index, weather in enumerate(tag.block(root, 'weather polyhedra')):
         planes = [plane_values(tag.value(p, 'plane')) for p in tag.block(weather, 'planes')]
-        # H1 weather normals point inward (n.dot(p) >= d). mathutils
-        # expects outward planes with n.dot(p) + w <= 0.
-        vertices, _ = points_in_planes([Vector((-p[0], -p[1], -p[2], p[3])) for p in planes])
+        # H1 weather normals point inward (n.dot(p) >= d).
+        vertices = weather_vertices(planes)
         if len(vertices) < 4:
             utils.print_warning(f'H1 weather polyhedron {index} does not enclose a volume')
             continue
@@ -289,6 +327,13 @@ def create_helpers(tag, collection):
         try:
             for v in vertices:
                 bm.verts.new(v)
+            # Several plane triples can describe the same corner. Float32
+            # intersection noise otherwise turns these into tiny hull faces
+            # which Tool rejects as degenerate weather geometry.
+            bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=0.0001)
+            if len(bm.verts) < 4:
+                utils.print_warning(f'H1 weather polyhedron {index} does not enclose a volume')
+                continue
             bmesh.ops.convex_hull(bm, input=list(bm.verts))
             bm.verts.index_update()
             ob = mesh_object(f'+weather_{index}', [tuple(v.co) for v in bm.verts],
