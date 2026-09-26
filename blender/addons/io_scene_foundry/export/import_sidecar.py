@@ -40,6 +40,7 @@ class SidecarImport:
         self.asset_type = asset_type
         self.sidecar_path = sidecar_path
         self.scene_settings = scene_settings
+        self.game = utils.get_project(scene_settings.scene_project).game
         self.export_settings = export_settings
         self.selected_bsps = selected_bsps
         self.selected_actors = selected_actors
@@ -72,7 +73,7 @@ class SidecarImport:
     def _set_template(self, tag_type: str, frame_event_tag=False):
         animation = tag_type == 'model_animation_graph'
         if frame_event_tag or animation or tag_type.endswith('model') or getattr(self.scene_settings, 'output_' + tag_type):
-            if animation:
+            if animation and self.game not in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
                 self._set_template("frame_event_list", frame_event_tag=True)
                 
             if frame_event_tag:

@@ -850,7 +850,16 @@ objects_cache = {}
 
 deferred_ops = []
 
-def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
+def asset_tag_paths(tag_root: str | Path, *paths: str) -> dict[str, str]:
+    """Keep the tag references used for import, independent of extracted sources."""
+    root = Path(tag_root)
+    return {
+        Path(path).suffix: str(Path(path).relative_to(root))
+        for path in paths if path
+    }
+
+def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False,
+              tag_paths: dict[str, str] | None = None, tag_root: str | Path | None = None):
     scene_nwo = utils.get_scene_props()
     project = utils.get_project()
     halo1 = project is not None and project.game == 'halo1'
@@ -861,19 +870,30 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
         if ob is None or ob.type != 'ARMATURE':
             name = ob.name if ob is not None else 'imported tag'
             return utils.print_warning(f"Tried to setup {name} as an asset but it is not an armature")
-        render_path = ob.nwo.node_order_source
+        render_extension = '.gbxmodel' if halo1 else '.render_model'
+        render_path = (tag_paths.get(render_extension, '') if tag_paths is not None
+                       else ob.nwo.node_order_source)
         if not render_path.strip():
-            return utils.print_warning(f"Tried to setup {ob.name} as an asset but it has not render model source path")
+            return utils.print_warning(f"Tried to setup {ob.name} as an asset but it has no render model tag path")
+        if tag_paths is not None and not halo1:
+            ob.nwo.node_order_source = render_path
         
         path = Path(render_path).with_suffix("")
+        paths = tag_paths or {}
+        tag_directory = Path(tag_root) if tag_root is not None else Path(tags_dir)
+        def existing_tag(extension: str) -> str:
+            relative = (paths.get(extension, '') if tag_paths is not None
+                        else str(path.with_suffix(extension)))
+            return relative if (tag_directory / relative).exists() else ''
     
         scene_nwo.main_armature = ob
         if not is_sky and not is_model:
             def enable_output_tag(tag_type: str):
-                if Path(tags_dir, path).with_suffix(tag_type).exists():
+                relative = existing_tag(tag_type) if tag_paths is None else paths.get(tag_type, '')
+                if relative and (tag_directory / relative).exists():
                     tag_type_no_period = tag_type[1:]
                     setattr(scene_nwo, f"output_{tag_type_no_period}", True)
-                    setattr(scene_nwo, f"template_{tag_type_no_period}", str(path.with_suffix(tag_type)))
+                    setattr(scene_nwo, f"template_{tag_type_no_period}", relative)
                     
             for tag_type in object_tag_types:
                 enable_output_tag(tag_type)
@@ -887,19 +907,16 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
             animation_extension = ".model_animations"
             physics_extension = ".physics"
         else:
-            scene_nwo.template_model = str(path.with_suffix(".model"))
-            scene_nwo.template_render_model = str(path.with_suffix(".render_model"))
+            scene_nwo.template_model = paths.get('.model', str(path.with_suffix('.model')))
+            scene_nwo.template_render_model = render_path
             collision_extension = ".collision_model"
             animation_extension = ".model_animation_graph"
             physics_extension = ".physics_model"
 
-        collision_path = Path(tags_dir, path).with_suffix(collision_extension)
-        if collision_path.exists():
-            scene_nwo.template_collision_model = str(path.with_suffix(collision_extension))
-        animation_path = Path(tags_dir, path).with_suffix(animation_extension)
-        if animation_path.exists():
-            scene_nwo.template_model_animation_graph = str(path.with_suffix(animation_extension))
-            with AnimationGraphTag(path=scene_nwo.template_model_animation_graph) as animation:
+        scene_nwo.template_collision_model = existing_tag(collision_extension)
+        scene_nwo.template_model_animation_graph = existing_tag(animation_extension)
+        if scene_nwo.template_model_animation_graph:
+            with AnimationGraphTag(path=tag_directory / scene_nwo.template_model_animation_graph) as animation:
                 skeleton_node_names = animation.get_nodes()
                 for usage_name, node_index in animation.node_usages().items():
                     usage = usage_name.replace(" ", "_")
@@ -907,10 +924,7 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False):
                         node = skeleton_node_names[node_index]
                         setattr(scene_nwo, f"node_usage_{usage}", node)
                     
-        scene_nwo.template_physics_model = ""
-        physics_path = Path(tags_dir, path).with_suffix(physics_extension)
-        if physics_path.exists():
-            scene_nwo.template_physics_model = str(path.with_suffix(physics_extension))
+        scene_nwo.template_physics_model = existing_tag(physics_extension)
              
     else:
         match tag_ext:
@@ -3291,7 +3305,9 @@ class NWOImporter:
                         imported_animations.extend(self.import_animation_graph(animation, armature, render))
 
                     if self.setup_as_asset:
-                        set_asset(Path(render).suffix, armature, is_sky=True)
+                        set_asset(Path(render).suffix, armature, is_sky=True,
+                                  tag_paths=asset_tag_paths(source_tag_root, render, animation),
+                                  tag_root=source_tag_root)
 
         return imported_objects, imported_animations
     
@@ -3347,7 +3363,10 @@ class NWOImporter:
                                             ob.parent = armature
                         
                     if self.setup_as_asset:
-                        set_asset(Path(file).suffix, armature, model.is_sky())
+                        paths = asset_tag_paths(source_tag_root, render, collision, animation, physics)
+                        paths['.model'] = model.tag_path.RelativePathWithExtension
+                        set_asset(Path(file).suffix, armature, model.is_sky(),
+                                  tag_paths=paths, tag_root=source_tag_root)
         
         return imported_objects, imported_animations
 
@@ -3723,7 +3742,11 @@ class NWOImporter:
                                     self.context.view_layer.update()
                                     
                             if not is_game_object and self.setup_as_asset:
-                                set_asset(Path(file).suffix, armature, model.is_sky())
+                                paths = asset_tag_paths(source_tag_root, render, collision, animation, physics)
+                                paths['.model'] = model.tag_path.RelativePathWithExtension
+                                paths[Path(file).suffix] = obj.tag_path.RelativePathWithExtension
+                                set_asset(Path(file).suffix, armature, model.is_sky(),
+                                          tag_paths=paths, tag_root=source_tag_root)
                                 
                             # if need_to_cache:
                             #     objects_cache[cache_key] = imported_file_objects, render, model_collection.name
@@ -3909,9 +3932,27 @@ class NWOImporter:
             path for path in self.import_info_sources_for_tag(file)
             if Path(path).suffix.lower() in legacy_model_formats
         ]
+        if source_files and self.game == 'halo2' and all(Path(path).suffix.lower() == '.jms' for path in source_files):
+            collection = bpy.data.collections.new(Path(file).stem + '_render')
+            model_collection.children.link(collection)
+            with utils.TagImportMover(self.tags_dir, file) as mover:
+                with RenderModelTag(path=mover.tag_path) as render_model:
+                    tag_objects, armature = render_model.to_blend_objects(
+                        collection, False, self.tag_markers, model_collection,
+                        existing_armature, allowed_region_permutations,
+                        build_control_rig=self.build_control_rig and allow_control_rig)
+                    tag_objects.extend(render_model.skylights_to_blender(collection))
+                    source_objects = self.import_jms_files(
+                        source_files, 'model', tag_armature=armature,
+                        parent_collection=collection, geometry_only=True)
+                    if self.build_control_rig and allow_control_rig:
+                        render_model._apply_control_rig_deform_shapes_after_geometry()
+            return tag_objects + source_objects, armature
         if source_files:
             objects = self.import_jms_files(source_files, 'model')
             armature = next((ob for ob in objects if ob.type == 'ARMATURE'), existing_armature)
+            if armature is not None and self.game != 'halo1':
+                armature.nwo.node_order_source = utils.relative_path(file)
             return objects, armature
         render_model_objects = []
         armature = None
@@ -3931,6 +3972,14 @@ class NWOImporter:
             if Path(path).suffix.lower() in legacy_model_formats
         ]
         if source_files:
+            if self.game == 'halo2' and armature is not None and all(
+                    Path(path).suffix.lower() == '.jms' for path in source_files):
+                collection = bpy.data.collections.new(Path(file).stem + '_collision')
+                collection.hide_render = True
+                model_collection.children.link(collection)
+                return self.import_jms_files(source_files, 'model',
+                                             tag_armature=armature,
+                                             parent_collection=collection)
             return self.import_jms_files(source_files, 'model')
         collision_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
@@ -3949,6 +3998,14 @@ class NWOImporter:
             if Path(path).suffix.lower() in legacy_model_formats
         ]
         if source_files:
+            if self.game == 'halo2' and armature is not None and all(
+                    Path(path).suffix.lower() == '.jms' for path in source_files):
+                collection = bpy.data.collections.new(Path(file).stem + '_physics')
+                collection.hide_render = True
+                model_collection.children.link(collection)
+                return self.import_jms_files(source_files, 'model',
+                                             tag_armature=armature,
+                                             parent_collection=collection)
             return self.import_jms_files(source_files, 'model')
         physics_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
@@ -4770,14 +4827,21 @@ class NWOImporter:
 # JMS/ASS importer
 ######################################################################
 
-    def import_jms_files(self, jms_files, legacy_type):
+    def import_jms_files(self, jms_files, legacy_type, *, tag_armature=None,
+                         parent_collection=None, geometry_only=False):
         """Import JMS and ASS natively, with conversion inside each adapter."""
         from ..legacy.jms_importer import import_jms
         from ..legacy.ass_importer import import_ass
         objects = []
         for path in reversed(jms_files):
             reader = import_ass if Path(path).suffix.lower() == '.ass' else import_jms
-            objects.extend(reader(self, path, legacy_type))
+            if tag_armature is not None:
+                objects.extend(reader(self, path, legacy_type,
+                                      tag_armature=tag_armature,
+                                      parent_collection=parent_collection,
+                                      geometry_only=geometry_only))
+            else:
+                objects.extend(reader(self, path, legacy_type))
         return objects
 
 

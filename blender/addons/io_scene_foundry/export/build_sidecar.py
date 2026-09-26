@@ -62,6 +62,7 @@ class Sidecar:
         self.relative_blend = str(Path(bpy.data.filepath).relative_to(get_data_path())) if Path(bpy.data.filepath).is_relative_to(get_data_path()) else bpy.data.filepath
         self.external_blend = self.relative_blend == bpy.data.filepath
         self.scene_settings = scene_settings
+        self.game = utils.get_project(scene_settings.scene_project).game
         self.animation_composites = []
         self.composite_blend_axis_values = {}
         self.corinth = corinth
@@ -844,7 +845,8 @@ class Sidecar:
                 content_object.append(element)
                 
             output = ET.SubElement(content_object, "OutputTagCollection")
-            ET.SubElement(output, "OutputTag", Type="frame_event_list").text = self.tag_path
+            if self.game not in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
+                ET.SubElement(output, "OutputTag", Type="frame_event_list").text = self.tag_path
             if self.corinth:
                 ET.SubElement(output, "OutputTag", Type="pca_animation").text = self.tag_path
                 

@@ -745,6 +745,14 @@ class AnimationGraphTag(BlenderTag, TagDocument):
 
     def events_from_blender(self, blender_animations: dict[str, object] | None = None) -> None:
         definitions = self._definitions()
+        if self.game in {'halo1', 'halo2'}:
+            if blender_animations is None:
+                blender_animations = {
+                    animation.name: animation
+                    for animation in self.scene_nwo.animations if animation.export_this
+                }
+            self.inline_events_from_blender(blender_animations)
+            return
         if definitions.field('imported events') is None:
             raise NotImplementedError(
                 f'{self.path}: imported frame-event lists are unavailable in this graph layout')

@@ -24,6 +24,8 @@ class ASSImporter(JMSImporter):
         self.rotation = Matrix.Rotation(owner.from_x_rot, 4, 'Z')
         self.objects, self.materials, self.created_materials, self.props = [], {}, [], {}
         self.armature, self.node_world = None, {}
+        self.tag_armature, self.parent_collection = None, None
+        self.tag_bone_names, self.geometry_only = {}, False
         self.source_indices, self.templates, self.anchors = {}, {}, {}
         self.frame_instances = set()
         self.instance_objects = {}

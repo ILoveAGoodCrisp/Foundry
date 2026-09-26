@@ -4174,7 +4174,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     frame_events_from_blender: bpy.props.BoolProperty(
         name="Frame Events Authored From Blender",
         options=set(),
-        description="On export the frame event list will be cleared and rebuilt from Blender",
+        description="On export, animation frame events will be updated from Blender",
         default=True,
     )
     

@@ -648,7 +648,7 @@ class NWO_OT_SingleRemoveAnimationNode(bpy.types.Operator):
 class NWO_OT_ExportFrameEvents(bpy.types.Operator):
     bl_idname = "nwo.export_animation_frame_events"
     bl_label = "Export Events"
-    bl_description = "Exports animation frame events to the asset frame_event_list tag. Requires the animation graph tag to exist"
+    bl_description = "Exports animation frame events to the animation graph or frame event list. Requires the animation graph tag to exist"
     bl_options = {"UNDO"}
     
     @classmethod

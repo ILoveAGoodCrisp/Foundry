@@ -75,6 +75,9 @@ class RenderModelTag(RenderModelMetadataTag):
                     return objects, self.armature
         if markers:
             # print("Creating Markers")
+            if not hasattr(self, 'bounds'):
+                self.bounds = (CompressionBounds.from_native(self._native_compression_bounds[0])
+                               if self._native_compression_bounds else None)
             objects.extend(self._create_markers(allowed_region_permutations))
             
         meshes = {ob.data for ob in objects if ob.data is not None and ob.type == 'MESH'}
@@ -413,7 +416,10 @@ class RenderModelTag(RenderModelMetadataTag):
         objects = []
         markers_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_markers")
         self.collection.children.link(markers_collection)
-        marker_size_factor = max(self.bounds.x1 - self.bounds.x0, self.bounds.y1 - self.bounds.y0, self.bounds.z1 - self.bounds.z0) * 0.025
+        marker_size_factor = (max(self.bounds.x1 - self.bounds.x0,
+                                  self.bounds.y1 - self.bounds.y0,
+                                  self.bounds.z1 - self.bounds.z0) * 0.025
+                              if self.bounds is not None else 0.05)
         for record in self._native_marker_groups:
             marker_group = MarkerGroup.from_native(record, self.nodes, self.regions)
             objects.extend(marker_group.to_blender(self.armature, markers_collection, marker_size_factor, allowed_region_permutations))

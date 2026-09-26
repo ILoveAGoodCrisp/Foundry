@@ -22,7 +22,8 @@ def is_frame_name(name):
 
 
 class JMSImporter:
-    def __init__(self, owner, path, legacy_type):
+    def __init__(self, owner, path, legacy_type, *, tag_armature=None,
+                 parent_collection=None, geometry_only=False):
         self.owner = owner
         self.path = Path(path)
         self.jms = JMS.from_file(path)
@@ -36,6 +37,10 @@ class JMSImporter:
         self.armature = None
         self.frames = {}
         self.node_world = {}
+        self.tag_armature = tag_armature
+        self.parent_collection = parent_collection
+        self.tag_bone_names = {}
+        self.geometry_only = geometry_only
 
     def transform(self, transform):
         x, y, z, w = transform.rotation
@@ -72,8 +77,13 @@ class JMSImporter:
     def build(self):
         context = bpy.context
         selected, active = list(context.selected_objects), context.view_layer.objects.active
-        self.collection = bpy.data.collections.new(self.path.stem)
-        context.scene.collection.children.link(self.collection)
+        collection_name = self.path.stem
+        if self.tag_armature is not None:
+            lods = {lod.upper() for _, _, lod in self.jms.triangle_groups() if lod}
+            kind = next(iter(lods)) if self.geometry_only and len(lods) == 1 else self.path.parent.name
+            collection_name = f'{self.tag_armature.name}_{kind}'
+        self.collection = bpy.data.collections.new(collection_name)
+        (self.parent_collection or context.scene.collection).children.link(self.collection)
         try:
             self.store_metadata()
             self.build_contents()
@@ -114,10 +124,11 @@ class JMSImporter:
         self.build_armature()
         self.build_materials()
         self.build_meshes()
-        self.build_markers()
-        self.build_shapes()
-        self.build_constraints()
-        self.build_extras()
+        if not self.geometry_only:
+            self.build_markers()
+            self.build_shapes()
+            self.build_constraints()
+            self.build_extras()
 
     def mesh_created(self, ob, source_indices):
         """Adapter hook for formats with instance-local skin and UV bindings."""
@@ -128,6 +139,23 @@ class JMSImporter:
             return
         if not self.is_model:
             self.build_frames()
+            return
+        if self.tag_armature is not None:
+            bones = self.tag_armature.data.bones
+            by_base_name = defaultdict(list)
+            for bone in bones:
+                by_base_name[utils.remove_node_prefix(bone.name).casefold()].append(bone.name)
+            used = set()
+            for index, node in enumerate(self.jms.nodes):
+                exact = bones.get(node.name)
+                candidates = by_base_name[utils.remove_node_prefix(node.name).casefold()]
+                bone_name = (exact.name if exact is not None else
+                             candidates[0] if len(candidates) == 1 else None)
+                if bone_name is None or bone_name in used:
+                    raise ValueError(f'{self.path}: JMS node {node.name!r} has no unique render-model bone')
+                self.tag_bone_names[index] = bone_name
+                used.add(bone_name)
+            self.armature = self.tag_armature
             return
         context = bpy.context
         candidate = context.scene.nwo.main_armature or utils.get_rig_prioritize_active(context)
@@ -277,7 +305,10 @@ class JMSImporter:
                     local_faces.append(tuple(remap.setdefault(i, len(remap)) for i in triangle.vertices))
                     faces_by_material[triangle.material].append(len(local_faces) - 1)
                 vertices = [j.vertices[i] for i in remap]
-                name = f'{self.path.stem}:{permutation}:{region}' + (f':{lod}' if lod else '')
+                if self.geometry_only and self.tag_armature is not None:
+                    name = f'{region}:{permutation}' + (f':{lod.upper()}' if lod else '')
+                else:
+                    name = f'{self.path.stem}:{permutation}:{region}' + (f':{lod}' if lod else '')
                 mesh = bpy.data.meshes.new(name)
                 ob = self.object(name, mesh)
                 mesh.from_pydata([rotation @ (Vector(v.position) * self.scale) for v in vertices], [], local_faces)
@@ -313,7 +344,8 @@ class JMSImporter:
                     vertex_groups = {}
                     for (node, weight), indices in weights.items():
                         if node not in vertex_groups:
-                            vertex_groups[node] = ob.vertex_groups.new(name=j.nodes[node].name)
+                            vertex_groups[node] = ob.vertex_groups.new(
+                                name=self.tag_bone_names.get(node, j.nodes[node].name))
                         vertex_groups[node].add(indices, weight, 'REPLACE')
                     if weights:
                         modifier = ob.modifiers.new('Armature', 'ARMATURE')
@@ -330,7 +362,7 @@ class JMSImporter:
             ob.parent = self.armature
             if parent != -1:
                 ob.parent_type = 'BONE'
-                ob.parent_bone = self.jms.nodes[parent].name
+                ob.parent_bone = self.tag_bone_names.get(parent, self.jms.nodes[parent].name)
         elif parent in getattr(self, 'frames', {}):
             ob.parent = self.frames[parent]
             ob.parent_type = 'OBJECT'
@@ -417,7 +449,8 @@ class JMSImporter:
             for side, index in (('parent', constraint.parent), ('child', constraint.child)):
                 if index != -1:
                     setattr(ob.nwo, 'physics_constraint_' + side, self.armature)
-                    setattr(ob.nwo, 'physics_constraint_' + side + '_bone', self.jms.nodes[index].name)
+                    setattr(ob.nwo, 'physics_constraint_' + side + '_bone',
+                            self.tag_bone_names.get(index, self.jms.nodes[index].name))
             limits = constraint.limits
             if constraint.kind == 'hinge':
                 ob.nwo.physics_constraint_uses_limits = bool(limits[0])
@@ -459,5 +492,8 @@ class JMSImporter:
             ob['jms_skylight'] = json.dumps((direction, intensity, angle))
 
 
-def import_jms(owner, path, legacy_type):
-    return JMSImporter(owner, path, legacy_type).build()
+def import_jms(owner, path, legacy_type, *, tag_armature=None,
+               parent_collection=None, geometry_only=False):
+    return JMSImporter(owner, path, legacy_type, tag_armature=tag_armature,
+                       parent_collection=parent_collection,
+                       geometry_only=geometry_only).build()

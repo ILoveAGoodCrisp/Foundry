@@ -548,8 +548,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 self.draw_expandable_box(self.box.box(), nwo, 'scenario')
                 # self.draw_expandable_box(self.box.box(), nwo, 'zone_sets')
                 self.draw_expandable_box(self.box.box(), nwo, 'lighting')
-                self.draw_expandable_box(self.box.box(), nwo, 'decorators')
-                if not self.h4:
+                project = utils.get_project(nwo.scene_project)
+                game = project.game if project else None
+                if game == 'reach' or self.h4:
+                    self.draw_expandable_box(self.box.box(), nwo, 'decorators')
+                if game == 'reach':
                     self.draw_expandable_box(self.box.box(), nwo, 'airprobes')
                 # self.draw_expandable_box(self.box.box(), nwo, 'objects')
                 if self.h4:
@@ -898,36 +901,38 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         box_airprobes.prop(nwo, "airprobes_export_on_save")
         
     def draw_lighting(self, box: bpy.types.UILayout, nwo):
-        box_lights = box.box()
-        box_lights.label(text="Lights")
         scene_nwo_export = self.scene_nwo_export
+        project = utils.get_project(nwo.scene_project)
+        game = project.game if project else None
         _, asset_name = utils.get_asset_info()
         if self.asset_type == 'scenario':
             lighting_name = "Lightmap Scenario"
         else:
             lighting_name = "Lightmap Model"
         
-        box_lights.operator("nwo.export_lights", icon='EXPORT')
-        box_lights.prop(nwo, "lights_export_on_save")
-        box_lights.separator()
-        if self.asset_type == 'scenario':
-            tag_paths = utils.get_asset_tags(".scenario_structure_lighting_info")
-            if tag_paths:
-                for path in tag_paths:
-                    name = path.with_suffix("").name
-                    if name.startswith(asset_name):
-                        name = name[len(asset_name) + 1:]
-                    box_lights.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open {name} Lighting Tag").tag_path = str(path)
-        else:
-            tag_path = utils.get_asset_tag(".scenario_structure_lighting_info")
-            if tag_path:
-                box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open Lighting Tag").tag_path = tag_path
+        if self.asset_type != 'scenario' or game == 'reach' or self.h4:
+            box_lights = box.box()
+            box_lights.label(text="Lights")
+            box_lights.operator("nwo.export_lights", icon='EXPORT')
+            box_lights.prop(nwo, "lights_export_on_save")
+            box_lights.separator()
+            if self.asset_type == 'scenario':
+                tag_paths = utils.get_asset_tags(".scenario_structure_lighting_info")
+                if tag_paths:
+                    for path in tag_paths:
+                        name = path.with_suffix("").name
+                        if name.startswith(asset_name):
+                            name = name[len(asset_name) + 1:]
+                        box_lights.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open {name} Lighting Tag").tag_path = str(path)
+            else:
+                tag_path = utils.get_asset_tag(".scenario_structure_lighting_info")
+                if tag_path:
+                    box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open Lighting Tag").tag_path = tag_path
         
         box_lightmapping = box.box()
         box_lightmapping.label(text="Lightmapping")
         if self.asset_type == "scenario":
-            project = utils.get_project(utils.get_scene_props().scene_project)
-            halo1 = bool(project and project.game == 'halo1')
+            halo1 = game == 'halo1'
             if halo1:
                 draw_halo1_lightmap_settings(box_lightmapping, scene_nwo_export)
             elif self.h4:
@@ -1235,9 +1240,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         tag_path = utils.get_asset_animation_graph()
         if tag_path:
             col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Animation Graph Tag").tag_path = tag_path
-        frame_events_tag_path = utils.get_asset_tag(".frame_events_list")
-        if frame_events_tag_path:
-            col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Frame Events List Tag").tag_path = frame_events_tag_path
+        project = utils.get_project(nwo.scene_project)
+        if project and project.game not in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
+            frame_events_tag_path = utils.get_asset_tag(".frame_event_list")
+            if frame_events_tag_path:
+                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Frame Events List Tag").tag_path = frame_events_tag_path
         self.draw_expandable_box(box.box(), nwo, 'animation_copies')
         # if self.h4:
         #     self.draw_expandable_box(box.box(), nwo, 'animation_composites')
