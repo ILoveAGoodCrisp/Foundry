@@ -28,6 +28,7 @@ from .cleanup import ANIMATION_EXTENSIONS, prune_intermediates
 from .shader_collections import ShaderCollections
 from ..legacy import jms_format as jms
 from ..legacy import ass_format as ass
+from ..legacy.mirror import mirror_ass, mirror_jms, mirror_transform
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, legacy_bone_order, node_checksum, write_jms, write_ass
 from ..tags.backend import TagDocument
 from ..tags.animation_graph import AnimationGraphTag
@@ -155,6 +156,13 @@ class LegacyExportScene(ExportScene):
         'device_terminal', 'effect_scenery', 'equipment', 'giant', 'scenery',
         'vehicle', 'weapon',
     )
+
+    @property
+    def supported_object_tag_types(self):
+        unsupported = ({'crate', 'device_terminal', 'giant'} if self.target_game == 'halo1'
+                       else {'device_terminal', 'giant'} if self.target_game == 'halo2'
+                       else set())
+        return tuple(tag_type for tag_type in self.object_tag_types if tag_type not in unsupported)
 
     def __init__(self, *args, **kwargs):
         self.original_cwd = Path.cwd()
@@ -286,6 +294,8 @@ class LegacyExportScene(ExportScene):
                 asset = (self.ass_asset(
                     name, nodes, ass_markers, lights)
                     if use_ass else self.jms_asset(asset_name, nodes, markers, folder))
+                if self.mirror:
+                    (mirror_ass if use_ass else mirror_jms)(asset)
                 if uses_jmi:
                     if folder != 'render' or use_ass:
                         raise ValueError(
@@ -554,7 +564,7 @@ class LegacyExportScene(ExportScene):
         }
         if self.asset_type.name in {'MODEL', 'ANIMATION', 'SINGLE_ANIMATION', 'SCENARIO'}:
             outputs = {'scenario'} if self.asset_type.name == 'SCENARIO' else {
-                kind for kind in self.object_tag_types
+                kind for kind in self.supported_object_tag_types
                 if getattr(self.scene_settings, 'output_' + kind, False)
             }
             for kind in sorted(outputs):
@@ -789,7 +799,7 @@ class LegacyExportScene(ExportScene):
             return
 
         outputs = {'scenery'} if self.asset_type.name == 'SKY' else {
-            tag_type for tag_type in self.object_tag_types
+            tag_type for tag_type in self.supported_object_tag_types
             if getattr(self.scene_settings, 'output_' + tag_type, False)
         }
         model_reference = utils.relative_path(model_path)
@@ -1442,6 +1452,8 @@ class LegacyExportScene(ExportScene):
                 if self.jma_version >= 16394:
                     matrix = world[bone.name]
                 value = transform(matrix, self.to_halo_scale, self.jma_version <= 16394)
+                if self.mirror:
+                    mirror_transform(value)
                 w.vector(value.translation)
                 w.vector(value.rotation)
                 output_scale = matrix.to_scale()[0]

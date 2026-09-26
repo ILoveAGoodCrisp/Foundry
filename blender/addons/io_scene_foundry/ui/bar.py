@@ -1268,7 +1268,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     
     granny_mirror: bpy.props.BoolProperty(
         name="Mirror",
-        description="Exported GR2 files are mirrored",
+        description="Mirror exported GR2, JMS, ASS and animation files by flipping Y coordinates",
         options=set(),
     )
     

@@ -299,15 +299,15 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         scene_nwo.forward_direction = self.forward_direction
         # Model specific settings
         scene_nwo.output_biped = self.output_biped
-        scene_nwo.output_crate = self.output_crate
+        scene_nwo.output_crate = self.output_crate and project.game != 'halo1'
         scene_nwo.output_creature = self.output_creature
         scene_nwo.output_device_control = self.output_device_control
         scene_nwo.output_device_dispenser = self.output_device_dispenser
         scene_nwo.output_device_machine = self.output_device_machine
-        scene_nwo.output_device_terminal = self.output_device_terminal
+        scene_nwo.output_device_terminal = self.output_device_terminal and project.game not in {'halo1', 'halo2'}
         scene_nwo.output_effect_scenery = self.output_effect_scenery
         scene_nwo.output_equipment = self.output_equipment
-        scene_nwo.output_giant = self.output_giant
+        scene_nwo.output_giant = self.output_giant and project.game not in {'halo1', 'halo2'}
         scene_nwo.output_scenery = self.output_scenery
         scene_nwo.output_vehicle = self.output_vehicle
         scene_nwo.output_weapon = self.output_weapon
@@ -332,7 +332,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             append_grid_materials()
         
         if self.generate_halo_skeleton:
-            needs_aim_bones = self.output_biped or self.output_vehicle or self.output_giant
+            needs_aim_bones = self.output_biped or self.output_vehicle or scene_nwo.output_giant
             add_rig(context, needs_aim_bones)
         
         # Save the file to the asset folder
@@ -385,12 +385,13 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             )
             flow.scale_x = 1
             flow.scale_y = 1
-            flow.prop(
-                self,
-                "output_crate",
-                # text="",
-                icon_value=get_icon_id("crate"),
-            )
+            if project.game != 'halo1':
+                flow.prop(
+                    self,
+                    "output_crate",
+                    # text="",
+                    icon_value=get_icon_id("crate"),
+                )
             flow.prop(
                 self,
                 "output_scenery",
@@ -416,12 +417,13 @@ class NWO_OT_NewAsset(bpy.types.Operator):
                 text="Machine",
                 icon_value=get_icon_id("device_machine"),
             )
-            flow.prop(
-                self,
-                "output_device_terminal",
-                text="Terminal",
-                icon_value=get_icon_id("device_terminal"),
-            )
+            if project.game not in {'halo1', 'halo2'}:
+                flow.prop(
+                    self,
+                    "output_device_terminal",
+                    text="Terminal",
+                    icon_value=get_icon_id("device_terminal"),
+                )
             if project.corinth:
                 flow.prop(
                     self,
@@ -442,12 +444,13 @@ class NWO_OT_NewAsset(bpy.types.Operator):
                 # text="",
                 icon_value=get_icon_id("creature"),
             )
-            flow.prop(
-                self,
-                "output_giant",
-                # text="",
-                icon_value=get_icon_id("giant"),
-            )
+            if project.game not in {'halo1', 'halo2'}:
+                flow.prop(
+                    self,
+                    "output_giant",
+                    # text="",
+                    icon_value=get_icon_id("giant"),
+                )
 
             flow.prop(
                 self,

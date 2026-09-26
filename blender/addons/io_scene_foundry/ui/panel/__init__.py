@@ -1013,6 +1013,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_output_tags(self, box: bpy.types.UILayout, nwo):
         col = box.column()
         if nwo.asset_type == "model":
+            project = utils.get_project(nwo.scene_project)
+            game = project.game if project else None
             col.label(text="Output Tags")
             row = col.grid_flow(
                 row_major=True,
@@ -1024,12 +1026,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row.scale_x = 0.65
             row.scale_y = 1.3
 
-            row.prop(
-                nwo,
-                "output_crate",
-                # text="",
-                icon_value=get_icon_id("crate"),
-            )
+            if game != 'halo1':
+                row.prop(
+                    nwo,
+                    "output_crate",
+                    # text="",
+                    icon_value=get_icon_id("crate"),
+                )
             row.prop(
                 nwo,
                 "output_scenery",
@@ -1055,12 +1058,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 text="Machine",
                 icon_value=get_icon_id("device_machine"),
             )
-            row.prop(
-                nwo,
-                "output_device_terminal",
-                text="Terminal",
-                icon_value=get_icon_id("device_terminal"),
-            )
+            if game not in {'halo1', 'halo2'}:
+                row.prop(
+                    nwo,
+                    "output_device_terminal",
+                    text="Terminal",
+                    icon_value=get_icon_id("device_terminal"),
+                )
             if utils.is_corinth(self.context):
                 row.prop(
                     nwo,
@@ -1081,12 +1085,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 # text="",
                 icon_value=get_icon_id("creature"),
             )
-            row.prop(
-                nwo,
-                "output_giant",
-                # text="",
-                icon_value=get_icon_id("giant"),
-            )
+            if game not in {'halo1', 'halo2'}:
+                row.prop(
+                    nwo,
+                    "output_giant",
+                    # text="",
+                    icon_value=get_icon_id("giant"),
+                )
 
             row.prop(
                 nwo,
@@ -1108,7 +1113,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             )
             
             col.separator()
-            if nwo.output_crate:
+            if game != 'halo1' and nwo.output_crate:
                 self.draw_expandable_box(col.box(), nwo, 'crate')
             if nwo.output_scenery:
                 self.draw_expandable_box(col.box(), nwo, 'scenery')
@@ -1118,7 +1123,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 self.draw_expandable_box(col.box(), nwo, 'device_control')
             if nwo.output_device_machine:
                 self.draw_expandable_box(col.box(), nwo, 'device_machine')
-            if nwo.output_device_terminal:
+            if game not in {'halo1', 'halo2'} and nwo.output_device_terminal:
                 self.draw_expandable_box(col.box(), nwo, 'device_terminal')
             if utils.is_corinth(self.context) and nwo.output_device_dispenser:
                 self.draw_expandable_box(col.box(), nwo, 'device_dispenser')
@@ -1126,7 +1131,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 self.draw_expandable_box(col.box(), nwo, 'biped')
             if nwo.output_creature:
                 self.draw_expandable_box(col.box(), nwo, 'creature')
-            if nwo.output_giant:
+            if game not in {'halo1', 'halo2'} and nwo.output_giant:
                 self.draw_expandable_box(col.box(), nwo, 'giant')
             if nwo.output_vehicle:
                 self.draw_expandable_box(col.box(), nwo, 'vehicle')
@@ -1673,9 +1678,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
         if self.draw_expandable_box(box, nwo, 'model_rig') and nwo.main_armature:
-            self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
-            if nwo.asset_type != 'single_animation':
-                self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
+            project = utils.get_project(nwo.scene_project)
+            if project and project.game not in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
+                self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
+                if nwo.asset_type != 'single_animation':
+                    self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
 
     def draw_sets_manager(self):
         row = self.box.row(align=True)
