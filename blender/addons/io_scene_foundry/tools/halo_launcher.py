@@ -5,6 +5,7 @@ import ctypes
 from pathlib import Path
 import bpy
 import xml.etree.ElementTree as ET
+from .halo1_guerilla import prepare_guerilla_config
 from ..ui.bar import draw_game_launcher_pruning, draw_game_launcher_settings
 from ..tags.scenario import ScenarioMetadataTag
 from ..utils import (
@@ -88,6 +89,29 @@ def _version_tuple(value: str) -> tuple[int, int, int, int]:
 def tag_editor_executable(context=None):
     """Return the tag editor used by the active project's generation."""
     return "guerilla.exe" if project_game_for_mcc(context) in GUERILLA_GAMES else "Foundation.exe"
+
+
+def _run_tag_editor(launch_args, context, report, load_tags=True):
+    if project_game_for_mcc(context) == "Halo1":
+        if load_tags:
+            try:
+                prepare_guerilla_config(get_project_path(), launch_args[1:])
+            except (OSError, ValueError) as error:
+                report({"ERROR"}, f"Could not prepare Guerilla: {error}")
+                return False
+        launch_args = [launch_args[0]]
+    run_ek_cmd(launch_args, True)
+    return True
+
+
+def open_tag_in_editor(tag_path, context, report):
+    """Shared single-tag launch path for tag fields and material shaders."""
+    executable = tag_editor_executable(context)
+    launch_args = [executable]
+    if executable == "Foundation.exe":
+        launch_args.append("/dontloadlastopenedwindows")
+    launch_args.append(str(tag_path))
+    return _run_tag_editor(launch_args, context, report)
 
 
 def _install_foundation_plugin(project_path, plugin_path, plugins_xml):
@@ -200,12 +224,8 @@ class NWO_OpenFoundationTag(bpy.types.Operator):
     def execute(self, context):
         full_tag_path = Path(get_tags_path(), relative_path(self.tag_path))
         if full_tag_path.exists():
-            executable = tag_editor_executable(context)
-            launch_args = [executable]
-            if executable == "Foundation.exe":
-                launch_args.append("/dontloadlastopenedwindows")
-            launch_args.append(full_tag_path)
-            run_ek_cmd(launch_args, True)
+            if not open_tag_in_editor(full_tag_path, context, self.report):
+                return {"CANCELLED"}
         else:
             self.report({"WARNING"}, "Tag does not exist")
         return {"FINISHED"}
@@ -218,18 +238,71 @@ def get_tag_if_exists(asset_path, asset_name, type, extra=""):
     else:
         return ""
 
+def halo1_tag_editor_options(asset_type, scene):
+    """Property, label and actual H1 tag extension, shared by UI and launcher."""
+    geometry = [("open_model", "Model", "model"),
+                ("open_render_model", "GBX Model", "gbxmodel")]
+    animations = ("open_model_animation_graph", "Model Animations", "model_animations")
+    if asset_type == "model":
+        options = geometry + [
+            ("open_collision_model", "Model Collision Geometry", "model_collision_geometry"),
+            ("open_physics_model", "Physics", "physics"), animations,
+        ]
+        for kind in ("biped", "device_control", "device_machine", "equipment",
+                     "scenery", "vehicle", "weapon"):
+            if getattr(scene, "output_" + kind, False):
+                options.append(("open_" + kind, kind.replace("_", " ").title(), kind))
+        return options
+    if asset_type == "sky":
+        return geometry + [("open_sky", "Sky", "sky")]
+    if asset_type == "animation":
+        return [animations]
+    if asset_type == "scenario":
+        return [("open_scenario", "Scenario", "scenario"),
+                ("open_scenario_structure_bsp", "Scenario Structure BSP", "scenario_structure_bsp")]
+    return []
+
+
+def _halo1_asset_tags(settings, scene, asset_type):
+    paths = []
+    for prop, _label, extension in halo1_tag_editor_options(asset_type, scene):
+        if not getattr(settings, prop):
+            continue
+        if extension == "scenario_structure_bsp":
+            directory = Path(get_tags_path(), scene.asset_directory)
+            if settings.bsp_name:
+                path = directory / f"{settings.bsp_name}.scenario_structure_bsp"
+                if path.is_file():
+                    paths.append(str(path))
+            else:
+                paths.extend(str(path) for path in sorted(directory.glob("*.scenario_structure_bsp"))
+                             if path.is_file())
+        else:
+            path = get_tag_if_exists(scene.asset_directory, scene.asset_name, extension)
+            if path:
+                paths.append(path)
+    if asset_type == "camera_track_set" and settings.camera_track_name:
+        path = get_tag_if_exists(scene.asset_directory, settings.camera_track_name, "camera_track")
+        if path:
+            paths.append(path)
+    return paths
+
+
 def launch_tag_editor(settings, context, report):
     scene_nwo = get_scene_props()
     executable = tag_editor_executable(context)
     launch_args = [executable]
     # set the launch args
-    if settings.foundation_default == "asset" and valid_nwo_asset(context):
+    load_tags = settings.foundation_default == "asset" and valid_nwo_asset(context)
+    if load_tags:
         if executable == "Foundation.exe":
             launch_args.append("/dontloadlastopenedwindows")
         asset_path = scene_nwo.asset_directory
         asset_path_full = Path(get_tags_path(), asset_path)
         asset_name = scene_nwo.asset_name
-        if nwo_asset_type() == "model":
+        if project_game_for_mcc(context) == "Halo1":
+            launch_args.extend(_halo1_asset_tags(settings, scene_nwo, nwo_asset_type()))
+        elif nwo_asset_type() == "model":
             if settings.open_model:
                 launch_args.append(get_tag_if_exists(asset_path, asset_name, "model"))
             if settings.open_render_model:
@@ -392,7 +465,8 @@ def launch_tag_editor(settings, context, report):
     if executable == "Foundation.exe":
         # Install the plugin before launch and start its companion tag watcher.
         foundation_plugin_update()
-    run_ek_cmd(launch_args, True)
+    if not _run_tag_editor(launch_args, context, report, load_tags):
+        return {"CANCELLED"}
     if executable == "Foundation.exe":
         run_ek_cmd([os.path.join("bin", "tools", "bonobo", "TagWatcher.exe")], True)
 
@@ -762,8 +836,7 @@ class NWO_HaloLauncher_Foundation(bpy.types.Operator):
         return current_project_valid()
 
     def execute(self, context):
-        launch_tag_editor(get_launcher_props(), context, self.report)
-        return {'FINISHED'}
+        return launch_tag_editor(get_launcher_props(), context, self.report)
 
 
 class NWO_HaloLauncher_Data(bpy.types.Operator):
@@ -1023,6 +1096,8 @@ class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
     open_giant: bpy.props.BoolProperty(options=set(), name="Giant")
 
     open_scenery: bpy.props.BoolProperty(options=set(), name="Scenery")
+
+    open_sky: bpy.props.BoolProperty(options=set(), name="Sky", default=True)
 
     open_vehicle: bpy.props.BoolProperty(options=set(), name="Vehicle")
 

@@ -385,7 +385,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             records, rebuilt = reconstruct_portals(records, is_solid=collision_point_is_solid(self))
             utils.print_step(
                 f'Reconstructed H1 cutting portals from {rebuilt}/{source_count} fragments; '
-                f'{source_count - rebuilt} fragments retained unchanged')
+                f'{source_count - rebuilt} fragments not reconstructed')
         utils.print_step("Creating Portals")
         layer = utils.add_permutation("portals", utils.SetType.SCENARIO)
         portals_collection = bpy.data.collections.new(

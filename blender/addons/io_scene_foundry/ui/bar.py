@@ -385,6 +385,17 @@ class NWO_HaloLauncherFoundationSettings(bpy.types.Panel):
         row.prop(scene_nwo_halo_launcher, "foundation_default", expand=True)
         col = layout.column(heading="Open")
         if scene_nwo_halo_launcher.foundation_default == "asset":
+            if utils.project_game_for_mcc(context) == "Halo1":
+                from ..tools.halo_launcher import halo1_tag_editor_options
+                asset_type = utils.nwo_asset_type()
+                for prop, label, _extension in halo1_tag_editor_options(asset_type, scene_nwo):
+                    col.prop(scene_nwo_halo_launcher, prop, text=label)
+                if asset_type == "scenario" and scene_nwo_halo_launcher.open_scenario_structure_bsp:
+                    col.prop(scene_nwo_halo_launcher, "bsp_name")
+                elif asset_type == "camera_track_set" and scene_nwo_halo_launcher.camera_track_name:
+                    col.use_property_split = True
+                    col.prop(scene_nwo_halo_launcher, "camera_track_name", text="Track")
+                return
             if utils.nwo_asset_type() == "model":
                 col.prop(scene_nwo_halo_launcher, "open_model")
                 col.prop(scene_nwo_halo_launcher, "open_render_model")

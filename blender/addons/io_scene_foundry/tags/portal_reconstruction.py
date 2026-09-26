@@ -5,7 +5,70 @@ only convex, connected unions are rebuilt, and nearby portal intersections
 cause the original fragments to be retained.
 """
 from dataclasses import replace
-from mathutils import Vector
+from mathutils import Vector, kdtree
+
+
+def _simplify_outline(vertices, protected, tolerance):
+    """Remove straight-edge subdivisions with a bounded change to the outline."""
+    remaining = list(range(len(vertices)))
+    changed = True
+    while changed and len(remaining) > 3:
+        changed = False
+        for slot, index in enumerate(remaining):
+            previous, following = remaining[slot - 1], remaining[(slot + 1) % len(remaining)]
+            a, p, b = vertices[previous], vertices[index], vertices[following]
+            if p == a or p == b:
+                remaining.pop(slot)
+                changed = True
+                break
+            if index in protected:
+                continue
+            # Use Python floats for this test: compiled portals can be far
+            # from the origin, where float32 arithmetic hides small bends.
+            incoming = tuple(p[i] - a[i] for i in range(3))
+            outgoing = tuple(b[i] - p[i] for i in range(3))
+            dot = sum(x*y for x, y in zip(incoming, outgoing))
+            lengths = sum(x*x for x in incoming) * sum(x*x for x in outgoing)
+            if dot <= 0 or dot*dot < lengths * (1 - 1e-6):
+                continue  # Preserve real corners and edges which double back.
+            delta = tuple(b[i] - a[i] for i in range(3))
+            length_squared = sum(x*x for x in delta)
+            # Check every original point on this span, including points
+            # removed on earlier passes, to prevent accumulated drift.
+            span = (following - previous) % len(vertices)
+            for step in range(1, span):
+                q = vertices[(previous + step) % len(vertices)]
+                offset = tuple(q[i] - a[i] for i in range(3))
+                fraction = sum(x*y for x, y in zip(offset, delta)) / length_squared
+                distance_squared = sum((offset[i] - fraction*delta[i])**2 for i in range(3))
+                if not 0 <= fraction <= 1 or distance_squared > tolerance*tolerance:
+                    break
+            else:
+                remaining.pop(slot)
+                changed = True
+                break
+    return tuple(vertices[i] for i in remaining)
+
+
+def simplify_portals(records, tolerance=0.00025):
+    """Dissolve redundant edge vertices, retaining junctions with other portals."""
+    points = [(owner, index, point) for owner, record in enumerate(records)
+              for index, point in enumerate(record.vertices)]
+    if not points:
+        return records
+    tree = kdtree.KDTree(len(points))
+    for index, (_, _, point) in enumerate(points):
+        tree.insert(point, index)
+    tree.balance()
+    protected = [set() for _ in records]
+    for owner, index, point in points:
+        if any(points[other][0] != owner for _, other, _ in tree.find_range(point, tolerance)):
+            protected[owner].add(index)
+    result = []
+    for record, junctions in zip(records, protected):
+        vertices = _simplify_outline(record.vertices, junctions, tolerance)
+        result.append(record if vertices == record.vertices else replace(record, vertices=vertices))
+    return result
 
 
 def _normal(points):
@@ -198,4 +261,7 @@ def reconstruct_portals(records, tolerance=0.00025, margin=0.01, is_solid=None):
                 if extended is not record:
                     result[i] = extended
                     rebuilt += 1
-    return sorted(result, key=lambda r: r.index), rebuilt
+    # Clipping and retained compiler fragments can both leave unnecessary
+    # points along straight edges. Clean these only after reconstruction so
+    # they still participate in the original fragment adjacency tests.
+    return simplify_portals(sorted(result, key=lambda r: r.index), tolerance), rebuilt

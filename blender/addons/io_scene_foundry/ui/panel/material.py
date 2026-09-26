@@ -13,13 +13,9 @@ class NWO_OT_MaterialOpenTag(bpy.types.Operator):
     def execute(self, context):
         tag_path = Path(utils.get_tags_path(), context.object.active_material.nwo.shader_path)
         if tag_path.exists():
-            from ...tools.halo_launcher import tag_editor_executable
-            executable = tag_editor_executable(context)
-            launch_args = [executable]
-            if executable == "Foundation.exe":
-                launch_args.append("/dontloadlastopenedwindows")
-            launch_args.append(str(tag_path))
-            utils.run_ek_cmd(launch_args, True)
+            from ...tools.halo_launcher import open_tag_in_editor
+            if not open_tag_in_editor(tag_path, context, self.report):
+                return {"CANCELLED"}
         else:
             if utils.is_corinth(context):
                 self.report({"ERROR_INVALID_INPUT"}, "Material tag does not exist")
