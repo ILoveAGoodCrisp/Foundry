@@ -106,7 +106,7 @@ class ShaderDecalTag(ShaderTag):
         
         self.populate_chiefster_node(tree, group_node, 2)
         
-        if e_albedo == Albedo.CHANGE_COLOR:
+        if e_albedo == Albedo.CHANGE_COLOR and group_node.inputs.get('Primary Color'):
             node_cc_primary = nodes.new(type="ShaderNodeAttribute")
             node_cc_primary.attribute_name = "nwo.cc_primary"
             node_cc_primary.attribute_type = 'OBJECT'

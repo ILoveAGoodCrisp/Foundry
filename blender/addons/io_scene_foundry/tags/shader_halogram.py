@@ -120,7 +120,8 @@ class ShaderHalogramTag(ShaderTag):
         group_node.inputs[3].default_value = e_overlay.name.lower().strip('_')
         group_node.inputs[4].default_value = e_edge_fade.name.lower().strip('_')
         
-        uses_palette_vector = self._self_illumination_uses_palette_vector(e_self_illumination)
+        uses_palette_vector = (self.game not in {'halo3', 'halo3odst'}
+                               and self._self_illumination_uses_palette_vector(e_self_illumination))
         excluded_parameters = self.palette_vector_parameters if uses_palette_vector else frozenset()
         self.populate_chiefster_node(tree, group_node, 5, excluded_parameters)
         if uses_palette_vector:

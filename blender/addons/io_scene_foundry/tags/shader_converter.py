@@ -218,7 +218,12 @@ class ShaderTag(BlenderTag, TagDocument):
     self_illum_map_names = 'meter_map', 'self_illum_map'
     group_supported = True
     category_parameters = None
+    category_parameters_path = None
     group_node_name = "foundry_reach.shader"
+    h3_group_families = frozenset({
+        'shader', 'shader_custom', 'shader_decal', 'shader_halogram',
+        'shader_terrain',
+    })
     group_option_start_input = 8
     palette_vector_node_name = "palettized_plasma - palette_vector"
     palette_vector_parameters = frozenset({
@@ -333,13 +338,15 @@ class ShaderTag(BlenderTag, TagDocument):
     
     @classmethod
     def _get_info(cls, definition_path: TagReference):
-        if cls.category_parameters is None:
-            def_path = definition_path
-            if def_path is None:
-                cls.category_parameters = {}
-                return
-            with RenderMethodDefinitionTag(path=def_path) as render_method_definition:
+        definition_key = cls.get_path_str(definition_path, True)
+        if cls.category_parameters is not None and cls.category_parameters_path == definition_key:
+            return
+        if definition_path is None:
+            cls.category_parameters = {}
+        else:
+            with RenderMethodDefinitionTag(path=definition_path) as render_method_definition:
                 cls.category_parameters = render_method_definition.get_defaults()
+        cls.category_parameters_path = definition_key
                 
     def get_albedo_bitmap(self):
         for element in self.block_parameters.Elements:
@@ -448,6 +455,10 @@ class ShaderTag(BlenderTag, TagDocument):
 
         group_name = self._normalize_group_name(group_tree.name)
         expected = self.group_node_name
+        if self.game in {'halo3', 'halo3odst'}:
+            family = self.system_path.suffix.lstrip('.').casefold()
+            if family in self.h3_group_families:
+                expected = f'foundry_h3.{family}'
         if isinstance(expected, str):
             return group_name == expected
         return group_name in expected
@@ -574,8 +585,7 @@ class ShaderTag(BlenderTag, TagDocument):
         if self.group_node is None or not self._group_node_matches(self.group_node):
             return False
 
-        if self.category_parameters is None:
-            self._get_info(self.definition.Path)
+        self._get_info(self.definition.Path)
         if not self.category_parameters:
             utils.print_warning(
                 f"Could not load reach shader category defaults for '{self.tag_path.RelativePathWithExtension}'. "
@@ -1415,7 +1425,12 @@ class ShaderTag(BlenderTag, TagDocument):
             self._to_nodes_halo2(blender_material)
             return
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
-        if self.group_supported:
+        family = self.system_path.suffix.lstrip('.').casefold()
+        has_group = self.group_supported and (
+            self.game not in {'halo3', 'halo3odst'}
+            or family in self.h3_group_families
+        )
+        if has_group:
             self._to_nodes_group(blender_material)
         else:
             self._to_nodes_bsdf(blender_material)
@@ -2719,7 +2734,12 @@ class ShaderTag(BlenderTag, TagDocument):
     
     def _add_group_node(self, tree: bpy.types.NodeTree, nodes: bpy.types.Nodes, name: str) -> bpy.types.Node:
         node = nodes.new(type='ShaderNodeGroup')
-        node.node_tree = utils.add_node_from_resources("reach_nodes", name)
+        if self.game in {'halo3', 'halo3odst'}:
+            name = name.replace('foundry_reach.', 'foundry_h3.', 1)
+            resource = 'h3_nodes'
+        else:
+            resource = 'reach_nodes'
+        node.node_tree = utils.add_node_from_resources(resource, name)
         return node
 
     def _setup_palette_vector_node(self, tree: bpy.types.NodeTree, group_node: bpy.types.Node) -> bpy.types.Node | None:
@@ -2876,7 +2896,8 @@ class ShaderTag(BlenderTag, TagDocument):
         group_node.inputs[6].default_value = e_self_illumination.name.lower().strip('_')
         group_node.inputs[7].default_value = e_blend_mode.name.lower().strip('_')
         
-        uses_palette_vector = self._self_illumination_uses_palette_vector(e_self_illumination)
+        uses_palette_vector = (self.game not in {'halo3', 'halo3odst'}
+                               and self._self_illumination_uses_palette_vector(e_self_illumination))
         excluded_parameters = self.palette_vector_parameters if uses_palette_vector else frozenset()
         self.populate_chiefster_node(tree, group_node, 8, excluded_parameters)
         if uses_palette_vector:
@@ -2912,7 +2933,8 @@ class ShaderTag(BlenderTag, TagDocument):
             blender_material.surface_render_method = 'BLENDED'
             group_node.inputs["material is two-sided"].default_value = True
             
-        if e_material_model in {MaterialModel.COOK_TORRANCE, MaterialModel.TWO_LOBE_PHONG, MaterialModel.ORGANISM}:
+        if (self.game not in {'halo3', 'halo3odst'} and
+                e_material_model in {MaterialModel.COOK_TORRANCE, MaterialModel.TWO_LOBE_PHONG, MaterialModel.ORGANISM}):
             self.get_model_material_spec(group_node, True)
         
         # Make the Output
@@ -3019,11 +3041,11 @@ class ShaderTag(BlenderTag, TagDocument):
                         self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE))
                     case _:
                         if ".rgb" in input.name:
-                            last_input_node = self.group_set_image(tree, node, parameter, ChannelType.RGB)
+                            last_input_node = self.group_set_image(tree, node, parameter, ChannelType.RGB, input.name.lower())
                         elif ".a" in input.name:
-                            last_input_node = self.group_set_image(tree, node, parameter, ChannelType.ALPHA)
+                            last_input_node = self.group_set_image(tree, node, parameter, ChannelType.ALPHA, input.name.lower())
                         else:
-                            last_input_node = self.group_set_image(tree, node, parameter, ChannelType.DEFAULT)
+                            last_input_node = self.group_set_image(tree, node, parameter, ChannelType.DEFAULT, input.name.lower())
                         
                 last_parameter_name = parameter_name_ui
                 
