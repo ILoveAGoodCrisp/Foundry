@@ -21,6 +21,11 @@ def is_frame_name(name):
     return name.casefold().startswith(FRAME_PREFIXES)
 
 
+def canonical_bone_name(name):
+    # Classic JMS exporters may spell a tag bone's word separators as spaces.
+    return re.sub(r'[\s_]+', '_', utils.remove_node_prefix(name).casefold())
+
+
 class JMSImporter:
     def __init__(self, owner, path, legacy_type, *, tag_armature=None,
                  parent_collection=None, geometry_only=False):
@@ -144,11 +149,11 @@ class JMSImporter:
             bones = self.tag_armature.data.bones
             by_base_name = defaultdict(list)
             for bone in bones:
-                by_base_name[utils.remove_node_prefix(bone.name).casefold()].append(bone.name)
+                by_base_name[canonical_bone_name(bone.name)].append(bone.name)
             used = set()
             for index, node in enumerate(self.jms.nodes):
                 exact = bones.get(node.name)
-                candidates = by_base_name[utils.remove_node_prefix(node.name).casefold()]
+                candidates = by_base_name[canonical_bone_name(node.name)]
                 bone_name = (exact.name if exact is not None else
                              candidates[0] if len(candidates) == 1 else None)
                 if bone_name is None or bone_name in used:
