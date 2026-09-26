@@ -473,6 +473,7 @@ class BonoboOutput:
         self.entries = []
         self.current_line = ""
         self.pending_carriage_return = False
+        self.spinner_erased = False
         self.last_source = ""
         self.current_section = "General"
         self.traceback_active = False
@@ -613,6 +614,7 @@ class BonoboOutput:
                     self._finish_line()
                     continue
                 self.current_line = ""
+                self.spinner_erased = False
             if character == "\f":
                 self.clear()
             elif character == "\r":
@@ -621,12 +623,15 @@ class BonoboOutput:
                 self._finish_line()
             elif character == "\b":
                 self.current_line = self.current_line[:-1]
+                self.spinner_erased = True
             elif character != "\x00":
                 self.current_line += character
+                self.spinner_erased = False
 
     def _finish_line(self):
         raw_text = self.current_line
         self.current_line = ""
+        self.spinner_erased = False
         structured_entries = self._parse_structured(raw_text)
         if structured_entries is not None:
             for entry in structured_entries:
@@ -712,8 +717,25 @@ class BonoboOutput:
             return "error"
         return "message"
 
+    def _live_entry(self):
+        # Carriage-return progress lines may run for minutes without a newline.
+        # Show the current line without adding every update to the saved log.
+        if not self.current_line:
+            return None
+        text = ANSI_ESCAPE.sub("", self.current_line)
+        if not text or text.lstrip().startswith("<"):
+            return None
+        if self.spinner_erased:
+            text += "|/—\\"[int(time.monotonic() * 6) % 4]
+        level = self._plain_level(self.current_line, text)
+        return LogEntry(text, level, bold=level in {"status", "success"})
+
     def filtered_entries(self, enabled_levels):
-        return [entry for entry in self.entries if self._filter_level(entry.level) in enabled_levels]
+        entries = [entry for entry in self.entries if self._filter_level(entry.level) in enabled_levels]
+        live_entry = self._live_entry()
+        if live_entry is not None and self._filter_level(live_entry.level) in enabled_levels:
+            entries.append(live_entry)
+        return entries
 
     def counts(self):
         counts = {"message": 0, "warning": 0, "error": 0}
