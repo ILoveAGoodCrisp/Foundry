@@ -364,6 +364,35 @@ class NWO_OT_MoveIKChain(bpy.types.Operator):
         nwo.ik_chains_active_index = to_index
         context.area.tag_redraw()
         return {'FINISHED'}
+
+class NWO_OT_AddBlendScreen(bpy.types.Operator):
+    bl_idname = 'nwo.add_blend_screen'
+    bl_label = 'Add Blend Screen'
+    bl_options = {'UNDO'}
+
+    def execute(self, context):
+        nwo = utils.get_scene_props()
+        screen = nwo.blend_screens.add()
+        screen.name = f'blend_screen_{len(nwo.blend_screens)}'
+        nwo.blend_screens_active_index = len(nwo.blend_screens) - 1
+        return {'FINISHED'}
+
+class NWO_OT_RemoveBlendScreen(bpy.types.Operator):
+    bl_idname = 'nwo.remove_blend_screen'
+    bl_label = 'Remove Blend Screen'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        nwo = utils.get_scene_props()
+        return 0 <= nwo.blend_screens_active_index < len(nwo.blend_screens)
+
+    def execute(self, context):
+        nwo = utils.get_scene_props()
+        nwo.blend_screens.remove(nwo.blend_screens_active_index)
+        nwo.blend_screens_active_index = min(nwo.blend_screens_active_index,
+                                             len(nwo.blend_screens) - 1)
+        return {'FINISHED'}
         
 class NWO_OT_ClearAsset(bpy.types.Operator):
     bl_idname = "nwo.clear_asset"

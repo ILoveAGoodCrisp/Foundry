@@ -4040,9 +4040,22 @@ class NWOImporter:
         # Style conversion needs the graph's blend-screen coordinates, even when
         # an import-info JMA is available for this graph.
         if source_files and not convert_style:
+            blend_screen_choices = {}
+            if self.game in LEGACY_GAMES:
+                with utils.TagImportMover(self.tags_dir, file) as mover:
+                    with AnimationGraphTag(path=mover.tag_path) as graph:
+                        blend_screen_choices = graph.blend_screens_to_blender()
             imported_animation_start = len(self.scene_nwo.animations)
             actions = self.import_jma_files(source_files, armature)
             animations = list(self.scene_nwo.animations[imported_animation_start:])
+            choices_by_name = {
+                name.replace(':', ' ').casefold(): screen
+                for name, screen in blend_screen_choices.items()
+            }
+            for animation in animations:
+                if animation.animation_type == 'overlay':
+                    animation.blend_screen = choices_by_name.get(
+                        animation.name.replace(':', ' ').casefold(), '')
             return (actions, animations) if return_animations else actions
         actions = []
         animations = []
@@ -4055,6 +4068,7 @@ class NWOImporter:
             forced_compression_value = 0
             do_reset = False
             graph_metadata = None
+            blend_screen_choices = {}
             with AnimationGraphTag(path=mover.tag_path) as graph:
                 forced_compression_value, do_reset = graph.force_uncompressed_for_import()
                 graph_metadata = graph.import_metadata()
@@ -4063,6 +4077,8 @@ class NWOImporter:
                 convert_to_legacy = (self.convert_animations and graph.game in REACH_PLUS_GAMES
                                      and self.target_game in LEGACY_GAMES)
                 legacy_blend_screens = graph.blend_screens() if convert_to_reach else {}
+                if graph.game in LEGACY_GAMES:
+                    blend_screen_choices = graph.blend_screens_to_blender()
                 if self.graph_import_ik_chains:
                     if armature == self.scene_nwo.main_armature or self.scene_nwo.main_armature is None:
                         self.scene_nwo.main_armature = armature
@@ -4094,6 +4110,7 @@ class NWOImporter:
                             convert_to_reach=convert_to_reach,
                             convert_to_legacy=convert_to_legacy,
                             legacy_blend_screens=legacy_blend_screens,
+                            blend_screen_choices=blend_screen_choices,
                             convert_animation_names=self.convert_animations,
                             target_game=self.target_game,
                         )
@@ -4117,6 +4134,7 @@ class NWOImporter:
                             convert_to_reach=convert_to_reach,
                             convert_to_legacy=convert_to_legacy,
                             legacy_blend_screens=legacy_blend_screens,
+                            blend_screen_choices=blend_screen_choices,
                             convert_animation_names=self.convert_animations,
                             target_game=self.target_game,
                         )

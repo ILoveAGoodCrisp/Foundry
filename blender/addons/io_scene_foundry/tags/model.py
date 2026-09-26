@@ -109,11 +109,14 @@ class ModelDocument(TagDocument):
         return {self.value(e, 'material name'): self.value(e, 'global material name') or self.value(e, 'material name')
                 for e in self.block(self.tag.root(), name) if self.value(e, 'material name')}
 
-    def set_asset_paths(self):
+    def set_asset_paths(self, preserve_missing=False):
         for field, extension in (('render model', 'render_model'), ('collision model', 'collision_model'),
                                  ('animation', 'model_animation_graph'), ('physics_model', 'physics_model')):
             path = Path(self.asset_dir) / (self.asset_name + '.' + extension)
-            self.set_reference(self.tag.root(), field, path if (self.tags_root / path).is_file() else None)
+            if (self.tags_root / path).is_file():
+                self.set_reference(self.tag.root(), field, path)
+            elif not preserve_missing:
+                self.set_reference(self.tag.root(), field, None)
 
     def set_model_overrides(self, render_model, collision_model, model_animation_graph, physics_model):
         # Export creates local copies of the chosen templates before this call.

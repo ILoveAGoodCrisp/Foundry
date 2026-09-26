@@ -1242,6 +1242,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = col.row()
         row.use_property_split = True
         row.prop(nwo, "frame_events_from_blender")
+        project = utils.get_project(nwo.scene_project)
+        if project and project.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
+            row = col.row()
+            row.use_property_split = True
+            row.prop(nwo, "blend_screens_from_blender")
         tag_path = utils.get_asset_animation_graph()
         if tag_path:
             col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Animation Graph Tag").tag_path = tag_path
@@ -1395,6 +1400,24 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.use_property_split = True
             col.prop_search(chain, 'start_node', nwo.main_armature.data, 'bones', text='Start Bone')
             col.prop_search(chain, 'effector_node', nwo.main_armature.data, 'bones', text='Effector Bone')
+
+    def draw_blend_screens(self, box, nwo):
+        row = box.row()
+        row.template_list("UI_UL_list", "blend_screens", nwo, "blend_screens",
+                          nwo, "blend_screens_active_index")
+        col = row.column(align=True)
+        col.operator("nwo.add_blend_screen", text="", icon="ADD")
+        col.operator("nwo.remove_blend_screen", text="", icon="REMOVE")
+        if not nwo.blend_screens or not 0 <= nwo.blend_screens_active_index < len(nwo.blend_screens):
+            return
+        screen = nwo.blend_screens[nwo.blend_screens_active_index]
+        col = box.column()
+        col.use_property_split = True
+        for name in ('name', 'right_yaw_per_frame', 'left_yaw_per_frame',
+                     'right_frame_count', 'left_frame_count',
+                     'down_pitch_per_frame', 'up_pitch_per_frame',
+                     'down_pitch_frame_count', 'up_pitch_frame_count'):
+            col.prop(screen, name)
             
     def draw_animation_copies(self, box, nwo):
         if not nwo.animation_copies:
@@ -1677,9 +1700,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
-        if self.draw_expandable_box(box, nwo, 'model_rig') and nwo.main_armature:
+        if self.draw_expandable_box(box, nwo, 'model_rig'):
             project = utils.get_project(nwo.scene_project)
-            if project and project.game not in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
+            if project and project.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
+                self.draw_expandable_box(box.box(), nwo, 'blend_screens')
+            elif nwo.main_armature:
                 self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
                 if nwo.asset_type != 'single_animation':
                     self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
@@ -3839,6 +3864,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = col.row()
         row.use_property_split = True
         row.prop(animation, "animation_type")
+        project = utils.get_project(scene_nwo.scene_project)
+        if (animation.animation_type == 'overlay' and project
+                and project.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}):
+            row = col.row()
+            row.use_property_split = True
+            row.prop_search(animation, "blend_screen", scene_nwo, "blend_screens")
         
         is_composite = animation.animation_type == 'composite'
         

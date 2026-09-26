@@ -192,6 +192,8 @@ classes = [
     asset.NWO_OT_AddIKChain,
     asset.NWO_OT_RemoveIKChain,
     asset.NWO_OT_MoveIKChain,
+    asset.NWO_OT_AddBlendScreen,
+    asset.NWO_OT_RemoveBlendScreen,
     asset.NWO_OT_ClearAsset,
     # asset.NWO_OT_RegisterIcons,
     asset.NWO_OT_CopyScenario,

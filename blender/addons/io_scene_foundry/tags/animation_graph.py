@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from math import degrees
+from math import degrees, radians
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -479,6 +479,35 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                     assign(animation_index(entries, 26), weapon_screen, prefix)
             return result
 
+        screens, assignments = self.blend_screen_entries()
+        return {name: screens[index] for name, index in assignments.items()}
+
+    def blend_screen_entries(self) -> tuple[list[AnimationBlendScreen], dict[str, int]]:
+        """Read every classic screen, including screens without an animation."""
+        if self.game == 'halo1':
+            assigned = self.blend_screens()
+            screens: list[AnimationBlendScreen] = []
+            for unit in self.block(self._definitions(), 'units'):
+                mode = str(self.value(unit, 'label'))
+                entries = [(unit, f'{mode}:look')]
+                entries.extend((weapon, f'{mode}:{self.value(weapon, "name")}:aim')
+                               for weapon in self.block(unit, 'weapons'))
+                for holder, label in entries:
+                    screens.append(AnimationBlendScreen(
+                        label=label,
+                        right_yaw_per_frame=degrees(float(self.value(holder, 'right yaw per frame'))),
+                        left_yaw_per_frame=degrees(float(self.value(holder, 'left yaw per frame'))),
+                        right_frame_count=int(self.value(holder, 'right frame count')),
+                        left_frame_count=int(self.value(holder, 'left frame count')),
+                        down_pitch_per_frame=degrees(float(self.value(holder, 'down pitch per frame'))),
+                        up_pitch_per_frame=degrees(float(self.value(holder, 'up pitch per frame'))),
+                        down_pitch_frame_count=int(self.value(holder, 'down pitch frame count')),
+                        up_pitch_frame_count=int(self.value(holder, 'up pitch frame count')),
+                    ))
+            indices_by_label = {screen.label: index for index, screen in enumerate(screens)}
+            return screens, {name: indices_by_label[screen.label]
+                             for name, screen in assigned.items()}
+        definitions = self._definitions()
         screens: list[AnimationBlendScreen] = []
         for element in self.block(definitions, 'blend screens'):
             aiming = self.required_field(element, 'aiming screen').as_struct()
@@ -495,15 +524,150 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 down_pitch_frame_count=int(self.value(aiming, 'down pitch frame count')),
                 up_pitch_frame_count=int(self.value(aiming, 'up pitch frame count')),
             ))
-        result: dict[str, AnimationBlendScreen] = {}
+        assignments: dict[str, int] = {}
         for animation in self.block(definitions, 'animations'):
             field = animation.field('blend screen')
             if field is None:
                 continue
             index = int(field.value)
             if 0 <= index < len(screens):
-                result[str(self.value(animation, 'name'))] = screens[index]
-        return result
+                assignments[str(self.value(animation, 'name'))] = index
+        return screens, assignments
+
+    def blend_screens_to_blender(self) -> dict[str, str]:
+        """Store every classic screen and return animation-to-screen names."""
+        screens, assignments = self.blend_screen_entries()
+        collection = self.scene_nwo.blend_screens
+        collection.clear()
+        names = []
+        for screen in screens:
+            item = collection.add()
+            item.name = screen.label
+            for field in ('right_yaw_per_frame', 'left_yaw_per_frame',
+                          'right_frame_count', 'left_frame_count',
+                          'down_pitch_per_frame', 'up_pitch_per_frame',
+                          'down_pitch_frame_count', 'up_pitch_frame_count'):
+                value = getattr(screen, field)
+                setattr(item, field, radians(value) if 'per_frame' in field else value)
+            names.append(item.name)
+        self.scene_nwo.blend_screens_active_index = 0
+        return {name: names[index] for name, index in assignments.items()}
+
+    @staticmethod
+    def _screen_name(name: str) -> str:
+        return name.replace(':', ' ').casefold()
+
+    def _write_screen_values(self, holder: blam_tags.TagStruct, screen: object | None) -> None:
+        for field in ('right yaw per frame', 'left yaw per frame', 'right frame count',
+                      'left frame count', 'down pitch per frame', 'up pitch per frame',
+                      'down pitch frame count', 'up pitch frame count'):
+            attribute = field.replace(' ', '_')
+            value = getattr(screen, attribute) if screen is not None else 0
+            self.required_field(holder, field).set(value)
+        self.tag_has_changes = True
+
+    def blend_screens_from_blender(self, blender_screens, blender_animations) -> int:
+        """Replace classic screens and assign them to compiled overlays."""
+        screens = list(blender_screens)
+        indices: dict[str, int] = {}
+        for index, screen in enumerate(screens):
+            name = screen.name.strip()
+            if not name or name.casefold() in indices:
+                raise ValueError(f'{self.path}: blend screen labels must be unique and nonempty')
+            indices[name.casefold()] = index
+        choices = {
+            self._screen_name(animation.name): animation.blend_screen.strip()
+            for animation in blender_animations
+            if animation.animation_type == 'overlay'
+        }
+        for name, choice in choices.items():
+            if choice and choice.casefold() not in indices:
+                raise ValueError(f'{self.path}: animation {name!r} references missing blend screen {choice!r}')
+
+        definitions = self._definitions()
+        animations = self.block(definitions, 'animations')
+        animation_indices = {
+            self._screen_name(str(self.value(animation, 'name'))): index
+            for index, animation in enumerate(animations)
+        }
+        if self.game == 'halo1':
+            known_labels = set()
+            for unit in self.block(definitions, 'units'):
+                mode = str(self.value(unit, 'label'))
+                known_labels.add(f'{mode}:look'.casefold())
+                known_labels.update(
+                    f'{mode}:{self.value(weapon, "name")}:aim'.casefold()
+                    for weapon in self.block(unit, 'weapons')
+                )
+            unknown_labels = set(indices) - known_labels
+            if unknown_labels:
+                raise ValueError(
+                    f'{self.path}: H1 blend screens must match a unit or weapon: '
+                    f'{", ".join(sorted(unknown_labels))}')
+            selected: dict[str, list[int]] = {}
+            for name, choice in choices.items():
+                if choice and name in animation_indices:
+                    selected.setdefault(choice.casefold(), []).append(animation_indices[name])
+            def retain_unedited(slots, label: str, slot_indices: tuple[int, ...]) -> None:
+                if label not in indices:
+                    return
+                for slot_index in slot_indices:
+                    if slot_index >= len(slots):
+                        continue
+                    index = int(self.value(slots[slot_index], 'animation'))
+                    if 0 <= index < len(animations):
+                        name = self._screen_name(str(self.value(animations[index], 'name')))
+                        if name not in choices:
+                            selected.setdefault(label, []).append(index)
+            for unit in self.block(definitions, 'units'):
+                mode = str(self.value(unit, 'label'))
+                label = f'{mode}:look'.casefold()
+                screen = screens[indices[label]] if label in indices else None
+                self._write_screen_values(unit, screen)
+                slots = self.block(unit, 'animations')
+                retain_unedited(slots, label, (9,))
+                if len(slots) > 9:
+                    matches = selected.get(label, [])
+                    self.required_field(slots[9], 'animation').set(matches[0] if matches else -1)
+                for weapon in self.block(unit, 'weapons'):
+                    label = f'{mode}:{self.value(weapon, "name")}:aim'.casefold()
+                    screen = screens[indices[label]] if label in indices else None
+                    self._write_screen_values(weapon, screen)
+                    slots = self.block(weapon, 'animations')
+                    retain_unedited(slots, label, (25, 26))
+                    matches = selected.get(label, [])
+                    for slot_index in (25, 26):
+                        if len(slots) > slot_index:
+                            position = slot_index - 25
+                            self.required_field(slots[slot_index], 'animation').set(
+                                matches[position] if len(matches) > position else -1)
+            self.tag_has_changes = True
+            return len(screens)
+
+        previous_screens, previous_assignments = self.blend_screen_entries()
+        previous_choices = {
+            self._screen_name(name): previous_screens[index].label
+            for name, index in previous_assignments.items()
+        }
+        block = self.block(definitions, 'blend screens')
+        block.clear()
+        for screen in screens:
+            block = self.block(definitions, 'blend screens')
+            element = block[block.add()]
+            self.required_field(element, 'label').set(screen.name)
+            aiming = self.required_field(element, 'aiming screen').as_struct()
+            if aiming is None:
+                raise TypeError(f'{self.path}: aiming screen is not a structure')
+            self._write_screen_values(aiming, screen)
+        for animation in self.block(definitions, 'animations'):
+            field = animation.field('blend screen')
+            if field is None:
+                continue
+            name = self._screen_name(str(self.value(animation, 'name')))
+            choice = choices.get(name, previous_choices.get(name, ''))
+            field.set(indices.get(choice.casefold(), -1) if choice else -1)
+        self.tag_has_changes = True
+        return len(screens)
 
     def nodes(self) -> list[AnimationGraphNode]:
         definitions = self._definitions()

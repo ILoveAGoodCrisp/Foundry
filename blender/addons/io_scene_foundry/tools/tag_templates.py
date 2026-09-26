@@ -37,8 +37,20 @@ class NWO_OT_LoadTemplate(bpy.types.Operator):
         full_path = Path(utils.get_tags_path(), tag_path)
         utils.copy_file(template_full_path, full_path) 
         if self.tag_type == 'model':
+            for component in ('render_model', 'collision_model',
+                              'model_animation_graph', 'physics_model'):
+                template = getattr(scene_nwo, f'template_{component}', '').strip()
+                if not template:
+                    continue
+                source = Path(utils.get_tags_path(), utils.relative_path(template))
+                destination = full_path.with_suffix('.' + component)
+                if not destination.is_file():
+                    if source.is_file():
+                        utils.copy_file(source, destination)
+                    else:
+                        self.report({'WARNING'}, f'Tag template does not exist: {source}')
             with ModelTag(path=tag_path) as model:
-                model.set_asset_paths()
+                model.set_asset_paths(preserve_missing=True)
                 model.set_model_overrides(scene_nwo.template_render_model, scene_nwo.template_collision_model, scene_nwo.template_model_animation_graph, scene_nwo.template_physics_model)
         else:
             with ObjectTag(path=tag_path) as tag:

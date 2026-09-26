@@ -32,6 +32,7 @@ from ..legacy.mirror import mirror_ass, mirror_jms, mirror_transform
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, legacy_bone_order, node_checksum, write_jms, write_ass
 from ..tags.backend import TagDocument
 from ..tags.animation_graph import AnimationGraphTag
+from ..tags.model_blender import ModelTag
 from ..tags.object import ObjectDocument
 from ..tags.scenario import ScenarioDocument
 from ..tools.scenario.lightmap import run_halo1_lightmapper
@@ -408,6 +409,8 @@ class LegacyExportScene(ExportScene):
             # H1 has no usable tool_fast equivalent for these imports.
             halo1_tool_options = {'force_tool': True}
             self.copy_halo1_templates(animation_only)
+        elif self.target_game in {'halo2', 'halo3', 'halo3odst'}:
+            self.copy_classic_model_templates(animation_only)
         if self.asset_type.name == 'SCENARIO':
             structure_dir = Path(
                 self.asset_path, 'models' if self.target_game == 'halo1' else 'structure')
@@ -506,6 +509,12 @@ class LegacyExportScene(ExportScene):
             utils.run_tool([command, self.asset_path_relative],
                            event_level=self.export_settings.event_level,
                            **animation_tool_options)
+        graph_extension = ('model_animations' if self.target_game == 'halo1'
+                           else 'model_animation_graph')
+        graph_path = Path(self.tags_dir, self.asset_path_relative,
+                          self.asset_name).with_suffix('.' + graph_extension)
+        if import_animations or (self.scene_settings.blend_screens_from_blender
+                                 and graph_path.is_file()):
             self.write_classic_animation_events()
         if self.target_game == 'halo1' and import_animations:
             self.validate_halo1_animation_skeleton()
@@ -553,6 +562,37 @@ class LegacyExportScene(ExportScene):
                         f'H1 animation {graph.value(animation, "name")!r} has an '
                         'incompatible skeleton. Export all animations and geometry together.')
 
+    def copy_classic_model_templates(self, animation_only=False):
+        """Seed missing H2/H3/ODST model tags before Tool imports them."""
+        if self.asset_type.name not in {'MODEL', 'SKY', 'ANIMATION', 'SINGLE_ANIMATION'}:
+            return
+        templates = [('template_model_animation_graph', 'model_animation_graph')]
+        if not animation_only and self.asset_type.name in {'MODEL', 'SKY'}:
+            templates.extend((
+                ('template_model', 'model'),
+                ('template_render_model', 'render_model'),
+                ('template_collision_model', 'collision_model'),
+                ('template_physics_model', 'physics_model'),
+            ))
+        base = Path(self.tags_dir, self.asset_path_relative, self.asset_name)
+        copies = []
+        for setting, extension in templates:
+            template = getattr(self.scene_settings, setting, '').strip()
+            if not template:
+                continue
+            source = Path(self.tags_dir, utils.relative_path(template))
+            destination = base.with_suffix('.' + extension)
+            if destination.is_file():
+                continue
+            if not source.is_file():
+                utils.print_warning(f'Tag template does not exist: {source}')
+                continue
+            copies.append((source, destination))
+        for source, destination in copies:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            utils.copy_file(source, destination)
+            print(f'--- Loaded template {destination}')
+
     def copy_halo1_templates(self, animation_only=False):
         """Seed H1 tags before Tool imports; explicit component templates win."""
         templates = {}
@@ -573,7 +613,8 @@ class LegacyExportScene(ExportScene):
                     continue
                 source = Path(self.tags_dir, utils.relative_path(template))
                 if not source.is_file():
-                    raise FileNotFoundError(f'Tag template does not exist: {source}')
+                    utils.print_warning(f'Tag template does not exist: {source}')
+                    continue
                 if not animation_only:
                     templates[kind] = source
                 if kind != 'scenario':
@@ -609,7 +650,8 @@ class LegacyExportScene(ExportScene):
                 # instead of replacing it with the template's old indices.
                 continue
             if not source.is_file():
-                raise FileNotFoundError(f'Tag template does not exist: {source}')
+                utils.print_warning(f'Tag template does not exist: {source}')
+                continue
             if source.resolve() != destination.resolve():
                 copies.append((destination, source.read_bytes()))
         for destination, data in copies:
@@ -775,7 +817,9 @@ class LegacyExportScene(ExportScene):
             ('physics', 'template_physics_model', 'physics'),
         ):
             template = getattr(self.scene_settings, setting, '').strip()
-            if present[field] or template:
+            template_exists = bool(template and Path(
+                self.tags_dir, utils.relative_path(template)).is_file())
+            if present[field] or template_exists:
                 destination = base.with_suffix('.' + extension)
                 if not destination.is_file():
                     raise FileNotFoundError(f'Asset component tag does not exist: {destination}')
@@ -793,6 +837,11 @@ class LegacyExportScene(ExportScene):
             raise FileNotFoundError(
                 f'Model compilation did not create the expected tag: {model_path}')
 
+        if self.target_game in {'halo2', 'halo3', 'halo3odst'}:
+            with ModelTag(path=model_path) as model:
+                model.set_asset_paths(preserve_missing=True)
+            print(f'--- Wrote model tag paths to {model_path}')
+
         if (self.asset_type.name == 'SKY'
                 and self.target_game in {'halo1', 'halo2'}):
             self.write_classic_sky_tag(model_path)
@@ -806,15 +855,16 @@ class LegacyExportScene(ExportScene):
         for tag_type in sorted(outputs):
             destination = model_path.with_suffix('.' + tag_type)
             template = getattr(self.scene_settings, 'template_' + tag_type, '')
-            if template and not destination.exists():
+            if template:
                 template_path = Path(self.tags_dir, utils.relative_path(template))
-                if template_path.is_file():
+                if not template_path.is_file():
+                    utils.print_warning(
+                        f'Tag template does not exist: {template_path}')
+                    template = ''
+                elif not destination.exists():
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     utils.copy_file(template_path, destination)
                     print(f'--- Loaded {tag_type} tag template')
-                else:
-                    utils.print_warning(
-                        f'Tag template does not exist: {template_path}')
 
             with ObjectDocument(destination, tags_root=self.tags_dir,
                                 game=self.target_game) as tag:
@@ -896,7 +946,8 @@ class LegacyExportScene(ExportScene):
                     if self.target_game == 'halo1' else ())
         world_animations = (self.reach_world_animations
                             if self.target_game == 'halo1' else ())
-        if not animations and not settings and not world_animations:
+        write_screens = self.scene_settings.blend_screens_from_blender
+        if not animations and not settings and not world_animations and not write_screens:
             return
         with AnimationGraphTag(destination) as graph:
             count = (graph.inline_events_from_blender(animations)
@@ -905,12 +956,19 @@ class LegacyExportScene(ExportScene):
                 graph.set_animation_settings(settings)
             if world_animations:
                 graph.set_world_animations(world_animations)
+            if write_screens:
+                screen_count = graph.blend_screens_from_blender(
+                    self.scene_settings.blend_screens,
+                    self.scene_settings.animations,
+                )
         if animations:
             print(f'--- Updated inline events for {count} animation(s) in {destination}')
         if settings:
             print(f'--- Updated animation settings for {len(settings)} animation(s) in {destination}')
         if world_animations:
             print(f'--- Updated {len(world_animations)} world-relative animation(s) in {destination}')
+        if write_screens:
+            print(f'--- Wrote {screen_count} blend screen(s) in {destination}')
 
     def create_event_objects(self, animation):
         unsupported = [

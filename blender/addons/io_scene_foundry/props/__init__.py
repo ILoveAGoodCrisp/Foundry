@@ -39,6 +39,7 @@ classes = [
     scene.NWO_BSP_ListItems,
     scene.NWO_GlobalMaterial_ListItems,
     scene.NWO_IKChain,
+    scene.NWO_BlendScreen,
     scene.NWO_ControlObjects,
     # scene.NWO_ChildAsset,
     scene.NWO_CinematicEvent,

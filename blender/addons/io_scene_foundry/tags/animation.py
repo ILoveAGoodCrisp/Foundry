@@ -3840,6 +3840,7 @@ class AnimationTag(AnimationGraphTag):
         convert_to_reach=False,
         convert_to_legacy=False,
         legacy_blend_screens=None,
+        blend_screen_choices=None,
         convert_animation_names=False,
         target_game: str = '',
     ):
@@ -3938,6 +3939,8 @@ class AnimationTag(AnimationGraphTag):
                 utils.print_step(animation_name)
                 blender_animation = self.scene_nwo.animations.add()
                 blender_animation.name = animation_name
+                if overlay and blend_screen_choices:
+                    blender_animation.blend_screen = blend_screen_choices.get(source_name.tag_name, '')
                 blender_animation.frame_start = 1
                 blender_animation.frame_end = imported_frame_count
                 animations.append(blender_animation.name)

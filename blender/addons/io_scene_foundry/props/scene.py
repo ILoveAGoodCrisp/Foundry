@@ -1191,6 +1191,12 @@ class NWO_AnimationArmatureSnapshot(bpy.types.PropertyGroup):
 
 class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     active_action_group_index: bpy.props.IntProperty()
+
+    blend_screen: bpy.props.StringProperty(
+        name="Blend Screen",
+        description="Blend screen used by this overlay in classic animation graphs",
+        options=set(),
+    )
     
     # animation_composites_expanded: bpy.props.BoolProperty(default=True, options=set())
     
@@ -1919,6 +1925,17 @@ class NWO_IKChain(PropertyGroup):
     name: bpy.props.StringProperty(name="Name", options=set())
     start_node: bpy.props.StringProperty(name="Start Bone", options=set())
     effector_node: bpy.props.StringProperty(name="Effector Bone", options=set())
+
+class NWO_BlendScreen(PropertyGroup):
+    name: bpy.props.StringProperty(name="Label", options=set())
+    right_yaw_per_frame: bpy.props.FloatProperty(name="Right Yaw Per Frame", subtype='ANGLE', options=set())
+    left_yaw_per_frame: bpy.props.FloatProperty(name="Left Yaw Per Frame", subtype='ANGLE', options=set())
+    right_frame_count: bpy.props.IntProperty(name="Right Frame Count", min=0, options=set())
+    left_frame_count: bpy.props.IntProperty(name="Left Frame Count", min=0, options=set())
+    down_pitch_per_frame: bpy.props.FloatProperty(name="Down Pitch Per Frame", subtype='ANGLE', options=set())
+    up_pitch_per_frame: bpy.props.FloatProperty(name="Up Pitch Per Frame", subtype='ANGLE', options=set())
+    down_pitch_frame_count: bpy.props.IntProperty(name="Down Pitch Frame Count", min=0, options=set())
+    up_pitch_frame_count: bpy.props.IntProperty(name="Up Pitch Frame Count", min=0, options=set())
     
 class NWO_ControlObjects(PropertyGroup):
     ob: bpy.props.PointerProperty(type=bpy.types.Object, options=set())
@@ -3408,6 +3425,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     rig_object_controls_expanded: bpy.props.BoolProperty(default=False, options=set())
     rig_usages_expanded: bpy.props.BoolProperty(default=False, options=set())
     ik_chains_expanded: bpy.props.BoolProperty(default=False, options=set())
+    blend_screens_expanded: bpy.props.BoolProperty(default=False, options=set())
     animation_copies_expanded: bpy.props.BoolProperty(default=False, options=set())
     
     child_assets_expanded: bpy.props.BoolProperty(default=False, options=set())
@@ -3804,6 +3822,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     ik_chains_active_index: bpy.props.IntProperty(options=set())
+
+    blend_screens: bpy.props.CollectionProperty(type=NWO_BlendScreen)
+    blend_screens_active_index: bpy.props.IntProperty(options=set())
     
     object_controls: bpy.props.CollectionProperty(
         type=NWO_ControlObjects,
@@ -4176,6 +4197,13 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
         description="On export, animation frame events will be updated from Blender",
         default=True,
+    )
+
+    blend_screens_from_blender: bpy.props.BoolProperty(
+        name="Blend Screens Authored From Blender",
+        description="Replace classic animation graph blend screens with the screens stored in this blend file on export",
+        default=False,
+        options=set(),
     )
     
     last_bsp_split_was_layer: bpy.props.BoolProperty(
