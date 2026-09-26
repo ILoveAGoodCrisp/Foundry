@@ -194,6 +194,19 @@ class PhysicsDocument(TagDocument):
             material = (None if material_name is None else
                         SimpleNamespace(index=material_index, name=str(material_name)))
             record = SimpleNamespace(**value)
+            # The H2 flat-shape decoder returns dimensions in centimeters. The
+            # shared Shape.from_native builders expect meters and convert them
+            # to Foundry's centimeter coordinates themselves.
+            record.radius *= 0.01
+            record.translation = tuple(component * 0.01 for component in record.translation)
+            if record.kind == 'box':
+                record.half_extents = tuple(component * 0.01 for component in record.half_extents)
+            elif record.kind == 'pill':
+                record.bottom = tuple(component * 0.01 for component in record.bottom)
+                record.top = tuple(component * 0.01 for component in record.top)
+            elif record.kind == 'polyhedron':
+                record.vertices = [tuple(component * 0.01 for component in vertex)
+                                   for vertex in record.vertices]
             record.material_index = material_index
             record.material = material
             record.region = 'default'

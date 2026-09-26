@@ -279,8 +279,9 @@ class LegacyExportScene(ExportScene):
             for (folder, name), nodes in grouped.items():
                 use_ass = self.ass_version is not None and (folder == 'structure' or
                     (folder == 'render' and any(n.props.get('bungie_mesh_type') == 11 for n in nodes)))
-                lights = tuple(ob for ob, bsp in self.lights.items()
-                               if folder == 'structure' and bsp == name)
+                lights = (() if self.target_game in {'halo1', 'halo2'} else
+                          tuple(ob for ob, bsp in self.lights.items()
+                                if folder == 'structure' and bsp == name))
                 ass_markers = ()
                 if folder == 'render':
                     ass_markers = markers

@@ -1621,20 +1621,19 @@ class NWO_Import(bpy.types.Operator):
                             imported_object_objects = []
                             if game_object_collection is None:
                                 game_object_collection = importer.import_object(marker, None)
-                                merged_collection = merge_collection(game_object_collection)
-                                imported_object_objects = game_object_collection.all_objects
-                                context.scene.collection.children.unlink(game_object_collection)
-                                # bpy.data.collections.link(game_object_collection)
-                                game_object_collection = importer.cache_game_object_collection(merged_collection, *key)
-                                
-                            marker.instance_type = 'COLLECTION'
-                            marker.instance_collection = game_object_collection
-                            marker.nwo.marker_instance = True
-                            imported_objects.append(marker)
-                            context.collection.objects.link(marker)
-                            
-                            marker.select_set(True)
-                            context.view_layer.objects.active = marker
+                                if game_object_collection is not None:
+                                    merged_collection = merge_collection(game_object_collection)
+                                    imported_object_objects = game_object_collection.all_objects
+                                    context.scene.collection.children.unlink(game_object_collection)
+                                    game_object_collection = importer.cache_game_object_collection(merged_collection, *key)
+                            if game_object_collection is not None:
+                                marker.instance_type = 'COLLECTION'
+                                marker.instance_collection = game_object_collection
+                                marker.nwo.marker_instance = True
+                                imported_objects.append(marker)
+                                context.collection.objects.link(marker)
+                                marker.select_set(True)
+                                context.view_layer.objects.active = marker
                         
                     else:
                         importer.tag_model_override_type = RenderModelOverrideType(self.tag_model_override_type) if self.tag_model_override_type != 'none' else None
@@ -3434,6 +3433,7 @@ class NWOImporter:
         imported_animations = []
         use_fp_graph = False
         armature = None
+        model_collection = None
         if parent_collection is not None:
             scene_collection = parent_collection
         elif blender_scene is None:
@@ -3461,6 +3461,9 @@ class NWOImporter:
             if is_game_object:
                 game_object = file
                 file = str(Path(utils.get_tags_path(), game_object.nwo.marker_game_instance_tag_name))
+                if not Path(file).is_file():
+                    utils.print_warning(f"Game object tag does not exist: {game_object.nwo.marker_game_instance_tag_name}")
+                    continue
             
             # cache_key = file, self.tag_variant
             # cached = objects_cache.get(cache_key)
@@ -3501,6 +3504,8 @@ class NWOImporter:
                             
                     model_path = obj.get_model_tag_path_full()
                     if not model_path or not Path(model_path).exists():
+                        if is_game_object:
+                            utils.print_warning(f"No model tag for game object {obj.tag_path.RelativePathWithExtension}")
                         continue
                     change_colors = obj.get_change_colors(self.tag_variant)
                     magazine_size = obj.get_magazine_size(find_weapon=True)
@@ -4481,6 +4486,8 @@ class NWOImporter:
                                             game_object_collection = self.import_prefab(ob)
                                         else:
                                             game_object_collection = self.import_object(ob, None, skeleton_pose)
+                                        if game_object_collection is None:
+                                            continue
                                         
                                         merged_collection = merge_collection(game_object_collection, has_skeleton_pose) 
                                         imported_objects.extend(game_object_collection.all_objects)
@@ -4573,7 +4580,11 @@ class NWOImporter:
             if Path(path).suffix.lower() in legacy_model_formats
         ]
         if source_files:
-            return self.import_jms_files(source_files, 'bsp'), None
+            bsp_objects = self.import_jms_files(source_files, 'bsp')
+            game_objects = [ob for ob in bsp_objects if ob.type == 'EMPTY'
+                            and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance']
+            self._import_bsp_game_objects(bsp_objects, game_objects)
+            return bsp_objects, None
         bsp_objects = []
         collection = bpy.data.collections.get(bsp_name)
         if collection is not None and collection.nwo.type != 'region':
@@ -4591,29 +4602,7 @@ class NWOImporter:
                 meshes = {ob.data for ob in bsp_objects if ob.type == 'MESH'}
                 self.emissive_meshes.update({me for me in meshes if any(p.type == 'emissive' for p in me.nwo.face_props)})
                 
-                if game_objects:
-                    print("Importing Game Object Geometry")
-                    for ob in game_objects:
-                        
-                        key = ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name
-                        game_object_collection = self.get_cached_game_object_collection(*key)
-                        
-                        if game_object_collection is None:
-                            suffix = "Marker"
-                            if ob.nwo.marker_game_instance_tag_name.endswith(".prefab"):
-                                game_object_collection = self.import_prefab(ob)
-                                suffix = "Prefab"
-                            else:
-                                game_object_collection = self.import_object(ob, None)
-                            merged_collection = merge_collection(game_object_collection, suffix=suffix)
-                            bsp_objects.extend(game_object_collection.all_objects)
-                            self.scene_collection.children.unlink(game_object_collection)
-                            # bpy.data.collections.link(game_object_collection)
-                            game_object_collection = self.cache_game_object_collection(merged_collection, *key)
-                            
-                        ob.instance_type = 'COLLECTION'
-                        ob.instance_collection = game_object_collection
-                        ob.nwo.marker_instance = True
+                self._import_bsp_game_objects(bsp_objects, game_objects)
                 # seams = bsp.get_seams(bsp_name, seams)
         
         bsp_name = utils.add_region(bsp_name, utils.SetType.SCENARIO)
@@ -4622,6 +4611,33 @@ class NWOImporter:
         collection.nwo.region = bsp_name
         
         return bsp_objects, bvh
+
+    def _import_bsp_game_objects(self, bsp_objects, game_objects):
+        if not game_objects:
+            return
+        print("Importing Game Object Geometry")
+        for ob in game_objects:
+            tag_path = ob.nwo.marker_game_instance_tag_name
+            if not tag_path:
+                continue
+            key = tag_path, ob.nwo.marker_game_instance_tag_variant_name
+            game_object_collection = self.get_cached_game_object_collection(*key)
+            if game_object_collection is None:
+                suffix = "Marker"
+                if tag_path.endswith(".prefab"):
+                    game_object_collection = self.import_prefab(ob)
+                    suffix = "Prefab"
+                else:
+                    game_object_collection = self.import_object(ob, None)
+                if game_object_collection is None:
+                    continue
+                merged_collection = merge_collection(game_object_collection, suffix=suffix)
+                bsp_objects.extend(game_object_collection.all_objects)
+                self.scene_collection.children.unlink(game_object_collection)
+                game_object_collection = self.cache_game_object_collection(merged_collection, *key)
+            ob.instance_type = 'COLLECTION'
+            ob.instance_collection = game_object_collection
+            ob.nwo.marker_instance = True
     
     def import_scenario_structure_lighting_info(self, file, parent_collection=None, cinematic_cameras=[]):
         info_name = Path(file).with_suffix("").name
@@ -6093,6 +6109,9 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
                 collection = importer.import_decorator_set(ob, self.build_blender_materials, self.always_extract_bitmaps, single_type=variant, lod=int(self.decorator_lod), only_single_type=True)
             else:
                 collection = importer.import_object(ob, None)
+            if collection is None:
+                self.report({'WARNING'}, f"No model tag for game object: {tag_path_rel}")
+                return {'CANCELLED'}
             
             merged_collection = merge_collection(collection, suffix=suffix)
             context.scene.collection.children.unlink(collection)

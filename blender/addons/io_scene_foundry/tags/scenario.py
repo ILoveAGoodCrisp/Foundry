@@ -562,7 +562,8 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 position = self.value(object_data, 'position')
                 rotation = self.value(object_data, 'rotation')
                 scale = self.value(object_data, 'scale') or 1.0
-                folder_index = self.value(object_data, 'editor folder')
+                folder_field = object_data.field('editor folder')
+                folder_index = folder_field.value if folder_field is not None else -1
                 if not isinstance(folder_index, int):
                     folder_index = -1
 

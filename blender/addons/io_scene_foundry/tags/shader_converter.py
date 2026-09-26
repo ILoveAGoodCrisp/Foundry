@@ -2164,11 +2164,19 @@ class ShaderTag(BlenderTag, TagDocument):
                 tinted_reflection.location = (170, 580)
                 tree.links.new(environment.outputs['Color'], tinted_reflection.inputs[0])
                 tree.links.new(reflection_tint.outputs['Color'], tinted_reflection.inputs[1])
+                # A cubemap added directly to Base Color makes H2 surfaces look
+                # wet even when viewed head-on. Keep the tag's brightness and
+                # tint, but attenuate the reflection by the view angle.
+                fresnel_reflection = nodes.new(type='ShaderNodeVectorMath')
+                fresnel_reflection.operation = 'SCALE'
+                fresnel_reflection.location = (370, 580)
+                tree.links.new(tinted_reflection.outputs['Vector'], fresnel_reflection.inputs['Vector'])
+                tree.links.new(facing.outputs['Fresnel'], fresnel_reflection.inputs['Scale'])
                 add_reflection = nodes.new(type='ShaderNodeVectorMath')
                 add_reflection.operation = 'ADD'
                 add_reflection.location = (570, 360)
                 tree.links.new(base_color, add_reflection.inputs[0])
-                tree.links.new(tinted_reflection.outputs['Vector'], add_reflection.inputs[1])
+                tree.links.new(fresnel_reflection.outputs['Vector'], add_reflection.inputs[1])
                 base_color = add_reflection.outputs['Vector']
             tree.links.new(base_color, bsdf.inputs['Base Color'])
 

@@ -666,6 +666,9 @@ class ExportScene:
                             self.warnings.append(warning)
                             continue
                 if ob.type == 'LIGHT':
+                    if (self.legacy_export and self.project_game in {'halo1', 'halo2'}
+                            and ob.data.type != 'AREA'):
+                        continue
                     if ob.data.energy < 0:
                         self.warnings.append(f"Light {ob.name} has power less than zero. Ignoring")
                         continue
@@ -3102,7 +3105,10 @@ class ExportScene:
                         with ScenarioStructureBspMetadataTag(path=utils.relative_path(bsp_path)) as bsp:
                             bsp.fix_collision_render_surface_mapping()
 
-        light_asset = self.export_settings.update_lighting_info and (self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB} or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY}))
+        light_asset = (self.project_game not in {'halo1', 'halo2'}
+                       and self.export_settings.update_lighting_info
+                       and (self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}
+                            or (self.corinth and self.asset_type in {AssetType.MODEL, AssetType.SKY})))
         if light_asset:
             time.sleep(0.1) # fix an issue where light tag can't yet be written to
             if light_asset:

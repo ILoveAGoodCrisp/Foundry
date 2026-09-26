@@ -134,9 +134,10 @@ class ModelDocument(TagDocument):
         for element in self.variants():
             if self.value(element, 'name') == variant:
                 for child in self.block(element, 'objects'):
+                    variant_field = child.field('child variant name')
                     result.append(SimpleNamespace(parent_marker=self.value(child, 'parent marker'),
                         child_marker=self.value(child, 'child marker'),
-                        child_variant_name=self.value(child, 'child variant name'),
+                        child_variant_name=variant_field.value if variant_field is not None else '',
                         child_object=self.reference(child, 'child object')))
         return result
 
