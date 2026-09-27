@@ -20,6 +20,34 @@ def plane_values(plane):
     return plane.i, plane.j, plane.k, plane.d
 
 
+def fog_geometry(vertices, face):
+    """Avoid thin ears when tessellating compiled H1 fog outlines.
+
+    Compiled boundaries contain almost-collinear clipping vertices. Blender's
+    ngon tessellation can make slivers from these, causing H1 Tool to generate
+    an extra fog plane and fail during PVS construction. A center fan retains
+    every boundary vertex without those ears. Only use it when the center is
+    strictly inside every oriented edge; otherwise preserve the input polygon.
+    """
+    if len(face) <= 3:
+        return vertices, [face]
+    points = np.asarray([vertices[i] for i in face], dtype=np.float64)
+    center = points.mean(axis=0)
+    relative = points - center
+    edges = np.roll(points, -1, axis=0) - points
+    normal = np.cross(relative, np.roll(relative, -1, axis=0)).sum(axis=0)
+    length = np.linalg.norm(normal)
+    if length <= 1e-12:
+        return vertices, [face]
+    normal /= length
+    if (np.max(np.abs(relative @ normal)) > 0.0001 or
+            np.any(np.cross(edges, center - points) @ normal <= 1e-12)):
+        return vertices, [face]
+    center_index = len(vertices)
+    return [*vertices, tuple(center)], [
+        [a, b, center_index] for a, b in zip(face, face[1:] + face[:1])]
+
+
 def weather_vertices(planes):
     """Intersect inward weather planes in double precision before building a hull."""
     planes = np.asarray(planes, dtype=np.float64)
@@ -176,8 +204,8 @@ def replace_collision_only(objects, tag=None):
                 mesh.attributes.remove(attribute)
                 mesh.nwo.face_props.remove(index)
         utils.calc_face_prop_counts(mesh)
-    if unresolved:
-        utils.print_warning(f'Could not resolve clusters for {unresolved} H1 shell faces; kept +sky fallback')
+    # if unresolved:
+    #     utils.print_warning(f'Could not resolve clusters for {unresolved} H1 shell faces; kept +sky fallback')
 
 
 def apply_collision_surface_flags(tag, objects):
@@ -312,7 +340,8 @@ def create_helpers(tag, collection):
                       for i in range(len(vertices))), Vector())
         if normal.dot(Vector(plane[:3])) < 0:
             face.reverse()
-        ob = mesh_object(f'+fog_{index}', vertices, [face], 'planar_fog_volume', '+fog')
+        vertices, faces = fog_geometry(vertices, face)
+        ob = mesh_object(f'+fog_{index}', vertices, faces, 'planar_fog_volume', '+fog')
         ob['h1_front_region'] = int(tag.value(fog, 'front region'))
         ob['h1_plane'] = plane
 
