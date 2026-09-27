@@ -1076,6 +1076,50 @@ class XREF:
         self.name = xref_name or PureWindowsPath(xref_path.replace('/', '\\')).stem
 
 
+class NWO_OT_ConvertScene(bpy.types.Operator):
+    bl_label = "Convert Scene"
+    bl_idname = "nwo.convert_scene"
+    bl_description = "Convert an io_scene_halo JMS/ASS scene to Foundry export properties"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    selected_only: bpy.props.BoolProperty(
+        name="Selected Only", description="Convert only selected objects")
+    jms_type: bpy.props.EnumProperty(
+        name="Scene Type", items=[('model', "Model", ""), ('scenario', "Scenario", "")])
+
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'OBJECT' and utils.current_project_valid()
+
+    def invoke(self, context, event):
+        self.jms_type = 'scenario' if utils.get_scene_props().asset_type == 'scenario' else 'model'
+        return context.window_manager.invoke_props_dialog(self)
+
+    def draw(self, context):
+        self.layout.prop(self, 'selected_only')
+        self.layout.prop(self, 'jms_type', expand=True)
+
+    def execute(self, context):
+        if not hasattr(bpy.types.Material, 'ass_jms') or not hasattr(bpy.types.Mesh, 'ass_jms'):
+            self.report({'WARNING'}, "Enable the Halo Blender Toolset (io_scene_halo) before converting")
+            return {'CANCELLED'}
+        from ..legacy.scene_converter import HaloSceneConverter
+        objects = list(context.selected_objects if self.selected_only else context.scene.objects)
+        if any(not ob.get('foundry_converted_from_toolset') and
+               (ob.library or (ob.data and ob.data.library)) for ob in objects):
+            self.report({'WARNING'}, "Make linked objects and their data local before converting")
+            return {'CANCELLED'}
+        converter = HaloSceneConverter(NWOImporter(context, existing_scene=True), self.jms_type == 'model')
+        converted = converter.convert(objects)
+        if converter.warnings:
+            for warning in sorted(converter.warnings):
+                utils.print_warning(warning)
+            self.report({'WARNING'}, f"Converted {converted} objects; see output for unsupported source properties")
+        else:
+            self.report({'INFO'}, f"Converted {converted} objects to Foundry")
+        return {'FINISHED'}
+
+
 class NWO_Import(bpy.types.Operator):
     bl_label = "Foundry Import"
     bl_idname = "nwo.foundry_import"
@@ -2584,6 +2628,56 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, "always_extract_bitmaps")
             
 class JMSMaterialSlot:
+    @classmethod
+    def from_material(cls, material, game, scale=1):
+        """Read toolset properties without renaming or editing the source material."""
+        props = material.ass_jms
+        result = cls.from_name(props.name_override.strip() or material.name)
+        for target, source in (
+            ('two_sided', 'two_sided'), ('transparent_one_sided', 'transparent_1_sided'),
+            ('transparent_two_sided', 'transparent_2_sided'), ('render_only', 'render_only'),
+            ('collision_only', 'collision_only'), ('sphere_collision_only', 'sphere_collision_only'),
+            ('fog_plane', 'fog_plane'), ('ladder', 'ladder'), ('breakable', 'breakable'),
+            ('ai_deafening', 'ai_deafening'), ('no_shadow', 'no_shadow'), ('shadow_only', 'shadow_only'),
+            ('lightmap_only', 'lightmap_only'), ('precise', 'precise'), ('portal_one_way', 'portal_1_way'),
+            ('portal_door', 'portal_door'), ('portal_vis_blocker', 'portal_vis_blocker'),
+            ('ignored_by_lightmaps', 'ignored_by_lightmaps'), ('blocks_sound', 'blocks_sound'),
+            ('decal_offset', 'decal_offset'), ('water_surface', 'water_surface'), ('slip_surface', 'slip_surface'),
+        ):
+            setattr(result, target, getattr(result, target) or getattr(props, source))
+        result.portal_exact = game == 'halo1' and (
+            props.portal_exact or result.name.startswith('+exactportal'))
+        # A period is an H1 exact-portal / H2 shadow-only suffix, but Blender
+        # also appends .001 to duplicate material names.
+        symbol_name = re.sub(r'\.\d{3}$', '', result.material.name).rstrip()
+        if symbol_name.endswith('.'):
+            if game == 'halo1':
+                result.portal_exact = True
+            elif game == 'halo2':
+                result.shadow_only = True
+        jms_resolution = game == 'halo2' and props.lightmap_resolution_scale > 0
+        resolution = props.lightmap_resolution_scale if jms_resolution else props.lightmap_res
+        if jms_resolution or resolution != 1:
+            result.lightmap_resolution_scale_legacy = resolution
+            result.lightmap_resolution_scale = utils.clamp(int(resolution * 3), 1, 7)
+        result.ignore_default_resolution = props.ignore_default_res_scale
+        result.lightmap_additive_transparency = tuple(props.additive_transparency) if any(props.additive_transparency) else None
+        result.lightmap_translucency_tint_color = tuple(props.two_sided_transparent_tint) if any(props.two_sided_transparent_tint) else None
+        result.lightmap_transparency_override = props.override_lightmap_transparency
+        if game == 'halo2' and props.lightmap_power_scale > 0:
+            result.emissive_power_scale = props.lightmap_power_scale
+        result.emissive_power = props.power
+        result.emissive_color = tuple(props.color)
+        result.emissive_quality = props.quality
+        result.emissive_per_unit = props.power_per_unit_area
+        result.emissive_shader_gel = props.use_shader_gel
+        result.emissive_focus = radians(180 * (1 - min(props.emissive_focus, 1)))
+        result.emissive_attenuation = props.attenuation_enabled
+        result.emissive_attenuation_falloff = props.falloff_distance * scale if props.attenuation_enabled else 0
+        result.emissive_attenuation_cutoff = props.cutoff_distance * scale if props.attenuation_enabled else 0
+        result.mesh_type = 'portal' if result.portal_exact else result._mesh_type_from_special_name()
+        return result
+
     @classmethod
     def from_name(cls, name):
         """Read file material flags without creating Blender materials."""

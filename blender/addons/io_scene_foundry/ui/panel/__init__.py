@@ -4350,6 +4350,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
             col.operator('nwo.foundry_import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
             col.operator('nwo.rename_import', text="Import Animation Renames & Copies", icon_value=get_icon_id("animation_rename"))
+            col.operator("nwo.convert_scene", text="Convert Scene", icon='RIGHTARROW')
         
     def draw_rig_tools(self, box, nwo):
         row = box.row()

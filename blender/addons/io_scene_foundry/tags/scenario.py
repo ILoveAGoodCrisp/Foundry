@@ -530,7 +530,7 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
         root = self.tag.root()
         object_names = [self.value(element, 'name') for element in self.block(root, 'object names')]
         folders = []
-        for element in self.block(root, 'editor folders'):
+        for element in self._optional_block(root, 'editor folders') or ():
             parent_index = self.value(element, 'parent folder')
             folders.append(ScenarioEditorFolder(
                 self.value(element, 'name') or '',
@@ -556,12 +556,21 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 else:
                     name = 'object'
 
-                object_data = self.required_field(element, 'object data').as_struct()
+                # Halo 1 keeps placement in a separate struct, nested under
+                # unit properties for bipeds and vehicles. It has no scale,
+                # editor folders, object IDs, or parent attachments.
+                placement_owner = element
+                placement_field = 'object data'
+                if self.game == 'halo1':
+                    placement_field = 'placement'
+                    if block_name in {'bipeds', 'vehicles'}:
+                        placement_owner = self.required_field(element, 'properties').as_struct()
+                object_data = self.required_field(placement_owner, placement_field).as_struct()
                 if object_data is None:
-                    raise TypeError(f'{self.path}: {block_name}[{element_index}] object data is not a struct')
+                    raise TypeError(f'{self.path}: {block_name}[{element_index}] {placement_field} is not a struct')
                 position = self.value(object_data, 'position')
                 rotation = self.value(object_data, 'rotation')
-                scale = self.value(object_data, 'scale') or 1.0
+                scale = 1.0 if self.game == 'halo1' else self.value(object_data, 'scale') or 1.0
                 folder_field = object_data.field('editor folder')
                 folder_index = folder_field.value if folder_field is not None else -1
                 if not isinstance(folder_index, int):
@@ -597,7 +606,7 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                     name_index=name_index,
                     definition=definition,
                     variant=variant or '',
-                    position=(position.x, position.y, position.z),
+                    position=tuple(position.to_array()),
                     rotation=(rotation.yaw, rotation.pitch, rotation.roll),
                     scale=scale,
                     folder_index=folder_index,
