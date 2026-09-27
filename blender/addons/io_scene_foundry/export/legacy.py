@@ -459,6 +459,8 @@ class LegacyExportScene(ExportScene):
                 command = (['structure-new-from-ass', source.relative_to(self.data_dir)]
                            if self.target_game == 'halo2' else
                            ['structure', self.asset_path_relative, source.stem])
+                if self.target_game == 'halo1' and self.export_settings.halo1_fix_phantom_bsp:
+                    command.append('true')
                 try:
                     utils.run_tool(
                         command,
