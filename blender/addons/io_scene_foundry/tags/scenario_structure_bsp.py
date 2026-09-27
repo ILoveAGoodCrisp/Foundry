@@ -164,7 +164,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 material.nwo.shader_path = shader_path
                 emissive = self._classic_shader_emissive(shader_path)
                 if emissive is not None:
-                    if self.game == 'halo1' and Path(shader_path).suffix.lower() == '.shader_environment':
+                    if self.game in {'halo1', 'halo2'}:
                         prop = next((item for item in material.nwo.material_props
                                      if item.type == 'emissive'), None)
                         if prop is None:
@@ -322,6 +322,13 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
 
     def _classic_shader_emissive(self, shader_path: str):
         """Read the lightmap emission stored directly in an H1/H2 shader."""
+        if self.game == 'halo2':
+            from .halo1_emissive import read_material_emissive
+            try:
+                power, color = read_material_emissive(shader_path, self.tags_dir, 'halo2')
+            except FileNotFoundError:
+                return None
+            return (power, color) if power > 0 else None
         path = Path(shader_path)
         if not path.is_absolute():
             path = Path(self.tags_dir) / path

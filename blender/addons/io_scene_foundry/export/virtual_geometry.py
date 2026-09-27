@@ -1870,7 +1870,7 @@ class VirtualMesh:
             and attr.name.lower() != "bungie_mesh_poop_collision_type"
         ]
         
-        if (bungie_attributes or force_render_only or ob.data.nwo.face_props or (valid_materials_count > 1 and (special_mats_dict or prop_mats_dict))) and mesh_type_value in FACE_PROP_TYPES:
+        if (bungie_attributes or force_render_only or ob.data.nwo.face_props or (scene.game == 'halo2' and prop_mats_dict) or (valid_materials_count > 1 and (special_mats_dict or prop_mats_dict))) and mesh_type_value in FACE_PROP_TYPES:
             self.face_properties = gather_face_props(ob.data.nwo, mesh, num_polygons, scene, sorted_order, special_mats_dict, prop_mats_dict, props, force_render_only, bungie_attributes)
             # if changed_materials:
             #     self.bpy_materials = list(self.bpy_materials)
@@ -3493,6 +3493,8 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     if props.get("bungie_lightmap_lighting_from_both_sides") is None:
                         face_properties.setdefault("bungie_lightmap_lighting_from_both_sides", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_lighting_from_both_sides"], dtype=np.int32))).update_from_material(mesh, material_indices, int(prop.lightmap_lighting_from_both_sides))
                 case 'emissive':
+                    if scene.game == 'halo2':
+                        continue
                     if props.get("bungie_lighting_emissive_power") is None and prop.material_lighting_emissive_power > 0:
                         color, power = utils.get_light_final_color_and_intensity(prop.material_lighting_emissive_color, prop.material_lighting_emissive_power, True, True)
                         falloff = prop.material_lighting_attenuation_falloff
@@ -3635,6 +3637,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                 if props.get("bungie_lightmap_lighting_from_both_sides") is None:
                     face_properties.setdefault("bungie_lightmap_lighting_from_both_sides", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_lighting_from_both_sides"], dtype=np.int32))).update(mesh, prop, int(prop.lightmap_lighting_from_both_sides))
             case 'emissive':
+                if scene.game == 'halo2':
+                    face_properties.setdefault("bungie_lighting_emissive_power_scale", FaceSet(np.ones(num_faces, np.single))).update(mesh, prop, prop.material_lighting_emissive_power_scale)
+                    continue
                 if props.get("bungie_lighting_emissive_power") is None and prop.material_lighting_emissive_power > 0:
                     color, power = utils.get_light_final_color_and_intensity(prop.material_lighting_emissive_color, prop.material_lighting_emissive_power, True, True)
                     falloff = prop.material_lighting_attenuation_falloff

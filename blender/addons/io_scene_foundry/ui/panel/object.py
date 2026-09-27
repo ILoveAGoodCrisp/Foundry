@@ -391,7 +391,9 @@ class NWO_UL_FacePropList(bpy.types.UIList):
         row.scale_x = 0.24
         match item.type:
             case 'emissive':
-                row.prop(item, "material_lighting_emissive_color", text="")
+                project = utils.get_project()
+                if not project or project.game != 'halo2':
+                    row.prop(item, "material_lighting_emissive_color", text="")
             case 'lightmap_additive_transparency':
                 row.prop(item, "lightmap_additive_transparency", text="")
             case 'lightmap_translucency_tint_color':

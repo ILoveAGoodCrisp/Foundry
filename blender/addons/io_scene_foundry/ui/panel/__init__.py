@@ -3342,18 +3342,23 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 case 'emissive':
                     box = col.box()
                     project = utils.get_project(self.scene_nwo.scene_project)
-                    halo1_material = bool(for_material and project and project.game == 'halo1')
-                    if halo1_material:
-                        box.operator("nwo.update_halo1_material_emissive", icon='MATERIAL', text="Update Shader Emission")
+                    halo2 = bool(project and project.game == 'halo2')
+                    classic_material = bool(for_material and project and project.game in {'halo1', 'halo2'})
+                    if classic_material:
+                        operator = 'nwo.update_halo2_material_emissive' if halo2 else 'nwo.update_halo1_material_emissive'
+                        box.operator(operator, icon='MATERIAL', text="Update Shader Emission")
                     else:
                         box.operator("nwo.add_emissive_node", icon='MATERIAL', text="Update Emissive Light")
                     row = box.row()
                     row.label(text="Emissive Settings")
-                    row = box.row()
-                    row.prop(item, "material_lighting_emissive_color", text="Color")
-                    row = box.row()
-                    row.prop(item, "material_lighting_emissive_power", text="Power")
-                    if not halo1_material:
+                    if for_material or not halo2:
+                        row = box.row()
+                        row.prop(item, "material_lighting_emissive_color", text="Color")
+                        row = box.row()
+                        row.prop(item, "material_lighting_emissive_power", text="Power")
+                    if halo2 and not for_material:
+                        box.prop(item, 'material_lighting_emissive_power_scale')
+                    if not classic_material and not halo2:
                         row = box.row()
                         row.prop(item, "material_lighting_emissive_quality", text="Quality")
                         row = box.row()

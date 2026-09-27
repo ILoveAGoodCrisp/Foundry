@@ -6004,7 +6004,8 @@ def set_two_sided(mesh, is_io=False, match_collision_patches=False):
         from .tags.collision_patches import opposite_patches
         # Face overrides are part of the identity, not just the shader slot.
         attributes = [a for a in mesh.attributes
-                      if a.domain == 'FACE' and a.data_type in {'BOOLEAN', 'INT', 'FLOAT'}]
+                      if a.domain == 'FACE' and not a.name.startswith('.')
+                      and a.data_type in {'BOOLEAN', 'INT', 'FLOAT'}]
         records = [(tuple(tuple(verts[v].co) for v in f.vertices), tuple(f.normal),
                     (f.material_index, tuple(a.data[f.index].value for a in attributes)))
                    for f in mesh.polygons]
@@ -6228,8 +6229,32 @@ def material_add_shield(material: bpy.types.Material):
         
     arrange(node_tree)
 
-def material_add_emissive(material: bpy.types.Material):
+def material_add_emissive(material: bpy.types.Material, game=None):
+    if game is None:
+        project = get_project()
+        game = project.game if project else None
+    material.use_nodes = True
     node_tree = material.node_tree
+    group_name = {'halo1': 'Halo 1 Emissive', 'halo2': 'Halo 2 Emissive'}.get(game, 'Halo Emissive')
+
+    def update_values(node):
+        if game not in {'halo1', 'halo2'}:
+            return
+        prop = next((p for p in material.nwo.material_props if p.type == 'emissive'), None)
+        if prop is not None:
+            power, color = prop.material_lighting_emissive_power, prop.material_lighting_emissive_color[:]
+        else:
+            from .tags.halo1_emissive import read_material_emissive
+            try:
+                power, color = read_material_emissive(relative_path(material.nwo.shader_path), get_tags_path(), game)
+            except (OSError, ValueError):
+                power, color = 0.0, (1.0, 1.0, 1.0)
+        for name, value in (('Power', power), ('Color', (*color[:3], 1.0))):
+            socket = node.inputs.get(name)
+            if socket is not None:
+                for link in tuple(socket.links):
+                    node_tree.links.remove(link)
+                socket.default_value = value
 
     def connect_triangle_area(node):
         socket = node.inputs.get('H1 Triangle Area')
@@ -6248,10 +6273,13 @@ def material_add_emissive(material: bpy.types.Material):
         node_tree.links.new(attribute.outputs['Fac'], socket)
 
     existing = [n for n in node_tree.nodes if n.type == 'GROUP' and n.node_tree
-                and n.node_tree.name == 'Halo Emissive']
+                and n.node_tree.name in {'Halo Emissive', 'Halo 1 Emissive', 'Halo 2 Emissive'}]
     if existing:
         for node in existing:
+            if node.node_tree.name != group_name:
+                node.node_tree = add_node_from_resources('shared_nodes', group_name)
             connect_triangle_area(node)
+            update_values(node)
         return
 
     output_node = next((n for n in node_tree.nodes if n.type == 'OUTPUT_MATERIAL'), None)
@@ -6264,7 +6292,8 @@ def material_add_emissive(material: bpy.types.Material):
     from_socket = old_link.from_socket if old_link else None
 
     emissive_node = node_tree.nodes.new('ShaderNodeGroup')
-    emissive_node.node_tree = add_node_from_resources("shared_nodes", 'Halo Emissive')
+    emissive_node.node_tree = add_node_from_resources("shared_nodes", group_name)
+    update_values(emissive_node)
     connect_triangle_area(emissive_node)
 
     def first_socket(sockets, kind):
@@ -6289,6 +6318,9 @@ def material_add_emissive(material: bpy.types.Material):
 
 def mesh_add_emissive_attributes(mesh: bpy.types.Mesh, game=None):
     nwo = mesh.nwo
+    if game is None:
+        project = get_project()
+        game = project.game if project else None
     
     if not isinstance(mesh, bpy.types.Mesh):
         return
@@ -6307,6 +6339,8 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh, game=None):
     color_data = np.tile(color_off, (face_count, 1))
     power_off  = np.array((0.0, 0.0, 0.0), dtype=np.single)
     power_data = np.tile(power_off, (face_count, 1))
+    base_power = np.zeros(face_count, dtype=np.single)
+    power_scales = np.ones(face_count, dtype=np.single)
     
     if mesh.materials:
         material_indices = np.empty(face_count, dtype=np.int32)
@@ -6314,6 +6348,20 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh, game=None):
         
         for idx, mat in enumerate(mesh.materials):
             if mat is None:
+                continue
+            if game in {'halo1', 'halo2'}:
+                mask = material_indices == idx
+                prop = next((p for p in mat.nwo.material_props if p.type == 'emissive'), None)
+                if prop is not None:
+                    power, color = prop.material_lighting_emissive_power, prop.material_lighting_emissive_color[:]
+                else:
+                    from .tags.halo1_emissive import read_material_emissive
+                    try:
+                        power, color = read_material_emissive(relative_path(mat.nwo.shader_path), get_tags_path(), game)
+                    except (OSError, ValueError):
+                        power, color = 0.0, (1.0, 1.0, 1.0)
+                base_power[mask] = power
+                color_data[mask] = color
                 continue
             for m_prop in mat.nwo.material_props:
                 if m_prop.type != 'emissive':
@@ -6331,7 +6379,7 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh, game=None):
                 power_data[mask] = power_on
 
     for prop in nwo.face_props:
-        if prop.type != 'emissive':
+        if game == 'halo1' or prop.type != 'emissive':
             continue
         attribute = mesh.attributes.get(prop.attribute_name)
         if attribute is None:
@@ -6343,6 +6391,10 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh, game=None):
 
         if not mask.any():
             continue
+
+        if game == 'halo2':
+            power_scales[mask] = prop.material_lighting_emissive_power_scale
+            continue
         
         color_on = np.array(prop.material_lighting_emissive_color[:], dtype=np.single)
         power_on = np.array((prop.material_lighting_emissive_power, prop.material_lighting_attenuation_falloff, prop.material_lighting_attenuation_cutoff), dtype=np.single)
@@ -6350,9 +6402,14 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh, game=None):
         color_data[mask] = color_on
         power_data[mask] = power_on
         
-    on_mask = power_data[:, 0] > 0.0
+    if game in {'halo1', 'halo2'}:
+        # The classic node owns base power; H2 reads only the surface scale.
+        power_data[:, 0] = power_scales
+        on_mask = base_power * power_scales > 0.0
+    else:
+        on_mask = power_data[:, 0] > 0.0
 
-    if on_mask.any():
+    if on_mask.any() or game in {'halo1', 'halo2'}:
         if game is None:
             project = get_project()
             game = project.game if project else None
@@ -6397,15 +6454,39 @@ def mesh_add_emissive_attributes(mesh: bpy.types.Mesh, game=None):
         return on_mask
 
 def setup_emissive_attributes(mesh: bpy.types.Mesh, game=None):
+    was_edit_mode = mesh.is_editmode
+    if was_edit_mode:
+        bpy.ops.object.mode_set(mode='OBJECT')
+    try:
+        _setup_emissive_attributes(mesh, game)
+    finally:
+        if was_edit_mode:
+            bpy.ops.object.mode_set(mode='EDIT')
+
+
+def _setup_emissive_attributes(mesh: bpy.types.Mesh, game=None):
     on_mask = mesh_add_emissive_attributes(mesh, game)
     if on_mask is None:
         return
     
     material_indices = np.empty(len(mesh.polygons), dtype=np.int32)
     mesh.polygons.foreach_get("material_index", material_indices)
-    used_material_indices = np.unique(material_indices[on_mask])
+    if game is None:
+        project = get_project()
+        game = project.game if project else None
+    used_material_indices = np.unique(material_indices if game in {'halo1', 'halo2'} else material_indices[on_mask])
     for idx in used_material_indices:
-        material_add_emissive(mesh.materials[idx])
+        if mesh.materials[idx] is not None:
+            material_add_emissive(mesh.materials[idx], game)
+
+
+def update_classic_emissive_material(material, game):
+    """Refresh every mesh using this material, including face scale overrides."""
+    meshes = {ob.data for ob in bpy.data.objects if ob.type == 'MESH'
+              and any(slot.material == material for slot in ob.material_slots)}
+    for mesh in meshes:
+        setup_emissive_attributes(mesh, game)
+    material_add_emissive(material, game)
         
 def can_export_check_parent(ob: bpy.types.Object):
     if ob.parent:

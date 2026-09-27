@@ -343,9 +343,11 @@ def draw_halo2_lod(operator, layout):
 def draw_material_project_option(operator, layout):
     if not hasattr(operator, "build_materials_for_project"):
         return
-    row = layout.row()
     project = utils.get_project(use_external=False)
-    row.enabled = operator.build_blender_materials and project is not None and project.game != 'halo2'
+    if project is None or project.game == 'halo2':
+        return
+    row = layout.row()
+    row.enabled = operator.build_blender_materials
     row.prop(operator, "build_materials_for_project")
 
 
@@ -394,24 +396,27 @@ def draw_model_tag_import_sections(operator, layout, corinth, show_template=True
         view_box.prop(operator, "always_extract_bitmaps")
 
 def draw_scenario_import_sections(operator, layout, corinth, show_template=True, show_zone_set=False, show_sky=False, show_scenario_content=False, show_setup_as_asset=True):
+    project = render_lod_source_project(operator)
+    game = project.game if project is not None else None
+    classic = game in {'halo1', 'halo2'}
+    corinth = project.corinth if project is not None else corinth
     if show_template:
         draw_import_template(operator, layout)
 
-    if show_zone_set or show_sky:
+    if show_zone_set:
         source_box = layout.box()
         source_box.label(text="Selection")
-        if show_zone_set:
-            source_box.prop(operator, "tag_zone_set")
+        source_box.prop(operator, "tag_bsp" if classic else "tag_zone_set")
 
     core_box = layout.box()
     core_box.label(text="Core")
     core_box.prop(operator, "tag_bsp_import_geometry")
-    project = utils.get_project()
-    if project is not None and project.game == 'halo1':
+    if game == 'halo1':
         merge_row = core_box.row()
         merge_row.enabled = operator.tag_bsp_import_geometry
         merge_row.prop(operator, "tag_bsp_merge_render_collision")
-    core_box.prop(operator, "tag_import_lights")
+    if not classic:
+        core_box.prop(operator, "tag_import_lights")
 
     reimport_box = layout.box()
     reimport_box.label(text="Game Reimport")
@@ -424,7 +429,8 @@ def draw_scenario_import_sections(operator, layout, corinth, show_template=True,
     reimport_col.prop(operator, "tag_bsp_skip_structure_merge")
     if corinth:
         reimport_col.prop(operator, "tag_bsp_import_havok")
-    reimport_col.prop(operator, "tag_import_design")
+    if not classic:
+        reimport_col.prop(operator, "tag_import_design")
 
     view_box = layout.box()
     view_box.label(text="Blender Viewing")
@@ -434,10 +440,11 @@ def draw_scenario_import_sections(operator, layout, corinth, show_template=True,
     if show_scenario_content:
         view_box.prop(operator, "tag_scenario_import_objects")
         view_box.prop(operator, "tag_scenario_import_decals")
-        view_box.prop(operator, "tag_scenario_import_decorators")
-        row = view_box.row()
-        row.enabled = operator.tag_scenario_import_decorators
-        row.prop(operator, "decorator_lod")
+        if game != 'halo1':
+            view_box.prop(operator, "tag_scenario_import_decorators")
+            row = view_box.row()
+            row.enabled = operator.tag_scenario_import_decorators
+            row.prop(operator, "decorator_lod")
     view_box.prop(operator, "build_blender_materials")
     draw_material_project_option(operator, view_box)
     view_box.prop(operator, "always_extract_bitmaps")
@@ -728,6 +735,7 @@ BIPED_WEAPON_SOURCE_BIPED_TAG = "biped_tag_weapons"
 biped_weapon_source_item_cache = {}
 
 zone_set_items = {"blah": "blah"}
+bsp_items = []
 
 ammo_names = "primary_ammunition", "airstrike_launch_count", "secondary_ammunition"
 tether_name = "tether_distance"
@@ -1251,6 +1259,12 @@ class NWO_Import(bpy.types.Operator):
         description="Optional field to declare a zone set to import. This will limit the scope of imported BSPs to those within the zone set. If this field is left blank, all BSPs will be imported"
     )
     
+    tag_bsp: bpy.props.StringProperty(
+        name="BSP",
+        options={'SKIP_SAVE'},
+        description="Halo 1 or Halo 2 BSP name to import. Leave blank to import all BSPs",
+    )
+
     tag_bsp_render_only: bpy.props.BoolProperty(
         name="Render Geometry Only",
         description="Skips importing bsp data like collision and portals. Use this if you aren't importing the BSP back into the game"
@@ -1798,6 +1812,7 @@ class NWO_Import(bpy.types.Operator):
                     
                 if 'scenario' in importer.extensions:
                     importer.tag_zone_set = self.tag_zone_set
+                    importer.tag_bsp = self.tag_bsp if self.tag_bsp != 'all_bsps' else ''
                     importer.tag_bsp_render_only = self.tag_bsp_render_only
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
                     importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
@@ -2449,7 +2464,10 @@ class NWO_Import(bpy.types.Operator):
         layout = self.layout
         layout.scale_y = 1.25
         corinth = utils.is_corinth(context)
+        project = render_lod_source_project(self)
+        game = project.game if project is not None else None
         scope_items = set(self.scope.split(',')) if self.scope else set()
+        corinth = project.corinth if project is not None else corinth
         if not scope_items or any(item not in {'jms', 'jma'} for item in scope_items):
             box = layout.box()
             box.label(text="Tag Source Data")
@@ -2471,7 +2489,8 @@ class NWO_Import(bpy.types.Operator):
                 corinth,
                 show_template=True,
                 show_source=True,
-                has_variants=True,
+                has_variants=game != 'halo1',
+                has_permutations=game == 'halo1',
                 include_generate_frames=True,
                 show_material_options=False,
             )
@@ -2532,7 +2551,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'camera_track_animation_scale')
             box.prop(self, "setup_as_asset")
             
-        if not self.scope or ('decorator_set' in self.scope):
+        if game != 'halo1' and (not self.scope or 'decorator_set' in scope_items):
             box = layout.box()
             box.label(text='Decorator Set Settings')
             box.prop(self, "decorator_type")
@@ -2544,7 +2563,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'always_extract_bitmaps')
             box.prop(self, "setup_as_asset")
             
-        if not self.scope or ('cinematic' in self.scope):
+        if game not in {'halo1', 'halo2'} and (not self.scope or 'cinematic' in scope_items):
             box = layout.box()
             box.label(text='Cinematic Settings')
             box.prop(self, "tag_cinematic_import_scenario")
@@ -2627,6 +2646,8 @@ class JMSMaterialSlot:
         self.water_surface = "'" in name
         self.slip_surface = False
         
+        self.emissive_power_scale = None
+
         # lighting props
         self.lightmap_resolution_scale = None
         self.lightmap_resolution_scale_legacy = None
@@ -2636,13 +2657,14 @@ class JMSMaterialSlot:
         
         parts = name.split()
         if len(parts) > 1 and (parts[0].startswith(utils.legacy_lightmap_prefixes) or parts[-1].startswith(utils.legacy_lightmap_prefixes)):
-            pattern = r'(' + '|'.join(utils.legacy_lightmap_prefixes) + r')(\d+\.?\d*)'
+            pattern = r'(' + '|'.join(utils.legacy_lightmap_prefixes) + r')((?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)'
             matches = re.findall(pattern, name)
             for match_groups in matches:
                 if len(match_groups) <= 1:
                     continue
                 match match_groups[0]:
-                    # Only handling lightmap res currently
+                    case 'lp:':
+                        self.emissive_power_scale = float(match_groups[1])
                     case 'lm:':
                         value = float(match_groups[1])
                         self.lightmap_resolution_scale_legacy = value
@@ -2702,6 +2724,7 @@ class JMSMaterialSlot:
         if self.lightmap_additive_transparency != __value.lightmap_additive_transparency: return False
         if self.lightmap_transparency_override != __value.lightmap_transparency_override: return False
         
+        if getattr(self, 'emissive_power_scale', None) != getattr(__value, 'emissive_power_scale', None): return False
         if self.emissive_power != __value.emissive_power: return False
         if self.emissive_color != __value.emissive_color: return False
         if self.emissive_quality != __value.emissive_quality: return False
@@ -2766,6 +2789,7 @@ class NWOImporter:
         self.tag_permutation = ""
         self.tag_state = -1
         self.tag_zone_set = ""
+        self.tag_bsp = ""
         self.tag_bsp_render_only = False
         self.tag_bsp_import_geometry = False
         self.tag_bsp_skip_structure_merge = False
@@ -3283,7 +3307,10 @@ class NWOImporter:
         if jms_mat.lightmap_transparency_override and supports('lightmap_transparency_override'):
             utils.add_face_prop(mesh, "lightmap_transparency_override", indices)
 
-        if jms_mat.emissive_power and supports('emissive'):
+        if self.game == 'halo2' and getattr(jms_mat, 'emissive_power_scale', None) is not None and supports('emissive'):
+            prop = utils.add_face_prop(mesh, "emissive", indices)
+            prop.material_lighting_emissive_power_scale = jms_mat.emissive_power_scale
+        elif self.game != 'halo2' and jms_mat.emissive_power and supports('emissive'):
             prop = utils.add_face_prop(mesh, "emissive", indices)
             prop.material_lighting_emissive_power = jms_mat.emissive_power
             prop.material_lighting_emissive_color = jms_mat.emissive_color
@@ -4426,6 +4453,10 @@ class NWOImporter:
                 with ScenarioMetadataTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
+                    if scenario.game in {'halo1', 'halo2'} and self.tag_bsp:
+                        bsps = [bsp for bsp in bsps if Path(bsp).stem.casefold() == self.tag_bsp.casefold()]
+                        if not bsps:
+                            raise ValueError(f"BSP '{self.tag_bsp}' was not found in {file}")
                     all_bsps = scenario.get_bsp_paths()
                     bsp_sky_indices = scenario.get_sky_indices()
                     index_map = {b: i for i, b in enumerate(all_bsps)}
@@ -5278,6 +5309,16 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
 
     force_no_setup_as_asset: bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     
+    def items_tag_bsp(self, context):
+        return bsp_items or [("all_bsps", "All BSPs", "Import all scenario BSPs")]
+
+    tag_bsp: bpy.props.EnumProperty(
+        name="BSP",
+        options={'SKIP_SAVE'},
+        description="Select the Halo 1 or Halo 2 BSP to import",
+        items=items_tag_bsp,
+    )
+
     def items_tag_zone_set(self, context):
         items = [("all_zone_sets", "All Zone Sets", "All scenario bsps will be imported")]
         for zs, bsps in zone_set_items.items():
@@ -5609,8 +5650,14 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "gbxmodel", "physics_model", "physics", "sky", "scenario", "scenario_structure_bsp", "model_animation_graph", "model_animations", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
             if self.import_type == "scenario":
                 global zone_set_items
+                global bsp_items
                 global sky_items
                 with ScenarioMetadataTag(path=self.filepath) as scenario:
+                    bsp_items = [("all_bsps", "All BSPs", "Import all scenario BSPs")]
+                    if scenario.game in {'halo1', 'halo2'}:
+                        bsp_items.extend((Path(path).stem, Path(path).stem, path)
+                                         for path in scenario.get_bsp_paths())
+                        self.tag_bsp = "all_bsps"
                     zone_set_items = scenario.get_zone_sets_dict()
                     if zone_set_items:
                         self.has_zone_sets = True
@@ -6113,7 +6160,15 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                 for ao in attachment.objects:
                     add_function(context.scene, func, func, ao, attach_arm)
                         
-        # Apply emissives
+    if build_materials:
+        # Apply emissives even when an import reuses existing materials.
+        emissive_meshes = set(emissive_meshes or ())
+        if importer.game in {'halo1', 'halo2'}:
+            emissive_meshes.update(ob.data for ob in imported_objects
+                                   if ob.type == 'MESH' and (
+                                       any(p.type == 'emissive' for p in ob.data.nwo.face_props) or
+                                       any(mat and any(p.type == 'emissive' for p in mat.nwo.material_props)
+                                           for mat in ob.data.materials)))
         if emissive_meshes:
             print("Setting up emissive materials")
             for mesh in emissive_meshes:

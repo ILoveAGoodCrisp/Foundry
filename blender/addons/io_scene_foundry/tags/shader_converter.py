@@ -1576,9 +1576,6 @@ class ShaderTag(BlenderTag, TagDocument):
             tree.links.new(vector, image_node.inputs['Vector'])
             return image_node
 
-        radiosity = child(root, 'radiosity')
-        copy_value(radiosity, 'power')
-        copy_value(radiosity, 'color of emitted light', 'Color of Emitted Light')
         properties = child(root, 'properties')
         flags = self.required_field(properties, 'flags')
         illumination = child(root, 'self-illumination')
@@ -2053,6 +2050,16 @@ class ShaderTag(BlenderTag, TagDocument):
         tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
 
         root = self.tag.root()
+        if self.system_path.suffix.casefold() == '.shader' and not any(
+                p.type == 'emissive' for p in blender_material.nwo.material_props):
+            from .halo1_emissive import read_material_emissive
+            power, color = read_material_emissive(self.system_path, self.tags_dir, 'halo2')
+            if power > 0:
+                prop = blender_material.nwo.material_props.add()
+                prop.type = 'emissive'
+                prop.material_lighting_emissive_power = power
+                prop.material_lighting_emissive_color = color
+
         if self.system_path.suffix.casefold() == '.decal':
             blender_material.surface_render_method = 'BLENDED'
             reference = TagDocument.reference(self, root, 'bitmap')

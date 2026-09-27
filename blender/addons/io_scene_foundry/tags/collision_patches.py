@@ -56,8 +56,12 @@ def opposite_patches(polygons):
     for i, (points, normal, properties) in enumerate(polygons):
         if i in matched or not points or sum(n*n for n in normal) < .5:
             continue
-        axis = max(range(3), key=lambda j: abs(normal[j]))
-        oriented[(properties, axis)][normal[axis] < 0].append(i)
+        # Near a 45-degree boundary, alternate diagonals of a warped quad
+        # can choose different dominant axes. Try every strong component so
+        # all triangles of both sides can participate in the same patch.
+        for axis in range(3):
+            if abs(normal[axis]) > .5:
+                oriented[(properties, axis)][normal[axis] < 0].append(i)
     for sides in oriented.values():
         edge_maps = []
         for faces in sides:
@@ -102,8 +106,11 @@ def opposite_patches(polygons):
             if len(candidates) != 1 or len(other) != 1:
                 continue
             keep, remove = candidates[0], other[0]
+            if matched.intersection(keep | remove):
+                continue  # Another projection has already matched this patch.
             # Only boundary vertices: don't flatten distinct interior details.
             boundary_vertices = {v for edge in boundary for v in edge}
             if all(set(polygons[i][0]) <= boundary_vertices for i in keep | remove):
                 result.append((keep, remove))
+                matched.update(keep | remove)
     return result

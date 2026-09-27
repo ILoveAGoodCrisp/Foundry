@@ -1655,6 +1655,9 @@ class ExportScene:
                 case 'lightmap_lighting_from_both_sides':
                     mesh_props["bungie_lightmap_lighting_from_both_sides"] = int(prop.lightmap_lighting_from_both_sides)
                 case 'emissive':
+                    if self.project_game == 'halo2':
+                        # Resolve material defaults and face scale overrides together.
+                        continue
                     if prop.material_lighting_emissive_power <= 0:
                         mesh_props["bungie_lighting_emissive_power"] = 0.0
                     else:

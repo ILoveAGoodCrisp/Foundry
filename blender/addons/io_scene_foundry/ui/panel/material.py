@@ -4,72 +4,70 @@ from pathlib import Path
 import bpy
 from ... import utils
 from ...constants import face_prop_type_items, face_prop_descriptions, face_mode_items
-from ...tags.halo1_emissive import material_emissive_matches, shader_environment_path, write_material_emissive
+from ...tags.halo1_emissive import (asset_shader_folder, localize_shader_environment,
+                                    material_emissive_matches, shader_environment_path,
+                                    write_material_emissive, read_material_emissive)
 
 
 class NWO_OT_UpdateHalo1MaterialEmissive(bpy.types.Operator):
     bl_idname = 'nwo.update_halo1_material_emissive'
     bl_label = 'Update Shader Emission'
-    bl_description = 'Write this material emission to its Halo 1 shader_environment tag and Blender shader node'
+    bl_description = 'Write this material emission to its Halo 1 shader tag and Blender emissive node'
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def poll(cls, context):
         material = context.object.active_material if context.object else None
         project = utils.get_project(utils.get_scene_props().scene_project)
-        return bool(project and project.game == 'halo1' and material and
+        return bool(project and project.game in {'halo1', 'halo2'} and material and
                     any(item.type == 'emissive' for item in material.nwo.material_props))
 
     def execute(self, context):
         material = context.object.active_material
         prop = next(item for item in material.nwo.material_props if item.type == 'emissive')
         try:
-            tag_path = utils.relative_path(material.nwo.shader_path)
-            shader_environment_path(tag_path, utils.get_tags_path())
+            scene = utils.get_scene_props()
+            project = utils.get_project(scene.scene_project)
+            if project is None or project.game not in {'halo1', 'halo2'}:
+                raise ValueError('Select a Halo 1 or Halo 2 project')
+            if not scene.is_valid_asset:
+                raise ValueError('Set up and save the asset before updating shader emission')
+            folder = asset_shader_folder(
+                scene.sidecar_path, project.data_directory, project.tags_directory)
+            source = shader_environment_path(
+                utils.relative_path(material.nwo.shader_path), project.tags_directory, project.game)
+            target, copied = localize_shader_environment(
+                source, folder, project.tags_directory, project.game)
+            tag_path = str(target.relative_to(Path(project.tags_directory).resolve()))
+            if material.nwo.shader_path != tag_path:
+                material.nwo.shader_path = tag_path
             if (utils.material_read_only(tag_path) and
                     not material_emissive_matches(
-                        tag_path, utils.get_tags_path(),
+                        tag_path, project.tags_directory,
                         prop.material_lighting_emissive_power,
-                        prop.material_lighting_emissive_color)):
+                        prop.material_lighting_emissive_color, project.game)):
                 raise ValueError('This shader is protected from editing')
 
-            def groups():
-                if material.node_tree is None:
-                    return []
-                return [node for node in material.node_tree.nodes
-                        if node.type == 'GROUP' and node.node_tree and
-                        node.node_tree.name.startswith('foundry_h1.shader_environment')]
-
-            if not groups():
-                from ...tools.shader_reader import tag_to_nodes
-                tag_to_nodes(False, material, tag_path)
-            foundry_groups = groups()
-            if not foundry_groups:
-                raise ValueError('Could not create the Foundry shader_environment node')
-
-            changed = write_material_emissive(
-                tag_path, utils.get_tags_path(),
-                prop.material_lighting_emissive_power,
-                prop.material_lighting_emissive_color,
-            )
-            color = tuple(float(channel) ** (1 / 2.2)
-                          for channel in prop.material_lighting_emissive_color[:3]) + (1.0,)
-            for group in foundry_groups:
-                for socket_name, value in (
-                    ('Power', float(prop.material_lighting_emissive_power)),
-                    ('Color of Emitted Light', color),
-                ):
-                    socket = group.inputs.get(socket_name)
-                    if socket is None:
-                        raise ValueError(f'Foundry shader node is missing {socket_name}')
-                    for link in tuple(socket.links):
-                        material.node_tree.links.remove(link)
-                    socket.default_value = value
-            self.report({'INFO'}, 'Updated Halo 1 shader emission' if changed else 'Shader emission already matches')
+            changed = False
+            if not utils.material_read_only(tag_path):
+                changed = write_material_emissive(
+                    tag_path, project.tags_directory,
+                    prop.material_lighting_emissive_power,
+                    prop.material_lighting_emissive_color, project.game)
+            utils.update_classic_emissive_material(material, project.game)
+            message = 'Updated shader emission and preview' if changed else 'Updated emission preview; tag already matches'
+            if copied:
+                message += ' in an asset shader copy'
+            self.report({'INFO'}, message)
             return {'FINISHED'}
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             self.report({'ERROR'}, str(exc))
             return {'CANCELLED'}
+
+class NWO_OT_UpdateHalo2MaterialEmissive(NWO_OT_UpdateHalo1MaterialEmissive):
+    bl_idname = 'nwo.update_halo2_material_emissive'
+    bl_description = 'Update the asset shader power and color and preview its surface power scale'
+
 
 class NWO_OT_MaterialOpenTag(bpy.types.Operator):
     bl_idname = "nwo.open_halo_material"
@@ -232,6 +230,16 @@ class NWO_OT_MaterialAttributeAdd(bpy.types.Operator):
             item.region = region
         elif self.options == "global_material":
             item.global_material = "default"
+        elif self.options == 'emissive':
+            project = utils.get_project(scene_nwo.scene_project)
+            if project and project.game in {'halo1', 'halo2'}:
+                try:
+                    power, color = read_material_emissive(
+                        utils.relative_path(nwo.shader_path), project.tags_directory, project.game)
+                    item.material_lighting_emissive_power = power
+                    item.material_lighting_emissive_color = color
+                except (OSError, ValueError):
+                    pass  # A new material may not have a shader yet.
             
         context.area.tag_redraw()
         return {"FINISHED"}

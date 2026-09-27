@@ -125,6 +125,9 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             case 'lightmap_lighting_from_both_sides':
                 return "Lightmap Lighting Two-Sided" if self.lightmap_lighting_from_both_sides else "Lightmap Lighting One-Sided" 
             case 'emissive':
+                project = utils.get_project()
+                if project and project.game == 'halo2' and not isinstance(self.id_data, bpy.types.Material):
+                    return f"Emissive: Power Scale {self.material_lighting_emissive_power_scale:g}"
                 return f"Emissive: Intensity {round(self.material_lighting_emissive_power, 2)}"
             case _:
                 return "Something went wrong"
@@ -461,6 +464,14 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
     
     debug_emissive_index: bpy.props.IntProperty(options={'HIDDEN'})
+
+    material_lighting_emissive_power_scale: bpy.props.FloatProperty(
+        name="Power Scale",
+        description="Halo 2 face multiplier applied to the material's shader power",
+        default=1.0,
+        min=0.0,
+        options=set(),
+    )
 
     material_lighting_emissive_quality: bpy.props.FloatProperty(
         name="Material Lighting Emissive Quality",

@@ -30,7 +30,9 @@ from ..legacy import ass_format as ass
 from ..legacy.mirror import mirror_ass, mirror_jms, mirror_transform
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, legacy_bone_order, node_checksum, write_jms, write_ass
 from ..tags.backend import TagDocument
-from ..tags.halo1_emissive import material_emissive_matches, write_material_emissive
+from ..tags.halo1_emissive import (asset_shader_folder, localize_shader_environment,
+                                 shader_environment_path, material_emissive_matches,
+                                 write_material_emissive)
 from ..tags.animation_graph import AnimationGraphTag
 from ..tags.model_blender import ModelTag
 from ..tags.object import ObjectDocument
@@ -444,9 +446,12 @@ class LegacyExportScene(ExportScene):
                 raise ExportCancelled(
                     f'No {structure_extension} structure sources were found in {structure_dir}')
             if self.target_game == 'halo1':
-                self.update_halo1_material_emissives()
+                shader_folder = Path(self.tags_dir, self.asset_path_relative, 'shaders').absolute()
+                if shader_folder.resolve() != shader_folder:
+                    raise ExportCancelled('The asset shader folder redirects outside this asset')
                 self.ensure_halo1_shaders(
                     structure_sources, 'shader_environment')
+                self.update_halo1_material_emissives()
             for source in structure_sources:
                 print(f'--- Tool processing BSP: {source.stem} ({source})', flush=True)
                 error_path = source.with_name(source.stem + '_errors.wrl')
@@ -692,9 +697,44 @@ class LegacyExportScene(ExportScene):
                 temporary.unlink(missing_ok=True)
             print(f'--- Loaded template {destination}')
 
-    def update_halo1_material_emissives(self) -> None:
-        """Apply explicit material emission before H1 Tool copies shader tags."""
+    def prepare_halo2_material_emissives(self, allow_localize=True, write_values=True):
+        """Resolve asset shader paths before ASS allocates shader collections."""
+        folder = asset_shader_folder(self.scene_settings.sidecar_path, self.data_dir, self.tags_dir)
         requested = {}
+        for ob in self.ob_halo_data:
+            for slot in getattr(ob, 'material_slots', ()):
+                material = slot.material
+                if material is None:
+                    continue
+                prop = next((p for p in material.nwo.material_props if p.type == 'emissive'), None)
+                if prop is None:
+                    continue
+                source = shader_environment_path(utils.relative_path(material.nwo.shader_path), self.tags_dir, 'halo2')
+                values = (float(prop.material_lighting_emissive_power), tuple(prop.material_lighting_emissive_color))
+                if source in requested and requested[source][0] != values:
+                    raise ExportCancelled(f'Materials sharing {source} have conflicting emissive power or color')
+                requested.setdefault(source, (values, set()))[1].add(material)
+        for source, ((power, color), materials) in requested.items():
+            if source.parent != folder and not allow_localize:
+                raise ExportCancelled('Run a full export to localize Halo 2 emissive shaders and update ASS references')
+            target, _ = localize_shader_environment(source, folder, self.tags_dir, 'halo2')
+            path = str(target.relative_to(Path(self.tags_dir).resolve()))
+            if write_values:
+                if utils.material_read_only(path):
+                    if not material_emissive_matches(path, self.tags_dir, power, color, 'halo2'):
+                        raise ExportCancelled(f'{path}: shader is protected from editing')
+                else:
+                    write_material_emissive(path, self.tags_dir, power, color, 'halo2')
+            for material in materials:
+                material.nwo.shader_path = path
+
+    def update_halo1_material_emissives(self) -> None:
+        """Apply material emission only to shaders localized into this asset."""
+        requested = {}
+        expected_folder = Path(self.tags_dir, self.asset_path_relative, 'shaders').absolute()
+        shader_folder = expected_folder.resolve()
+        if shader_folder != expected_folder:
+            raise ExportCancelled('The asset shader folder redirects outside this asset')
         for ob in self.ob_halo_data:
             for slot in getattr(ob, 'material_slots', ()):
                 material = slot.material
@@ -705,10 +745,13 @@ class LegacyExportScene(ExportScene):
                 if prop is None:
                     continue
                 tag_path = utils.relative_path(material.nwo.shader_path)
-                if Path(tag_path).suffix.lower() != '.shader_environment':
-                    raise ExportCancelled(
-                        f'{material.name}: Halo 1 material emission requires a shader_environment tag')
-                key = str(Path(self.tags_dir, tag_path).resolve()).casefold()
+                shader_environment_path(tag_path, self.tags_dir, 'halo1')
+                shader_path = Path(self.tags_dir, tag_path).resolve()
+                if shader_path.parent != shader_folder:
+                    self.warnings.append(
+                        f'{material.name}: emissive shader was not localized to the asset; skipping tag update')
+                    continue
+                key = str(shader_path).casefold()
                 values = (float(prop.material_lighting_emissive_power),
                           tuple(float(channel) for channel in prop.material_lighting_emissive_color[:3]))
                 previous = requested.get(key)
@@ -1594,6 +1637,8 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
         export.ready_scene(collection_view_layer)
         export.get_initial_export_objects()
         export.map_halo_properties()
+        if project.game == 'halo2':
+            export.prepare_halo2_material_emissives(write_intermediates, write_tags)
         if write_intermediates:
             # Legacy serializers apply a shared deterministic order without tag templates.
             export.create_virtual_tree()

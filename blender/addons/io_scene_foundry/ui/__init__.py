@@ -205,6 +205,7 @@ classes = [
     asset.NWO_UL_CinematicScenes,
     asset.NWO_OT_SetMainScene,
     material.NWO_OT_UpdateHalo1MaterialEmissive,
+    material.NWO_OT_UpdateHalo2MaterialEmissive,
     material.NWO_OT_MaterialOpenTag,
     material.NWO_OpenImageEditor,
     material.NWO_DuplicateMaterial,

@@ -51,7 +51,11 @@ def material_variant(shader, props, global_material='default', ass_version=None,
     if target_game != 'halo1' and lmres != (1 if legacy_resolution else 3):
         name += f' lm:{lmres_scale:g}'
     power = get('lighting_emissive_power')
-    if power and target_game != 'halo1':
+    if target_game == 'halo2':
+        scale = get('lighting_emissive_power_scale', 1.0)
+        if scale != 1.0:
+            name += f' lp:{scale:g}'
+    elif power and target_game != 'halo1':
         name += f' lp:{power:g}'
     lighting = ()
     if ass_version and ass_version >= 4:
