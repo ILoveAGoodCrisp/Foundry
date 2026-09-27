@@ -125,9 +125,22 @@ class ToolPatcher:
     def reach_plane_builder(self, enabled=True, return_patches=False):
         patch = b"\xEB"
         if self.tool_path.lower().endswith("_fast.exe"):
+            # Retain the existing vertex-index and plane-distance bypasses.
             addresses = [0x19A775, 0x19A789, 0x19A79A, 0x1A0C86]
             originals = [b"\x75", b"\x75", b"\x75", b"\x73"]
+            # connected_geometry_plane_builder.cpp:967-969 checks points[0..2]
+            # against original_plane. These are separate from the checks above.
+            # Validate the branch, assertion descriptor and call together; only
+            # change JA to JMP, keeping its existing success destination.
+            addresses.extend([0x19A9B3, 0x19AA27, 0x19AA91])
+            originals.extend([
+                bytes.fromhex("77 1e 48 8d 0d fc 82 36 01 e8 93 d4 1e 00"),
+                bytes.fromhex("77 1e 48 8d 0d 70 82 36 01 e8 1f d4 1e 00"),
+                bytes.fromhex("77 0c 48 8d 0d 4e 82 36 01 e8 b5 d3 1e 00"),
+            ])
+            patch = [b"\xEB" + original[1:] for original in originals]
         else:
+            # The standard Tool already covers the same three assertions.
             addresses = [0x220CE5, 0x220D55, 0x220DBB]
             originals = b"\x77"
 

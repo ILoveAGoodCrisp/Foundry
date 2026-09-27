@@ -222,3 +222,89 @@ Saved and reopened the repaired scene at
 It keeps the original asset sidecar path. The original `forge_world.blend` and
 source BSP were not overwritten. The final diagnostic tags and sidecar are under
 `foundry_blam/codex_geometry_final` in HREK's `tags` and `data` directories.
+
+## Sword Base follow-up (2026-09-27)
+
+Investigated the supplied `sword_base.blend`, the original
+`levels/multi/20_sword_slayer/20_sword_slayer.scenario`, and its main, hidden and
+shared BSP tags. The original scene remains unchanged (86,297,965 bytes,
+last modified 18:54:24). The repaired copy is
+`G:/Halo/Modding/Main/HREK/data/foundry_blam/sword_base/sword_base_geometry_fixed.blend`.
+It was reopened and checked, and retains the original Sword Base sidecar path.
+
+| Geometry | Supplied export: open edges | Final Tool compile: open edges |
+| --- | ---: | ---: |
+| Main structure | 10 | 0 |
+| Nine affected instance definitions | 30 | 0 |
+| Hidden structure | 23 | 21 |
+
+The remaining 21 are inherited openings, not newly introduced extraction gaps.
+The original hidden BSP records 21 open-edge reports and its native collision
+mesh also has 21 boundary edges. The final export's 21 error bounding boxes
+match the original reports when rounded to 0.001 tag units. Invalid source
+surfaces were not promoted into speculative closing geometry.
+
+Four related fixes are now in the Reach import path:
+
+1. **Opposing structure surfaces.** The existing instance fix also applies to
+   structure collision. Six rendered trim triangles around a sky opening had
+   reversed, untextured collision backs. Recovering their two-sided flags before
+   interpreting surface mappings removes the main structure's ten false edges.
+2. **Mapped collision coverage.** A collision polygon can map to a render
+   triangle that covers only half of it. H1's planar coverage calculation now
+   recovers whole missing triangles from mapped Reach structure polygons.
+   Recovery requires a matching open boundary and rejects occupied edges,
+   partial clips and insignificant numeric slivers. Two missing collision
+   triangles restore the hidden structure's original boundary rather than the
+   detours present in the initial extraction. Material boundaries do not count
+   as missing geometric coverage.
+3. **Compiled render slivers.** Several source render triangles are almost
+   collinear and Tool drops them on recompilation. Compatible adjacent triangles
+   now receive a better diagonal without moving vertices. UV or normal seams
+   retain the visible triangles and use a separate collision triangulation.
+   A backtracking case in `poop_swordbase_interior_wall_deco_17` additionally
+   splits the adjacent collision edge at an existing boundary vertex. Material
+   and collision-property boundaries, existing diagonals, winding, thin closed
+   volumes and excluded surface modes are guarded.
+4. **Two-sided seam sealers.** Consolidation during joining, import and export
+   must retain recovered helper flags, as in H1. Tool still interprets
+   `+seamsealer` as a solid boundary even when its exported sidedness is correct.
+   The untextured two-sided fin in `threshold02` is therefore represented by an
+   ordinary collision-only, two-sided material with the default physical
+   material. Its geometry and collision sheet are retained; its free edges no
+   longer become false holes. Ordinary one-sided sealers are unchanged.
+
+The nine affected placements are `poop_swordbase_interior_wall_deco_17`,
+`poop_step_holder_a_01`, `threshold02`, `poop_left_side_floor_stair_b_01`,
+`poop_oni_dddddd54`, `poop_oni_atrium_porch_b01`, `poop_large_wall_short_trim`,
+`poop_swordbase_interior_wall_deco_01` and `poop_swordbase_interior_wall_deco_14`.
+Fresh native definition imports and the reopened repaired scene have no open
+or overused edges in their solid shells. Repairs affect shared mesh data, so
+other placements of these definitions also receive the fix.
+
+Validation:
+
+- Final full Reach Tool compile completed at 19:38:50 with exit code 0 in
+  2m33.7s. It reported no main/shared structure or instance open edges, no portal
+  leakage and no assertion. Only the 21 inherited hidden-structure edges remain.
+- Three warnings remain on preserved **render-only** triangles in
+  `poop_swordbase_interior_wall_deco_14`, `poop_oni_atrium_porch_b01` and
+  `poop_swordbase_interior_wall_deco_17`. These no longer produce collision gaps.
+  Existing material and BSP connection warnings are not claimed resolved.
+- Nine new regression tests pass, along with 14 existing Reach tests, four H1
+  surface tests and five H1 portal export tests (32 passed, one optional H1
+  fixture skipped). Coverage includes UV/custom-normal retention, property
+  boundaries, collision-only reconstruction, thin volumes, material-independent
+  coverage, occupied-edge rejection and helper flags.
+- Full original Forge World import still yields 913 unique meshes and 176,443
+  faces. Its rock and tunnel checks pass, including tunnel triangulation; the
+  raw decoder still retains all 144,528 render faces.
+- Validation used Foundry's existing in-memory Reach plane-builder workaround.
+  Direct, unpatched Tool stopped on the shared BSP at plane-builder line 967.
+  No Tool executable or original game tag was edited for this investigation.
+
+Final diagnostic data and tags are under `foundry_blam/codex_sword_geometry_final`.
+The complete Tool log is `%TEMP%/sword-tool-final.log`. Native extraction repairs
+are in `tags/reach_geometry.py`; focused tests are in `blender/test_reach_slivers.py`.
+Restart Blender before testing a fresh import so it loads the updated Python
+modules. Runtime traversal/visual inspection in Sapien remains unverified.

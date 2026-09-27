@@ -813,7 +813,7 @@ def ensure_import_operator_enum_defaults(keywords):
 ### Steps for adding a new file type ###
 ########################################
 # 1. Add the name of the file extension to formats
-# 2. Add this to bl_file_extensions under the NWO_FH_Import class
+# 2. Add this to a file handler's bl_file_extensions (keep each string below 512 bytes)
 # 3. Add NWO_Import.invoke condition for type and add to the filter glob
 # 4. Add elif for type to NWOImporter.group_filetypes
 # 5. Add import function to NWOImporter
@@ -2132,9 +2132,15 @@ class NWO_Import(bpy.types.Operator):
                                         actor_event_links.append((event_index, armature))
 
                                     model_collection.name = cin_object.name
-                                    cin_actions, cin_animations = importer.import_animation_graph(cin_object.graph_path, armature, render_path, return_animations=True)
+                                    animation_start = len(scene_nwo.animations)
+                                    cin_actions = importer.import_animation_graph(cin_object.graph_path, armature, render_path)
                                     
-                                    cin_object.animations = {utils.action_shot_index(a): a for a in cin_animations}
+                                    # Scenes reuse names, and Blender can invalidate RNA
+                                    # references as this collection grows. Keep stable indices.
+                                    cin_object.animations = {
+                                        utils.action_shot_index(scene_nwo.animations[i].name): i
+                                        for i in range(animation_start, len(scene_nwo.animations))
+                                    }
                                     imported_cinematic_actions.extend(cin_actions)
                                     scene_imported_actions.extend(cin_actions)
                                     all_actors.add(armature)
@@ -2512,7 +2518,8 @@ class NWO_Import(bpy.types.Operator):
         game = project.game if project is not None else None
         scope_items = set(self.scope.split(',')) if self.scope else set()
         corinth = project.corinth if project is not None else corinth
-        if not scope_items or any(item not in {'jms', 'jma'} for item in scope_items):
+        if (utils.get_scene_props().asset_type != 'cinematic' and 'cinematic' not in scope_items
+                and (not scope_items or any(item not in {'jms', 'jma'} for item in scope_items))):
             box = layout.box()
             box.label(text="Tag Source Data")
             box.prop(self, "use_import_info")
@@ -2697,7 +2704,7 @@ class JMSMaterialSlot:
         name = self.material.name
         if name.startswith('+weather'):
             return 'weather_polyhedron'
-        elif name.startswith('+portal') or self.portal_one_way or self.portal_vis_blocker:
+        elif name.startswith(('+portal', '+exactportal')) or self.portal_one_way or self.portal_vis_blocker:
             return 'portal'
         elif name.startswith('+seam') and not name.startswith('+seams'):
             return 'seam'
@@ -2731,6 +2738,7 @@ class JMSMaterialSlot:
         self.lightmap_only = ';' in name
         self.shadow_only = False
         self.precise = ')' in name
+        self.portal_exact = name.startswith('+exactportal')
         self.portal_one_way = '<' in name
         self.portal_door = '|' in name
         self.portal_vis_blocker = '~' in name
@@ -2984,7 +2992,7 @@ class NWOImporter:
         return root.joinpath(*relative_parts)
 
     def configure_import_info(self, output_root: Path):
-        self.use_import_info = True
+        self.use_import_info = not (self.for_cinematic or 'cinematic' in self.extensions)
         self.import_info_output_root = output_root
 
     def import_info_sources_for_tag(self, tag_path) -> list[str]:
@@ -3358,6 +3366,7 @@ class NWOImporter:
             utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'breakable'
 
         if apply_object_props:
+            nwo.portal_exact = jms_mat.portal_exact
             nwo.portal_ai_deafening = jms_mat.ai_deafening
 
         if jms_mat.no_shadow and supports('no_shadow'):
@@ -4115,7 +4124,7 @@ class NWOImporter:
                         render_model._apply_control_rig_deform_shapes_after_geometry()
             return tag_objects + source_objects, armature
         if source_files:
-            objects = self.import_jms_files(source_files, 'model')
+            objects = self.import_jms_files(source_files, 'model', parent_collection=model_collection)
             armature = next((ob for ob in objects if ob.type == 'ARMATURE'), existing_armature)
             if armature is not None and self.game != 'halo1':
                 armature.nwo.node_order_source = utils.relative_path(file)
@@ -4220,11 +4229,10 @@ class NWOImporter:
         self.context.scene.render.fps_base = 1
         with utils.TagImportMover(self.tags_dir, file) as mover:
             forced_compression_value = 0
-            do_reset = False
             graph_metadata = None
             blend_screen_choices = {}
             with AnimationGraphTag(path=mover.tag_path) as graph:
-                forced_compression_value, do_reset = graph.force_uncompressed_for_import()
+                forced_compression_value = graph.forced_compression()
                 graph_metadata = graph.import_metadata()
                 convert_to_reach = (self.convert_animations and graph.game in LEGACY_GAMES
                                     and self.target_game in REACH_PLUS_GAMES)
@@ -4310,10 +4318,6 @@ class NWOImporter:
                         imported_animations, self.convert_animations,
                         self.target_game)
                 utils.print_bullet(f"Imported {count} frame events")
-
-            if do_reset:
-                with AnimationGraphTag(path=mover.tag_path) as graph:
-                    graph.restore_forced_compression(forced_compression_value)
 
         if convert_to_legacy and self.graph_import_animations:
             from .animation.reach_import import remap_legacy_screen_events
@@ -4733,7 +4737,7 @@ class NWOImporter:
             if Path(path).suffix.lower() in legacy_model_formats
         ]
         if source_files:
-            bsp_objects = self.import_jms_files(source_files, 'bsp')
+            bsp_objects = self.import_jms_files(source_files, 'bsp', parent_collection=scenario_collection)
             game_objects = [ob for ob in bsp_objects if ob.type == 'EMPTY'
                             and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance']
             self._import_bsp_game_objects(bsp_objects, game_objects)
@@ -4963,6 +4967,8 @@ class NWOImporter:
         return decorator_objects
     
     def import_cinematic(self, file, film_aperture: float):
+        # Cinematic actors and scenery must use compiled tag geometry throughout.
+        self.use_import_info = False
         filename = Path(file).with_suffix("").name
         utils.print_section(f"Importing Cinematic: {filename}")
         with utils.TagImportMover(self.tags_dir, file) as mover:
@@ -5040,7 +5046,7 @@ class NWOImporter:
                                       parent_collection=parent_collection,
                                       geometry_only=geometry_only))
             else:
-                objects.extend(reader(self, path, legacy_type))
+                objects.extend(reader(self, path, legacy_type, parent_collection=parent_collection))
         return objects
 
 
@@ -5818,7 +5824,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         layout.use_property_split = True
         layout.label(text=f"Importing: {Path(self.filepath).name}")
         corinth = utils.is_corinth(context)
-        if self.import_type not in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
+        if self.import_type not in {"cinematic", "jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"} and utils.get_scene_props().asset_type != 'cinematic':
             layout.prop(self, "use_import_info")
         match self.import_type:
             case "model" | "biped" | "crate" | "creature" | "device_control" | "device_dispenser" | "effect_scenery" | "equipment" | "giant" | "device_machine" | "projectile" | "scenery" | "spawner" | "sound_scenery" | "device_terminal" | "vehicle" | "weapon":
@@ -5923,12 +5929,24 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.ass;.bitmap;.model;.gbxmodel;.render_model;.physics_model;.physics;.sky;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.model_animations;.prefab;.structure_design;.polyart_asset;.decorator_set;.cinematic"
+    bl_file_extensions = ".jms;.ass;.bitmap;.model;.gbxmodel;.render_model;.physics_model;.physics;.sky;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.model_animations;.prefab;.structure_design;.polyart_asset;.decorator_set"
 
     @classmethod
     def poll_drop(cls, context):
         return (context.area and context.area.type == 'VIEW_3D')
-    
+
+class NWO_FH_ImportCinematic(bpy.types.FileHandler):
+    # Blender stores each extension list in a 512-byte buffer, including the
+    # terminator. Appending .cinematic to the general handler truncates it.
+    bl_idname = "NWO_FH_ImportCinematic"
+    bl_label = "File handler Foundry Cinematic Importer"
+    bl_import_operator = "nwo.import_from_drop"
+    bl_file_extensions = ".cinematic"
+
+    @classmethod
+    def poll_drop(cls, context):
+        return NWO_FH_Import.poll_drop(context)
+
 class NWO_OT_ImportBitmap(bpy.types.Operator):
     bl_idname = "nwo.import_bitmap"
     bl_label = "Bitmap Importer"
@@ -6463,13 +6481,10 @@ def add_scene_data_to_nla(sdata, scene_nwo):
         for cin_object in sdata.object_animations:
             if not cin_object.animations:
                 continue
-            animation_name = cin_object.animations.get(shot_idx)
-            if animation_name is None:
+            animation_index = cin_object.animations.get(shot_idx)
+            if animation_index is None:
                 continue
-            
-            animation = scene_nwo.animations.get(animation_name)
-            if animation is None:
-                continue
+            animation = scene_nwo.animations[animation_index]
             
             animation_start, animation_end = animation.frame_start, animation.frame_end
             start = shot_frame

@@ -23,6 +23,10 @@ its own native adapter and shares geometry/material helpers (see `ASS.md`).
 Triangles retain source material indices. Partitioning first separates each
 region/permutation/LOD, then separates incompatible mesh types and portal
 policies. Local vertex maps preserve UVs, normals, colors and skin weights.
+BSP imports create a Foundry BSP collection whose BSP identity is the JMS/ASS
+filename without its extension. All imported objects belong to that BSP,
+including frames, markers, lights and reused ASS instances. Model imports keep
+their source regions and an ordinary import collection.
 Material flags become Foundry face properties before shader names are deduplicated;
 collision/physics materials also become Foundry global material properties.
 The source material table is retained on the collection for metadata that does
@@ -34,20 +38,47 @@ they are retained on non-exporting empties with a warning. Both constraint
 frames and source limits remain in metadata. Xrefs, bounding spheres and
 skylights also retain their source metadata.
 
-## Future exporter
+## Export and round trips
 
-Populate the format dataclasses from evaluated geometry (for example a
-`VirtualScene`/`VirtualMesh` adapter), then add a version-aware writer. Do not
-reuse Blender material slot indices as JMS property variants: derive variants
-from face properties together with region/permutation/LOD. Reverse the adapter's
-unit/axis conversion exactly once, accounting for any conversion already done
-by virtual geometry. Rebuild version-specific node transforms and quaternion
-conventions at the writer boundary. Import does not initialize virtual geometry
-or its tag/export dependencies.
+`export/legacy.py` adapts evaluated VirtualScene/VirtualMesh geometry to JMS;
+`writers.py` serializes the selected dialect. Material variants come from
+resolved face properties and region/permutation/LOD, not Blender slot indices.
+Unit/axis conversion is reversed at the adapter boundary. Import remains
+independent of virtual geometry and tag/export initialization.
+
+For Halo 1, exact and ordinary portals are partitioned separately. Exact Portal
+is stored on the object and survives replacing its display material. An explicit
+setting takes precedence over the legacy +exactportal material-name fallback.
+Real shaders beginning with + (such as +ladder stair) retain their collision and
+ladder properties even without a resolved shader path. H1 helper-face flags are
+also preserved during import and export cleanup.
+
+Auto import respects an explicit Model/BSP choice first. In Auto mode, an
+attached tag armature implies a model; BSP material kinds imply structure;
+render/collision/physics folders imply a model; scenario/prefab context implies
+structure. Node presence is only a fallback: BSP JMS also has a root node.
 
 ## Checks
 
-`tests/test_jms.py` runs in ordinary Python. `tests/test_jms_blender.py` runs in
-background Blender and uses actual Foundry property classes and face helpers,
-isolating unrelated add-on startup dependencies. It checks scale, parenting,
-material masks, partitioning, UVs, colors, weights, physics and failure cleanup.
+Run `blender/test_jms_roundtrip.py` with Blender in background factory-startup
+mode and `--python-exit-code 1`. The tests use real Foundry properties, importer,
+mesh-level property processing, VirtualMesh, the legacy export adapter and JMS
+writer. They check portal partitioning, exact-portal material replacement and
+explicit disabling, unresolved + shader properties, collision and helper-face
+flags, UVs, Auto mode, and a scaled/rotated round trip.
+
+Optional arguments after Blender's `--`:
+
+- `--source input.jms --output directory`: also round-trip a real BSP, comparing
+  triangle/material counts, face properties, geometry and UVs. Portal positions
+  allow the existing final-coordinate planarization tolerance; other positions
+  and UVs must remain within serialization precision.
+- `--tool-fixture directory`: write a small sealed BSP and its two exported
+  generations for Halo 1 Tool validation. The directory can be an isolated
+  editing kit's data/levels/roundtrip/models. Provide wall.shader_environment and
+  +ladder stair.shader_environment under tags/levels/roundtrip/shaders, then run
+  Tool structure on room_first and room_second. Both must produce BSP tags and
+  identical portal/cluster counts, with no import errors.
+
+`blender/test_halo1_portal_export.py` checks bounded portal planarization;
+`blender/test_export_output.py` checks export output handling without Blender.

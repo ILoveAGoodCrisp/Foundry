@@ -1143,6 +1143,14 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     # poop light channel flags. Not included for now
 
     # portal PROPERTIES
+    portal_exact: bpy.props.BoolProperty(
+        name="Exact Portal",
+        description="Export this Halo 1 portal as +exactportal",
+        default=False,
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+
     portal_type: bpy.props.EnumProperty(
         name="Portal Type",
         options=set(),

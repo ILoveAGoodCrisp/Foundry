@@ -1140,6 +1140,9 @@ class LegacyExportScene(ExportScene):
                 if self.supports_bsp:
                     gm = 'default'  # Pre-H4 BSP surface types are resolved from shaders.
                 shader = self.legacy_shader_name(mat)
+                if self.target_game == 'halo1' and props.get('bungie_mesh_type') == 13:
+                    if node.ob.nwo.is_property_set('portal_exact'):
+                        props['foundry_portal_exact'] = node.ob.nwo.portal_exact
                 name, lighting = material_variant(shader, props, gm,
                     asset.version if isinstance(asset, ass.ASS) else None,
                     self.target_game)

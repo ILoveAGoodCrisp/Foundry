@@ -145,6 +145,25 @@ class MaterialModel(Enum):
     NONE = 4
     ORGANISM = 5
     HAIR = 6
+
+class H3MaterialModel(Enum):
+    DIFFUSE_ONLY = 0
+    COOK_TORRANCE = 1
+    TWO_LOBE_PHONG = 2
+    FOLIAGE = 3
+    NONE = 4
+    GLASS = 5
+    ORGANISM = 6
+    SINGLE_LOBE_PHONG = 7
+    CAR_PAINT = 8
+    COOK_TORRANCE_CUSTOM_CUBE = 9
+    COOK_TORRANCE_PBR_MAPS = 10
+    COOK_TORRANCE_TWO_COLOR_SPEC_TINT = 11
+    TWO_LOBE_PHONG_TINT_MAP = 12
+    COOK_TORRANCE_SCROLLING_CUBE_MASK = 13
+    COOK_TORRANCE_RIM_FRESNEL = 14
+    COOK_TORRANCE_SCROLLING_CUBE = 15
+    COOK_TORRANCE_FROM_ALBEDO = 16
     
 class EnvironmentMapping(Enum):
     NONE = 0
@@ -581,6 +600,8 @@ class ShaderTag(BlenderTag, TagDocument):
         selected = {}
         inputs = list(self.group_node.inputs)
         for category_name, enum_cls, option_index, socket_index in self.group_option_specs:
+            if enum_cls is MaterialModel and self.game in {'halo3', 'halo3odst'}:
+                enum_cls = H3MaterialModel
             enum_member = None
             if socket_index is not None and socket_index < len(inputs):
                 enum_member = self._group_option_member_from_socket(
@@ -2966,7 +2987,8 @@ class ShaderTag(BlenderTag, TagDocument):
         e_bump_mapping = BumpMapping(self._option_value_from_index(1))
         e_alpha_test = AlphaTest(self._option_value_from_index(2))
         e_specular_mask = SpecularMask(self._option_value_from_index(3))
-        e_material_model = MaterialModel(self._option_value_from_index(4))
+        material_model_enum = H3MaterialModel if self.game in {'halo3', 'halo3odst'} else MaterialModel
+        e_material_model = material_model_enum(self._option_value_from_index(4))
         e_environment_mapping = EnvironmentMapping(self._option_value_from_index(5))
         e_self_illumination = SelfIllumination(self._option_value_from_index(6))
         e_blend_mode = BlendMode(self._option_value_from_index(7))
@@ -2978,9 +3000,9 @@ class ShaderTag(BlenderTag, TagDocument):
             utils.print_warning('Unsupported H3/ODST specular mask: MULT_DIFFUSE. Using FROM_DIFFUSE instead')
             e_specular_mask = SpecularMask.SPECULAR_MASK_FROM_DIFFUSE
         
-        if e_material_model.value > 4:
+        if e_material_model.value > 4 and e_material_model not in {H3MaterialModel.GLASS, H3MaterialModel.SINGLE_LOBE_PHONG}:
             old_model = e_material_model.name
-            e_material_model = MaterialModel.COOK_TORRANCE
+            e_material_model = material_model_enum.COOK_TORRANCE
             utils.print_warning(f"Unsupported material model : {old_model}. Using {e_material_model.name} instead")
             
         if e_bump_mapping.value > 4:

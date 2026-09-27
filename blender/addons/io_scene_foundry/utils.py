@@ -5848,9 +5848,9 @@ def consolidate_face_attributes(mesh: bpy.types.Mesh, *, preserve_special_faces=
         masks[prim] = m
         
     plus_faces = np.array([
-        # H1 also has real shaders named with a '+' prefix (for example
-        # a10's '+ladder stair'). Their collision flags are not helper data.
-        mesh.materials[p.material_index].name.lstrip().startswith("+")
+        # Only known special materials are helpers. H1 real shaders such as
+        # '+ladder stair' must retain face flags before shader-path resolution.
+        mesh.materials[p.material_index].nwo.SpecialMaterial
         and not mesh.materials[p.material_index].nwo.shader_path.strip()
         if 0 <= p.material_index < len(mesh.materials)
            and mesh.materials[p.material_index] is not None
@@ -6095,7 +6095,7 @@ def set_two_sided(mesh, is_io=False, match_collision_patches=False):
         if preserve_normals:
             apply_loop_normals(mesh)
 
-def join_objects(objects: list[bpy.types.Object], *, cleanup_geometry=True) -> bpy.types.Object:
+def join_objects(objects: list[bpy.types.Object], *, cleanup_geometry=True, preserve_special_faces=False) -> bpy.types.Object:
     """Join into the first object, preserving materials and face properties.
 
     Disable cleanup_geometry when the caller must preserve exact coordinates
@@ -6158,11 +6158,12 @@ def join_objects(objects: list[bpy.types.Object], *, cleanup_geometry=True) -> b
     if cleanup_geometry:
         set_two_sided(active.data)
         loop_normal_magic(active.data)
-    consolidate_face_attributes(active.data)
+    consolidate_face_attributes(active.data, preserve_special_faces=preserve_special_faces)
     
-    uv = active.data.uv_layers[0]
-    active.data.uv_layers.active = uv
-    uv.active_render = True
+    if active.data.uv_layers:
+        uv = active.data.uv_layers[0]
+        active.data.uv_layers.active = uv
+        uv.active_render = True
     
     return active
 

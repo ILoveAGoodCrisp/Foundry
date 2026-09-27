@@ -17,14 +17,14 @@ from ..constants import face_prop_game_supported
 
 
 class ASSImporter(JMSImporter):
-    def __init__(self, owner, path, legacy_type):
+    def __init__(self, owner, path, legacy_type, *, parent_collection=None):
         self.owner, self.path = owner, Path(path)
         self.ass = ASS.from_file(path)
         self.scale = owner.scale_factor
         self.rotation = Matrix.Rotation(owner.from_x_rot, 4, 'Z')
         self.objects, self.materials, self.created_materials, self.props = [], {}, [], {}
         self.armature, self.node_world = None, {}
-        self.tag_armature, self.parent_collection = None, None
+        self.tag_armature, self.parent_collection = None, parent_collection
         self.tag_bone_names, self.geometry_only = {}, False
         self.source_indices, self.templates, self.anchors = {}, {}, {}
         self.frame_instances = set()
@@ -369,6 +369,10 @@ class ASSImporter(JMSImporter):
         Preserve world transforms, including pivots and bone parenting.
         """
         bpy.context.view_layer.update()
+        # Reparenting preserves these evaluated transforms. Snapshot once so
+        # large scenario imports do not rebuild the dependency graph per anchor.
+        world_matrices = {ob: ob.matrix_world.copy() for ob in self.objects}
+        removed = set()
         parents = {i.parent for i in self.ass.instances}
         for index in reversed(self.order):
             anchor = self.anchors.get(index)
@@ -381,7 +385,6 @@ class ASSImporter(JMSImporter):
                 continue
             replacement = objects[0] if len(objects) == 1 else None
             children = list(anchor.children)
-            matrices = {ob: ob.matrix_world.copy() for ob in children}
             for ob in children:
                 if replacement is not None and ob != replacement:
                     ob.parent = replacement
@@ -390,13 +393,14 @@ class ASSImporter(JMSImporter):
                     ob.parent = anchor.parent
                     ob.parent_type = anchor.parent_type
                     ob.parent_bone = anchor.parent_bone
-                ob.matrix_world = matrices[ob]
+                ob.matrix_world = world_matrices[ob]
             for ob in objects:
                 ob['ass_instance'] = anchor['ass_instance']
-            self.objects.remove(anchor)
+            removed.add(anchor)
             del self.anchors[index]
-            bpy.data.objects.remove(anchor, do_unlink=True)
-            bpy.context.view_layer.update()
+        self.objects = [ob for ob in self.objects if ob not in removed]
+        bpy.data.batch_remove(removed)
+        bpy.context.view_layer.update()
 
     def link_collision_proxies(self):
         if self.is_model:
@@ -444,5 +448,5 @@ class ASSImporter(JMSImporter):
         return ob
 
 
-def import_ass(owner, path, legacy_type):
-    return ASSImporter(owner, path, legacy_type).build()
+def import_ass(owner, path, legacy_type, *, parent_collection=None):
+    return ASSImporter(owner, path, legacy_type, parent_collection=parent_collection).build()

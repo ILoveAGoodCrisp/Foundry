@@ -5,6 +5,7 @@ after the document closes. No positional field indexes or .NET objects.
 """
 from types import SimpleNamespace
 from pathlib import Path
+import warnings
 from .backend import TagDocument
 
 OPTION_TYPES = ('bitmap', 'color', 'real', 'int', 'bool', 'argb color')
@@ -109,10 +110,16 @@ class RenderMethodDefinitionDocument(TagDocument):
                 path = self.reference(option, 'option')
                 parameters = {}
                 if path is not None:
-                    with RenderMethodOptionDocument(path, tags_root=self.tags_root,
-                                                    game=self.game, must_exist=True,
-                                                    definitions=self.definitions) as doc:
-                        parameters = doc.get_option_parameters()
+                    if path.IsTagFileAccessible():
+                        with RenderMethodOptionDocument(path, tags_root=self.tags_root,
+                                                        game=self.game, must_exist=True,
+                                                        definitions=self.definitions) as doc:
+                            parameters = doc.get_option_parameters()
+                    else:
+                        # Some shipped definitions reference absent option tags,
+                        # including options the material does not select.
+                        warnings.warn(f'Missing shader option defaults: {path.Filename}',
+                                      RuntimeWarning, stacklevel=2)
                 options[self.value(option, 'option name')] = parameters
             result[self.value(category, 'category name')] = options
         return result

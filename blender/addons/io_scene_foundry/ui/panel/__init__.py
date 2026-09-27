@@ -2690,6 +2690,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         row.prop(nwo, "havok_angular_damping")
 
             elif nwo.mesh_type == "_connected_geometry_mesh_type_portal":
+                if game == 'halo1':
+                    col.prop(nwo, "portal_exact")
                 row = col.row()
                 row.prop(
                     nwo,

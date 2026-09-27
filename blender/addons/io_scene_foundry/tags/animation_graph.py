@@ -1682,17 +1682,13 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             field.set(target)
             self.tag_has_changes = True
 
-    def force_uncompressed_for_import(self) -> tuple[int, bool]:
+    def forced_compression(self) -> int:
+        """Read the export preference without rewriting native animation resources."""
         field = self._definitions().field('force compression setting')
         if field is None:
-            return 0, False
+            return 0
         options = field.options()
-        original = int(field.value) if options is None else options.current
-        if self.corinth or original == 3:
-            return original, False
-        field.set(3)
-        self.tag_has_changes = True
-        return original, True
+        return int(field.value) if options is None else options.current
 
     def restore_forced_compression(self, value: int) -> None:
         field = self._definitions().field('force compression setting')

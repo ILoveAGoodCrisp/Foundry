@@ -419,6 +419,15 @@ class InstanceDefinition:
                 self.blender_cookie.nwo.proxy_type = "cookie_cutter"
                 self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_cookie
 
+        if (render_valid and self.has_collision and not self.collision_is_proxy
+                and getattr(utils.get_project(), 'game', None) == 'reach'):
+            from .classic_geometry import weld_classic_vertices
+            from .reach_geometry import preserve_two_sided_sealers, retriangulate_render_slivers
+            weld_classic_vertices(self.blender_render.data)
+            if retriangulate_render_slivers(self.blender_render.data, 0.025 * import_transform.scale_factor()):
+                weld_classic_vertices(self.blender_render.data)
+            preserve_two_sided_sealers(self.blender_render.data)
+
         if self.blender_render:
             objects.append(self.blender_render)
         if self.blender_collision:

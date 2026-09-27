@@ -2,7 +2,7 @@
 import math
 from pathlib import Path
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from ..constants import WU_SCALAR
 from .blender import BlenderTag
@@ -18,7 +18,8 @@ class StructureDesignTag(BlenderTag, StructureDesignDocument):
     def to_blender(self, collection):
         # Preflight all fields before creating any Blender data.
         records = self.surfaces()
-        objects = []
+        rain_meshes, placements = self.rain_geometry()
+        objects = self._rain_to_blender(collection, rain_meshes, placements)
         for record in records:
             name = record.name
             if record.kind == 'boundary' and not name:
@@ -56,6 +57,43 @@ class StructureDesignTag(BlenderTag, StructureDesignDocument):
                 mesh.materials.append(material)
             collection.objects.link(ob)
             objects.append(ob)
+        return objects
+
+    def _rain_to_blender(self, collection, meshes, placements):
+        if not placements:
+            return []
+        from .connected_geometry import Material, Mesh
+        from .prefab import ScenarioStructureBspMetadataTag
+
+        # Use the shared render importer to retain UVs, normals and materials.
+        material_records = ScenarioStructureBspMetadataTag.render_materials(self)
+        records = [ScenarioStructureBspMetadataTag._render_mesh_record(i, mesh)
+                   for i, mesh in enumerate(meshes)]
+        materials = [Material.from_native(record) for record in material_records]
+        instances_collection = bpy.data.collections.new(f'{self.tag_path.ShortName}_instances')
+        collection.children.link(instances_collection)
+        templates = {}
+        objects = []
+        for placement in placements:
+            # Mesh type lives on the mesh datablock, so sheets and blockers
+            # must not share it even when they reference the same definition.
+            key = placement.mesh_index, placement.vertical_rain_sheet
+            if key not in templates:
+                mesh = Mesh.from_native(records[placement.mesh_index], materials, self.game in {'halo4', 'halo2a'})
+                templates[key] = mesh.create(None, None, name=placement.name)
+                first = True
+            else:
+                first = False
+            for template in templates[key]:
+                ob = template if first else template.copy()
+                ob.name = utils.any_partition(placement.name, '__(')
+                ob.matrix_world = import_transform.matrix_from_axes(
+                    placement.forward, placement.left, placement.up, placement.position
+                ) @ Matrix.Scale(placement.scale, 4)
+                ob.data.nwo.mesh_type = ('_connected_geometry_mesh_type_poop_vertical_rain_sheet'
+                    if placement.vertical_rain_sheet else '_connected_geometry_mesh_type_poop_rain_blocker')
+                instances_collection.objects.link(ob)
+                objects.append(ob)
         return objects
 
 

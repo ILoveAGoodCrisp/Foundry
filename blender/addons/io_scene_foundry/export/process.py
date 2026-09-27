@@ -1543,7 +1543,9 @@ class ExportScene:
             skip_mesh_face_props = True
         
         if is_mesh and mesh.nwo.face_props:
-            utils.consolidate_face_attributes(mesh) # makes things simpler and ensures face counts are correct
+            # Imported H1 helpers and Reach seam sealers can carry surface
+            # flags needed to preserve their collision and sidedness on export.
+            utils.consolidate_face_attributes(mesh, preserve_special_faces=self.project_game in {'halo1', 'reach'})
             face_count = len(mesh.polygons)
             if not skip_mesh_face_props:
                 face_props.extend(data_nwo.face_props)

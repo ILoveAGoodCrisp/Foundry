@@ -1,4 +1,4 @@
-"""Detached structure-design surfaces, without render-resource or Blender dependencies."""
+"""Detached structure-design surfaces and instanced rain geometry."""
 from collections import defaultdict
 from math import isfinite
 from types import SimpleNamespace
@@ -23,11 +23,6 @@ class StructureDesignDocument(TagDocument):
 
     def surfaces(self):
         root = self.tag.root()
-        definitions = root.field('instanced geometries definitions')
-        instances = root.field('instanced geometry instances')
-        if ((definitions is not None and len(definitions.as_block())) or
-                (instances is not None and len(instances.as_block()))):
-            raise NotImplementedError(f'{self.path}: native rain-blocker render geometry is not implemented')
         physics = self.required_field(root, 'physics').as_struct()
         records = []
         for ceiling in self.block(physics, 'soft ceilings block'):
@@ -79,3 +74,48 @@ class StructureDesignDocument(TagDocument):
                 depth=max(w.high for w in waters) - min(w.low for w in waters),
                 flow=properties.flow, color=properties.color, murkiness=properties.murkiness))
         return records
+
+    def rain_geometry(self):
+        """Decode design meshes with each definition's compression bounds.
+
+        Structure designs use the same render resource layout as BSPs. Keep
+        placement separate so repeated instances can share Blender mesh data.
+        """
+        root = self.tag.root()
+        field = root.field('instanced geometry instances')
+        instances = [] if field is None else field.as_block()
+        if not len(instances):
+            return [], []
+        definitions = self.block(root, 'instanced geometries definitions')
+        geometry = self.required_field(root, 'render geometry').as_struct()
+        mesh_count = len(self.block(geometry, 'meshes'))
+        bound_count = len(self.block(geometry, 'compression info'))
+        compression = [-1] * mesh_count
+        mesh_indices = []
+        for index, definition in enumerate(definitions):
+            mesh = self.value(definition, 'mesh index')
+            bounds = self.value(definition, 'compression index')
+            if not 0 <= mesh < mesh_count:
+                raise ValueError(f'{self.path}: definition {index} has invalid mesh index {mesh}')
+            if bounds < -1 or bounds >= bound_count:
+                raise ValueError(f'{self.path}: definition {index} has invalid compression index {bounds}')
+            if mesh in mesh_indices and compression[mesh] != bounds:
+                raise ValueError(f'{self.path}: mesh {mesh} uses conflicting compression bounds')
+            compression[mesh] = bounds
+            mesh_indices.append(mesh)
+        placements = []
+        for index, instance in enumerate(instances):
+            definition = self.value(instance, 'instance definition')
+            if not 0 <= definition < len(definitions):
+                raise ValueError(f'{self.path}: instance {index} has invalid definition index {definition}')
+            sheet = self.required_field(instance, 'flags').get_flag('vertical rain sheet')
+            placements.append(SimpleNamespace(
+                mesh_index=mesh_indices[definition],
+                name=self.value(instance, 'name') or f'rain_instance:{index}',
+                vertical_rain_sheet=sheet, scale=self._number(instance, 'scale'),
+                forward=self._vector(instance, 'forward'), left=self._vector(instance, 'left'),
+                up=self._vector(instance, 'up'), position=self._vector(instance, 'position')))
+        meshes = self.tag.sbsp_render_meshes(compression)
+        if len(meshes) != mesh_count:
+            raise ValueError(f'{self.path}: decoded {len(meshes)} of {mesh_count} rain meshes')
+        return meshes, placements

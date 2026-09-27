@@ -486,7 +486,11 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 both_sides = flags.get_flag('lighting from both sides')
                 transparency_override = flags.get_flag('transparency override')
                 ignore_default = flags.get_flag('ignore default resolution scale')
-                chart_group = int(self.value(element, 'lightmap chart group index'))
+                # Older Reach material records (including cinematic FX models)
+                # predate the chart-group field. Keep the default for that layout.
+                chart_field = element.field('lightmap chart group index')
+                if chart_field is not None:
+                    chart_group = int(chart_field.value)
 
             records.append(StructureBspRenderMaterial(
                 index=index,
@@ -818,7 +822,7 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 not_in_lightprobes=flags.get_flag('not in lightprobes'),
                 render_only=flags.get_flag('render only'),
                 not_block_aoe=flags.get_flag('does not block aoe damage'),
-                decal=flags.get_flag('decal spacing'),
+                decal=('decal spacing' in flags.options().names and flags.get_flag('decal spacing')),
                 imposter_transition=float(optional_value(
                     element, 'imposter transition complete distance', 0.0)),
                 pathfinding=optional_enum(

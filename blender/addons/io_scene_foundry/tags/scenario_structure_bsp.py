@@ -660,6 +660,11 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                         created_instance_indices.add(io.index)
             legacy_surface_triangle_mapping = []
             if collision is not None:
+                if self.game == 'reach':
+                    # The structure stream has the same back-to-back compiler
+                    # surfaces as instance collision (including sky-backed
+                    # trim). Transfer their sidedness before resolving maps.
+                    collision.mark_opposite_surfaces()
                 if len(native_surface_mappings) > len(collision.surfaces):
                     raise ValueError('Structure surface mapping count exceeds collision surfaces')
                 legacy_surface_triangle_mapping = [
@@ -698,8 +703,24 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 utils.print_step("Creating Structure Collision")
             
             collision_only_indices = [idx for idx, mapping in enumerate(structure_surface_triangle_mapping) if mapping.collision_only]
-            if collision_only_indices:
-                ob = collision.to_object(surface_indices=collision_only_indices)
+            remainder = None
+            if self.game == 'reach' and structure_objects:
+                from .reach_geometry import recover_mapped_collision
+                mapped_indices = [idx for idx, mapping in enumerate(structure_surface_triangle_mapping)
+                                  if not mapping.collision_only]
+                if mapped_indices:
+                    remainder = collision.to_object(surface_indices=mapped_indices)
+                    recover_mapped_collision(remainder.data, [o.data for o in structure_objects],
+                                             0.025 * import_transform.scale_factor())
+                    if not remainder.data.polygons:
+                        empty_mesh = remainder.data
+                        bpy.data.objects.remove(remainder)
+                        bpy.data.meshes.remove(empty_mesh)
+                        remainder = None
+            if collision_only_indices or remainder is not None:
+                ob = collision.to_object(surface_indices=collision_only_indices) if collision_only_indices else remainder
+                if remainder is not None and remainder != ob:
+                    utils.join_objects([ob, remainder], cleanup_geometry=False, preserve_special_faces=True)
                 collision_mesh = ob.data
                 if self.game == 'reach' and structure_objects:
                     from .classic_geometry import align_collision_boundary
@@ -815,7 +836,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 # A distance weld can collapse thin Reach triangles, especially
                 # at Blender scale. Reconnect exact vertices below instead.
                 utils.join_objects([main_structure_ob] + remaining_structure_obs,
-                                   cleanup_geometry=self.game != 'reach')
+                                   cleanup_geometry=self.game != 'reach', preserve_special_faces=self.game == 'reach')
 
             elif structure_objects:
                 main_structure_ob = structure_objects[0]
@@ -831,7 +852,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 # shared instance definitions, collision proxies and water.
                 # Process shared meshes once rather than once per placement.
                 weld_classic_vertices(me)
-            utils.consolidate_face_attributes(me)
+            utils.consolidate_face_attributes(me, preserve_special_faces=self.game == 'reach')
             utils.consolidate_materials(me)
                 
         # Create Portals

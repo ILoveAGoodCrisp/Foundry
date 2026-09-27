@@ -98,10 +98,6 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
         field.set(bytes(payload))
 
     def _preflight_import(self):
-        if not self.corinth:
-            for element in self.block_generic_light_instances:
-                if element.field('gel reference') is None:
-                    raise NotImplementedError(f'{self.path}: older lighting-info instance layout is not implemented')
         for element in self.block_generic_light_definitions:
             parameters = self.required_field(element, 'Midnight_Light_Parameters').as_struct() if self.corinth else element
             kind = self._index(parameters, 'Light Type' if self.corinth else 'type')
@@ -588,7 +584,8 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
 
             # Gels belong to instances, so a shared definition can need several
             # light datablocks. Keep identical definition/gel pairs linked.
-            gobo_tag_path = self.reference(element, 'gel reference')
+            gobo_tag_path = (self.reference(element, 'gel reference')
+                             if element.field('gel reference') is not None else None)
             gel_path = self._reference_path(gobo_tag_path)
             variant_key = (definition_index, gel_path)
             if variant_key not in light_variants:
@@ -621,6 +618,11 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
 
             ob.matrix_world = import_transform.transform_matrix(matrix)
             ob.scale *= (1 / 0.03048)
+
+            # H3/ODST instances contain only the definition index and transform.
+            if element.field('bungie light type') is None:
+                objects.append(ob)
+                continue
 
             match self._index(element, 'bungie light type'):
                 case 0:
@@ -658,8 +660,9 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
                     blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element_index}", 'POINT'))
                 case 1:
                     blender_light = cast(bpy.types.Light, bpy.data.lights.new(f"light_definition:{element_index}", 'SPOT'))
-                    hotspot_cutoff_size = self._data(element, 'hotspot cutoff size')
-                    blender_light.spot_size = radians(hotspot_cutoff_size)
+                    older_layout = element.field('hotspot cutoff size') is None
+                    hotspot_cutoff_size = self._data(element, 'hotspot falloff size' if older_layout else 'hotspot cutoff size')
+                    blender_light.spot_size = hotspot_cutoff_size if older_layout else radians(hotspot_cutoff_size)
                     if hotspot_cutoff_size > 0.0:
                         blender_light.spot_blend = 1 - self._data(element, 'hotspot size') / hotspot_cutoff_size
                 case 2:
@@ -674,7 +677,8 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
             blender_light.shadow_soft_size = max((*self._data(element, 'near attenuation bounds'),)) * import_transform.scale_factor()
             nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a * import_transform.scale_factor() for a in self._data(element, 'far attenuation bounds')]
             nwo.light_aspect = self._data(element, 'aspect')
-            if self.required_field(element, 'flags').get_flag("invere squared falloff"):
+            flags = self.required_field(element, 'flags')
+            if 'invere squared falloff' in flags.options().names and flags.get_flag("invere squared falloff"):
                 self.inverse_squared_lights.add(blender_light)
 
             definitions[element_index] = blender_light

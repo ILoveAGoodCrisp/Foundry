@@ -34,7 +34,7 @@ class JMSImporter:
         self.jms = JMS.from_file(path)
         self.scale = owner.scale_factor
         self.rotation = Matrix.Rotation(owner.from_x_rot, 4, 'Z')
-        self.is_model = legacy_type == 'model' or (legacy_type == 'auto' and bool(self.jms.nodes))
+        self.is_model = self.model_import(legacy_type, tag_armature)
         self.objects = []
         self.materials = {}
         self.created_materials = []
@@ -46,6 +46,24 @@ class JMSImporter:
         self.parent_collection = parent_collection
         self.tag_bone_names = {}
         self.geometry_only = geometry_only
+
+    def model_import(self, legacy_type, tag_armature):
+        if legacy_type != 'auto':
+            return legacy_type == 'model'
+        if tag_armature is not None:
+            return True
+        # BSP exports also contain a root node. Special BSP surfaces and the
+        # destination scenario are stronger evidence than node presence.
+        from ..tools.importer import JMSMaterialSlot
+        if any(JMSMaterialSlot.from_name(m.name).mesh_type != 'default'
+               or m.name.startswith(('+sky', '+seamsealer')) for m in self.jms.materials):
+            return False
+        if self.path.parent.name.lower() in {'render', 'collision', 'physics'}:
+            return True
+        asset_type = getattr(getattr(self.owner, 'scene_nwo', None), 'asset_type', '')
+        if asset_type in {'scenario', 'prefab'}:
+            return False
+        return bool(self.jms.nodes)
 
     def transform(self, transform):
         x, y, z, w = transform.rotation
@@ -92,6 +110,14 @@ class JMSImporter:
         try:
             self.store_metadata()
             self.build_contents()
+            if not self.is_model:
+                # JMS regions describe model parts, not separate BSPs. ASS
+                # instances share this path, including copied mesh instances.
+                bsp = self.owner._ensure_region_entry(self.path.stem, utils.SetType.SCENARIO)
+                self.collection.nwo.type = 'region'
+                self.collection.nwo.region = bsp
+                for ob in self.objects:
+                    ob.nwo.region_name = bsp
             return self.objects
         except Exception:
             if context.object and context.object.mode != 'OBJECT':
@@ -230,7 +256,7 @@ class JMSImporter:
     def configure_mesh(self, ob, kind, region='default', permutation='default'):
         mesh_type, _ = self.owner.mesh_and_material(kind, self.is_model)
         ob.data.nwo.mesh_type = mesh_type
-        self.owner.set_region(ob, region)
+        self.owner.set_region(ob, region if self.is_model else self.path.stem)
         self.owner.set_permutation(ob, permutation)
         if mesh_type == '_connected_geometry_mesh_type_structure':
             ob.nwo.proxy_instance = True
@@ -275,7 +301,7 @@ class JMSImporter:
             ob.data.polygons.foreach_set('material_index', [0] * len(ob.data.polygons))
             if not existed:
                 self.created_materials.append(ob.data.materials[0])
-        utils.consolidate_face_attributes(ob.data)
+        utils.consolidate_face_attributes(ob.data, preserve_special_faces=self.jms.version <= 8200)
 
     def collision_material_name(self, index, material):
         return material.name
@@ -300,7 +326,7 @@ class JMSImporter:
                     skipped_triangles += 1
                     continue
                 props = self.props.get(triangle.material)
-                policy = tuple(getattr(props, p, False) for p in ('portal_one_way', 'portal_door', 'portal_vis_blocker', 'blocks_sound', 'ai_deafening'))
+                policy = tuple(getattr(props, p, False) for p in ('portal_one_way', 'portal_door', 'portal_vis_blocker', 'blocks_sound', 'ai_deafening', 'portal_exact'))
                 groups[(self.mesh_kind(props), policy)].append(triangle)
             for (kind, _), faces in groups.items():
                 remap = {}
@@ -394,10 +420,10 @@ class JMSImporter:
                 x, y, z, w = transform.rotation
                 transform = Transform((-x, -y, -z, w), transform.translation)
             self.place(ob, transform, marker.parent, marker=True)
-            if marker.region != -1:
+            if self.is_model and marker.region != -1:
                 self.owner.set_region(ob, self.jms.regions[marker.region])
                 ob.nwo.marker_uses_regions = True
-            if match:
+            if self.is_model and match:
                 self.owner.set_region(ob, match[2])
                 self.owner.set_permutation(ob, match[1])
                 ob.nwo.marker_uses_regions = True
