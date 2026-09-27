@@ -10,6 +10,7 @@ from .. import import_transform, utils
 from ..tools.append_foundry_materials import ensure_special_material
 from ..tools.materials import sky as sky_material_definition, seamsealer
 from .connected_geometry import StructureMarker
+from .backend import TagDocument
 
 
 def material(name):
@@ -18,6 +19,53 @@ def material(name):
 
 def plane_values(plane):
     return plane.i, plane.j, plane.k, plane.d
+
+
+def shader_alpha_tested(shader):
+    """Read the shader checkbox, not radiosity's unrelated transparent-lit flag."""
+    field = shader.tag.root().field('properties')
+    properties = field.as_struct() if field is not None else None
+    if properties is None:
+        return False
+    for name in ('flags', 'shader transparent glass flags'):
+        flags = properties.field(name)
+        if flags is not None:
+            try:
+                return flags.get_flag('alpha tested')
+            except KeyError:
+                pass
+    return False
+
+
+def apply_shader_transparency(tag, objects):
+    """Assign per-face transparency from H1 BSP material shaders, once per path."""
+    cache, seen = {}, set()
+    for ob in objects:
+        if ob.type != 'MESH' or ob.data in seen:
+            continue
+        mesh = ob.data
+        seen.add(mesh)
+        transparent_slots = set()
+        for index, mat in enumerate(mesh.materials):
+            path = mat.nwo.shader_path if mat is not None else ''
+            if not path:
+                continue
+            key = path.replace('/', '\\').casefold()
+            if key not in cache:
+                cache[key] = False
+                try:
+                    with TagDocument(path, tags_root=tag.tags_root, game='halo1',
+                                     definitions=tag.definitions, must_exist=True) as shader:
+                        cache[key] = shader_alpha_tested(shader)
+                except OSError as error:
+                    utils.print_warning(f'Cannot read H1 shader transparency for {path}: {error}')
+            if cache[key]:
+                transparent_slots.add(index)
+        mask = np.array([f.material_index in transparent_slots for f in mesh.polygons], dtype=bool)
+        if mask.any():
+            prop = utils.add_face_prop(mesh, 'transparent', mask)
+            prop.transparent = True
+            utils.calc_face_prop_counts(mesh)
 
 
 def fog_geometry(vertices, face):

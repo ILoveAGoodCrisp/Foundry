@@ -433,7 +433,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 objects.extend(classic_objects)
                 game_objects.extend(classic_game_objects)
                 if self.game == 'halo1':
-                    from .halo1_bsp_blender import replace_collision_only, apply_collision_surface_flags, create_helpers
+                    from .halo1_bsp_blender import replace_collision_only, apply_collision_surface_flags, apply_shader_transparency, create_helpers
                     replace_collision_only(classic_objects, self)
                     apply_collision_surface_flags(self, classic_objects)
                     for ob in classic_objects:
@@ -441,6 +441,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                             utils.set_two_sided(ob.data, match_collision_patches=True)
                             weld_classic_vertices(ob.data)
                             utils.calc_face_prop_counts(ob.data)
+                    apply_shader_transparency(self, classic_objects)
                     if not for_cinematic:
                         objects.extend(create_helpers(self, collection))
                 if not for_cinematic:
