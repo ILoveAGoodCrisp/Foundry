@@ -6229,6 +6229,75 @@ def material_add_shield(material: bpy.types.Material):
         
     arrange(node_tree)
 
+def material_add_backface(material: bpy.types.Material):
+    """Keep the backface filter immediately before the active surface output."""
+    material.use_nodes = True
+    material.use_backface_culling = False
+    tree = material.node_tree
+    outputs = [n for n in tree.nodes if n.type == 'OUTPUT_MATERIAL']
+    output = next((n for n in outputs if n.is_active_output), None)
+    if output is None:
+        output = outputs[0] if outputs else tree.nodes.new('ShaderNodeOutputMaterial')
+    surface = output.inputs['Surface']
+    node = next((n for n in tree.nodes if n.type == 'GROUP' and n.node_tree
+                 and n.node_tree.name == 'Halo Backface'), None)
+    if node is None:
+        node = tree.nodes.new('ShaderNodeGroup')
+        node.node_tree = add_node_from_resources('shared_nodes', 'Halo Backface')
+    if surface.is_linked and surface.links[0].from_node == node:
+        return
+    # Bypass an existing filter before moving it to the end of the chain.
+    upstream = node.inputs['Shader'].links[0].from_socket if node.inputs['Shader'].is_linked else None
+    for link in tuple(node.outputs['Shader'].links):
+        target = link.to_socket
+        tree.links.remove(link)
+        if upstream is not None:
+            tree.links.new(upstream, target)
+    for link in tuple(node.inputs['Shader'].links):
+        tree.links.remove(link)
+    if surface.is_linked:
+        link = surface.links[0]
+        source = link.from_socket
+        tree.links.remove(link)
+        tree.links.new(source, node.inputs['Shader'])
+    tree.links.new(node.outputs['Shader'], surface)
+    arrange(tree)
+
+
+def setup_two_sided_preview(mesh: bpy.types.Mesh):
+    """Resolve face masks into the attribute read by Halo Backface."""
+    was_edit_mode = mesh.is_editmode
+    if was_edit_mode:
+        bpy.ops.object.mode_set(mode='OBJECT')
+    try:
+        props = [p for p in mesh.nwo.face_props if p.type == 'face_sides']
+        has_two_sided = any(p.two_sided for p in props)
+        attribute = mesh.attributes.get('foundry_two_sided')
+        if not has_two_sided and attribute is None:
+            return
+        values = np.zeros(len(mesh.polygons), dtype=np.single)
+        for prop in props:
+            mask_attribute = mesh.attributes.get(prop.attribute_name)
+            if mask_attribute is None:
+                continue
+            mask = np.empty(len(mesh.polygons), dtype=np.int32)
+            mask_attribute.data.foreach_get('value', mask)
+            values[mask.astype(bool)] = float(prop.two_sided)
+        if attribute is not None and (attribute.domain != 'FACE' or attribute.data_type != 'FLOAT'):
+            mesh.attributes.remove(attribute)
+            attribute = None
+        if attribute is None:
+            attribute = mesh.attributes.new('foundry_two_sided', 'FLOAT', 'FACE')
+        attribute.data.foreach_set('value', values)
+        mesh.update()
+        if has_two_sided:
+            for material in {m for m in mesh.materials if m is not None}:
+                material_add_backface(material)
+    finally:
+        if was_edit_mode:
+            bpy.ops.object.mode_set(mode='EDIT')
+
+
 def material_add_emissive(material: bpy.types.Material, game=None):
     if game is None:
         project = get_project()
@@ -6288,6 +6357,10 @@ def material_add_emissive(material: bpy.types.Material, game=None):
         # output_node.location = (400, 0)
 
     surf_in = output_node.inputs[0]
+    if surf_in.is_linked:
+        last_node = surf_in.links[0].from_node
+        if last_node.type == 'GROUP' and last_node.node_tree and last_node.node_tree.name == 'Halo Backface':
+            surf_in = last_node.inputs['Shader']
     old_link = surf_in.links[0] if surf_in and surf_in.is_linked else None
     from_socket = old_link.from_socket if old_link else None
 

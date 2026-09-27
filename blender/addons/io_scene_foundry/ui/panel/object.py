@@ -809,6 +809,22 @@ class NWO_OT_FacePropsCopyToSelected(bpy.types.Operator):
         self.report({'INFO'}, f"Copied {len(nwo.face_props)} to {len(meshes)} meshes")
         return {"FINISHED"}
     
+class NWO_OT_UpdateTwoSidedPreview(bpy.types.Operator):
+    bl_idname = 'nwo.update_two_sided_preview'
+    bl_label = 'Update Two-Sided Preview'
+    bl_description = 'Apply two-sided face properties to the mesh and update its Halo Backface nodes'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return bool(context.object and context.object.type == 'MESH'
+                    and any(p.type == 'face_sides' for p in context.object.data.nwo.face_props))
+
+    def execute(self, context):
+        utils.setup_two_sided_preview(context.object.data)
+        return {'FINISHED'}
+
+
 class NWO_OT_AddEmissiveNode(bpy.types.Operator):
     bl_idname = "nwo.add_emissive_node"
     bl_label = "Update Material for Emissives"

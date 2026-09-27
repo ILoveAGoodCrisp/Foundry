@@ -6174,6 +6174,10 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
             for mesh in emissive_meshes:
                 utils.setup_emissive_attributes(mesh, importer.game)
 
+        for mesh in {ob.data for ob in imported_objects if ob.type == 'MESH'}:
+            if any(p.type == 'face_sides' and p.two_sided for p in mesh.nwo.face_props):
+                utils.setup_two_sided_preview(mesh)
+
 
 class NWO_ImportGameInstanceTag(bpy.types.Operator):
     bl_idname = "nwo.import_game_instance_tag"

@@ -3316,6 +3316,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             match item.type:
                 case 'face_sides':
                     col.prop(item, 'two_sided')
+                    if not for_material:
+                        col.operator('nwo.update_two_sided_preview', text='Update Two-Sided Preview', icon='MATERIAL')
                     if self.h4:
                         col.prop(item, 'face_sides_type')
                 case 'region':
