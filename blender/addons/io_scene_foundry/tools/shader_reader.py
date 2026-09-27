@@ -205,6 +205,8 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
         return
     
     print(f"--- Building material nodes for: {mat.name}")
+    if 'foundry_material_conversion_error' in mat:
+        del mat['foundry_material_conversion_error']
     shader = None
     if corinth:
         with MaterialTag(path=tag_path) as shader:
@@ -252,15 +254,27 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
         mat.nwo.game_functions = ",".join(shader.game_functions)
         mat.nwo.object_functions = ",".join(shader.object_functions)
         if target_game is not None:
-            from .material_game_mapping import convert_material_game
-            if convert_material_game(mat, shader.game, target_game):
+            from .material_game_mapping import GAME_LIBRARIES, convert_material_game
+            converted = convert_material_game(mat, shader.game, target_game)
+            shared_library = (shader.game != target_game and target_game in GAME_LIBRARIES
+                              and GAME_LIBRARIES.get(shader.game) == GAME_LIBRARIES[target_game])
+            if converted or shared_library:
                 # Keep provenance, but do not offer to overwrite a foreign
                 # shader or accidentally resolve its relative path in this kit.
                 mat['foundry_material_source_shader'] = str(shader.system_path)
+                mat['foundry_material_source_game'] = shader.game
+                mat['foundry_material_target_game'] = target_game
                 mat.nwo['shader_path'] = ''
                 mat.nwo.prev_shader_path = ''
                 mat.nwo.material_shader = ''
                 mat.nwo.uses_blender_nodes = True
+                for node in mat.node_tree.nodes:
+                    if node.type == 'GROUP' and node.node_tree is not None:
+                        family = node.node_tree.name.partition('.')[2]
+                        if family in {'shader', 'shader_custom', 'shader_decal', 'shader_foliage',
+                                      'shader_glass', 'shader_halogram', 'shader_terrain'}:
+                            mat.nwo.shader_type = '.' + family
+                            break
         if mat.node_tree is not None:
             arrange(mat.node_tree)
         return shader.sequence_drivers

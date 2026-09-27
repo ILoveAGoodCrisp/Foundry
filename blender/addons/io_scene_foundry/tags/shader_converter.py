@@ -17,7 +17,7 @@ from .blender import BlenderTag
 from .field_view import NativeTagStruct
 import os
 from .bitmap import BitmapTag, bitmap_to_image
-from ..tools.export_bitmaps import export_bitmap
+from ..tools.export_bitmaps import export_bitmap, bitmap_export_image, bitmap_needs_rebuild
 from .. import utils
 import bpy
 
@@ -244,6 +244,11 @@ class ShaderTag(BlenderTag, TagDocument):
         "palettized_plasma_change_color",
         "palettized_depth_fade",
     })
+    h3_self_illumination_options = {
+        9: "simple_four_change_color",
+        10: "illum_detail_world_space_four_cc",
+        11: "illum_change_color",
+    }
     # (category_name, enum_type, option_index, group_socket_index|None)
     group_option_specs = (
         ("albedo", Albedo, 0, 0),
@@ -488,7 +493,7 @@ class ShaderTag(BlenderTag, TagDocument):
         if isinstance(socket_value, str):
             wanted = utils.game_str(socket_value)
             for member in enum_cls:
-                if utils.game_str(member.name) == wanted:
+                if self._group_option_key(category_name, member) == wanted:
                     return member
             return None
 
@@ -513,6 +518,8 @@ class ShaderTag(BlenderTag, TagDocument):
             return None
 
     def _group_option_key(self, category_name: str, enum_member: Enum) -> str:
+        if self.game in {'halo3', 'halo3odst'} and category_name == 'self_illumination':
+            return self.h3_self_illumination_options.get(enum_member.value, utils.game_str(enum_member.name))
         return utils.game_str(enum_member.name)
 
     def _self_illumination_uses_palette_vector(self, self_illumination) -> bool:
@@ -1301,6 +1308,12 @@ class ShaderTag(BlenderTag, TagDocument):
             return
         image = node.image
         if not image:
+            return
+        image = bitmap_export_image(image)
+        if bitmap_needs_rebuild(image):
+            bitmap = export_bitmap(image)
+            if bitmap and Path(self.tags_dir, bitmap).exists():
+                return bitmap
             return
         nwo = image.nwo
         if nwo.filepath:
@@ -2893,7 +2906,8 @@ class ShaderTag(BlenderTag, TagDocument):
         self.shader_parameters.update(self.category_parameters["specular_mask"].get(utils.game_str(e_specular_mask.name), {}))
         self.shader_parameters.update(self.category_parameters["material_model"][utils.game_str(e_material_model.name)])
         self.shader_parameters.update(self.category_parameters["environment_mapping"][utils.game_str(e_environment_mapping.name)])
-        self.shader_parameters.update(self.category_parameters["self_illumination"][utils.game_str(e_self_illumination.name)])
+        self_illumination_option = self._group_option_key('self_illumination', e_self_illumination)
+        self.shader_parameters.update(self.category_parameters["self_illumination"][self_illumination_option])
         self.shader_parameters.update(self.category_parameters["blend_mode"][utils.game_str(e_blend_mode.name)])
         alpha_blend_source = self.category_parameters.get("alpha_blend_source")
         if alpha_blend_source is not None:
@@ -2918,7 +2932,7 @@ class ShaderTag(BlenderTag, TagDocument):
         group_node.inputs[3].default_value = e_specular_mask.name.lower().strip('_')
         group_node.inputs[4].default_value = e_material_model.name.lower().strip('_')
         group_node.inputs[5].default_value = e_environment_mapping.name.lower().strip('_')
-        group_node.inputs[6].default_value = e_self_illumination.name.lower().strip('_')
+        group_node.inputs[6].default_value = self_illumination_option
         group_node.inputs[7].default_value = e_blend_mode.name.lower().strip('_')
         
         uses_palette_vector = (self.game not in {'halo3', 'halo3odst'}

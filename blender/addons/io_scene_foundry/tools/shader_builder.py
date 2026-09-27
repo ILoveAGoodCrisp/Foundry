@@ -87,6 +87,13 @@ def _resolve_reach_shader_class(material: bpy.types.Material, shader_path: Path,
     return REACH_SUFFIX_TO_CLASS[".shader"]
 
 def build_shader(material, corinth, folder="", report=None):
+    conversion_error = material.get('foundry_material_conversion_error')
+    if conversion_error:
+        message = f'{material.name}: material conversion is incomplete: {conversion_error}. Reimport the material before building its shader'
+        utils.print_warning(message)
+        if report:
+            report({'WARNING'}, message)
+        return {'CANCELLED'}
     asset_dir = utils.get_asset_path()
     if not utils.get_shader_name(material):
         return {"FINISHED"}

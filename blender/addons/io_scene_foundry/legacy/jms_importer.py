@@ -359,10 +359,14 @@ class JMSImporter:
         if skipped_triangles:
             utils.print_warning(f'{self.path.name}: skipped {skipped_triangles} triangles with repeated vertex indices')
 
-    def place(self, ob, transform, parent=-1, local=True):
+    def place(self, ob, transform, parent=-1, local=True, marker=False):
         matrix = self.transform(transform)
         if local and parent != -1:
             matrix = self.node_world[parent] @ matrix
+        if (marker and self.owner.game in {'halo3', 'halo3odst'}
+                and self.owner.scene_nwo.maintain_marker_axis):
+            # Match the axis correction used for markers read directly from tags.
+            matrix = matrix @ Matrix.Rotation(-self.owner.from_x_rot, 4, 'Z')
         if self.armature:
             ob.parent = self.armature
             if parent != -1:
@@ -389,7 +393,7 @@ class JMSImporter:
                 from .jms_format import Transform
                 x, y, z, w = transform.rotation
                 transform = Transform((-x, -y, -z, w), transform.translation)
-            self.place(ob, transform, marker.parent)
+            self.place(ob, transform, marker.parent, marker=True)
             if marker.region != -1:
                 self.owner.set_region(ob, self.jms.regions[marker.region])
                 ob.nwo.marker_uses_regions = True

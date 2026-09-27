@@ -392,7 +392,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             source_count = len(records)
             records, rebuilt = reconstruct_portals(records, is_solid=collision_point_is_solid(self))
             utils.print_step(f'Imported portals')
-        utils.print_step("Creating Portals")
+        # utils.print_step("Creating Portals")
         layer = utils.add_permutation("portals", utils.SetType.SCENARIO)
         portals_collection = bpy.data.collections.new(
             name=f"{self.tag_path.ShortName}_portals")
@@ -812,7 +812,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         # Create Portals
         if not for_cinematic:
             if native_portals:
-                utils.print_step("Creating Portals")
+                # utils.print_step("Creating Portals")
                 layer = utils.add_permutation("portals", utils.SetType.SCENARIO)
                 portals_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_portals")
                 portals_collection.hide_render = True

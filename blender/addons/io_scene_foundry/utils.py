@@ -6985,6 +6985,15 @@ def copy_material_nodes(existing_mat: bpy.types.Material, mat: bpy.types.Materia
                     pass
 
         node_map[node] = new
+
+        # Group menus and unlinked parameter values are socket state, not node
+        # RNA properties. Imported materials sharing a shader need these too.
+        for source_socket, target_socket in zip(node.inputs, new.inputs):
+            if hasattr(source_socket, 'default_value') and hasattr(target_socket, 'default_value'):
+                try:
+                    target_socket.default_value = source_socket.default_value
+                except (TypeError, ValueError):
+                    pass
         
     def socket_index(node, socket, is_output=False):
         sockets = node.outputs if is_output else node.inputs

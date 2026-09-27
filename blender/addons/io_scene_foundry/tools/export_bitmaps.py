@@ -1,9 +1,11 @@
 
 
 import os
+import re
 from pathlib import Path
 import bpy
 from ..tags.bitmap import BitmapTag
+from .bitmap_tiff import write_image_tiff, write_cube_tiff
 
 import logging
 
@@ -65,7 +67,48 @@ class NWO_ExportBitmapsSingle(bpy.types.Operator):
         export_bitmap(image, self.report)
         return {'FINISHED'}
 
-def export_bitmap(image: bpy.types.Image, report=None):
+def bitmap_export_image(image):
+    """Resolve Foundry's cubemap preview to its original cube-layout source."""
+    source = image.get('foundry_cubemap_source')
+    candidates = [Path(source)] if source else []
+    preview = False
+    paths = [Path(image.filepath_from_user())]
+    if image.nwo.filepath:
+        paths.append(Path(utils.get_data_path(), image.nwo.filepath))
+    for path in paths:
+        match = re.fullmatch(r'(.+)_equirectangular(_\d{5})?', path.stem, re.IGNORECASE)
+        if not match:
+            continue
+        preview = True
+        stem, frame = match.groups()
+        raw = path.with_name(stem + path.suffix)
+        if frame:
+            raw = raw.with_suffix('') / (stem + frame + path.suffix)
+        candidates.extend((raw, raw.with_suffix('.tiff'), raw.with_suffix('.tif')))
+    if not source and not preview:
+        return image
+    raw_path = next((p for p in candidates if p.is_file()), None)
+    if raw_path is None:
+        raise RuntimeError(f'{image.name}: original cubemap TIFF is missing; reimport its source bitmap before exporting')
+    cube = bpy.data.images.load(str(raw_path), check_existing=True)
+    cube.colorspace_settings.name = image.colorspace_settings.name
+    cube.alpha_mode = 'CHANNEL_PACKED'
+    cube.nwo.bitmap_type = 'Cube Map (Reflection Map)'
+    if cube.get('foundry_bitmap_export_root') != str(utils.get_data_path()):
+        cube.nwo.filepath = ''
+    cube['foundry_cubemap_export'] = True
+    return cube
+
+
+def bitmap_needs_rebuild(image):
+    # Rebuild tags made by the old Deflate/preview export, even if they exist.
+    return bool(image.get('foundry_channel_conversion') or image.get('foundry_cubemap_export')) and (
+        image.get('foundry_bitmap_export_version') != 2 or
+        image.get('foundry_bitmap_export_root') != str(utils.get_data_path()))
+
+
+def export_bitmap(image: bpy.types.Image, report=None, *, bitmaps_data_dir=None):
+    image = bitmap_export_image(image)
     data_dir = utils.get_data_path()
     asset_path = utils.get_asset_path()
     
@@ -77,7 +120,7 @@ def export_bitmap(image: bpy.types.Image, report=None):
     user_path_contains_data_dir = user_path.is_relative_to(data_dir)
             
     # Create a bitmap folder in the asset directory
-    bitmaps_data_dir = Path(data_dir, asset_path, "bitmaps")
+    bitmaps_data_dir = Path(bitmaps_data_dir) if bitmaps_data_dir else Path(data_dir, asset_path, "bitmaps")
         # get a list of textures associated with this material
     # export the texture as a tiff to the asset bitmaps folder
     valid_name = utils.valid_image_name(image.name) + ".tif"
@@ -86,7 +129,15 @@ def export_bitmap(image: bpy.types.Image, report=None):
         
     image.nwo.source_name = valid_name
     
-    if user_path and user_path_contains_data_dir and user_path.exists():
+    if image.get('foundry_cubemap_export'):
+        # Tool's cube slicer uses a different face arrangement from extracted
+        # DX crosses. Keep the source intact and write a lossless target plate.
+        bitmaps_data_dir.mkdir(parents=True, exist_ok=True)
+        destination = bitmaps_data_dir / (user_path.stem + '_cube.tif')
+        write_cube_tiff(image, destination)
+        image.nwo.filepath = utils.relative_path(destination)
+        image.nwo.source_name = destination.name
+    elif user_path and user_path_contains_data_dir and user_path.exists():
         logging.log(logging.DEBUG, f"Image is TIFF and has user path and user path starts with {data_dir} and {user_path} exists")
         image.nwo.filepath = utils.relative_path(user_path)
         if image.nwo.reexport_tiff:
@@ -121,15 +172,38 @@ def export_bitmap(image: bpy.types.Image, report=None):
             
     nwo_path = Path(image.nwo.filepath)
     if image.nwo.filepath and Path(data_dir, image.nwo.filepath).exists():
+        converted = bool(image.get('foundry_channel_conversion'))
+        if converted:
+            # Also repair generated TIFFs retained in an older .blend file.
+            write_image_tiff(image, Path(data_dir, image.nwo.filepath))
+            if image.source == 'GENERATED':
+                image.filepath_raw = str(Path(data_dir, image.nwo.filepath))
+                image.source = 'FILE'
+                image.reload()
         path_no_ext = nwo_path.with_suffix("")
         bitmap_path = nwo_path.with_suffix(".bitmap")
         with BitmapTag(path=bitmap_path) as bitmap:
-            bitmap.new_bitmap(utils.dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.colorspace_settings.name)
+            bitmap.new_bitmap(utils.dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.colorspace_settings.name,
+                              preserve_size=converted or bool(image.get('foundry_cubemap_export')))
 
         if utils.is_corinth():
             process = utils.run_tool(["reimport-bitmaps-single", str(path_no_ext), "default"], False, False)
         else:
             process = utils.run_tool(["reimport-bitmaps-single", str(path_no_ext)], False, False)
+        if converted or image.get('foundry_cubemap_export'):
+            # Tool can return success after a failed TIFF decode. Inspect its result.
+            with BitmapTag(path=bitmap_path) as bitmap:
+                if not bitmap.has_bitmap_data():
+                    raise RuntimeError(f'{image.name}: bitmap compiler produced no pixels')
+                if converted:
+                    first = bitmap.block_bitmaps[0]
+                    actual = tuple(bitmap._select_int(first, field) for field in ('width', 'height'))
+                    if actual != tuple(image.size):
+                        raise RuntimeError(f'{image.name}: compiled bitmap is {actual}, expected {tuple(image.size)}')
+                elif not bitmap.is_cubemap:
+                    raise RuntimeError(f'{image.name}: bitmap compiler did not produce a cubemap')
+            image['foundry_bitmap_export_version'] = 2
+            image['foundry_bitmap_export_root'] = str(data_dir)
     else:
         if report:
             report({'ERROR'}, f"{image.name} has no data filepath. Cannot build bitmap")

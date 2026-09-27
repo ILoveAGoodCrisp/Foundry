@@ -173,6 +173,13 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
             info.image_path = str(alt_sequence_tiff_path)
         else:
             info.image_path = bitmap.save_to_tiff(info.for_normal)
+
+        if info.cubemap:
+            suffix = '_00001' if len(bitmap.block_bitmaps) > 1 else ''
+            cube_source = Path(bitmap._raw_tiff_save_path(suffix))
+            if not cube_source.exists():
+                # A cached preview alone is not sufficient for shader export.
+                bitmap._save_single_raw_tiff(0, suffix, not info.for_normal)
             
     if not info.image_path:
         return info
@@ -193,6 +200,8 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
     image = bpy.data.images.load(filepath=info.image_path, check_existing=True)
     image.nwo.filepath = utils.relative_path(info.image_path)
     image.nwo.shader_type = info.shader_type
+    if info.cubemap:
+        image['foundry_cubemap_source'] = str(cube_source)
 
     apply_bitmap_info_color_space(image, info)
 
@@ -250,7 +259,7 @@ class BitmapTag(BlenderTag, TagDocument):
             field.set(type(field.value)(*point))
             self.tag_has_changes = True
         
-    def new_bitmap(self, bitmap_name, bitmap_type, color_space):
+    def new_bitmap(self, bitmap_name, bitmap_type, color_space, *, preserve_size=False):
         def get_type_from_name(bitmap_name):
             suffix = bitmap_name.rpartition("_")[2].lower()
             if suffix and "_" in bitmap_name.strip("_"):
@@ -330,6 +339,12 @@ class BitmapTag(BlenderTag, TagDocument):
             self._set_enum(override, 'bitmap curve', "linear")
             
         self.required_field(override, 'flags').set_flag("Ignore Curve Override", True)
+        if preserve_size:
+            self.required_field(override, 'flags').set_flag("Dont Allow Size Optimization", True)
+        if bitmap_type == 'Cube Map (Reflection Map)':
+            # A newly allocated usage override is zero-filled (2D/no slicing).
+            self._set_enum(override, 'type', 'cube map')
+            self._set_enum(override, 'slicer', 'Cube Map Slicer')
         if bitmap_type in ("Material Map", "Diffuse Map", "Blend Map (linear for terrains)", "Self-Illum Map", "Cube Map (Reflection Map)", "Detail Map"):
             self._set_enum(override, 'bitmap format', 'DXT5 (Compressed Color + Compressed 8-bit Alpha)')
             if bitmap_type == 'Material Map':

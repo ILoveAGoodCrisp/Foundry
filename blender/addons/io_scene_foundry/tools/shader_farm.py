@@ -10,7 +10,7 @@ from .. import utils
 
 from ..icons import get_icon_id
 from ..tags.bitmap import BitmapTag
-from ..tools.export_bitmaps import save_image_as
+from ..tools.export_bitmaps import save_image_as, bitmap_export_image, export_bitmap
 from ..tools.shader_builder import build_shader
 
 BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
@@ -197,6 +197,14 @@ class NWO_FarmShaders(bpy.types.Operator):
                 print(f"{bitmap_count} bitmaps in scope")
                 print(f"Bitmaps Directory = {utils.relative_path(self.bitmaps_data_dir)}\n")
                 for idx, bitmap in enumerate(valid_bitmaps):
+                    bitmap = bitmap_export_image(bitmap)
+                    if bitmap.get('foundry_channel_conversion') or bitmap.get('foundry_cubemap_export'):
+                        # Use the same TIFF preparation and compile validation as
+                        # individual exports; Blender image access stays on this thread.
+                        path = export_bitmap(bitmap, bitmaps_data_dir=self.bitmaps_data_dir)
+                        if path:
+                            self.exported_bitmaps.append(str(path))
+                        continue
                     tiff_path = self.export_tiff_if_needed(bitmap)
                     if tiff_path:
                         self.thread_bitmap_export(bitmap)

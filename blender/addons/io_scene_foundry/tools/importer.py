@@ -83,6 +83,12 @@ from .model_to_instance import ModelInstance
 from functools import partial
 
 legacy_model_formats = '.jms', '.ass'
+IMPORT_SHADER_EXTENSIONS = utils.shader_exts + (
+    '.shader_model', '.shader_environment', '.shader_transparent_chicago',
+    '.shader_transparent_chicago_extended', '.shader_transparent_generic',
+    '.shader_transparent_glass', '.shader_transparent_meter',
+    '.shader_transparent_plasma', '.shader_transparent_water',
+)
 legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo', '.jmr', '.jmrx'
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
@@ -5859,8 +5865,14 @@ class NWO_OT_ImportShader(bpy.types.Operator):
     filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})
     filename: bpy.props.StringProperty(options={'SKIP_SAVE'}, subtype='FILE_NAME')
     filter_glob: bpy.props.StringProperty(
-        default="*.shader;*.shader_decal;*.shader_terrain;",
+        default=';'.join('*' + extension for extension in IMPORT_SHADER_EXTENSIONS),
         options={"HIDDEN"},
+    )
+
+    build_materials_for_project: bpy.props.BoolProperty(
+        name="Build Materials for Current Project",
+        description="Use the current project's game nodes and convert packed bitmap channels where possible",
+        default=False,
     )
 
     @classmethod
@@ -5868,13 +5880,19 @@ class NWO_OT_ImportShader(bpy.types.Operator):
         return True
 
     def execute(self, context):
-        if Path(self.filepath).suffix not in utils.shader_exts:
+        if Path(self.filepath).suffix.lower() not in IMPORT_SHADER_EXTENSIONS:
             return {'CANCELLED'}
         
         mat = bpy.data.materials.new(str(Path(self.filepath).with_suffix("").name))
-        shader_path = utils.relative_path(self.filepath)
-        mat.nwo.shader_path = shader_path
-        tag_to_nodes(utils.is_corinth(context), mat, shader_path)
+        project = utils.get_project(use_external=False)
+        utils.set_import_context_from_filepath(Path(self.filepath))
+        try:
+            shader_path = utils.relative_path(self.filepath)
+            mat.nwo['shader_path'] = shader_path
+            tag_to_nodes(utils.is_corinth(context), mat, shader_path,
+                         target_game=project.game if self.build_materials_for_project and project else None)
+        finally:
+            utils.clear_external_project()
         
         if not hasattr(self, "area"):
             self.area = None
@@ -5909,13 +5927,19 @@ class NWO_OT_ImportShader(bpy.types.Operator):
         self.mouse_x = event.mouse_region_x
         self.mouse_y = event.mouse_region_y
         self.area = context.area.type
-        return self.execute(context)
+        return context.window_manager.invoke_props_dialog(self)
+
+    def draw(self, context):
+        row = self.layout.row()
+        project = utils.get_project(use_external=False)
+        row.enabled = project is not None and project.game != 'halo2'
+        row.prop(self, 'build_materials_for_project')
     
 class NWO_FH_ImportShaderAsMaterial(bpy.types.FileHandler):
     bl_idname = "NWO_FH_ImportShaderAsMaterial"
     bl_label = "File handler Foundry Bitmap Importer"
     bl_import_operator = "nwo.import_shader"
-    bl_file_extensions = ".shader;.shader_cortana;.shader_custom;.shader_decal;.shader_foliage;.shader_fur;.shader_fur_stencil;.shader_glass;.shader_halogram;.shader_mux;.shader_mux_material;.shader_screen;.shader_skin;.shader_terrain;.shader_water;.material"
+    bl_file_extensions = ';'.join(IMPORT_SHADER_EXTENSIONS)
     
     @classmethod
     def poll_drop(cls, context):
@@ -6007,8 +6031,37 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                         sequence_drivers.update(result)
                 else:
                     utils.copy_material_nodes(existing_mat, mat)
+                    if existing_mat.get('foundry_material_target_game'):
+                        for key in ('foundry_material_source_game', 'foundry_material_target_game',
+                                    'foundry_material_source_shader', 'foundry_material_conversion_notes'):
+                            if key in existing_mat:
+                                mat[key] = existing_mat[key]
+                        mat.nwo['shader_path'] = existing_mat.nwo.shader_path
+                        mat.nwo.prev_shader_path = existing_mat.nwo.prev_shader_path
+                        mat.nwo.material_shader = existing_mat.nwo.material_shader
+                        mat.nwo.shader_type = existing_mat.nwo.shader_type
+                        mat.nwo.uses_blender_nodes = existing_mat.nwo.uses_blender_nodes
+                        mat.nwo.game_functions = existing_mat.nwo.game_functions
+                        mat.nwo.object_functions = existing_mat.nwo.object_functions
+                        mat.surface_render_method = existing_mat.surface_render_method
                     
                 # TODO Add emissive node
+            elif importer.build_materials_for_project and mat.node_tree is not None:
+                # Some decal-system materials are built while reading their
+                # owning tag and have no standalone shader path to rebuild.
+                from .material_game_mapping import convert_material_game
+                from .node_tree_arrange import arrange
+                if convert_material_game(mat, importer.game, importer.target_game):
+                    mat.nwo.uses_blender_nodes = True
+                    mat.nwo.material_shader = ''
+                    for node in mat.node_tree.nodes:
+                        if node.type == 'GROUP' and node.node_tree is not None:
+                            family = node.node_tree.name.partition('.')[2]
+                            if family in {'shader', 'shader_custom', 'shader_decal', 'shader_foliage',
+                                          'shader_glass', 'shader_halogram', 'shader_terrain'}:
+                                mat.nwo.shader_type = '.' + family
+                                break
+                    arrange(mat.node_tree)
         
         for ob in imported_objects:
             for slot in ob.material_slots:
