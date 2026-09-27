@@ -208,6 +208,11 @@ class ScrollTests(unittest.TestCase):
             v.ES_AUTOVSCROLL | v.ES_AUTOHSCROLL | v.ES_READONLY,
             0, 0, 380, 150, self.parent, None, None, None)
         self.assertTrue(w.edit)
+        w.follow_output = True
+        w.rendering_output = False
+        w.edit_window_proc = v.WNDPROC(w._edit_window_proc)
+        w.original_edit_window_proc = v.user32.SetWindowLongPtrW(
+            w.edit, v.GWLP_WNDPROC, ctypes.cast(w.edit_window_proc, ctypes.c_void_p))
         w.output = v.BonoboOutput()
         w.output.feed(''.join(f'Line {i}\n' for i in range(200)))
         w.enabled_levels = {'message', 'warning', 'error'}
@@ -226,6 +231,7 @@ class ScrollTests(unittest.TestCase):
         v.user32.SendMessageW(w.edit, v.EM_SETSEL, 20, 30)
         point = wintypes.POINT(0, 100)
         v.user32.SendMessageW(w.edit, v.EM_SETSCROLLPOS, 0, ctypes.addressof(point))
+        v.user32.SendMessageW(w.edit, v.WM_LBUTTONUP, 0, 0)
         before = self.position()
         w.output.feed('Additional output\n')
         w._render_output()
@@ -242,12 +248,31 @@ class ScrollTests(unittest.TestCase):
 
     def test_scrolled_view_without_selection_stays_put(self):
         v, w = self.v, self.window
-        point = wintypes.POINT(0, 100)
-        v.user32.SendMessageW(w.edit, v.EM_SETSCROLLPOS, 0, ctypes.addressof(point))
+        v.user32.SendMessageW(w.edit, v.WM_VSCROLL, 0, 0)  # User scrolls up one line.
         before = self.position()
         w.output.feed('More output\n')
         w._render_output()
         self.assertEqual(self.position(), before)
+
+    def test_default_follows_despite_programmatic_viewport_change(self):
+        v, w = self.v, self.window
+        point = wintypes.POINT(0, 0)
+        v.user32.SendMessageW(w.edit, v.EM_SETSCROLLPOS, 0, ctypes.addressof(point))
+        w.output.feed('More output\n')
+        w._render_output()
+        self.assertGreater(self.position()[1], 0)
+        self.assertTrue(w.follow_output)
+
+    def test_user_return_to_bottom_resumes_following(self):
+        v, w = self.v, self.window
+        v.user32.SendMessageW(w.edit, v.WM_VSCROLL, 6, 0)  # SB_TOP
+        self.assertFalse(w.follow_output)
+        v.user32.SendMessageW(w.edit, v.WM_VSCROLL, v.SB_BOTTOM, 0)
+        self.assertTrue(w.follow_output)
+        before = self.position()[1]
+        w.output.feed(''.join('More output\n' for _ in range(20)))
+        w._render_output()
+        self.assertGreater(self.position()[1], before)
 
     def test_refresh_waits_until_drag_released(self):
         v, w = self.v, self.window

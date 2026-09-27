@@ -14,6 +14,7 @@ from ..props.object import NWO_ObjectPropertiesGroup
 from ..props.light import NWO_LightPropertiesGroup
 from .blender import BlenderTag
 from .backend import TagDocument
+from .bitmap import bitmap_to_image
 import struct
 import math
 from .. import import_transform
@@ -123,8 +124,6 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
             forward, up = Vector(self._data(element, 'forward')), Vector(self._data(element, 'up'))
             if forward.cross(up).length_squared == 0:
                 raise ValueError(f'{self.path}: degenerate light orientation')
-            if not self.corinth and self.path_exists(self.reference(element, 'gel reference')):
-                raise NotImplementedError(f'{self.path}: native lighting-info gobo bitmap conversion is not implemented')
 
     def _read_fields(self):
         self.block_generic_light_definitions = self.block(self.tag.root(), 'generic light definitions')
@@ -578,10 +577,32 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
 
     def _from_reach_light_instances(self, definitions: dict[int: bpy.types.Light]):
         objects = []
+        light_variants = {}
+        used_definitions = set()
+        gobo_images = {}
         for element_index, element in enumerate(self.block_generic_light_instances):
-            blender_light = definitions.get(self._data(element, 'definition index'))
-            if blender_light is None:
+            definition_index = self._data(element, 'definition index')
+            definition = definitions.get(definition_index)
+            if definition is None:
                 continue
+
+            # Gels belong to instances, so a shared definition can need several
+            # light datablocks. Keep identical definition/gel pairs linked.
+            gobo_tag_path = self.reference(element, 'gel reference')
+            gel_path = self._reference_path(gobo_tag_path)
+            variant_key = (definition_index, gel_path)
+            if variant_key not in light_variants:
+                blender_light = definition.copy() if definition_index in used_definitions else definition
+                used_definitions.add(definition_index)
+                if definition in self.inverse_squared_lights:
+                    blender_light.energy = utils.calc_light_energy(blender_light, blender_light.nwo.light_intensity, 1)
+                else:
+                    if gel_path not in gobo_images:
+                        gobo_images[gel_path] = (bitmap_to_image(gobo_tag_path.Filename).image
+                                                 if self.path_exists(gobo_tag_path) else None)
+                    utils.make_halo_light(blender_light, gobo_image=gobo_images[gel_path])
+                light_variants[variant_key] = blender_light
+            blender_light = light_variants[variant_key]
 
             ob = cast(bpy.types.Object, bpy.data.objects.new(f"light_instance:{element_index}", blender_light))
             nwo = cast(NWO_ObjectPropertiesGroup, ob.nwo)
@@ -621,19 +642,8 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
             nwo.light_fade_start_distance = self._data(element, 'fade start distance') * import_transform.scale_factor()
             nwo.light_tag_override = self._reference_path(self.reference(element, 'user control'))
             nwo.light_shader_reference = self._reference_path(self.reference(element, 'shader reference'))
-            gobo_tag_path = self.reference(element, 'gel reference')
-            nwo.light_gel_reference = self._reference_path(gobo_tag_path)
+            nwo.light_gel_reference = gel_path
             nwo.light_lens_flare_reference = self._reference_path(self.reference(element, 'lens flare reference'))
-
-            if not blender_light.use_custom_distance:
-                if blender_light in self.inverse_squared_lights:
-                    blender_light.energy = utils.calc_light_energy(blender_light, blender_light.nwo.light_intensity, 1)
-                else:
-                    gobo_image = None
-                    if self.path_exists(gobo_tag_path):
-                        raise NotImplementedError('Native lighting-info gobo bitmap conversion is not implemented')
-
-                    utils.make_halo_light(blender_light, gobo_image=gobo_image)
 
             objects.append(ob)
 

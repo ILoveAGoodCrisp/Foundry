@@ -23,6 +23,8 @@ WM_COMMAND = 0x0111
 WM_TIMER = 0x0113
 WM_VSCROLL = 0x0115
 WM_LBUTTONUP = 0x0202
+WM_MOUSEWHEEL = 0x020A
+WM_KEYDOWN = 0x0100
 WM_CTLCOLORBTN = 0x0135
 WM_CTLCOLORSTATIC = 0x0138
 WM_SETICON = 0x0080
@@ -935,6 +937,8 @@ class FoundryOutputWindow:
         self.collapsed_message_nodes = set()
         self.message_toggle_ranges = []
         self.output_dirty = False
+        self.follow_output = True
+        self.rendering_output = False
         self.original_edit_window_proc = None
         self.edit_window_proc = WNDPROC(self._edit_window_proc)
         self.font = None
@@ -1118,14 +1122,7 @@ class FoundryOutputWindow:
         selection_end = wintypes.DWORD()
         user32.SendMessageW(self.edit, EM_GETSEL, ctypes.addressof(selection_start), ctypes.addressof(selection_end))
         if scroll_to_end is None:
-            info = SCROLLINFO()
-            info.cbSize = ctypes.sizeof(info)
-            info.fMask = 0x0007  # SIF_RANGE | SIF_PAGE | SIF_POS
-            has_scroll = user32.GetScrollInfo(self.edit, 1, ctypes.byref(info))  # SB_VERT
-            # RichEdit can stop one pixel short of the scrollbar's inclusive
-            # range, even after SB_BOTTOM.
-            scroll_to_end = (not has_scroll or info.nPos >= info.nMax - max(info.nPage - 1, 0) - 1)
-            scroll_to_end = scroll_to_end and selection_start.value == selection_end.value
+            scroll_to_end = self.follow_output
         first_visible_line = user32.SendMessageW(self.edit, EM_GETFIRSTVISIBLELINE, 0, 0)
         scroll_position = wintypes.POINT()
         user32.SendMessageW(self.edit, EM_GETSCROLLPOS, 0, ctypes.addressof(scroll_position))
@@ -1138,6 +1135,7 @@ class FoundryOutputWindow:
         )
         self.message_toggle_ranges = []
 
+        self.rendering_output = True
         user32.SendMessageW(self.edit, WM_SETREDRAW, 0, 0)
         user32.SendMessageW(self.edit, EM_SETREADONLY, 0, 0)
         rendered = "\r".join(entry.text for entry in entries)
@@ -1168,6 +1166,7 @@ class FoundryOutputWindow:
                 user32.SendMessageW(self.edit, EM_LINESCROLL, 0, first_visible_line - current_first_line)
         user32.SendMessageW(self.edit, WM_SETREDRAW, 1, 0)
         user32.RedrawWindow(self.edit, None, None, RDW_INVALIDATE | RDW_ERASE)
+        self.rendering_output = False
         self.output_dirty = False
         self._update_filter_summary()
 
@@ -1186,6 +1185,23 @@ class FoundryOutputWindow:
         if not self.original_edit_window_proc:
             return user32.DefWindowProcW(hwnd, message, wparam, lparam)
         result = user32.CallWindowProcW(self.original_edit_window_proc, hwnd, message, wparam, lparam)
+        navigation_key = message == WM_KEYDOWN and wparam in {
+            0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,  # Page/Home/End/arrows
+            0x41,  # Ctrl+A can select the output.
+        }
+        if not self.rendering_output and (
+                message in {WM_MOUSEWHEEL, WM_VSCROLL, WM_LBUTTONUP} or navigation_key):
+            # Only user interaction changes following mode. Layout changes and
+            # programmatic text replacement may move the viewport on their own.
+            info = SCROLLINFO()
+            info.cbSize = ctypes.sizeof(info)
+            info.fMask = 0x0007  # SIF_RANGE | SIF_PAGE | SIF_POS
+            has_scroll = user32.GetScrollInfo(hwnd, 1, ctypes.byref(info))
+            start, end = wintypes.DWORD(), wintypes.DWORD()
+            user32.SendMessageW(hwnd, EM_GETSEL, ctypes.addressof(start), ctypes.addressof(end))
+            # RichEdit can stop one pixel short of the inclusive bottom.
+            self.follow_output = (start.value == end.value and (
+                not has_scroll or info.nPos >= info.nMax - max(info.nPage - 1, 0) - 1))
         if message == WM_LBUTTONUP and self.show_messages:
             selection_start = wintypes.DWORD()
             selection_end = wintypes.DWORD()
@@ -1241,6 +1257,7 @@ class FoundryOutputWindow:
         if message == WM_COMMAND:
             command = wparam & 0xFFFF
             if command == BUTTON_CLEAR:
+                self.follow_output = True
                 self.output.clear()
                 self.collapsed_message_nodes.clear()
                 self._render_output()
