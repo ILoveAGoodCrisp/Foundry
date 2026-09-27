@@ -59,11 +59,16 @@ bounds/activation values.
 
 ## Automatic packed-image conversion
 
-Conversion writes derived TIFFs to:
+Conversion writes derived TIFFs under the current project's data directory,
+mirroring the source bitmap's original tagset directory. For example,
+`objects/weapons/rifle/bitmaps/rifle_multi.bitmap` produces TIFFs alongside
+`objects/weapons/rifle/bitmaps/rifle_multi_<conversion>_<digest>.tif`. The normal
+bitmap exporter uses the same relative paths under the current project's tags
+directory. Intermediate bakes retain the original source path. Inputs with no
+source bitmap path are written directly under the data root.
 
-`<current project>/data/foundry_material_conversions/`
-
-Names include a digest of dimensions and pixel content. Source image pixels and
+Names include the source bitmap stem, conversion name, and a digest of dimensions
+and pixel content so separate derived maps do not overwrite each other. Source image pixels and
 files are not modified. Masks use Non-Color data and independent packed alpha.
 Color blends are computed in linear RGB and saved as sRGB; ACEScg and other
 configured source spaces use Blender's OCIO transform. Image saving bypasses

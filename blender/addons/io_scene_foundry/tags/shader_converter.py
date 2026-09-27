@@ -1812,6 +1812,10 @@ class ShaderTag(BlenderTag, TagDocument):
             appearance = child(root, 'appearance')
             shader = child(root, 'shader')
             base = bitmap(shader, 'map')
+            if base is not None and self.generated_uvs:
+                coordinates = nodes.new(type='ShaderNodeTexCoord')
+                coordinates.location = (-760, 160)
+                tree.links.new(coordinates.outputs['Generated'], base.inputs['Vector'])
             if appearance is not None:
                 value = self.value(appearance, 'color upper bound')
                 material_color = (value.red, value.green, value.blue, 1.0)
@@ -2018,7 +2022,17 @@ class ShaderTag(BlenderTag, TagDocument):
                 tree.links.new(reflection_color, add_reflection.inputs[1])
                 base_color = add_reflection.outputs['Vector']
             tree.links.new(base_color, bsdf.inputs['Base Color'])
-            if transparent:
+            if shader_type == 'decal':
+                bounds = self.value(appearance, 'intensity')
+                # Use the upper bound, like the preview tint. H1 treats 0..0 as 1..1.
+                intensity = (1.0 if bounds.lower == bounds.upper == 0 else
+                             max(0.0, min(1.0, float(bounds.upper))))
+                self._halo1_decal_surface(
+                    tree, output, bsdf, base, base_color,
+                    enum_name(shader, 'framebuffer blend function', 'alpha blend'),
+                    intensity)
+                return
+            elif transparent:
                 alpha_output = base.outputs.get('Alpha')
                 if alpha_output is not None:
                     tree.links.new(alpha_output, bsdf.inputs['Alpha'])
@@ -2034,6 +2048,68 @@ class ShaderTag(BlenderTag, TagDocument):
         if emission is not None and emission_input is not None:
             emission.location = (-520, -500)
             tree.links.new(emission.outputs['Color'], emission_input)
+
+    @staticmethod
+    def _halo1_decal_surface(tree, output, bsdf, bitmap, color, blend, intensity):
+        """Preview H1 framebuffer blends without turning neutral texels opaque.
+
+        Coloured transparency implements destination * source in BLENDED Eevee
+        materials and Cycles. Double multiply is limited by the transparent
+        closure's energy range; subtract/min/max require framebuffer access.
+        """
+        nodes, links = tree.nodes, tree.links
+        if blend in {'multiply', 'double multiply'}:
+            if blend == 'double multiply':
+                scale = nodes.new('ShaderNodeVectorMath')
+                scale.operation = 'SCALE'
+                scale.inputs['Scale'].default_value = 2.0
+                scale.location = (-60, 220)
+                links.new(color, scale.inputs['Vector'])
+                color = scale.outputs['Vector']
+                utils.print_warning('H1 double multiply decal preview cannot reproduce '
+                                    'framebuffer brightening exactly')
+            fade = nodes.new('ShaderNodeMixRGB')
+            fade.label = 'Decal intensity (white is neutral)'
+            fade.location = (140, 220)
+            fade.inputs[0].default_value = intensity
+            fade.inputs[1].default_value = (1.0, 1.0, 1.0, 1.0)
+            links.new(color, fade.inputs[2])
+            transparent = nodes.new('ShaderNodeBsdfTransparent')
+            transparent.location = (360, 220)
+            links.new(fade.outputs['Color'], transparent.inputs['Color'])
+            links.new(transparent.outputs[0], output.inputs['Surface'])
+            nodes.remove(bsdf)
+        elif blend in {'add', 'alpha multiply add'}:
+            emission = nodes.new('ShaderNodeEmission')
+            emission.location = (140, 220)
+            links.new(color, emission.inputs['Color'])
+            emission.inputs['Strength'].default_value = intensity
+            if blend == 'alpha multiply add':
+                alpha = nodes.new('ShaderNodeMath')
+                alpha.operation = 'MULTIPLY'
+                alpha.inputs[1].default_value = intensity
+                links.new(bitmap.outputs['Alpha'], alpha.inputs[0])
+                links.new(alpha.outputs[0], emission.inputs['Strength'])
+            transparent = nodes.new('ShaderNodeBsdfTransparent')
+            transparent.location = (140, -40)
+            add = nodes.new('ShaderNodeAddShader')
+            add.location = (360, 100)
+            links.new(transparent.outputs[0], add.inputs[0])
+            links.new(emission.outputs[0], add.inputs[1])
+            links.new(add.outputs[0], output.inputs['Surface'])
+            nodes.remove(bsdf)
+        else:
+            if blend != 'alpha blend':
+                utils.print_warning(f'H1 decal blend {blend!r} uses an alpha-blended '
+                                    'preview; exact blending requires framebuffer access')
+            alpha = nodes.new('ShaderNodeMath')
+            alpha.operation = 'MULTIPLY'
+            alpha.label = 'Decal alpha * intensity'
+            alpha.location = (-100, -180)
+            alpha.inputs[1].default_value = intensity
+            links.new(bitmap.outputs['Alpha'], alpha.inputs[0])
+            links.new(alpha.outputs[0], bsdf.inputs['Alpha'])
+        output.location = (600, 100)
 
     def _to_nodes_halo2(self, blender_material: bpy.types.Material):
         """Build a useful Principled material from Halo 2 shader parameters."""

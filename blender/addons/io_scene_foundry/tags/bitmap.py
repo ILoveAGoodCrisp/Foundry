@@ -199,6 +199,7 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
             
     image = bpy.data.images.load(filepath=info.image_path, check_existing=True)
     image.nwo.filepath = utils.relative_path(info.image_path)
+    image['foundry_source_bitmap_path'] = utils.relative_path(path)
     image.nwo.shader_type = info.shader_type
     if info.cubemap:
         image['foundry_cubemap_source'] = str(cube_source)

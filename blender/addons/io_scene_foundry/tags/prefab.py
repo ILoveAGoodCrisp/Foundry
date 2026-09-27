@@ -93,6 +93,10 @@ class StructureBspPortal:
     blocks_sounds: bool
     is_door: bool
     vertices: tuple[tuple[float, float, float], ...]
+    plane_index: int = -1
+    back_cluster: int = -1
+    front_cluster: int = -1
+    polygons: tuple[tuple[int, ...], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -519,6 +523,8 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 tuple(self.value(vertex, 'point').to_array())
                 for vertex in self.block(element, 'vertices')
             )
+            if self.game != 'halo1' and flags.get_flag('one-way-reversed'):
+                vertices = tuple(reversed(vertices))
             records.append(StructureBspPortal(
                 index=index,
                 one_way=one_way,
@@ -527,6 +533,9 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 blocks_sounds=blocks_sounds,
                 is_door=is_door,
                 vertices=vertices,
+                plane_index=int(self.value(element, 'plane index')) if self.game == 'reach' else -1,
+                back_cluster=int(self.value(element, 'back cluster')) if self.game == 'reach' else -1,
+                front_cluster=int(self.value(element, 'front cluster')) if self.game == 'reach' else -1,
             ))
         return records
 
@@ -647,6 +656,47 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
             ))
             polygons.append(tuple(polygon))
         return StructureBspCollision(vertices, tuple(surfaces), tuple(polygons))
+
+    def portal_collision_tree(self):
+        """Read Reach's visibility classification without assuming node zero is its root."""
+        from .reach_portals import unpack_collision_node
+        for raw in self._raw_resource_items():
+            for name in ('collision bsp', 'large collision bsp'):
+                field = raw.field(name)
+                if field is None or field.as_block() is None or not len(field.as_block()):
+                    continue
+                bsp = field.as_block()[0]
+                planes = [(p.i, p.j, p.k, p.d) for element in self.block(bsp, 'planes')
+                          for p in (self.value(element, 'plane'),)]
+                if name == 'large collision bsp':
+                    nodes = [tuple(int(self.value(node, field))
+                                   for field in ('plane', 'back child', 'front child'))
+                             for node in self.block(bsp, 'bsp3d nodes')]
+                else:
+                    nodes = [unpack_collision_node(int(self.value(node, 'node data designator')))
+                             for node in self.block(bsp, 'bsp3d nodes')]
+                supernodes = []
+                for node in self.block(bsp, 'bsp3d supernodes'):
+                    # Wire order: 15 plane values, 16 children, packed axes.
+                    # Reach's editor labels put "plane dimensions" on the first
+                    # child and "child index15" on the axes word. Read by layout
+                    # so those misleading labels cannot change the traversal.
+                    values = [field.value for field in node.fields()]
+                    if len(values) != 32:
+                        return None
+                    supernodes.append((tuple(values[:15]), tuple(map(int, values[15:31])),
+                                       int(values[31])))
+                clusters = [int(self.value(leaf, 'cluster'))
+                            for leaf in self.block(self.tag.root(), 'leaves')]
+                vertices = [tuple(self.value(vertex, 'point').to_array())
+                            for vertex in self.block(bsp, 'vertices')]
+                if not vertices or not clusters or len(clusters) != len(self.block(bsp, 'leaves')):
+                    return None
+                bounds = [(min(p[i] for p in vertices) - 1, max(p[i] for p in vertices) + 1)
+                          for i in range(3)]
+                return dict(planes=planes, nodes=nodes, supernodes=supernodes,
+                            clusters=clusters, bounds=bounds)
+        return None
 
     def structure_collision(self) -> StructureBspCollision | None:
         """Read the first standard or large structure collision BSP natively."""

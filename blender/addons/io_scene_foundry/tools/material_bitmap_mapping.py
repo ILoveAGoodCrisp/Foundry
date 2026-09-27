@@ -248,7 +248,21 @@ class DataTextureBaker:
         name = re.sub(r'[^a-z0-9_]+', '_', name.lower()).strip('_')
         space = 'sRGB' if color else 'Non-Color'
         digest = sha256(str((size, space)).encode() + pixels.tobytes()).hexdigest()[:16]
-        path = self.directory / 'foundry_material_conversions' / f'{name}_{digest}.tif'
+        # Preserve the source tagset layout, including across intermediate bakes.
+        # A packed bitmap can produce several outputs, so keep their names distinct.
+        source_path = ''
+        if anchor:
+            source_path = anchor.image.get('foundry_source_bitmap_path', '')
+            if not source_path and hasattr(anchor.image, 'nwo'):
+                source_path = anchor.image.nwo.filepath
+        relative = Path(source_path.replace('\\', '/')) if source_path else None
+        if relative is not None and (relative.is_absolute() or relative.drive or '..' in relative.parts):
+            raise ValueError('Source bitmap path must be relative to its tagset')
+        if relative is not None:
+            path = self.directory / relative.parent / f'{relative.stem}_{name}_{digest}.tif'
+        else:
+            # Generated inputs have no original tagset directory to preserve.
+            path = self.directory / f'{name}_{digest}.tif'
         key = str(path), anchor.as_pointer() if anchor else None
         cached = self.cache.get(key)
         if cached is not None:
@@ -274,6 +288,8 @@ class DataTextureBaker:
             image.nwo.source_name = path.name
             image.nwo.bitmap_type = usage
         image['foundry_channel_conversion'] = True
+        if relative is not None:
+            image['foundry_source_bitmap_path'] = str(relative)
         node = self.tree.nodes.new('ShaderNodeTexImage')
         node.image = image
         node.label = name.replace('_', ' ').title()

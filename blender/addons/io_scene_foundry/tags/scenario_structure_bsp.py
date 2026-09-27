@@ -701,6 +701,12 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             if collision_only_indices:
                 ob = collision.to_object(surface_indices=collision_only_indices)
                 collision_mesh = ob.data
+                if self.game == 'reach' and structure_objects:
+                    from .classic_geometry import align_collision_boundary
+                    align_collision_boundary(
+                        structure_objects[0].data, collision_mesh,
+                        0.0025 * import_transform.scale_factor(),
+                        other_render_meshes=[o.data for o in structure_objects[1:]])
                 if clusters:
                     matcher = clusters[0].mesh
                     for structure_ob in structure_objects:
@@ -831,6 +837,14 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         # Create Portals
         if not for_cinematic:
             if native_portals:
+                if self.game == 'reach':
+                    from .reach_portals import reconstruct_reach_portals
+                    try:
+                        native_portals = reconstruct_reach_portals(native_portals, self.portal_collision_tree())
+                    except (ValueError, RecursionError) as error:
+                        from .portal_reconstruction import reconstruct_portals
+                        utils.print_warning(f'Could not recover Reach portal volumes: {error}')
+                        native_portals, _ = reconstruct_portals(native_portals)
                 # utils.print_step("Creating Portals")
                 layer = utils.add_permutation("portals", utils.SetType.SCENARIO)
                 portals_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_portals")

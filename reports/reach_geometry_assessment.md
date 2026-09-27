@@ -100,3 +100,125 @@ Validation of the fix:
 To repeat a fixture audit, run Blender in background mode with
 `--factory-startup --python-exit-code 1 --python blender/test_reach_geometry.py`
 and append `-- --reach-bsp <absolute BSP tag path>`. The source tag is not saved.
+
+## Follow-up: island_rock_1 and portal leaks
+
+Reviewed the saved `data/foundry_blam/forge_world/forge_world.blend` against
+`tags/levels/multi/forge_halo/forge_halo.scenario_structure_bsp` in HREK.
+Both source files remain unchanged.
+
+`island_rock_1` is placement 412, using instance definition/render mesh 26.
+The saved mesh has 862 vertices, 1,610 faces and 127 boundary edges. Its source
+render mesh has 1,550 triangles; the importer supplies 60 collision-only faces.
+Separate render/collision decoding produces slightly different floating-point
+coordinates along their shared boundary. Exact welding alone cannot join them.
+
+A distance weld was tested but is not the implemented repair: it leaves a
+second defect and can damage thin geometry. The new alignment moves only
+collision boundary vertices to unambiguous, one-to-one render positions within
+0.000025 tag units. Render vertices stay fixed; nearby competing layers and
+many-to-one matches are rejected. The existing exact weld then joins the seams.
+Structure collision uses the union of cluster render vertices when checking
+ambiguity, rather than snapping independently to successive clusters.
+
+The remaining defect is a two-sided face. Collision surfaces 731 and 866 have
+opposite winding and both map to render triangle 1503, but that render triangle
+previously lost its sidedness. Reach instance import now recognizes matching
+opposite collision surfaces and transfers the two-sided property to mapped
+render faces. This includes the source's unmaterialed compiler backface paired
+with its rock-shader face; two genuinely different materials remain distinct.
+Collision-only meshes now also retain explicit source sidedness flags.
+
+After reconstruction, the rock has 808 vertices and all 1,610 faces. Its
+1,609-face solid shell has **zero boundary edges and zero overused edges**.
+The remaining face is explicitly two-sided; its two free edges are not holes
+in the solid shell. These are topology checks, not a completed Tool compile.
+
+Reach portal import now reuses H1's conservative portal reconstruction and
+outline simplification. For this BSP, 10 of 21 fragments qualify for rebuilding;
+the result still has 21 portals, with 262 rather than 270 vertices. The H1
+intersection guards retain unsafe candidates. No H1 collision-solid classifier
+is reused: Reach's collision representation is different, so the additional
+solid-edge extension for rejected candidates is not enabled.
+
+Also fixed portal flags that were read but not applied to Blender objects:
+one-way/no-way types now survive import, and one-way-reversed records reverse
+their winding. These changes preserve portal behavior independently of geometry.
+
+Validation:
+
+- Ten Reach tests cover thin shells, normals/UVs/face properties, water decoding,
+  exact welding, collision boundary ambiguity, duplicate surface selection,
+  sidedness, portal types and portal intersection guards.
+- H1 surface tests pass (four tests; the optional external-fixture test skipped).
+- Full Forge World BSP geometry import completes with 913 unique meshes and
+  175,362 faces. Raw render decoding still retains all 144,528 faces.
+- The real-BSP audit checks `island_rock_1`'s face count and closed solid shell.
+
+The saved scene predates these fixes and must be reimported to obtain them.
+Portal leaks still require a new export/Tool compilation to confirm; the source
+portal reconstruction and Blender topology checks alone cannot establish that
+all compiled visibility boundaries are valid.
+
+## Follow-up: tunnel sliver and portal volumes (2026-09-27)
+
+The current saved scene reproduces the `for_tunnel_column05` problem in instance
+definition 119. A collision-only `+seamsealer` triangle has area approximately
+`7.54e-7` Blender units squared. It bridges a long collision edge against two
+render edges. Blender counts the sliver as closing the shell, but Tool rejects
+the triangle and then reports its edges as open.
+
+The importer now dissolves that long edge into its adjacent collision polygon.
+It retains the middle boundary vertex, render positions and face properties.
+The operation requires the matching render edge chain, consistent winding,
+matching materials and matching face attributes; it does not delete arbitrary
+thin triangles. The tunnel now has 258 faces. After triangulation it has 288
+triangles, minimum area `0.0034898`, and no open or overused edges.
+
+The portal issue is not simply a missing terrain face. The original tag's
+horizontal portal outline itself ends in open space along part of its boundary.
+Those compiled visibility outlines cannot always be reused as sealed authoring
+polygons. Direct H1-style extension and corner snapping were insufficient in
+actual Tool comparisons.
+
+Reach connected portal volumes now use the original collision tree and the
+root leaf-to-cluster table to recover the cuts. Uniform-cluster branches collapse;
+solid-only branches inherit their neighbour's cluster. Each portal plane is
+partitioned on both sides, retaining only the original cluster connections.
+Portal types, winding and sound flags remain attached to their original
+connections. Isolated openings retain the conservative H1 reconstruction, which
+avoids introducing extra disconnected pieces in those openings.
+
+Reach's supernodes must be traversed before ordinary BSP nodes. Their wire
+layout is 15 plane values, 16 child indices, then packed axis dimensions. The
+editor schema labels the final words misleadingly, so the reader uses wire order.
+Compact 24-bit child designators and large 32-bit nodes are both supported.
+The layout and traversal were cross-checked against TagTool's
+[collision structures](https://github.com/TheGuardians/TagTool/blob/master/TagTool/Geometry/BspCollisionGeometry/CollisionGeometry.cs)
+and [BSP verifier](https://github.com/TheGuardians/TagTool/blob/master/TagTool/Geometry/BspCollisionGeometry/Utils/VerifyBsp3d.cs).
+
+Validation:
+
+- Final Reach regression suite: 14 tests passed. H1 surface tests: four passed,
+  one optional fixture skipped. H1 portal export tests: five passed.
+- Full original main BSP import: 913 unique meshes and 176,443 faces. Render
+  decoding still retains all 144,528 original render faces. Rock and tunnel
+  closed-shell checks pass, including tunnel triangulation.
+- Recovered geometry stays in 21 Blender portal objects, containing 1,103
+  convex pieces. They represent the recovered cuts rather than 1,103 separately
+  authored portal connections.
+- The baseline Tool compile reproduced two portal leakage reports. The final
+  grouped-mesh export compiled in 4m37s with **zero portal leakage reports and
+  zero tunnel open-edge/degenerate-triangle reports**. Tool rebuilt 21 portals
+  and nine main-BSP clusters. The source has 11 clusters, including two tiny
+  compiler-generated clusters; this is not a byte-identical visibility rebuild.
+  Runtime visibility has not been visually checked in Sapien.
+- Two separate degenerate-triangle warnings remain on `forerunner_tower04` in
+  the shared BSP, alongside existing material and collision-size warnings.
+  These were present in the baseline too.
+
+Saved and reopened the repaired scene at
+`G:/Halo/Modding/Main/HREK/data/foundry_blam/forge_world/forge_world_geometry_fixed.blend`.
+It keeps the original asset sidecar path. The original `forge_world.blend` and
+source BSP were not overwritten. The final diagnostic tags and sidecar are under
+`foundry_blam/codex_geometry_final` in HREK's `tags` and `data` directories.

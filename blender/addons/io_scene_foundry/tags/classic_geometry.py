@@ -515,6 +515,106 @@ def merge_classic_surfaces(render_mesh, collision_mesh, tolerance):
     _replace_faces(collision_mesh, mesh_partitions[1], False)
 
 
+def dissolve_collision_edge_slivers(render_mesh, collision_mesh, tolerance):
+    """Replace a compiler sliver's shortcut with the existing render edge chain.
+
+    Unlike the H1 duplicate-sliver case, one side of the chain can be a retained
+    collision polygon. Dissolve only their shared long edge, retaining the
+    middle vertex, positions and face properties. Never delete an isolated thin
+    triangle merely because its area is small.
+    """
+    render_edges = set()
+    for face in render_mesh.polygons:
+        points = [tuple(render_mesh.vertices[v].co) for v in face.vertices]
+        render_edges.update(zip(points, points[1:] + points[:1]))
+    attributes = [a for a in collision_mesh.attributes if a.domain == 'FACE'
+                  and not a.name.startswith('.') and a.data_type in {'BOOLEAN', 'INT', 'FLOAT'}]
+    bm = bmesh.new()
+    dissolved = 0
+    try:
+        bm.from_mesh(collision_mesh)
+        identities = {f: (f.material_index, tuple(a.data[f.index].value for a in attributes))
+                      for f in bm.faces}
+        for face in list(bm.faces):
+            if not face.is_valid or len(face.verts) != 3:
+                continue
+            coords = np.array([tuple(v.co) for v in face.verts], dtype=np.float64)
+            longest = max(range(3), key=lambda i: np.linalg.norm(coords[(i + 1) % 3] - coords[i]))
+            a, b, c = (coords[(longest + i) % 3] for i in range(3))
+            delta = b - a
+            length_squared = float(delta @ delta)
+            if not length_squared:
+                continue
+            fraction = float((c - a) @ delta) / length_squared
+            if not 0 < fraction < 1 or np.linalg.norm(c - (a + fraction * delta)) > tolerance:
+                continue
+            a, b, c = tuple(a), tuple(b), tuple(c)
+            if ((a, b) in render_edges or (b, a) in render_edges
+                    or (a, c) not in render_edges or (c, b) not in render_edges):
+                continue
+            edge = face.loops[longest].edge
+            if len(edge.link_faces) != 2 or not edge.is_contiguous:
+                continue
+            other = next(f for f in edge.link_faces if f != face)
+            if other not in identities or identities[face] != identities[other]:
+                continue
+            # A merged polygon must not revisit the sliver's middle vertex.
+            middle = face.verts[(longest + 2) % 3]
+            if middle in other.verts:
+                continue
+            bmesh.ops.dissolve_edges(bm, edges=[edge], use_verts=False, use_face_split=False)
+            dissolved += 1
+        if dissolved:
+            bm.to_mesh(collision_mesh)
+    finally:
+        bm.free()
+    if dissolved:
+        collision_mesh.update()
+        utils.calc_face_prop_counts(collision_mesh)
+    return dissolved
+
+
+def align_collision_boundary(render_mesh, collision_mesh, tolerance, *, other_render_meshes=()):
+    """Align unambiguous collision boundary matches without moving render detail.
+
+    Separate tag streams can round the same position differently. Match unique
+    positions one-to-one, rejecting nearby thin layers and many-to-one matches.
+    Interior collision vertices and unmatched boundaries remain untouched.
+    """
+    positions = sorted({tuple(v.co) for mesh in (render_mesh, *other_render_meshes)
+                        for v in mesh.vertices})
+    if not positions:
+        return 0
+    tree = kdtree.KDTree(len(positions))
+    for i, co in enumerate(positions):
+        tree.insert(co, i)
+    tree.balance()
+    bm = bmesh.new()
+    try:
+        bm.from_mesh(collision_mesh)
+        boundary = {v.index for e in bm.edges if e.is_boundary for v in e.verts}
+    finally:
+        bm.free()
+    candidates = {}
+    owners = defaultdict(set)
+    for vertex in collision_mesh.vertices:
+        matches = tree.find_range(vertex.co, tolerance)
+        if len(matches) != 1:
+            continue
+        target = positions[matches[0][1]]
+        owners[target].add(tuple(vertex.co))
+        if vertex.index in boundary:
+            candidates[vertex.index] = target
+    moved = 0
+    for index, target in candidates.items():
+        if len(owners[target]) == 1 and tuple(collision_mesh.vertices[index].co) != target:
+            collision_mesh.vertices[index].co = target
+            moved += 1
+    if moved:
+        collision_mesh.update()
+    return moved
+
+
 def weld_classic_vertices(mesh):
     """Reconnect exact shared vertices after surface reconstruction.
 

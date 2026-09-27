@@ -103,16 +103,18 @@ class Portal:
         self.blocks_sounds = record.blocks_sounds
         self.is_door = record.is_door
         self.vertices = [Vector(vertex) * 100 for vertex in record.vertices]
+        self.polygons = record.polygons or (tuple(range(len(self.vertices))),)
             
     def create(self) -> bpy.types.Object:
         mesh = bpy.data.meshes.new(f"portal:{self.index}")
-        mesh.from_pydata(vertices=self.vertices, edges=[], faces=[list(range(len(self.vertices)))])
+        mesh.from_pydata(vertices=self.vertices, edges=[], faces=self.polygons)
         mesh.transform(import_transform.mesh_matrix())
         mesh.nwo.mesh_type = "_connected_geometry_mesh_type_portal"
         ob = bpy.data.objects.new(mesh.name, mesh)
         ob.matrix_world = import_transform.rotation_matrix()
         apply_props_material(ob, "Portal")
         nwo = ob.nwo
+        nwo.portal_type = self.type.name
         
         nwo.portal_ai_deafening = self.ai_deafening
         nwo.portal_blocks_sounds = self.blocks_sounds
@@ -269,6 +271,8 @@ class InstanceDefinition:
                 definition.collision_info = InstanceCollision.from_native(
                     record.collision, f'instance_collision:{record.index}',
                     collision_materials)
+                if getattr(utils.get_project(), 'game', None) == 'reach':
+                    definition.collision_info.mark_opposite_surfaces()
                 if not record.collision_is_proxy:
                     definition.surface_triangle_mapping = [
                         SurfaceMapping.from_native(mapping, surface)
@@ -320,6 +324,12 @@ class InstanceDefinition:
                     elif self.collision_only_surface_indices:
                         collision_mesh = self.collision_info.to_object(mesh_only=True, surface_indices=self.collision_only_surface_indices)
                         self.mesh.remove_render_duplicate_faces(collision_mesh, self.blender_render.data)
+                        if getattr(utils.get_project(), 'game', None) == 'reach':
+                            from .classic_geometry import align_collision_boundary, dissolve_collision_edge_slivers
+                            align_collision_boundary(self.blender_render.data, collision_mesh,
+                                                     0.0025 * import_transform.scale_factor())
+                            dissolve_collision_edge_slivers(self.blender_render.data, collision_mesh,
+                                                            0.025 * import_transform.scale_factor())
                         merged_collision = len(collision_mesh.polygons) > 0
 
                         if merged_collision:
@@ -1403,6 +1413,31 @@ class CollisionEdge:
         self.right_surface = utils.unsigned_int16(element.SelectField("right surface").Data)
         
 class BSP:
+    def mark_opposite_surfaces(self):
+        """Recover two-sided authored faces represented by opposing BSP surfaces."""
+        seen = {}
+        for surface, polygon in zip(self.surfaces, self.yield_indices()):
+            if len(polygon) < 3 or surface.invalid or surface.breakable or surface.invisible:
+                continue
+            polygon = tuple(polygon)
+            start = polygon.index(min(polygon))
+            winding = polygon[start:] + polygon[:start]
+            reverse = winding[:1] + winding[:0:-1]
+            key = (surface.ladder, surface.slip_surface)
+            opposite = seen.get((key, reverse))
+            if opposite is not None:
+                a, b = surface.material, opposite.material
+                # Compiler-generated backs can have no material. Otherwise
+                # require matching shader/global-material semantics.
+                same_material = (a is b or a is None or b is None or
+                                 (getattr(a, 'render_method', None)
+                                  and a.render_method == getattr(b, 'render_method', None)
+                                  and getattr(a, 'global_material_override', '')
+                                  == getattr(b, 'global_material_override', '')))
+                if same_material:
+                    surface.two_sided = opposite.two_sided = True
+            seen[(key, winding)] = surface
+
     def __init__(self, element: TagFieldBlockElement, name, materials: list[CollisionMaterial]):
         self.name = name
         # self.index = element.ElementIndex
@@ -1555,6 +1590,8 @@ class BSP:
             utils.add_face_prop(mesh, "slip_surface", map_slip if split_slip else None)
         if any_invisible:
             utils.add_face_prop(mesh, "face_mode", map_invisible if split_invisible else None).face_mode = 'sphere_collision_only'
+        if any(map_two_sided):
+            utils.add_face_prop(mesh, "face_sides", map_two_sided if split_two_sided else None)
         
         if self.uses_materials:
             if split_material:
@@ -3746,6 +3783,7 @@ class Mesh:
             slip_mask = np.zeros(face_count, dtype=np.int8)
             ladder_mask = np.zeros(face_count, dtype=np.int8)
             breakable_mask = np.zeros(face_count, dtype=np.int8)
+            two_sided_mask = np.zeros(face_count, dtype=np.int8)
             collision_material_indices = np.full(face_count, -1, dtype=np.int32)
             collision_material_slots = {material: index for index, material in enumerate(mesh.materials) if material is not None}
             global_material_override_masks = {}
@@ -3768,6 +3806,8 @@ class Mesh:
                         ladder_mask[idx] = 1
                     if surf.breakable:
                         breakable_mask[idx] = 1
+                    if surf.two_sided:
+                        two_sided_mask[idx] = 1
 
                     collision_material = getattr(surf, "material", None)
                     if collision_material is not None:
@@ -3795,6 +3835,8 @@ class Mesh:
                 utils.add_face_prop(mesh, "ladder", None if ladder_mask.all() else ladder_mask)
             if breakable_mask.any():
                 utils.add_face_prop(mesh, "face_mode", None if breakable_mask.all() else breakable_mask).face_mode = 'breakable'
+            if two_sided_mask.any():
+                utils.add_face_prop(mesh, "face_sides", None if two_sided_mask.all() else two_sided_mask)
             material_mask = collision_material_indices >= 0
             if material_mask.any():
                 final_material_indices = np.empty(face_count, dtype=np.int32)

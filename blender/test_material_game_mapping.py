@@ -374,6 +374,39 @@ class MappingTests(unittest.TestCase):
         finally:
             utils.add_node_from_resources = original
 
+    def test_baked_bitmaps_preserve_source_tagset_directories(self):
+        mat, source = material('reach_nodes', 'foundry_reach.shader')
+        tex, _ = texture(mat, source, 'base_map.rgb', [[.1,.2,.3,1]] * 2)
+        original = r'objects\weapons\rifle\bitmaps\rifle_multi.bitmap'
+        tex.image['foundry_source_bitmap_path'] = original
+        baker = bitmap_mapping.DataTextureBaker(mat.node_tree, TEMP.name)
+        first = baker.bake(tex.outputs['Color'], 'specular')
+        second = baker.bake(first.outputs['Color'], 'illumination')
+        expected = Path(TEMP.name) / 'objects/weapons/rifle/bitmaps'
+        for node in (first, second):
+            path = Path(node.image.filepath_raw)
+            self.assertEqual(path.parent, expected)
+            self.assertTrue(path.name.startswith('rifle_multi_'))
+            self.assertTrue(path.is_file())
+            self.assertEqual(Path(node.image['foundry_source_bitmap_path']), Path(original))
+        self.assertNotEqual(first.image.filepath_raw, second.image.filepath_raw)
+        self.assertEqual(tex.image['foundry_source_bitmap_path'], original)
+        self.assertFalse((Path(TEMP.name) / 'foundry_material_conversions').exists())
+
+    def test_baked_generated_inputs_do_not_use_special_folder(self):
+        mat, source = material('reach_nodes', 'foundry_reach.shader')
+        baker = bitmap_mapping.DataTextureBaker(mat.node_tree, TEMP.name)
+        node = baker.bake(.5, 'constant')
+        self.assertEqual(Path(node.image.filepath_raw).parent, Path(TEMP.name))
+
+    def test_baked_source_path_cannot_escape_project(self):
+        mat, source = material('reach_nodes', 'foundry_reach.shader')
+        tex, _ = texture(mat, source, 'base_map.rgb', [[.1,.2,.3,1]] * 2)
+        tex.image['foundry_source_bitmap_path'] = '../outside.bitmap'
+        baker = bitmap_mapping.DataTextureBaker(mat.node_tree, TEMP.name)
+        with self.assertRaisesRegex(ValueError, 'relative to its tagset'):
+            baker.bake(tex.outputs['Color'], 'invalid')
+
     def test_incompatible_uvs_do_not_bake(self):
         mat, source = material('reach_nodes', 'foundry_reach.shader')
         tex1, _ = texture(mat, source, 'base_map.rgb', [[.1,.2,.3,1]] * 2)
