@@ -5911,7 +5911,7 @@ def consolidate_face_attributes(mesh: bpy.types.Mesh, *, preserve_special_faces=
         if preserve_normals:
             apply_loop_normals(mesh)
         
-def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
+def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True, *, spatial_search=False):
     """Split edges so that stray verts become connected"""
 
     bm = bmesh.new()
@@ -5926,6 +5926,15 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
         tol=0.005
 
         tol2 = tol * tol
+
+        vertex_tree = None
+        if spatial_search:
+            from mathutils.kdtree import KDTree
+            vertices = list(bm.verts)
+            vertex_tree = KDTree(len(vertices))
+            for index, vertex in enumerate(vertices):
+                vertex_tree.insert(vertex.co, index)
+            vertex_tree.balance()
 
         for e in bm.edges:
             if not e.is_valid:
@@ -5943,8 +5952,17 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True):
                              max(a.co.z, b.co.z) + tol))
 
             stray = []
-            for v in bm.verts:
-                if v in e.verts:
+            candidates = bm.verts
+            if vertex_tree is not None:
+                # Splitting only adds temporary helpers, which are merged into
+                # existing vertices without moving them. The tree stays valid.
+                # This sphere contains the segment's full tolerance cylinder;
+                # retain the original tests and vertex order below.
+                nearby = vertex_tree.find_range((a.co + b.co) * 0.5,
+                                                seg.length * 0.5 + tol)
+                candidates = (vertices[index] for index in sorted(hit[1] for hit in nearby))
+            for v in candidates:
+                if not v.is_valid or v in e.verts:
                     continue
 
                 c = v.co

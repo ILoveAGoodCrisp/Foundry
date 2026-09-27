@@ -744,8 +744,11 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
 
         def add_structure_object(ob: bpy.types.Object, seam_name: str | None = None, connect_edges=False):
             nonlocal seam_collection
+            if self.game == 'reach' and connect_edges and not for_cinematic:
+                # Reuse the H1 topology repair before stitching collision edges.
+                weld_classic_vertices(ob.data)
             if connect_edges and not for_cinematic:
-                utils.connect_verts_on_edge(ob.data)
+                utils.connect_verts_on_edge(ob.data, spatial_search=self.game == 'reach')
             objects.append(ob)
             # utils.unlink(ob)
             structure_collection.objects.link(ob)
@@ -803,7 +806,10 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             if len(structure_objects) > 1:
                 main_structure_ob, remaining_structure_obs = structure_objects[0], structure_objects[1:]
                 main_structure_ob.name = f"{self.tag_path.ShortName}_structure"
-                utils.join_objects([main_structure_ob] + remaining_structure_obs)
+                # A distance weld can collapse thin Reach triangles, especially
+                # at Blender scale. Reconnect exact vertices below instead.
+                utils.join_objects([main_structure_ob] + remaining_structure_obs,
+                                   cleanup_geometry=self.game != 'reach')
 
             elif structure_objects:
                 main_structure_ob = structure_objects[0]
@@ -814,6 +820,11 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         utils.print_step("Removing Duplicate Material Slots")
         ob_meshes = {o.data for o in objects if o.type == 'MESH'}
         for me in ob_meshes:
+            if self.game == 'reach':
+                # Reconnect UV/normal splits in merged or separate clusters,
+                # shared instance definitions, collision proxies and water.
+                # Process shared meshes once rather than once per placement.
+                weld_classic_vertices(me)
             utils.consolidate_face_attributes(me)
             utils.consolidate_materials(me)
                 

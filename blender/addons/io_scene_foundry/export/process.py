@@ -2851,7 +2851,9 @@ class ExportScene:
                 self.setup_scenario = True
                     
         if self.setup_scenario:
-            with ScenarioMetadataTag() as scenario:
+            # Tool has not run yet on a first export. Create the scenario at
+            # this export's target rather than requiring an existing tag.
+            with ScenarioMetadataTag(path=scenario_path, tag_must_exist=False) as scenario:
                 self.print_pre(f"--- Setting up new scenario: Creating default starting profile & setting scenario type to {self.scene_settings.scenario_type}")
                 scenario.create_default_profile()
                 if self.scene_settings.scenario_type != 'solo':
