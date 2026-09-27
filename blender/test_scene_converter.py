@@ -3,6 +3,7 @@
 Pass -- --toolset PATH to test against an installed io_scene_halo checkout.
 """
 import importlib.util
+import ast
 from math import radians
 from pathlib import Path
 import sys
@@ -25,6 +26,18 @@ sys.path.insert(0, wheels.name)
 from io_scene_foundry import props, utils
 from io_scene_foundry.tools.importer import JMSMaterialSlot, NWOImporter, NWO_OT_ConvertScene
 from io_scene_foundry.legacy.scene_converter import HaloSceneConverter, CONVERTED
+from io_scene_foundry.legacy.jms_importer import JMSImporter
+from io_scene_foundry.legacy.jms_format import JMS
+from io_scene_foundry.legacy.writers import write_jms
+from io_scene_foundry.export.legacy import LegacyExportScene
+from io_scene_foundry.export.virtual_geometry import VirtualScene, VirtualMesh
+from io_scene_foundry.tools.asset_types import AssetType
+
+# Share the real mesh-export harness without rerunning its Blender registration.
+helper_path = Path(__file__).with_name('test_jms_roundtrip.py')
+helper_tree = ast.parse(helper_path.read_text(encoding='utf-8'))
+helper = next(n for n in helper_tree.body if isinstance(n, ast.FunctionDef) and n.name == 'export_file')
+exec(compile(ast.Module(body=[helper], type_ignores=[]), str(helper_path), 'exec'), globals())
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 toolset = Path(args[args.index('--toolset') + 1]) if '--toolset' in args else Path(bpy.utils.user_resource('SCRIPTS')) / 'addons/io_scene_halo'
@@ -68,6 +81,8 @@ def owner(game):
     value.scene_nwo = bpy.context.scene.nwo
     value.region_names, value.permutation_names = set(), set()
     value.scale_factor = .03048
+    value.from_x_rot = 0
+    value.corinth = False
     return value
 
 
@@ -80,6 +95,9 @@ class SceneConverterTests(unittest.TestCase):
     def setUp(self):
         for ob in list(bpy.data.objects):
             bpy.data.objects.remove(ob, do_unlink=True)
+        for collection in list(bpy.data.collections):
+            bpy.data.collections.remove(collection)
+        bpy.context.scene.nwo.asset_type = 'model'
         self.owner = owner('halo3')
 
     def material(self, name='surface'):
@@ -278,6 +296,121 @@ class SceneConverterTests(unittest.TestCase):
         converter.convert([ob])
         self.assertTrue(any('conveyor' in warning for warning in converter.warnings))
         self.assertTrue(ob.data.materials[0].ass_jms.conveyor)
+
+    def collection(self, name, objects, parent=None):
+        collection = bpy.data.collections.new(name)
+        (parent or bpy.context.scene.collection).children.link(collection)
+        for ob in objects:
+            for previous in tuple(ob.users_collection):
+                previous.objects.unlink(ob)
+            collection.objects.link(ob)
+        return collection
+
+    def test_halo1_scene_conversion_round_trip_matches_jms_properties(self):
+        self.owner = owner('halo1')
+        bpy.context.scene.nwo.asset_type = 'scenario'
+        exact, portal_mat = self.material('+exactportal&'), self.material('+portal')
+        portals = self.mesh('portals', [exact, portal_mat])
+        # Occupy the clean name to exercise private material copies with .001 suffixes.
+        self.material('+ladder stair')
+        ladder_a, ladder_b = self.material('+ladder stair%*^'), self.material('+ladder stair%*')
+        ladder = self.mesh('ladder', [ladder_a, ladder_b])
+        sky = self.mesh('sky', [self.material('+sky@')])
+        collision = self.mesh('@blocker', [self.material('collision_shader')])
+        render = self.mesh('render', [self.material('render_shader!')])
+        marker = self.mesh('#socket')
+        frame = bpy.data.objects.new('frame_root', None)
+        light = bpy.data.objects.new('light', bpy.data.lights.new('light', 'POINT'))
+        for ob in (frame, light):
+            bpy.context.scene.collection.objects.link(ob)
+        source = self.collection('a10e.jms', [portals, ladder, sky, collision, render, marker, frame, light])
+        converter = HaloSceneConverter(self.owner, False)
+        converter.convert(list(source.all_objects))
+        self.assertEqual(source.nwo.type, 'region')
+        self.assertEqual(source.nwo.region, 'a10e')
+        converted = list(source.all_objects)
+        self.assertTrue(all(ob.nwo.region_name == 'a10e' for ob in converted))
+        portal_objects = [ob for ob in converted if ob.type == 'MESH' and ob.data.nwo.mesh_type.endswith('_portal')]
+        self.assertEqual(sorted(ob.nwo.portal_exact for ob in portal_objects), [False, True])
+        self.assertTrue(next(ob for ob in portal_objects if ob.nwo.portal_exact).nwo.portal_ai_deafening)
+        self.assertEqual(face_props(ladder.data, 'face_mode')[0].face_mode, 'sphere_collision_only')
+        self.assertEqual(face_props(ladder.data, 'face_mode')[0].face_count, 2)
+        self.assertEqual(face_props(ladder.data, 'ladder')[0].face_count, 1)
+        self.assertEqual(face_props(sky.data, 'face_mode')[0].face_mode, 'collision_only')
+        self.assertEqual(face_props(collision.data, 'face_mode')[0].face_mode, 'collision_only')
+        self.assertEqual(ladder_a.name, '+ladder stair%*^')
+        with tempfile.TemporaryDirectory() as directory:
+            first = export_file(converted, Path(directory, 'first.jms'))
+            imported = JMSImporter(self.owner, Path(directory, 'first.jms'), 'bsp')
+            imported.build()
+            # The converter operates in place; import distances here use the same scene units.
+            second = export_file(imported.objects, Path(directory, 'second.jms'), self.owner.scale_factor)
+            from collections import Counter
+            def names(asset):
+                return Counter(asset.materials[t.material].name for t in asset.triangles)
+            self.assertEqual(names(first), names(second))
+            self.assertEqual(names(first)['+ladder stair*^'], 1)
+            self.assertEqual(names(first)['+ladder stair*'], 1)
+            self.assertEqual(names(first)['+exactportal&'], 1)
+            self.assertEqual(names(first)['+portal'], 1)
+            self.assertEqual(names(first)['+sky@'], 2)
+            self.assertEqual(names(first)['collision_shader@'], 2)
+            self.assertEqual(names(first)['render_shader!'], 2)
+
+    def test_selected_only_keeps_shared_collection_and_materials_unchanged(self):
+        self.owner = owner('halo1')
+        bpy.context.scene.nwo.asset_type = 'scenario'
+        mat = self.material('+ladder stair%*^')
+        ob = self.mesh('selected', [mat])
+        other = ob.copy()
+        bpy.context.scene.collection.objects.link(other)
+        source = self.collection('selected_bsp', [ob, other])
+        other.select_set(False)
+        ob.select_set(True)
+        bpy.context.view_layer.objects.active = ob
+        original_mesh = other.data
+        with patch('io_scene_foundry.tools.importer.NWOImporter', return_value=self.owner):
+            self.assertEqual(bpy.ops.nwo.convert_scene(selected_only=True), {'FINISHED'})
+        self.assertEqual(source.nwo.type, 'none')
+        self.assertFalse(other.get(CONVERTED))
+        self.assertIs(other.data, original_mesh)
+        self.assertIs(other.data.materials[0], mat)
+        destination = next(c for c in ob.users_collection if c.nwo.type == 'region')
+        self.assertEqual(destination.nwo.region, 'selected_bsp')
+        self.assertNotIn(other.name, destination.all_objects)
+        # Converting the remainder reuses the same BSP identity and collection.
+        HaloSceneConverter(self.owner, False).convert([other])
+        self.assertIn(other.name, destination.all_objects)
+        self.assertEqual(HaloSceneConverter(self.owner, False).convert([ob, other]), 0)
+
+    def test_existing_bsp_assignments_and_child_categories_survive(self):
+        self.owner = owner('halo1')
+        bpy.context.scene.nwo.asset_type = 'scenario'
+        a, b = self.mesh('part_a'), self.mesh('part_b')
+        bsp_a = self.collection('a10e', [])
+        bsp_b = self.collection('a10f', [b])
+        for collection in (bsp_a, bsp_b):
+            collection.nwo.type = 'region'
+            collection.nwo.region = collection.name
+        child = self.collection('render', [a], parent=bsp_a)
+        child.nwo.type = 'permutation'
+        child.nwo.permutation = 'render'
+        HaloSceneConverter(self.owner, False).convert([a, b])
+        self.assertEqual(a.nwo.region_name, 'a10e')
+        self.assertEqual(b.nwo.region_name, 'a10f')
+        self.assertIn(child, a.users_collection)
+        self.assertEqual(child.nwo.type, 'permutation')
+
+    def test_operator_auto_and_explicit_bsp_name(self):
+        self.owner = owner('halo1')
+        bpy.context.scene.nwo.asset_type = 'scenario'
+        ob = self.mesh(materials=[self.material('+exactportal')])
+        self.collection('unrelated_source_name', [ob])
+        with patch('io_scene_foundry.tools.importer.NWOImporter', return_value=self.owner):
+            self.assertEqual(bpy.ops.nwo.convert_scene(bsp_name='a10e.ass'), {'FINISHED'})
+        self.assertEqual(ob.nwo.region_name, 'a10e')
+        self.assertTrue(ob.nwo.portal_exact)
+        self.assertTrue(any(c.nwo.type == 'region' and c.nwo.region == 'a10e' for c in ob.users_collection))
 
     def test_operator_registered(self):
         self.assertEqual(bpy.ops.nwo.convert_scene.get_rna_type().identifier, 'NWO_OT_convert_scene')

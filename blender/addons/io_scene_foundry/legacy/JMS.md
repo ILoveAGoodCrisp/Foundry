@@ -58,6 +58,26 @@ attached tag armature implies a model; BSP material kinds imply structure;
 render/collision/physics folders imply a model; scenario/prefab context implies
 structure. Node presence is only a fallback: BSP JMS also has a root node.
 
+## Converting an existing Toolset scene
+
+`bpy.ops.nwo.convert_scene()` uses the current asset type by default. Scenario
+and prefab assets receive BSP conversion; model assets retain model conversion.
+The converter uses the shared JMS material interpretation, separates exact and
+ordinary portals, preserves Halo 1 helper/ladder/collision flags, and makes
+scenario `@` meshes collision-only even without a material suffix. Private
+material copies retain their clean shader identity when Blender adds a numeric
+suffix, so subsequent JMS exports do not duplicate legacy flags or rename shaders.
+
+Scenario conversion preserves existing Foundry BSP collections and child
+categories. Otherwise it uses each source collection's name, removing a terminal
+`.jms` or `.ass`. Toolset scenes do not retain their original import filepath;
+use `bpy.ops.nwo.convert_scene(jms_type='scenario', bsp_name='a10e')` when an
+explicit BSP identity is needed. Objects linked only to the scene root use the
+saved blend filename, or `default` for an unsaved file. Every converted object,
+including frames, markers and lights, receives its BSP assignment. Selected-only
+conversion does not reclassify collections or materials shared with unselected
+objects. Repeating conversion skips previously converted objects.
+
 ## Checks
 
 Run `blender/test_jms_roundtrip.py` with Blender in background factory-startup
@@ -82,3 +102,8 @@ Optional arguments after Blender's `--`:
 
 `blender/test_halo1_portal_export.py` checks bounded portal planarization;
 `blender/test_export_output.py` checks export output handling without Blender.
+
+`blender/test_scene_converter.py` checks conversion with actual Toolset RNA
+properties, including a JMS export/import/export regression, selected-only
+isolation, BSP/category preservation, and the operator's Auto mode. Pass
+`-- --toolset PATH_TO_IO_SCENE_HALO` after the Blender script arguments.

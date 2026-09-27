@@ -4,6 +4,7 @@ The toolset remains optional: access its registered RNA properties only when the
 scene-conversion operator is used. Geometry stays in its authored coordinate space.
 """
 from collections import defaultdict
+from pathlib import Path
 import re
 
 import bmesh
@@ -28,9 +29,10 @@ def region_definition(name):
 
 
 class HaloSceneConverter:
-    def __init__(self, importer, is_model):
+    def __init__(self, importer, is_model, *, bsp_name=""):
         self.owner = importer
         self.is_model = is_model
+        self.bsp_name = re.sub(r"\.(?:jms|ass)$", "", bsp_name.strip(), flags=re.I)
         # Conversion is always for the current project, never an import-source override.
         self.game = importer.target_game
         self.owner.game = self.game
@@ -61,14 +63,81 @@ class HaloSceneConverter:
                 self.warnings.add(f'{material.name}: no Foundry equivalent for {", ".join(unsupported)}; source properties retained')
         return self.material_props[material]
 
+    def bsp_sources(self, objects):
+        """Resolve source collections before marker replacement or mesh splitting."""
+        scene = self.owner.context.scene
+        inherited = {}
+
+        def visit(collection, bsp=None):
+            if collection.nwo.type == 'region':
+                bsp = collection
+            inherited[collection] = bsp
+            for child in collection.children:
+                visit(child, bsp)
+
+        visit(scene.collection)
+        result = {}
+        for ob in objects:
+            if self.bsp_name:
+                result[ob] = self.bsp_name, None
+                continue
+            sources = sorted((c for c in ob.users_collection if c in inherited),
+                             key=lambda c: (c != self.owner.context.collection, c.name))
+            bsp = next((inherited[c] for c in sources if inherited[c] is not None), None)
+            if bsp is not None:
+                result[ob] = bsp.nwo.region or bsp.name, bsp
+                continue
+            source = next((c for c in sources if c != scene.collection), None)
+            # Toolset imports do not retain their source filepath. Named source
+            # collections are the best available identity; callers can override it.
+            name = source.name if source else Path(bpy.data.filepath).stem or 'default'
+            name = re.sub(r'\.(?:jms|ass)$', '', name, flags=re.I)
+            result[ob] = name, source
+        return result
+
+    def assign_bsps(self, converted, sources):
+        scene = self.owner.context.scene
+        destinations = {}
+        converted_set = set(converted)
+        for ob in converted:
+            name, source = sources[ob]
+            destination = destinations.get(name)
+            if destination is None:
+                destination = next((c for c in scene.collection.children_recursive
+                                    if c.nwo.type == 'region' and c.nwo.region == name), None)
+                # Do not change the export identity of unconverted/unselected
+                # objects sharing a source collection.
+                if (destination is None and source is not None and source.library is None
+                        and source.nwo.type in {'none', 'region'}
+                        and set(source.all_objects).issubset(converted_set)):
+                    destination = source
+                if destination is None:
+                    destination = bpy.data.collections.new(name)
+                    scene.collection.children.link(destination)
+                bsp = self.owner._ensure_region_entry(name, utils.SetType.SCENARIO)
+                destination.nwo.type = 'region'
+                destination.nwo.region = bsp
+                destinations[name] = destination
+            if ob.name not in destination.all_objects:
+                destination.objects.link(ob)
+            descendants = set(destination.children_recursive)
+            for collection in tuple(ob.users_collection):
+                if collection != destination and collection not in descendants:
+                    collection.objects.unlink(ob)
+            ob.nwo.region_name = destination.nwo.region
+
     def convert(self, objects):
         objects = [ob for ob in objects if not ob.get(CONVERTED)]
         if any(ob.library or (ob.data and ob.data.library) for ob in objects):
             raise RuntimeError('Make linked objects and their data local before converting the scene')
+        source_bsps = self.bsp_sources(objects) if not self.is_model else {}
+        converted_bsps = {}
         parents = {ob.parent for ob in objects if ob.parent is not None}
         converted = []
         constraints = []
         for ob in objects:
+            start = len(converted)
+            bsp = source_bsps.get(ob)
             if ob.type == 'ARMATURE':
                 if ob.data.users > 1:
                     ob.data = ob.data.copy()
@@ -77,7 +146,7 @@ class HaloSceneConverter:
                         bone.name = bone.ass_jms.name_override.strip()
                 converted.append(ob)
             elif ob.rigid_body_constraint and ob.name.startswith('$'):
-                constraints.append(ob)
+                constraints.append((ob, bsp))
             elif ob.type == 'MESH' and ob.data.ass_jms.XREF_path:
                 from ..tools.importer import XREF
                 source = ob.data.ass_jms
@@ -103,9 +172,16 @@ class HaloSceneConverter:
             elif ob.type == 'LIGHT':
                 self.light(ob)
                 converted.append(ob)
-        for ob in constraints:
+            if not self.is_model:
+                for result in converted[start:]:
+                    converted_bsps[result] = bsp
+        for ob, bsp in constraints:
             self.constraint(ob)
             converted.append(ob)
+            if not self.is_model:
+                converted_bsps[ob] = bsp
+        if not self.is_model:
+            self.assign_bsps(converted, converted_bsps)
         # Resolve proxies after the parent's data has been split/copied.
         for ob in converted:
             if (not self.is_model and ob.type == 'MESH' and ob.name.startswith('@')
@@ -243,7 +319,11 @@ class HaloSceneConverter:
                 material = self.material(materials[index], prop)
                 result.material_slots[index].link = 'DATA'
                 result.material_slots[index].material = material
-            utils.consolidate_face_attributes(result.data)
+            if kind == 'collision' and not self.is_model:
+                # Object-level @ geometry is collision-only even if its shader
+                # has no suffix. Existing sphere-only masks retain precedence.
+                utils.add_face_prop(result.data, 'face_mode').face_mode = 'collision_only'
+            utils.consolidate_face_attributes(result.data, preserve_special_faces=self.game == 'halo1')
         return results
 
     @staticmethod
@@ -262,11 +342,17 @@ class HaloSceneConverter:
         if source in self.converted_materials:
             return self.converted_materials[source]
         material = source
-        # Exact portals are encoded by the special shader name in the H1 writer.
+        # Face flags belong to Foundry properties, not the exported shader name.
+        name = utils.base_material_name(props.material.name, True).lower() or 'default'
+        if props.portal_exact:
+            name = '+exactportal'
         shader_emissive = self.game in {'halo1', 'halo2'} and props.emissive_power
-        if props.portal_exact or source.ass_jms.name_override.strip() or shader_emissive:
+        if name != source.name or props.portal_exact or shader_emissive:
             material = source.copy()
-            material.name = '+exactportal' if props.portal_exact else props.material.name
+            material.name = name
+            # A private copy may acquire Blender's .001 suffix. Keep the source
+            # shader identity without editing materials used by unselected objects.
+            material['foundry_legacy_shader_name'] = name
             if props.portal_exact:
                 material.nwo['shader_path'] = ''
             if shader_emissive:

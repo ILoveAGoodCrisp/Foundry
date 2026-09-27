@@ -3119,6 +3119,7 @@ class VirtualScene:
                 relative = utils.relative_path(shader_path)
                 virtual_mat = VirtualMaterial(material.name, scene, relative)
                 
+        virtual_mat.legacy_shader_name = material.get('foundry_legacy_shader_name', '')
         self.materials[virtual_mat.name] = virtual_mat
         return virtual_mat
         

@@ -1073,9 +1073,10 @@ class LegacyExportScene(ExportScene):
         return [], []
 
     def legacy_shader_name(self, mat):
+        source_name = getattr(mat, 'legacy_shader_name', '') or mat.name
         path = mat.shader_path
         if not path or not path.strip() or path in {'override', 'shaders\\invalid'}:
-            return mat.name
+            return source_name
         # VirtualMaterial stores the tag class separately from its path.
         # Restore it before resolving the material name and validating the tag.
         shader_type = getattr(mat, 'shader_type', '')
@@ -1089,7 +1090,7 @@ class LegacyExportScene(ExportScene):
             if path not in self.warned_shader_paths:
                 self.warnings.append(f'{mat.name}: {exc}. Using material name')
                 self.warned_shader_paths.add(path)
-            return mat.name
+            return source_name
         if self.target_game == 'halo1':
             try:
                 filename(name)
@@ -1097,7 +1098,7 @@ class LegacyExportScene(ExportScene):
                 if path not in self.warned_shader_paths:
                     self.warnings.append(f'{mat.name}: invalid Halo 1 shader path {path}. Using material name')
                     self.warned_shader_paths.add(path)
-                return mat.name
+                return source_name
         source = Path(self.tags_dir, utils.relative_path(path))
         if self.target_game == 'halo2' and not source.suffix:
             source = source.with_suffix('.shader')

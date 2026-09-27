@@ -434,8 +434,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 game_objects.extend(classic_game_objects)
                 if self.game == 'halo1':
                     from .halo1_bsp_blender import replace_collision_only, apply_collision_surface_flags, apply_shader_transparency, create_helpers
-                    replace_collision_only(classic_objects, self)
                     apply_collision_surface_flags(self, classic_objects)
+                    replace_collision_only(classic_objects, self)
                     for ob in classic_objects:
                         if ob.type == 'MESH':
                             utils.set_two_sided(ob.data, match_collision_patches=True)

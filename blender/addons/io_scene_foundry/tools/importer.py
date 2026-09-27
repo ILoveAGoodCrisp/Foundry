@@ -1085,19 +1085,27 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
     selected_only: bpy.props.BoolProperty(
         name="Selected Only", description="Convert only selected objects")
     jms_type: bpy.props.EnumProperty(
-        name="Scene Type", items=[('model', "Model", ""), ('scenario', "Scenario", "")])
+        name="Scene Type", default='auto',
+        items=[('auto', "Auto", "Use the current asset type"),
+               ('model', "Model", ""), ('scenario', "Scenario", "")])
+    bsp_name: bpy.props.StringProperty(
+        name="BSP Name",
+        description="Optional BSP name for scenario conversion; otherwise preserve BSP assignments or use source collection names")
 
     @classmethod
     def poll(cls, context):
         return context.mode == 'OBJECT' and utils.current_project_valid()
 
     def invoke(self, context, event):
-        self.jms_type = 'scenario' if utils.get_scene_props().asset_type == 'scenario' else 'model'
+        self.jms_type = 'scenario' if utils.get_scene_props().asset_type in {'scenario', 'prefab'} else 'model'
         return context.window_manager.invoke_props_dialog(self)
 
     def draw(self, context):
         self.layout.prop(self, 'selected_only')
         self.layout.prop(self, 'jms_type', expand=True)
+        if self.jms_type == 'scenario' or (self.jms_type == 'auto' and
+                utils.get_scene_props().asset_type in {'scenario', 'prefab'}):
+            self.layout.prop(self, 'bsp_name')
 
     def execute(self, context):
         if not hasattr(bpy.types.Material, 'ass_jms') or not hasattr(bpy.types.Mesh, 'ass_jms'):
@@ -1109,7 +1117,10 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
                (ob.library or (ob.data and ob.data.library)) for ob in objects):
             self.report({'WARNING'}, "Make linked objects and their data local before converting")
             return {'CANCELLED'}
-        converter = HaloSceneConverter(NWOImporter(context, existing_scene=True), self.jms_type == 'model')
+        is_model = self.jms_type == 'model' or (self.jms_type == 'auto' and
+                    utils.get_scene_props().asset_type not in {'scenario', 'prefab'})
+        converter = HaloSceneConverter(NWOImporter(context, existing_scene=True), is_model,
+                                       bsp_name=self.bsp_name)
         converted = converter.convert(objects)
         if converter.warnings:
             for warning in sorted(converter.warnings):

@@ -334,6 +334,20 @@ def apply_collision_surface_flags(tag, objects):
                 if all((hit := tree.find_nearest(point))[0] is not None
                        and hit[3] <= tolerance for point in points):
                     masks[name][face.index] = 1
+        # The compiled 'invisible' bit means large/sphere-only collision (*),
+        # not ordinary non-rendering collision (@). It takes precedence over
+        # modes inferred while matching render and collision geometry.
+        sphere_only = masks.get('invisible')
+        if sphere_only is not None and sphere_only.any():
+            for prop in mesh.nwo.face_props:
+                if prop.type == 'face_mode':
+                    attribute = mesh.attributes.get(prop.attribute_name)
+                    if attribute is not None:
+                        values = np.array([v.value for v in attribute.data], dtype=np.int8)
+                        values[sphere_only.astype(bool)] = 0
+                        attribute.data.foreach_set('value', values)
+            if 'breakable' in masks:
+                masks['breakable'] &= ~sphere_only
         for name, mask in masks.items():
             if mask.any():
                 prop = utils.add_face_prop(mesh, 'face_mode' if name in {'breakable', 'invisible'} else name,
@@ -341,7 +355,7 @@ def apply_collision_surface_flags(tag, objects):
                 if name == 'breakable':
                     prop.face_mode = 'breakable'
                 elif name == 'invisible':
-                    prop.face_mode = 'collision_only'
+                    prop.face_mode = 'sphere_collision_only'
                 elif name == 'face_sides':
                     prop.two_sided = True
         # H1 shell materials can carry explicit collision flags. The generic

@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "io_scene_foundry"
-version = "1.9.19"
+version = "2.0.0"
 name = "Foundry"
 tagline = "An import & export pipeline for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer"
 maintainer = "Crisp"
@@ -17,10 +17,12 @@ blender_version_min = "5.2.0"
 
 license = ["SPDX:GPL-3.0-or-later"]
 
+platforms = ["windows-amd64", "windows-x64"]
+
 wheels = [
-  "./wheels/blam_tags-0.1.9-cp38-abi3-win_amd64.whl",
   "./wheels/networkx-3.4.2-py3-none-any.whl",
-  "./wheels/coacd-1.0.11-cp39-abi3-win_amd64.whl"
+  "./wheels/coacd-1.0.11-cp39-abi3-win_amd64.whl",
+  "./wheels/blam_tags-0.1.9-cp38-abi3-win_amd64.whl"
 ]
 
 [build]
