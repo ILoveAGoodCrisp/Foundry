@@ -513,6 +513,8 @@ class NWO_HaloExportSettings(bpy.types.Panel):
             if not scene_nwo_export.legacy_generate_checksum:
                 col.prop(scene_nwo_export, "legacy_file_checksum")
         scenario = asset_type == "scenario"
+        if halo1 and scenario:
+            col.prop(scene_nwo_export, "halo1_fix_phantom_bsp")
         render = utils.poll_ui(("model", "sky"))
         scenario_lightmap = (h4 and render) or scenario
         if (render and not halo1) or scenario:
@@ -926,6 +928,12 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     )
 
     legacy_asset_path: bpy.props.StringProperty(name="Legacy Asset Folder", subtype='DIR_PATH')
+
+    halo1_fix_phantom_bsp: bpy.props.BoolProperty(
+        name="Fix Phantom BSP",
+        description="Enable H1 MCC Tool's phantom BSP collision fix during scenario compilation. May increase collision data size",
+        default=False, options=set(),
+    )
 
     legacy_maya_order: bpy.props.BoolProperty(
         name="Use Maya Sorting",
