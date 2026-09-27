@@ -565,6 +565,8 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
         scene = context.scene
         scene_nwo_export = utils.get_export_props()
         scene_nwo = utils.get_scene_props()
+        project = utils.get_project(scene_nwo.scene_project)
+        game = project.game if project else None
 
         layout.use_property_split = False
         flow = layout.grid_flow(
@@ -582,7 +584,7 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
             flow.prop(scene_nwo_export, "export_skeleton", icon='OUTLINER_OB_ARMATURE')
         elif scene_nwo.asset_type == "animation":
             flow.prop(scene_nwo_export, "export_skeleton", icon='OUTLINER_OB_ARMATURE')
-        elif scene_nwo.asset_type == "scenario":
+        elif scene_nwo.asset_type == "scenario" and game not in {'halo1', 'halo2'}:
             flow.prop(scene_nwo_export, "export_structure", icon_value=get_icon_id("render"))
             flow.prop(scene_nwo_export, "export_design", text="Design", icon_value=get_icon_id("soft_ceiling"))
 
@@ -593,7 +595,10 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
             col.separator()
             col.prop(scene_nwo_export, "export_all_bsps", expand=True, text=" ")
             col.separator()
-        if scene_nwo.asset_type in {'scenario', 'model', 'prefab'}:
+        if scene_nwo.asset_type == 'model' or (
+            scene_nwo.asset_type in {'scenario', 'prefab'}
+            and not utils.uses_legacy_export(scene_nwo.scene_project)
+        ):
             col.separator()
             col.prop(scene_nwo_export, "export_all_perms", expand=True, text=" ")
         if scene_nwo.asset_type in {'animation', 'model'}:
@@ -621,6 +626,13 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
+        scene_nwo = utils.get_scene_props()
+        project = utils.get_project(scene_nwo.scene_project)
+        game = project.game if project else None
+        if game in {'halo1', 'halo2'}:
+            return False
+        if game in {'halo3', 'halo3odst'}:
+            return utils.poll_ui(('scenario',))
         return utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation', 'multi_model', 'multi_prefab'))
 
     def draw(self, context):
@@ -643,6 +655,11 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
             align=False,
         )
         col = flow.column()
+        if utils.uses_legacy_export(scene_nwo.scene_project):
+            if scenario:
+                col.prop(scene_nwo_export, "create_debug_zone_set")
+                col.prop(scene_nwo_export, "allow_proxy_decals")
+            return
         if scenario or prefab:
             col.prop(scene_nwo_export, "force_imposter_policy_never")
             if scenario:

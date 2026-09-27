@@ -561,7 +561,9 @@ class NWO_ExportScene(Operator, ExportHelper):
 
         h4 = is_corinth(context)
         project = utils.get_project(scene_nwo.scene_project)
-        halo1 = bool(project and project.game == 'halo1')
+        game = project.game if project else None
+        halo1 = game == 'halo1'
+        legacy = utils.uses_legacy_export(scene_nwo.scene_project)
 
         col = box.column()
         row = col.row()
@@ -628,8 +630,9 @@ class NWO_ExportScene(Operator, ExportHelper):
             col.prop(scene_nwo_export, "export_skeleton")
         elif scene_nwo.asset_type == "scenario":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
-            col.prop(scene_nwo_export, "export_structure")
-            col.prop(scene_nwo_export, "export_design", text="Design")
+            if game not in {"halo1", "halo2"}:
+                col.prop(scene_nwo_export, "export_structure")
+                col.prop(scene_nwo_export, "export_design", text="Design")
         elif scene_nwo.asset_type != "prefab":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_render")
@@ -640,8 +643,9 @@ class NWO_ExportScene(Operator, ExportHelper):
         if scene_nwo.asset_type == "scenario":
             col.prop(scene_nwo_export, "export_all_bsps", expand=True, text=" ")
             col.separator()
-        col.prop(scene_nwo_export, "export_all_perms", expand=True, text=" ")
-        col.separator()
+        if scene_nwo.asset_type not in {"scenario", "prefab"} or not legacy:
+            col.prop(scene_nwo_export, "export_all_perms", expand=True, text=" ")
+            col.separator()
         if scene_nwo.asset_type in {'animation', 'model'}:
             col.prop(scene_nwo_export, "export_animations", expand=True)
             
@@ -661,35 +665,89 @@ class NWO_ExportScene(Operator, ExportHelper):
         col.prop(scene_nwo_export, 'triangulate_quad_method', text="Quad Method")
         col.prop(scene_nwo_export, 'triangulate_ngon_method', text="N-gon Method")
         
-        box = layout.box()
-        box.label(text="Import Flags")
-        col = box.column()
+        if game in {'halo3', 'halo3odst'} and scenario:
+            box = layout.box()
+            box.label(text="Import Flags")
+            col = box.column()
+            col.prop(scene_nwo_export, "create_debug_zone_set")
+            col.prop(scene_nwo_export, "allow_proxy_decals")
+        elif not legacy:
+            box = layout.box()
+            box.label(text="Import Flags")
+            col = box.column()
         
-        flow = col.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        if scenario or prefab:
-            col.prop(scene_nwo_export, "force_imposter_policy_never")
-            if scenario:
-                col.prop(scene_nwo_export, "create_debug_zone_set")
-                if h4:
-                    col.prop(scene_nwo_export, "relink_lighting")
-                else:
-                    col.prop(scene_nwo_export, "allow_proxy_decals")
-        if model or animation:
-            col.prop(scene_nwo_export, "disable_automatic_suspension_computation")
-            if h4:
-                col.prop(scene_nwo_export, "debug_composites")
-            if model:
-                col.prop(scene_nwo_export, "auto_precise")
-        col.prop(scene_nwo_export, "import_force", text="Force full export")
-        if h4:
+            flow = col.grid_flow(
+                row_major=True,
+                columns=0,
+                even_columns=True,
+                even_rows=False,
+                align=False,
+            )
+            col = flow.column()
             if scenario or prefab:
+                col.prop(scene_nwo_export, "force_imposter_policy_never")
+                if scenario:
+                    col.prop(scene_nwo_export, "create_debug_zone_set")
+                    if h4:
+                        col.prop(scene_nwo_export, "relink_lighting")
+                    else:
+                        col.prop(scene_nwo_export, "allow_proxy_decals")
+            if model or animation:
+                col.prop(scene_nwo_export, "disable_automatic_suspension_computation")
+                if h4:
+                    col.prop(scene_nwo_export, "debug_composites")
+                if model:
+                    col.prop(scene_nwo_export, "auto_precise")
+            col.prop(scene_nwo_export, "import_force", text="Force full export")
+            if h4:
+                if scenario or prefab:
+                    if scenario:
+                        col.prop(
+                            scene_nwo_export,
+                            "import_seam_debug",
+                            text="Show more seam debugging info",
+                        )
+                        col.prop(
+                            scene_nwo_export,
+                            "import_skip_instances",
+                            text="Skip importing instances",
+                        )
+                    col.prop(
+                        scene_nwo_export,
+                        "import_meta_only",
+                        text="Only import structure_meta tag",
+                    )
+                    col.prop(
+                        scene_nwo_export,
+                        "import_lighting",
+                        text="Only reimport lighting information",
+                    )
+                    col.prop(
+                        scene_nwo_export,
+                        "import_disable_hulls",
+                        text="Skip instance convex hull decomp",
+                    )
+                    col.prop(
+                        scene_nwo_export,
+                        "import_disable_collision",
+                        text="Don't generate complex collision",
+                    )
+                else:
+                    col.prop(
+                        scene_nwo_export, "import_no_pca", text="Skip PCA calculations"
+                    )
+                    col.prop(
+                        scene_nwo_export,
+                        "import_force_animations",
+                        text="Force import error animations",
+                    )
+            else:
+                # col.prop(scene_nwo_export, "import_verbose", text="Verbose Output")
+                col.prop(
+                    scene_nwo_export,
+                    "import_suppress_errors",
+                    text="Don't write errors to VRML",
+                )
                 if scenario:
                     col.prop(
                         scene_nwo_export,
@@ -701,63 +759,16 @@ class NWO_ExportScene(Operator, ExportHelper):
                         "import_skip_instances",
                         text="Skip importing instances",
                     )
-                col.prop(
-                    scene_nwo_export,
-                    "import_meta_only",
-                    text="Only import structure_meta tag",
-                )
-                col.prop(
-                    scene_nwo_export,
-                    "import_lighting",
-                    text="Only reimport lighting information",
-                )
-                col.prop(
-                    scene_nwo_export,
-                    "import_disable_hulls",
-                    text="Skip instance convex hull decomp",
-                )
-                col.prop(
-                    scene_nwo_export,
-                    "import_disable_collision",
-                    text="Don't generate complex collision",
-                )
-            else:
-                col.prop(
-                    scene_nwo_export, "import_no_pca", text="Skip PCA calculations"
-                )
-                col.prop(
-                    scene_nwo_export,
-                    "import_force_animations",
-                    text="Force import error animations",
-                )
-        else:
-            # col.prop(scene_nwo_export, "import_verbose", text="Verbose Output")
-            col.prop(
-                scene_nwo_export,
-                "import_suppress_errors",
-                text="Don't write errors to VRML",
-            )
-            if scenario:
-                col.prop(
-                    scene_nwo_export,
-                    "import_seam_debug",
-                    text="Show more seam debugging info",
-                )
-                col.prop(
-                    scene_nwo_export,
-                    "import_skip_instances",
-                    text="Skip importing instances",
-                )
-            # else:
-            #     col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
+                # else:
+                #     col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
                 
-        flow = col.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
+            flow = col.grid_flow(
+                row_major=True,
+                columns=0,
+                even_columns=True,
+                even_rows=False,
+                align=False,
+            )
         
         if utils.has_gr2_viewer():
             box = layout.box()

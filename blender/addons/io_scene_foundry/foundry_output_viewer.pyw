@@ -27,6 +27,7 @@ WM_CTLCOLORBTN = 0x0135
 WM_CTLCOLORSTATIC = 0x0138
 WM_SETICON = 0x0080
 WM_SETFONT = 0x0030
+WM_SETREDRAW = 0x000B
 WM_COPY = 0x0301
 EM_GETSEL = 0x00B0
 EM_SETSEL = 0x00B1
@@ -38,6 +39,8 @@ EM_SETREADONLY = 0x00CF
 WM_USER = 0x0400
 EM_SETBKGNDCOLOR = WM_USER + 67
 EM_SETCHARFORMAT = WM_USER + 68
+EM_GETSCROLLPOS = WM_USER + 221
+EM_SETSCROLLPOS = WM_USER + 222
 
 WS_OVERLAPPEDWINDOW = 0x00CF0000
 WS_VISIBLE = 0x10000000
@@ -120,7 +123,8 @@ MAX_DISPLAY_LINES = 100_000
 
 ANSI_ESCAPE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))")
 
-EXPORT_BANNER_LINE = re.compile(r"^>{3}\s+.*\bEXPORT\b.*<{3}$", re.IGNORECASE)
+EXPORT_BANNER_LINE = re.compile(r"^[>►]{3}\s+.*\b(?:EXPORT|IMPORT)\b.*[<◄]{3}$", re.IGNORECASE)
+EXPORT_PROGRESS_LINE = re.compile(r"^---\s+.+\(\d+\s*/\s*\d+\)")
 EXPORT_COMPLETE_LINE = re.compile(r"^(?:Export|Import) Completed in\s+(.+)$", re.IGNORECASE)
 CANCELLED_LINE = re.compile(r"^(?:EXPORT|IMPORT) CANCELLED(?: BY USER)?$", re.IGNORECASE)
 FAILURE_LINE = re.compile(
@@ -176,6 +180,15 @@ class WNDCLASSW(ctypes.Structure):
         ("hbrBackground", wintypes.HBRUSH),
         ("lpszMenuName", wintypes.LPCWSTR),
         ("lpszClassName", wintypes.LPCWSTR),
+    ]
+
+
+class SCROLLINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.UINT), ("fMask", wintypes.UINT),
+        ("nMin", ctypes.c_int), ("nMax", ctypes.c_int),
+        ("nPage", wintypes.UINT), ("nPos", ctypes.c_int),
+        ("nTrackPos", ctypes.c_int),
     ]
 
 
@@ -245,6 +258,9 @@ user32.CallWindowProcW.argtypes = [ctypes.c_void_p, wintypes.HWND, wintypes.UINT
 user32.CallWindowProcW.restype = ctypes.c_ssize_t
 user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
 user32.SendMessageW.restype = ctypes.c_ssize_t
+user32.GetScrollInfo.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.POINTER(SCROLLINFO)]
+user32.GetScrollInfo.restype = wintypes.BOOL
+user32.GetCapture.restype = wintypes.HWND
 user32.MoveWindow.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.BOOL]
 user32.RedrawWindow.argtypes = [wintypes.HWND, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT]
 user32.SetTimer.argtypes = [wintypes.HWND, ctypes.c_size_t, wintypes.UINT, ctypes.c_void_p]
@@ -626,6 +642,7 @@ class BonoboOutput:
                 self.spinner_erased = True
             elif character != "\x00":
                 self.current_line += character
+
                 self.spinner_erased = False
 
     def _finish_line(self):
@@ -838,6 +855,7 @@ class ExportStatus:
             if character == "\f":
                 self.clear()
             elif character == "\r":
+                self._update_progress()
                 self.pending_carriage_return = True
             elif character == "\n":
                 self._finish_line()
@@ -845,6 +863,16 @@ class ExportStatus:
                 self.current_line = self.current_line[:-1]
             elif character != "\x00":
                 self.current_line += character
+
+        self._update_progress()
+
+    def _update_progress(self):
+        # Progress is rewritten with carriage returns, often without a newline.
+        if EXPORT_PROGRESS_LINE.match(self.current_line.strip()):
+            if self.started_at is None:
+                self.started_at = time.monotonic()
+            self.state = "active"
+            self.finished = False
 
     def _finish_line(self):
         line = self.current_line.strip()
@@ -906,6 +934,7 @@ class FoundryOutputWindow:
         self.enabled_levels = {"message", "warning", "error"}
         self.collapsed_message_nodes = set()
         self.message_toggle_ranges = []
+        self.output_dirty = False
         self.original_edit_window_proc = None
         self.edit_window_proc = WNDPROC(self._edit_window_proc)
         self.font = None
@@ -1084,10 +1113,22 @@ class FoundryOutputWindow:
         summary = f"Messages: {counts['message']}   Warnings: {counts['warning']}   Errors: {counts['error']}"
         user32.SetWindowTextW(self.filter_summary, summary)
 
-    def _render_output(self, scroll_to_end=True):
-        first_visible_line = 0
-        if not scroll_to_end:
-            first_visible_line = user32.SendMessageW(self.edit, EM_GETFIRSTVISIBLELINE, 0, 0)
+    def _render_output(self, scroll_to_end=None):
+        selection_start = wintypes.DWORD()
+        selection_end = wintypes.DWORD()
+        user32.SendMessageW(self.edit, EM_GETSEL, ctypes.addressof(selection_start), ctypes.addressof(selection_end))
+        if scroll_to_end is None:
+            info = SCROLLINFO()
+            info.cbSize = ctypes.sizeof(info)
+            info.fMask = 0x0007  # SIF_RANGE | SIF_PAGE | SIF_POS
+            has_scroll = user32.GetScrollInfo(self.edit, 1, ctypes.byref(info))  # SB_VERT
+            # RichEdit can stop one pixel short of the scrollbar's inclusive
+            # range, even after SB_BOTTOM.
+            scroll_to_end = (not has_scroll or info.nPos >= info.nMax - max(info.nPage - 1, 0) - 1)
+            scroll_to_end = scroll_to_end and selection_start.value == selection_end.value
+        first_visible_line = user32.SendMessageW(self.edit, EM_GETFIRSTVISIBLELINE, 0, 0)
+        scroll_position = wintypes.POINT()
+        user32.SendMessageW(self.edit, EM_GETSCROLLPOS, 0, ctypes.addressof(scroll_position))
 
         enabled_levels = self._enabled_levels()
         entries = (
@@ -1097,6 +1138,7 @@ class FoundryOutputWindow:
         )
         self.message_toggle_ranges = []
 
+        user32.SendMessageW(self.edit, WM_SETREDRAW, 0, 0)
         user32.SendMessageW(self.edit, EM_SETREADONLY, 0, 0)
         rendered = "\r".join(entry.text for entry in entries)
         if entries:
@@ -1104,7 +1146,7 @@ class FoundryOutputWindow:
         user32.SetWindowTextW(self.edit, rendered)
         position = 0
         for entry in entries:
-            end = position + len(entry.text)
+            end = position + len(entry.text.encode('utf-16-le')) // 2
             if entry.toggle_key is not None:
                 self.message_toggle_ranges.append((position, end, entry.toggle_key))
             user32.SendMessageW(self.edit, EM_SETSEL, position, end)
@@ -1118,10 +1160,15 @@ class FoundryOutputWindow:
             user32.SendMessageW(self.edit, EM_SCROLLCARET, 0, 0)
             user32.SendMessageW(self.edit, WM_VSCROLL, SB_BOTTOM, 0)
         else:
-            current_first_line = user32.SendMessageW(self.edit, EM_GETFIRSTVISIBLELINE, 0, 0)
-            line_delta = first_visible_line - current_first_line
-            if line_delta:
-                user32.SendMessageW(self.edit, EM_LINESCROLL, 0, line_delta)
+            user32.SendMessageW(self.edit, EM_SETSEL, selection_start.value, selection_end.value)
+            if RICHEDIT_MODULE:
+                user32.SendMessageW(self.edit, EM_SETSCROLLPOS, 0, ctypes.addressof(scroll_position))
+            else:
+                current_first_line = user32.SendMessageW(self.edit, EM_GETFIRSTVISIBLELINE, 0, 0)
+                user32.SendMessageW(self.edit, EM_LINESCROLL, 0, first_visible_line - current_first_line)
+        user32.SendMessageW(self.edit, WM_SETREDRAW, 1, 0)
+        user32.RedrawWindow(self.edit, None, None, RDW_INVALIDATE | RDW_ERASE)
+        self.output_dirty = False
         self._update_filter_summary()
 
     def _toggle_message_node_at(self, character_index):
@@ -1161,7 +1208,10 @@ class FoundryOutputWindow:
             self.export_status.status = "Python crash / traceback — see Messages"
             self.export_status.state = "failed"
             self.export_status.finished = True
-        if chunks:
+        self.output_dirty = self.output_dirty or bool(chunks)
+        # Replacing the text during a scrollbar drag or selection disrupts
+        # RichEdit's mouse tracking. Render accumulated output after release.
+        if self.output_dirty and user32.GetCapture() != self.edit:
             self._render_output()
         self._update_status_controls()
 
@@ -1192,7 +1242,6 @@ class FoundryOutputWindow:
             command = wparam & 0xFFFF
             if command == BUTTON_CLEAR:
                 self.output.clear()
-                self.export_status.clear()
                 self.collapsed_message_nodes.clear()
                 self._render_output()
                 self._update_status_controls()
@@ -1202,6 +1251,7 @@ class FoundryOutputWindow:
                 user32.SendMessageW(self.edit, WM_COPY, 0, 0)
                 return 0
             if command == BUTTON_CANCEL:
+                self._update_output()
                 process_count = cancel_active_tool_processes(self.arguments.parent_pid)
                 blender_phase_active = self.export_status.state == "active"
                 cancellation_requested = False

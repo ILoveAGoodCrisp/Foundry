@@ -283,9 +283,9 @@ def _match_boundary_patches(render_mesh, collision_mesh, render, collision,
         collision_ids.append(index)
 
     # At an intersection of planes, compiler roundoff can displace a corner
-    # farther than the surface tolerance while it remains within that
-    # tolerance of every incident plane. Recover its identity only when two
-    # already matched neighbours also establish the same edge connections.
+    # farther than the surface tolerance. Recover its identity when two
+    # matched neighbours and the incident planes agree, or three matched
+    # neighbours establish the same corner despite slightly larger plane error.
     # This does not move vertices or relax the planar overlap tests.
     render_neighbours, collision_neighbours = defaultdict(set), defaultdict(set)
     render_normals = defaultdict(list)
@@ -307,11 +307,17 @@ def _match_boundary_patches(render_mesh, collision_mesh, render, collision,
             continue
         candidates = []
         for co, candidate, _ in tree.find_range(point, tolerance * 2):
-            if len(collision_neighbours[index] & render_neighbours[candidate]) < 2:
+            shared_neighbours = collision_neighbours[index] & render_neighbours[candidate]
+            if len(shared_neighbours) < 2:
                 continue
             displacement = np.subtract(point, co)
-            if all(abs(float(displacement @ normal)) <= tolerance
-                   for normal in render_normals[candidate]):
+            # Some H1 compiler corners exceed the plane tolerance as well
+            # (b40_c1). Three independently matched edge neighbours identify
+            # the corner even then. Keep the bounded search, unique candidate,
+            # material and closed-patch checks; do not widen planar matching.
+            if len(shared_neighbours) >= 3 or all(
+                    abs(float(displacement @ normal)) <= tolerance
+                    for normal in render_normals[candidate]):
                 candidates.append(candidate)
         if len(candidates) == 1:
             corner_matches[index] = candidates[0]

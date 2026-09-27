@@ -36,7 +36,7 @@ from ..tags.model_blender import ModelTag
 from ..tags.object import ObjectDocument
 from ..tags.scenario import ScenarioDocument
 from ..tools.scenario.lightmap import run_halo1_lightmapper
-from .. import utils
+from .. import utils, foundry_output
 
 
 def legacy_instance_name(name: str, props: dict, mesh_type: int) -> str:
@@ -82,27 +82,37 @@ def transform(matrix, scale=1, inverse_rotation=False):
 
 def write_outputs(outputs, *, maya_order=False):
     """Serialize and validate the whole batch before replacing any existing file."""
+    outputs = list(outputs)
     staged = []
+    process = '--- Writing Intermediary Files'
     try:
-        for path, asset in outputs:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with NamedTemporaryFile(mode='w', encoding='utf-8', newline='\n', dir=path.parent,
-                                    prefix=path.name + '.', suffix='.tmp', delete=False) as stream:
-                temporary = Path(stream.name)
-                staged.append((temporary, path))
+        with utils.Spinner():
+            utils.update_job_count(process, '', 0, len(outputs))
+            for index, (path, asset) in enumerate(outputs, 1):
+                foundry_output._raise_if_cancel_requested()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with NamedTemporaryFile(mode='w', encoding='utf-8', newline='\n', dir=path.parent,
+                                        prefix=path.name + '.', suffix='.tmp', delete=False) as stream:
+                    temporary = Path(stream.name)
+                    staged.append((temporary, path))
+                    if isinstance(asset, jms.JMS):
+                        write_jms(asset, stream, maya_order=maya_order)
+                    elif isinstance(asset, ass.ASS):
+                        write_ass(asset, stream)
+                    else:
+                        stream.write(asset)
                 if isinstance(asset, jms.JMS):
-                    write_jms(asset, stream, maya_order=maya_order)
+                    jms.JMS.from_file(temporary)
                 elif isinstance(asset, ass.ASS):
-                    write_ass(asset, stream)
-                else:
-                    stream.write(asset)
-            if isinstance(asset, jms.JMS):
-                jms.JMS.from_file(temporary)
-            elif isinstance(asset, ass.ASS):
-                ass.ASS.from_file(temporary)
-        for temporary, path in staged:
-            temporary.replace(path)
-            print(f'--- Saved {path}')
+                    ass.ASS.from_file(temporary)
+                if index < len(outputs):
+                    utils.update_job_count(process, '', index, len(outputs))
+            # Honour a request received during the final serialization or
+            # validation before replacing any existing intermediate files.
+            foundry_output._raise_if_cancel_requested()
+            for temporary, path in staged:
+                temporary.replace(path)
+            utils.update_job_count(process, '', len(outputs), len(outputs))
     finally:
         for temporary, _ in staged:
             temporary.unlink(missing_ok=True)
@@ -201,6 +211,7 @@ class LegacyExportScene(ExportScene):
         grouped = defaultdict(list)
         markers = []
         for node in self.virtual_scene.nodes.values():
+            foundry_output._raise_if_cancel_requested()
             if node.invalid:
                 continue
             if node.props.get('bungie_object_type') == 2:
@@ -256,83 +267,94 @@ class LegacyExportScene(ExportScene):
                     grouped[(folder, filename(permutation))].append(variant)
             else:
                 grouped[(folder, filename(name))].append(node)
-        outputs = []
-        if not single_animation:
-            if not grouped and ((self.bones and 'skeleton' in self.export_tag_types) or
-                                (markers and 'markers' in self.export_tag_types)):
-                grouped[('models' if self.target_game == 'halo1' else 'render',
-                         'default superhigh' if self.target_game == 'halo1' else 'default')] = []
-            structure_names = {key_name for (key_folder, key_name) in grouped
-                               if key_folder == 'structure'}
-            if len(structure_names) > 1:
-                for marker in markers:
-                    if (marker.ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and
-                            marker.region not in structure_names):
-                        raise ExportCancelled(
-                            f'{marker.name}: assign this tag-reference marker to one of the '
-                            f'exported BSPs ({", ".join(sorted(structure_names))})')
-            uses_jmi = (self.target_game == 'halo2' and self.asset_type.name in {
-                'PARTICLE_MODEL', 'DECORATOR_SET'})
-            jmi_children = []
-            for (folder, name), nodes in grouped.items():
-                use_ass = self.ass_version is not None and (folder == 'structure' or
-                    (folder == 'render' and any(n.props.get('bungie_mesh_type') == 11 for n in nodes)))
-                lights = (() if self.target_game in {'halo1', 'halo2'} else
-                          tuple(ob for ob, bsp in self.lights.items()
-                                if folder == 'structure' and bsp == name))
-                ass_markers = ()
-                if folder == 'render':
-                    ass_markers = markers
-                elif folder == 'structure':
-                    ass_markers = tuple(marker for marker in markers
-                                        if len(structure_names) == 1 or marker.region == name)
-                # Keep the actual permutation name for marker inclusion tests;
-                # the LOD suffix belongs only to the output filename.
-                asset_name = name
-                if self.target_game == 'halo1' and folder == 'models':
-                    asset_name = (nodes[0].permutation or 'default') if nodes else 'default'
-                asset = (self.ass_asset(
-                    name, nodes, ass_markers, lights)
-                    if use_ass else self.jms_asset(asset_name, nodes, markers, folder))
-                if self.mirror:
-                    (mirror_ass if use_ass else mirror_jms)(asset)
-                if uses_jmi:
-                    if folder != 'render' or use_ass:
-                        raise ExportCancelled(
-                            f'{self.asset_type.name.lower()} JMI children must be render JMS files')
-                    child_name = (self.asset_name if len(grouped) == 1 else name)
-                    child_name = filename(child_name)
-                    jmi_children.append(child_name)
-                    output_path = Path(
-                        self.asset_path, child_name, 'render',
-                        child_name + '.jms')
-                else:
-                    # Keep the structure role for serialization, but H1 Tool's
-                    # structure command reads its JMS from the models folder.
-                    output_folder = ('models' if self.target_game == 'halo1'
-                                     and folder == 'structure' else folder)
-                    output_path = Path(
-                        self.asset_path, output_folder,
-                        name + ('.ass' if use_ass else '.jms'))
-                outputs.append((output_path, asset))
-            if uses_jmi and jmi_children:
-                outputs.append((
-                    Path(self.asset_path, self.asset_name + '.jmi'),
-                    jmi_text(self.jms_version, jmi_children),
-                ))
-        for animation in self.virtual_scene.animations:
-            if hasattr(animation, 'legacy_tracks'):
-                if self.target_game == 'halo1' and len(animation.name) >= 32:
-                    self.warnings.append(f'{animation.name}: Halo 1 animation names must be shorter than 32 characters. Skipping animation')
-                    self.skipped_legacy_animations.add(animation.name)
-                    continue
-                try:
-                    animation_text = self.jma_text(animation)
-                except ValueError as exc:
-                    self.warnings.append(f'{exc}. Skipping animation')
-                    self.skipped_legacy_animations.add(animation.name)
-                    continue
-                outputs.append((Path(self.asset_path, 'animations', filename(animation.name.replace(':', ' ')) + self.animation_extension(animation)), animation_text))
+        if not single_animation and not grouped and (
+                (self.bones and 'skeleton' in self.export_tag_types) or
+                (markers and 'markers' in self.export_tag_types)):
+            grouped[('models' if self.target_game == 'halo1' else 'render',
+                     'default superhigh' if self.target_game == 'halo1' else 'default')] = []
+        animations = [animation for animation in self.virtual_scene.animations
+                      if hasattr(animation, 'legacy_tracks')]
+        geometry_count = 0 if single_animation else len(grouped)
+        preparation_count = geometry_count + len(animations)
+        process = '--- Preparing Intermediary Files'
+        with utils.Spinner():
+            utils.update_job_count(process, '', 0, preparation_count)
+            outputs = []
+            if not single_animation:
+                structure_names = {key_name for (key_folder, key_name) in grouped
+                                   if key_folder == 'structure'}
+                if len(structure_names) > 1:
+                    for marker in markers:
+                        if (marker.ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and
+                                marker.region not in structure_names):
+                            raise ExportCancelled(
+                                f'{marker.name}: assign this tag-reference marker to one of the '
+                                f'exported BSPs ({", ".join(sorted(structure_names))})')
+                uses_jmi = (self.target_game == 'halo2' and self.asset_type.name in {
+                    'PARTICLE_MODEL', 'DECORATOR_SET'})
+                jmi_children = []
+                for index, ((folder, name), nodes) in enumerate(grouped.items()):
+                    utils.update_job_count(process, '', index, preparation_count)
+                    use_ass = self.ass_version is not None and (folder == 'structure' or
+                        (folder == 'render' and any(n.props.get('bungie_mesh_type') == 11 for n in nodes)))
+                    lights = (() if self.target_game in {'halo1', 'halo2'} else
+                              tuple(ob for ob, bsp in self.lights.items()
+                                    if folder == 'structure' and bsp == name))
+                    ass_markers = ()
+                    if folder == 'render':
+                        ass_markers = markers
+                    elif folder == 'structure':
+                        ass_markers = tuple(marker for marker in markers
+                                            if len(structure_names) == 1 or marker.region == name)
+                    # Keep the actual permutation name for marker inclusion tests;
+                    # the LOD suffix belongs only to the output filename.
+                    asset_name = name
+                    if self.target_game == 'halo1' and folder == 'models':
+                        asset_name = (nodes[0].permutation or 'default') if nodes else 'default'
+                    asset = (self.ass_asset(
+                        name, nodes, ass_markers, lights)
+                        if use_ass else self.jms_asset(asset_name, nodes, markers, folder))
+                    if self.mirror:
+                        (mirror_ass if use_ass else mirror_jms)(asset)
+                    if uses_jmi:
+                        if folder != 'render' or use_ass:
+                            raise ExportCancelled(
+                                f'{self.asset_type.name.lower()} JMI children must be render JMS files')
+                        child_name = (self.asset_name if len(grouped) == 1 else name)
+                        child_name = filename(child_name)
+                        jmi_children.append(child_name)
+                        output_path = Path(
+                            self.asset_path, child_name, 'render',
+                            child_name + '.jms')
+                    else:
+                        # Keep the structure role for serialization, but H1 Tool's
+                        # structure command reads its JMS from the models folder.
+                        output_folder = ('models' if self.target_game == 'halo1'
+                                         and folder == 'structure' else folder)
+                        output_path = Path(
+                            self.asset_path, output_folder,
+                            name + ('.ass' if use_ass else '.jms'))
+                    outputs.append((output_path, asset))
+                if uses_jmi and jmi_children:
+                    outputs.append((
+                        Path(self.asset_path, self.asset_name + '.jmi'),
+                        jmi_text(self.jms_version, jmi_children),
+                    ))
+            for index, animation in enumerate(animations):
+                utils.update_job_count(process, '', geometry_count + index, preparation_count)
+                if hasattr(animation, 'legacy_tracks'):
+                    if self.target_game == 'halo1' and len(animation.name) >= 32:
+                        self.warnings.append(f'{animation.name}: Halo 1 animation names must be shorter than 32 characters. Skipping animation')
+                        self.skipped_legacy_animations.add(animation.name)
+                        continue
+                    try:
+                        animation_text = self.jma_text(animation)
+                    except ValueError as exc:
+                        self.warnings.append(f'{exc}. Skipping animation')
+                        self.skipped_legacy_animations.add(animation.name)
+                        continue
+                    outputs.append((Path(self.asset_path, 'animations', filename(animation.name.replace(':', ' ')) + self.animation_extension(animation)), animation_text))
+            utils.update_job_count(process, '', preparation_count, preparation_count)
         if self.external_animations:
             self.warnings.append('Legacy export of external animation files is not implemented. Skipping external animations')
         if self.animation_composites:
@@ -426,6 +448,7 @@ class LegacyExportScene(ExportScene):
                 self.ensure_halo1_shaders(
                     structure_sources, 'shader_environment')
             for source in structure_sources:
+                print(f'--- Tool processing BSP: {source.stem} ({source})', flush=True)
                 error_path = source.with_name(source.stem + '_errors.wrl')
                 previous = error_path.stat() if error_path.is_file() else None
                 command = (['structure-new-from-ass', source.relative_to(self.data_dir)]
@@ -750,6 +773,7 @@ class LegacyExportScene(ExportScene):
                         destination.parent.mkdir(parents=True, exist_ok=True)
                         if shader_source.resolve() != destination.resolve():
                             utils.copy_file(shader_source, destination)
+                            print(f'--- Copied shader {destination}')
                         # A previous blank shader may have a different class. Keep
                         # a backup, but remove it from Tool's shader-name search.
                         for old in destination.parent.iterdir():
@@ -767,7 +791,6 @@ class LegacyExportScene(ExportScene):
                         materials[name.casefold()] = {
                             mat.name: (mat, destination) for mat, _ in candidates}
                         existing.add(name.casefold())
-                        print(f'--- Copied shader {destination}')
                         continue
                 if name.casefold() in existing:
                     if candidates:
@@ -1008,6 +1031,11 @@ class LegacyExportScene(ExportScene):
         path = mat.shader_path
         if not path or not path.strip() or path in {'override', 'shaders\\invalid'}:
             return mat.name
+        # VirtualMaterial stores the tag class separately from its path.
+        # Restore it before resolving the material name and validating the tag.
+        shader_type = getattr(mat, 'shader_type', '')
+        if shader_type.startswith('shader'):
+            path = f'{path}.{shader_type}'
         if path in self.shader_name_cache:
             return self.shader_name_cache[path]
         try:
@@ -1092,6 +1120,8 @@ class LegacyExportScene(ExportScene):
         normal_matrix = matrix.to_3x3().inverted().transposed()
         vertices = []
         for i, position in enumerate(mesh.positions):
+            if i % 1024 == 0:
+                foundry_output._raise_if_cancel_requested()
             influences = []
             if weighted and mesh.bone_weights is not None:
                 for index, weight in zip(mesh.bone_indices[i], mesh.bone_weights[i]):
@@ -1176,6 +1206,7 @@ class LegacyExportScene(ExportScene):
         asset.checksum = self.legacy_node_checksum(asset.nodes)
         cache = {}
         for node in nodes:
+            foundry_output._raise_if_cancel_requested()
             materials = self.face_materials(node, asset, cache)
             if folder == 'physics' and self.jms_version >= 8206:
                 if len({m[0] for m in materials.values()}) > 1:
@@ -1326,6 +1357,11 @@ class LegacyExportScene(ExportScene):
                 raise ExportCancelled(
                     f'H2 {asset_label} geometry must be rigid; each material '
                     'section must use one bone')
+        if self.target_game == 'halo1' and folder == 'structure':
+            from ..legacy.portal_geometry import planarize_halo1_portals
+            corrected = planarize_halo1_portals(asset)
+            # if corrected:
+            #     utils.print_step(f'Stabilized {corrected} portal plane(s)')
         return asset
 
     def ass_asset(self, name, nodes, markers=(), lights=()):
@@ -1346,6 +1382,7 @@ class LegacyExportScene(ExportScene):
         # changed by evaluation.
         ordered_nodes = sorted(nodes, key=lambda node: node.proxy_parent is not None)
         for node in ordered_nodes:
+            foundry_output._raise_if_cancel_requested()
             materials = self.face_materials(node, asset, cache)
             matrix = (Matrix.Identity(4) if node.proxy_parent is not None
                       else node.matrix_world)
