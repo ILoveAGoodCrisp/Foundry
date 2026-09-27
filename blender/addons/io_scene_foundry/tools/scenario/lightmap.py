@@ -1,4 +1,5 @@
 import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import math
 from pathlib import Path
 import bpy
@@ -66,13 +67,44 @@ def halo1_lightmap_commands(scenario_path, bsps, quality, stop_threshold, noasse
 
 
 def run_halo1_lightmapper(scenario_path, bsps, export_settings):
-    for command in halo1_lightmap_commands(
+    commands = halo1_lightmap_commands(
             scenario_path, bsps, export_settings.lightmap_quality_h1,
             export_settings.lightmap_stop_threshold_h1,
-            export_settings.lightmap_noassert_h1):
-        print(f"--- Lightmapping BSP {command[2]}")
-        utils.run_tool(command, force_tool=True, console_output=True,
+            export_settings.lightmap_noassert_h1)
+    if len(commands) == 1:
+        print(f"--- Lightmapping BSP {commands[0][2]}")
+        utils.run_tool(commands[0], force_tool=True, console_output=True,
                        event_level=export_settings.event_level)
+        return
+
+    # Resolve all Blender state and shared Tool configuration before workers run.
+    jobs = [(command[2], utils.prepare_tool(
+        command, force_tool=True, console_output=True,
+        event_level=export_settings.event_level)) for command in commands]
+    workers = min(len(jobs), os.cpu_count() or 1)
+    print(f"--- Lightmapping {len(jobs)} BSPs ({workers} concurrent processes)")
+
+    def lightmap_bsp(bsp, run):
+        print(f"--- Lightmapping BSP {bsp}")
+        run()
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(lightmap_bsp, bsp, run): bsp for bsp, run in jobs}
+        try:
+            for future in as_completed(futures):
+                bsp = futures[future]
+                try:
+                    future.result()
+                except CalledProcessError as error:
+                    utils.print_error(f"Lightmapping BSP {bsp} failed: Tool.exe exited with code {tool_error_code(error)}")
+                    raise
+                print(f"--- Finished lightmapping BSP {bsp}")
+        except BaseException:
+            # Do not start queued BSPs after failure/cancellation. The executor
+            # waits for running Tool jobs before returning control to Blender.
+            for future in futures:
+                future.cancel()
+            raise
 
 
 class NWO_OT_Lightmap(bpy.types.Operator):

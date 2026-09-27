@@ -264,7 +264,10 @@ class Animation:
             self.is_pose_overlay = (self.animation_type == AnimationType.OVERLAY and
                                     object_space is not None and object_space.Elements.Count > 0)
             return
-        self.animation_type = AnimationType(shared_element.SelectField("animation type").Value)
+        animation_type_value = shared_element.SelectField("animation type").Value
+        # H3/ODST tags use zero-based base/overlay/replacement values.
+        self.animation_type = AnimationType(
+            animation_type_value + 1 if game in {'halo3', 'halo3odst'} else animation_type_value)
         self.frame_info_type = FrameInfoType(shared_element.SelectField("frame info type").Value)
         self.compression = Compression(shared_element.SelectField("desired compression").Value)
         self.resource_group = shared_element.SelectField("resource_group").Data
@@ -282,7 +285,11 @@ class Animation:
         internal_flags = shared_element.SelectField("internal flags")
         self.world_relative = internal_flags.TestBit("world relative")
         
-        self.is_pose_overlay = self.animation_type == AnimationType.OVERLAY and shared_element.SelectField("object-space parent nodes").Elements.Count > 0
+        parent_nodes = shared_element.SelectField("object-space parent nodes")
+        blend_screen = element.SelectField("blend screen") if game in {'halo3', 'halo3odst'} else None
+        self.is_pose_overlay = self.animation_type == AnimationType.OVERLAY and (
+            parent_nodes is not None and parent_nodes.Elements.Count > 0
+            or blend_screen is not None and blend_screen.Value >= 0)
         
         if corinth:
             composite = element.SelectField("composite")
@@ -3984,9 +3991,7 @@ class AnimationTag(AnimationGraphTag):
                                 
                     case AnimationType.OVERLAY:
                         blender_animation.animation_type = "overlay"
-                        parent_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
-                        if parent_nodes is not None and parent_nodes.Elements.Count > 0:
-                            blender_animation.pose_overlay = True
+                        blender_animation.pose_overlay = tag_animation.is_pose_overlay
                         offset_nodes = tag_animation.shared_element.SelectField("object space offset nodes")
                         if offset_nodes is not None:
                             for node_element in offset_nodes.Elements:

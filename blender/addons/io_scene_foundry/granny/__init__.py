@@ -38,7 +38,7 @@ class Granny:
         self._variant_references = []
     
         
-    def new(self, filepath: Path, forward: str, scale: float, mirror: bool):
+    def new(self, filepath: Path, forward: str, scale: float):
         self.filename = str(filepath)
         parent_dir = filepath.parent
         if not parent_dir.exists():
@@ -47,24 +47,9 @@ class Granny:
         self.units_per_meter = (1 / 0.03048) * scale
         self.origin = (c_float * 3)(0, 0, 0)
         self.up_vector = (c_float * 3)(0, 0, 1)
-        # match forward:
-        #     case 'y-':
-        #         self.back_vector = (c_float * 3)(0, 1, 0)
-        #         self.right_vector = (c_float * 3)(1 if mirror else -1, 0, 0)
-        #     case 'y':
-        #         self.back_vector = (c_float * 3)(0, -1, 0)
-        #         self.right_vector = (c_float * 3)(-1 if mirror else 1, 0, 0)
-        #     case 'x-':
-        #         self.back_vector = (c_float * 3)(1, 0, 0)
-        #         self.right_vector = (c_float * 3)(0, -1 if mirror else 1, 0)
-        #     case 'x':
-        #         self.back_vector = (c_float * 3)(-1, 0, 0)
-        #         self.right_vector = (c_float * 3)(0, 1 if mirror else -1, 0)
-        #     case _:
-        #         raise(f"Invalid forward provided: {forward}")
-            
         self.back_vector = (c_float * 3)(-1, 0, 0)
-        self.right_vector = (c_float * 3)(0, 1 if mirror else -1, 0)
+        # Reflection is baked into the data before Granny's basis conversion.
+        self.right_vector = (c_float * 3)(0, -1, 0)
         
         # File Info
         self.granny_export_info = None
@@ -246,7 +231,7 @@ class Granny:
                     meshes.add(bone.node.mesh)
                     mesh_binding_indices.append(len(self.export_meshes) - 1)
                     
-            export_models_append(Model(model, len(self.export_skeletons) - 1, mesh_binding_indices))
+            export_models_append(Model(model, len(self.export_skeletons) - 1, mesh_binding_indices, scene.mirror))
             
         if meshes:
             seen_topologies = set()

@@ -130,12 +130,15 @@ def build_shader(material, corinth, folder="", report=None):
             with tag_class(path=shader_path.with_suffix(suffix), tag_must_exist=False) as tag:
                 nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes)
         else:
-            with EmptyShaderTag(path=shader_path.with_suffix(nwo.shader_type),
-                                tag_must_exist=False) as tag:
+            # Initialize modern shaders with their default definition/options so
+            # their template can be generated even without Blender node export.
+            tag_class = REACH_SUFFIX_TO_CLASS.get(nwo.shader_type, (EmptyShaderTag,))[0]
+            with tag_class(path=shader_path.with_suffix(nwo.shader_type),
+                           tag_must_exist=False) as tag:
                 nwo.shader_path = tag.tag_path.RelativePathWithExtension
                 
         if nwo.shader_path:
-            build_templates([nwo.shader_path])
+            build_templates([nwo.shader_path], from_options=True)
         
         if report is not None:
             report({'INFO'}, f"Created Shader Tag for {material.name}")

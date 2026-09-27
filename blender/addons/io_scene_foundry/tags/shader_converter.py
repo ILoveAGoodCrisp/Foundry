@@ -4,6 +4,7 @@ from enum import Enum
 from math import radians
 import multiprocessing
 from pathlib import Path
+import subprocess
 import time
 from mathutils import Vector
 
@@ -44,63 +45,55 @@ DEFAULT_CUBEMAP = r"shaders\default_bitmaps\bitmaps\default_cube.bitmap"
 
 srgb_names = "base_map", "palette", "self_illum_map"
 
-def build_templates(shader_paths, do_print=False):
+def build_templates(shader_paths, do_print=False, *, from_options=False):
     new_template_count = 0
     processes = []
     max_process_count = multiprocessing.cpu_count()
     built_templates = set()
     per_template_timeout_seconds = 120
+
+    def finish(job):
+        process, template_path, started = job
+        remaining = max(0, per_template_timeout_seconds - (time.perf_counter() - started))
+        try:
+            result = process.wait(timeout=remaining)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+            utils.print_warning(f"Timed out building shader template '{template_path}'. Continuing export.")
+            return 0
+        if result or not template_path.is_file():
+            utils.print_warning(f"Failed to build shader template '{template_path}' (Tool exit code {result}).")
+            return 0
+        return 1
     
     if do_print: print("--- Validating templates for shaders")
     for spath in shader_paths:
         with ShaderTag(path=spath) as shader:
-            template = shader._native_root.SelectField("Struct:render_method[0]/Block:postprocess[0]/Reference:shader template")
-            if template is None:
+            path_template = shader._template_path(from_options=from_options)
+            if path_template is None:
                 continue
-            template_path = shader.get_path_str(template.Path, True)
-            if not template_path:
-                continue
-            
-            path_template = Path(template_path)
             if not path_template.exists():
                 definition = shader.definition
                 definition_path = shader.get_path_str(definition.Path, True)
                 if definition_path and Path(definition_path).exists():
                     template_name = path_template.with_suffix("").name
-                    if template_name in built_templates:
+                    template_key = str(path_template).casefold()
+                    if template_key in built_templates:
                         continue
                     
-                    built_templates.add(template_name)
+                    built_templates.add(template_key)
                     
                     while len(processes) >= max_process_count:
-                        processes = [p for p in processes if p.poll() is None]
-                        time.sleep(0.1)
+                        new_template_count += finish(processes.pop(0))
                     
                     if do_print: print(f"--- Building template {template_name} for {spath}")
-                    new_template_count += 1
                     process = utils.run_tool(["generate-specified-template", "win", definition.Path.RelativePath, template_name], in_background=True, null_output=True)
-                    processes.append((process, template_name))
+                    processes.append((process, path_template, time.perf_counter()))
                     
-    if new_template_count == 0:
-        return
-    
-    if do_print: print(f"--- Waiting for Tool processes to complete")
-    for p, template_name in processes:
-        start_wait = time.perf_counter()
-        while p.poll() is None:
-            if time.perf_counter() - start_wait > per_template_timeout_seconds:
-                utils.print_warning(
-                    f"Timed out building shader template '{template_name}' after {per_template_timeout_seconds}s. Continuing export."
-                )
-                try:
-                    p.terminate()
-                    time.sleep(0.2)
-                    if p.poll() is None:
-                        p.kill()
-                except Exception:
-                    pass
-                break
-            time.sleep(0.1)
+    if do_print and processes: print("--- Waiting for Tool processes to complete")
+    for job in processes:
+        new_template_count += finish(job)
                     
     return new_template_count
 
@@ -286,6 +279,27 @@ class ShaderTag(BlenderTag, TagDocument):
         self.definition.Path = self._TagPath_from_string(definition_path)
         for _ in range(option_count):
             self.block_options.AddElement().SelectField('short').SetStringData('0')
+
+    def _template_path(self, *, from_options=False):
+        """Resolve templates even before Tool has populated a new shader's postprocess block."""
+        if self.game in {'halo1', 'halo2'} or self.corinth:
+            return None
+        if not from_options:
+            template = self._native_root.SelectField(
+                'Struct:render_method[0]/Block:postprocess[0]/Reference:shader template')
+            if template is not None and template.Path is not None:
+                return Path(template.Path.Filename)
+
+        definition = self.definition.Path
+        if definition is None or not self.path_exists(definition):
+            return None
+        with RenderMethodDefinitionTag(path=definition) as document:
+            option_count = len(document.block(document.tag.root(), 'categories'))
+        if not option_count:
+            return None
+        template_name = ''.join(f'_{self._option_value_from_index(index)}' for index in range(option_count))
+        definition_path = Path(definition.Filename)
+        return definition_path.parent / (definition_path.stem + '_templates') / (template_name + '.render_method_template')
 
     def _TagPath_from_string(self, path: str | Path) -> TagReference:
         return self.reference_from_path(path)
@@ -1377,7 +1391,9 @@ class ShaderTag(BlenderTag, TagDocument):
             return value == 1
         if parameter_type in {AnimatedParameterType.TRANSLATION_X, AnimatedParameterType.TRANSLATION_Y, self.translation_u, self.translation_v}:
             return value == 0
-        return value == 1 or value == 0
+        # Only identity texture transforms can omit their functions. Scalar
+        # overrides still require a value function, including constants 0 and 1.
+        return False
 
     def _set_animated_parameter_type(self, element, parameter_type):
         type_field = element.SelectField('type')

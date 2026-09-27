@@ -2634,7 +2634,7 @@ class ExportScene:
             print("--- No geometry to export")
         
     def _export_granny_file(self, filepath: Path, virtual_objects: dict[str: VirtualNode], animation: VirtualAnimation = None):
-        self.granny.new(filepath, self.forward, self.from_halo_scale, self.mirror)
+        self.granny.new(filepath, self.forward, self.from_halo_scale)
         self.granny.from_tree(self.virtual_scene, virtual_objects, animation)
         
         animation_export = animation is not None

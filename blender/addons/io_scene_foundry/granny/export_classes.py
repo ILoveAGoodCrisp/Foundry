@@ -8,6 +8,7 @@ from mathutils import Euler, Matrix, Quaternion, Vector
 import numpy as np
 
 from .formats import GrannyDataTypeDefinition, GrannyMemberType, GrannyTransform
+from .mirror import mirror_matrix
 
 from .. import utils
 from ..export.export_info import *
@@ -355,10 +356,11 @@ class Model:
     initial_placement: GrannyTransform
     mesh_bindings: tuple[int]
     
-    def __init__(self, model, skeleton_index: int, mesh_binding_indices: list[int]):
+    def __init__(self, model, skeleton_index: int, mesh_binding_indices: list[int], mirror=False):
         self.name = model.name.encode()
         node = model.node
         self.skeleton_index = skeleton_index
-        position, orientation, scale_shear = granny_transform_parts(node.matrix_local)
+        matrix_local = mirror_matrix(node.matrix_local) if mirror else node.matrix_local
+        position, orientation, scale_shear = granny_transform_parts(matrix_local)
         self.initial_placement = GrannyTransform(flags=7, position=position, orientation=orientation, scale_shear=scale_shear)
         self.mesh_bindings = mesh_binding_indices

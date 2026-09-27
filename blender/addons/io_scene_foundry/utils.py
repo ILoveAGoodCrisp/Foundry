@@ -497,6 +497,17 @@ def set_tool_event_level(event_level):
 
 def run_tool(tool_args: list, in_background=False, null_output=False, event_level=None, force_tool=False, log_file=None, force_tool_fast=False, tool_patches=None, input_data=None, console_output=False):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
+    return prepare_tool(
+        tool_args, in_background, null_output, event_level, force_tool, log_file,
+        force_tool_fast, tool_patches, input_data, console_output)()
+
+
+def prepare_tool(tool_args: list, in_background=False, null_output=False, event_level=None, force_tool=False, log_file=None, force_tool_fast=False, tool_patches=None, input_data=None, console_output=False):
+    """Resolve Blender settings on the main thread and return a Tool runner.
+
+    The returned callable can run on a worker without accessing Blender or
+    changing the working directory. Prepare all jobs before starting workers.
+    """
     if in_background and input_data is not None:
         raise ValueError('Tool input is only supported for synchronous commands')
     project_dir = get_project_path()
@@ -525,11 +536,22 @@ def run_tool(tool_args: list, in_background=False, null_output=False, event_leve
         if in_background or null_output or log_file or tool_patches or input_data is not None:
             raise ValueError('Console output requires a foreground Tool command')
         from .console_process import run_console_command
-        return run_console_command(command, project_dir, output_stream)
+        return partial(run_console_command, command, project_dir, output_stream)
+
+    return partial(
+        _run_prepared_tool, command, project_dir, output_stream, tool_type,
+        tool_args[0] if tool_args else 'process',
+        in_background, null_output, log_file, tool_patches, input_data,
+        log_warnings, tmp_log)
+
+
+def _run_prepared_tool(command, project_dir, output_stream, tool_type, stage,
+                       in_background, null_output, log_file, tool_patches,
+                       input_data, log_warnings, tmp_log):
     
     if in_background:
         if log_file:
-            foundry_output.watch_file(getattr(log_file, "name", None), f"{tool_type}: {tool_args[0] if tool_args else 'process'}")
+            foundry_output.watch_file(getattr(log_file, "name", None), f"{tool_type}: {stage}")
             return _popen_tool(command, project_dir, stdout=log_file, stderr=log_file, tool_patches=tool_patches)
         elif null_output:
             return _popen_tool(command, project_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, tool_patches=tool_patches)

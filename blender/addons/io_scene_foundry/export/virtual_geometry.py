@@ -18,6 +18,7 @@ from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 
 from ..granny.formats import GrannyAnimation, GrannyBone, GrannyCurveDataDaKeyframes32f, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyMorphTarget, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVectorTrack, GrannyVertexData
 from ..granny import Granny
+from ..granny.mirror import mirror_indices, mirror_matrix, mirror_tracks, mirror_vectors
 
 from .export_info import AdditionalCompression, ExportInfo, FaceDrawDistance, FaceMode, FaceType, LightmapType, MeshTessellationDensity, MeshType, ObjectType
 
@@ -360,6 +361,9 @@ class VirtualShot:
                     tracks.append((c_float * (self.frame_count * 4))(*shot_actor.orientations[bone]))
                     tracks.append((c_float * (self.frame_count * 9))(*shot_actor.scales[bone]))
                     
+                if scene.mirror:
+                    mirror_tracks(tracks)
+
                 granny_tracks = []
                 for bone_idx, i in enumerate(range(0, len(tracks), 3)):
                     granny_track = GrannyTransformTrack()
@@ -766,6 +770,9 @@ class VirtualAnimation:
             tracks.append((c_float * (self.frame_count * 4))(*orientations[bone]))
             tracks.append((c_float * (self.frame_count * 9))(*scales[bone]))
             
+        if scene.mirror:
+            mirror_tracks(tracks)
+
         granny_tracks = []
         for bone_idx, i in enumerate(range(0, len(tracks), 3)):
             granny_track = GrannyTransformTrack()
@@ -1055,7 +1062,7 @@ class VirtualMorphTargetData:
         else:
             vertex_array = (c_ubyte * self.len_vertex_array)()
             memmove(vertex_array, self.vertex_array, self.len_vertex_array)
-            affine3, linear3x3, inverse_linear3x3 = calc_transforms(node.matrix_world)
+            affine3, linear3x3, inverse_linear3x3 = calc_transforms(node.matrix_world, scene.mirror)
             scene.granny.transform_vertices(self.num_vertices,
                                             self.granny_vertex_data.vertex_type,
                                             vertex_array,
@@ -1196,6 +1203,11 @@ class VirtualMorphTargetData:
         for array, data_type in zip(data, dtypes):
             vertex_array[data_type[0]] = array
 
+        if scene.mirror:
+            for name in ("Position", "Normal"):
+                if name in vertex_array.dtype.names:
+                    vertex_array[name] = mirror_vectors(vertex_array[name])
+
         vertex_byte_array = vertex_array.tobytes()
 
         self.len_vertex_array = len(vertex_byte_array)
@@ -1253,13 +1265,15 @@ class VirtualMesh:
                     scene.granny.invert_tri_topology_winding(self.pca_granny_tri_topology)
         
     def to_granny_data(self, scene: 'VirtualScene'):
-        self._granny_tri_topology()
+        self._granny_tri_topology(mirror=scene.mirror)
         if self.pca_indices is not None:
-            self.pca_granny_tri_topology = self._granny_tri_topology(self.pca_indices)
+            self.pca_granny_tri_topology = self._granny_tri_topology(self.pca_indices, mirror=scene.mirror)
         self._granny_vertex_data(scene)
         
-    def _granny_tri_topology(self, indices_override: np.ndarray | None = None):
+    def _granny_tri_topology(self, indices_override: np.ndarray | None = None, mirror=False):
         source_indices = self.indices if indices_override is None else indices_override
+        if mirror:
+            source_indices = mirror_indices(source_indices)
         indices = (c_int * len(source_indices)).from_buffer_copy(source_indices.astype(np.int32).tobytes())
 
         granny_tri_topology = GrannyTriTopology()
@@ -1386,6 +1400,11 @@ class VirtualMesh:
         vertex_array = np.zeros(len(data[0]), dtype=dtypes)
         for array, data_type in zip(data, dtypes):
             vertex_array[data_type[0]] = array
+
+        if scene.mirror:
+            for name in ("Position", "Normal"):
+                if name in vertex_array.dtype.names:
+                    vertex_array[name] = mirror_vectors(vertex_array[name])
 
         vertex_byte_array = vertex_array.tobytes()
         return names_array, type_info_array, (c_ubyte * len(vertex_byte_array)).from_buffer_copy(vertex_byte_array), len(vertex_byte_array), num_types
@@ -1972,7 +1991,7 @@ class VirtualNode:
                 else:
                     vertex_array = (c_ubyte * self.mesh.len_vertex_array)()
                     memmove(vertex_array, self.mesh.vertex_array, self.mesh.len_vertex_array)
-                    affine3, linear3x3, inverse_linear3x3 = calc_transforms(self.matrix_world)
+                    affine3, linear3x3, inverse_linear3x3 = calc_transforms(self.matrix_world, scene.mirror)
                     scene.granny.transform_vertices(self.mesh.num_vertices,
                                                     self.granny_vertex_data.vertex_type,
                                                     vertex_array,
@@ -2004,7 +2023,7 @@ class VirtualNode:
                     else:
                         transformed_pca_vertex_array = (c_ubyte * pca_len_vertex_array)()
                         memmove(transformed_pca_vertex_array, pca_vertex_array, pca_len_vertex_array)
-                        affine3, linear3x3, inverse_linear3x3 = calc_transforms(self.matrix_world)
+                        affine3, linear3x3, inverse_linear3x3 = calc_transforms(self.matrix_world, scene.mirror)
                         scene.granny.transform_vertices(
                             pca_vertex_count,
                             pca_vertex_type,
@@ -2054,7 +2073,7 @@ class VirtualNode:
         vertex_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
 
         if self.matrix_world != IDENTITY_MATRIX:
-            affine3, linear3x3, inverse_linear3x3 = calc_transforms(self.matrix_world)
+            affine3, linear3x3, inverse_linear3x3 = calc_transforms(self.matrix_world, scene.mirror)
             scene.granny.transform_vertices(self.mesh.num_vertices,
                                             vertex_type,
                                             vertex_array,
@@ -2181,14 +2200,17 @@ class VirtualBone:
     def to_granny_data(self, scene: 'VirtualScene'):
         self.granny_bone.name = self.name.encode()
         self.granny_bone.parent_index = self.parent_index
-        self.granny_bone.local_transform = GrannyTransform(7, *granny_transform_parts(self.matrix_local))
-        self.granny_bone.inverse_world_4x4 = self._granny_world_transform()
+        matrix_local = mirror_matrix(self.matrix_local) if scene.mirror else self.matrix_local
+        self.granny_bone.local_transform = GrannyTransform(7, *granny_transform_parts(matrix_local))
+        self.granny_bone.inverse_world_4x4 = self._granny_world_transform(scene.mirror)
         # 24-02-2026 Now creating extended data at granny export (to support animation nodes)
         # if self.props:
         #     scene.granny.create_extended_data(self.props, self.granny_bone)
         
-    def _granny_world_transform(self):
+    def _granny_world_transform(self, mirror=False):
         inverse_matrix = self.matrix_world.inverted_safe()
+        if mirror:
+            inverse_matrix = mirror_matrix(inverse_matrix)
         inverse_transform = (c_float * 4 * 4)((tuple(inverse_matrix.col[0])), (tuple(inverse_matrix.col[1])), (tuple(inverse_matrix.col[2])), (tuple(inverse_matrix.col[3])))
         return inverse_transform
     
@@ -2587,6 +2609,7 @@ class VirtualScene:
         self.depsgraph = depsgraph
         self.tags_dir = tags_dir
         self.granny = granny
+        self.mirror = granny is not None and export_settings.granny_mirror
         self.regions: dict = {}
         self.regions_set = set()
         self.permutations: list = []
@@ -2757,6 +2780,8 @@ class VirtualScene:
         return self.light_scale / 10 if self.corinth else self.light_scale
 
     def _constraint_space_props(self, matrix: Matrix, prefix: str) -> dict:
+        if self.mirror:
+            matrix = mirror_matrix(matrix)
         translation = matrix.to_translation() * self._physics_distance_scale()
         havok_rotation = matrix.to_3x3().normalized() @ HAVOK_MAYA_COORDINATE_MATRIX_INV
 
@@ -3730,8 +3755,10 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
 def lookup_enum(scene: VirtualScene, name: str):
     return 0
     
-def calc_transforms(matrix: Matrix) -> tuple[Array, Array, Array]:
+def calc_transforms(matrix: Matrix, mirror=False) -> tuple[Array, Array, Array]:
     '''Gets the affine3, linear3x3, and inverse_linear3x3 from a matrix'''
+    if mirror:
+        matrix = mirror_matrix(matrix)
     matrix3x3 = matrix.to_3x3()
     affine3 = (c_float * 3)(*matrix.translation.to_tuple())
     linear3x3 = (c_float * 9)(*[f for row in matrix3x3 for f in row])
