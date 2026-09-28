@@ -62,6 +62,15 @@ structure. Node presence is only a fallback: BSP JMS also has a root node.
 
 `bpy.ops.nwo.convert_scene()` uses the current asset type by default. Scenario
 and prefab assets receive BSP conversion; model assets retain model conversion.
+The source is always assumed to use Halo scale and +X forward. Convert Scale
+and Convert Forward are enabled by default and transform geometry to the current
+Foundry scene settings without changing those settings. Scale conversion is
+ignored for Halo scale; forward conversion is ignored for +X forward. The dialog
+displays the current settings and disables the corresponding checkboxes when
+no transform is needed. Disable both for property-only conversion
+(`convert_scale=False, convert_forward=False`). These
+options transform geometry, not animation actions. Previously converted objects
+are skipped, including their coordinate transforms.
 The converter uses the shared JMS material interpretation, separates exact and
 ordinary portals, preserves Halo 1 helper/ladder/collision flags, and makes
 scenario `@` meshes collision-only even without a material suffix. Private
@@ -77,6 +86,14 @@ saved blend filename, or `default` for an unsaved file. Every converted object,
 including frames, markers and lights, receives its BSP assignment. Selected-only
 conversion does not reclassify collections or materials shared with unselected
 objects. Repeating conversion skips previously converted objects.
+
+Enable **Use Top-Level Collections as BSPs** (`top_level_bsps=True`) to make
+every local direct child of Scene Collection a BSP using its collection name.
+This overrides BSP Name and includes hidden, excluded, empty, and previously
+converted collections. Nested collections remain in place; nested BSP categories
+are cleared so objects inherit the top-level BSP, while other child categories
+are preserved. This collection classification applies even with Selected Only;
+object conversion and coordinate transforms still follow the selected scope.
 
 ## Checks
 

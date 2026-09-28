@@ -1084,6 +1084,12 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
 
     selected_only: bpy.props.BoolProperty(
         name="Selected Only", description="Convert only selected objects")
+    convert_scale: bpy.props.BoolProperty(
+        name="Convert Scale", default=True,
+        description="Convert geometry from Halo scale to the current Foundry scene scale; ignored when the scene uses Halo scale")
+    convert_forward: bpy.props.BoolProperty(
+        name="Convert Forward", default=True,
+        description="Rotate geometry from Halo +X forward to the current Foundry scene forward; ignored when the scene uses +X forward")
     jms_type: bpy.props.EnumProperty(
         name="Scene Type", default='auto',
         items=[('auto', "Auto", "Use the current asset type"),
@@ -1091,6 +1097,10 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
     bsp_name: bpy.props.StringProperty(
         name="BSP Name",
         description="Optional BSP name for scenario conversion; otherwise preserve BSP assignments or use source collection names")
+    top_level_bsps: bpy.props.BoolProperty(
+        name="Use Top-Level Collections as BSPs",
+        description="Use each direct child of Scene Collection as a BSP named after that collection, including hidden and empty collections; collection assignments apply even with Selected Only enabled",
+        default=False)
 
     @classmethod
     def poll(cls, context):
@@ -1101,11 +1111,25 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def draw(self, context):
+        scene_nwo = utils.get_scene_props()
         self.layout.prop(self, 'selected_only')
+        self.layout.label(text="Source: Halo Scale, +X Forward")
+        scale = 'Blender Scale' if scene_nwo.scale == 'blender' else 'Halo Scale'
+        forward = {'x': '+X', 'x-': '-X', 'y': '+Y', 'y-': '-Y'}[scene_nwo.forward_direction]
+        self.layout.label(text=f"Scene: {scale}, {forward} Forward")
+        row = self.layout.row()
+        row.enabled = scene_nwo.scale != 'max'
+        row.prop(self, 'convert_scale')
+        row = self.layout.row()
+        row.enabled = scene_nwo.forward_direction != 'x'
+        row.prop(self, 'convert_forward')
         self.layout.prop(self, 'jms_type', expand=True)
         if self.jms_type == 'scenario' or (self.jms_type == 'auto' and
                 utils.get_scene_props().asset_type in {'scenario', 'prefab'}):
-            self.layout.prop(self, 'bsp_name')
+            self.layout.prop(self, 'top_level_bsps')
+            row = self.layout.row()
+            row.enabled = not self.top_level_bsps
+            row.prop(self, 'bsp_name')
 
     def execute(self, context):
         if not hasattr(bpy.types.Material, 'ass_jms') or not hasattr(bpy.types.Mesh, 'ass_jms'):
@@ -1120,8 +1144,9 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
         is_model = self.jms_type == 'model' or (self.jms_type == 'auto' and
                     utils.get_scene_props().asset_type not in {'scenario', 'prefab'})
         converter = HaloSceneConverter(NWOImporter(context, existing_scene=True), is_model,
-                                       bsp_name=self.bsp_name)
-        converted = converter.convert(objects)
+                                       bsp_name=self.bsp_name, top_level_bsps=self.top_level_bsps)
+        converted = converter.convert(objects, convert_scale=self.convert_scale,
+                                      convert_forward=self.convert_forward)
         if converter.warnings:
             for warning in sorted(converter.warnings):
                 utils.print_warning(warning)

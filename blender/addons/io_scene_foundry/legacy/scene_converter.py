@@ -1,7 +1,8 @@
 """Convert existing Halo Blender Toolset objects without an interchange round trip.
 
 The toolset remains optional: access its registered RNA properties only when the
-scene-conversion operator is used. Geometry stays in its authored coordinate space.
+scene-conversion operator is used. Optional transforms convert Halo coordinates
+to the current Foundry scene scale and forward before interpreting source properties.
 """
 from collections import defaultdict
 from pathlib import Path
@@ -29,10 +30,11 @@ def region_definition(name):
 
 
 class HaloSceneConverter:
-    def __init__(self, importer, is_model, *, bsp_name=""):
+    def __init__(self, importer, is_model, *, bsp_name="", top_level_bsps=False):
         self.owner = importer
         self.is_model = is_model
-        self.bsp_name = re.sub(r"\.(?:jms|ass)$", "", bsp_name.strip(), flags=re.I)
+        self.top_level_bsps = top_level_bsps and not is_model
+        self.bsp_name = '' if self.top_level_bsps else re.sub(r"\.(?:jms|ass)$", "", bsp_name.strip(), flags=re.I)
         # Conversion is always for the current project, never an import-source override.
         self.game = importer.target_game
         self.owner.game = self.game
@@ -95,6 +97,23 @@ class HaloSceneConverter:
             result[ob] = name, source
         return result
 
+    def prepare_top_level_bsps(self):
+        """Classify scene roots, independently of visibility or conversion history."""
+        roots = list(self.owner.context.scene.collection.children)
+        for collection in roots:
+            if collection.library:
+                self.warnings.add(f'{collection.name}: linked collection cannot be made a BSP; make it local first')
+                continue
+            name = collection.name
+            bsp = self.owner._ensure_region_entry(name, utils.SetType.SCENARIO)
+            collection.nwo.type = 'region'
+            collection.nwo.region = bsp
+            # A nested BSP would override the requested top-level assignment.
+            # Keep other child categories (permutations/exclusions) intact.
+            for child in collection.children_recursive:
+                if child not in roots and not child.library and child.nwo.type == 'region':
+                    child.nwo.type = 'none'
+
     def assign_bsps(self, converted, sources):
         scene = self.owner.context.scene
         destinations = {}
@@ -126,10 +145,14 @@ class HaloSceneConverter:
                     collection.objects.unlink(ob)
             ob.nwo.region_name = destination.nwo.region
 
-    def convert(self, objects):
+    def convert(self, objects, *, convert_scale=False, convert_forward=False):
         objects = [ob for ob in objects if not ob.get(CONVERTED)]
         if any(ob.library or (ob.data and ob.data.library) for ob in objects):
             raise RuntimeError('Make linked objects and their data local before converting the scene')
+        if self.top_level_bsps:
+            self.prepare_top_level_bsps()
+        if objects and (convert_scale or convert_forward):
+            self.transform_geometry(objects, convert_scale, convert_forward)
         source_bsps = self.bsp_sources(objects) if not self.is_model else {}
         converted_bsps = {}
         parents = {ob.parent for ob in objects if ob.parent is not None}
@@ -198,6 +221,44 @@ class HaloSceneConverter:
             if ob.type != 'EMPTY' and ob.ass_jms.name_override.strip():
                 ob.name = ob.ass_jms.name_override.strip().lstrip('#')
         return len(converted)
+
+    def transform_geometry(self, objects, convert_scale, convert_forward):
+        context = self.owner.context
+        scene_nwo = self.owner.scene_nwo
+        factor = 0.03048 if convert_scale and scene_nwo.scale == 'blender' else 1.0
+        forward = scene_nwo.forward_direction if convert_forward else 'x'
+        rotation = utils.rotation_diff_from_forward('x', forward)
+        # Source property distances, like the geometry, are always Halo units.
+        if convert_scale:
+            self.owner.scale_factor = factor
+        if factor == 1.0 and not rotation:
+            return
+        targets = set(objects)
+        # Transforming shared data must not resize unselected objects or objects
+        # in other scenes. Preserve sharing within this conversion batch.
+        copies = {}
+        for ob in objects:
+            if ob.data and ob.data.users > 1:
+                source = ob.data
+                if source not in copies:
+                    copies[source] = source.copy()
+                ob.data = copies[source]
+        context.view_layer.update()
+        outside_children = {ob: ob.matrix_world.copy() for ob in bpy.data.objects
+                            if ob not in targets and ob.parent in targets}
+        selection = list(context.selected_objects)
+        active = context.view_layer.objects.active
+        try:
+            utils.transform_scene(context, factor, rotation, 'x', forward,
+                                  keep_marker_axis=False, objects=objects, actions=[])
+        finally:
+            context.view_layer.update()
+            for ob, matrix in outside_children.items():
+                ob.matrix_world = matrix
+            utils.deselect_all_objects()
+            for ob in selection:
+                ob.select_set(True)
+            context.view_layer.objects.active = active
 
     def marker(self, ob):
         name = (ob.ass_jms.name_override.strip() or ob.name).lstrip('#')
