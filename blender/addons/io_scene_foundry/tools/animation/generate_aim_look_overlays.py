@@ -29,6 +29,7 @@ _WRAP_EVENT_TYPE = "_connected_geometry_animation_event_type_import"
 _WRAP_EVENT_NAMES = {"Wrapped Left", "Wrapped Right"}
 _TURN_AIM_YAW_OFFSETS = {"turn_left": 45.0, "turn_right": -45.0}
 _SOURCE_STATE_PATTERN = re.compile(r"^(aim|look)_still(?P<suffix>(?:_.*)?)$")
+_MOVE_SOURCE_STATE_PATTERN = re.compile(r"^(aim|look)_move(?P<suffix>(?:_(?:up|down))?)$")
 
 
 def _normalized_name(name: str) -> str:
@@ -47,7 +48,8 @@ def _is_eligible_animation_mode(mode: str) -> bool:
 
 
 def _retarget_overlay_state(state: str, base_state: str) -> str | None:
-    match = _SOURCE_STATE_PATTERN.fullmatch((state or "").lower())
+    match = (_SOURCE_STATE_PATTERN.fullmatch((state or "").lower())
+             or _MOVE_SOURCE_STATE_PATTERN.fullmatch((state or "").lower()))
     if match is None:
         return None
     return f"{match.group(1)}_{base_state}{match.group('suffix')}"

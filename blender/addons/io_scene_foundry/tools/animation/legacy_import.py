@@ -76,7 +76,8 @@ def convert_blend_screen(armature, animation, action, slot, record, names):
     action.frame_end = animation.frame_end
 
 
-def generate_reach_aim_look_overlays(scene_nwo, armature, imported_animations, *, turns_with_aim_pose=()):
+def generate_reach_aim_look_overlays(scene_nwo, armature, imported_animations, *, turns_with_aim_pose=(),
+                                   prefer_move=False):
     """Fill missing movement overlays using only sources/bases from this import."""
     from .generate_aim_look_overlays import (
         _is_eligible_animation_mode, _retarget_overlay_state,
@@ -87,6 +88,10 @@ def generate_reach_aim_look_overlays(scene_nwo, armature, imported_animations, *
     imported_indices = [index for index, animation in enumerate(scene_nwo.animations)
                         if animation.as_pointer() in imported_pointers]
     generated = []
+    if prefer_move:
+        # Movement screens must win over still screens for locomotion leaves.
+        imported_indices.sort(key=lambda index: '_move' not in utils.AnimationName(
+            scene_nwo.animations[index].name).state)
     for source_index in imported_indices:
         source = scene_nwo.animations[source_index]
         name = utils.AnimationName(source.name)
@@ -99,6 +104,11 @@ def generate_reach_aim_look_overlays(scene_nwo, armature, imported_animations, *
             continue
         target_bases = _target_base_animations(
             [scene_nwo.animations[index] for index in imported_indices], armature, name)
+        if name.state.startswith(('aim_move', 'look_move')):
+            if not prefer_move:
+                continue
+            target_bases = [(state, base) for state, base in target_bases
+                            if state.startswith(('move_', 'walk_'))]
         if not target_bases:
             continue
         try:

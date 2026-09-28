@@ -1548,7 +1548,7 @@ class NWO_Import(bpy.types.Operator):
 
     convert_animations: bpy.props.BoolProperty(
         name="Convert Animations for Project",
-        description="Convert animation names, turn poses, and aim/look overlays to the current project game",
+        description="Convert animation names, turn poses, aim/look overlays, and Halo 4 / H2AMP locomote composites to the current project game",
         default=True,
     )
 
@@ -4233,9 +4233,12 @@ class NWOImporter:
             path for path in self.import_info_sources_for_tag(file)
             if Path(path).suffix.lower() in legacy_animation_formats
         ]
+        convert_locomotes = (self.convert_animations and self.target_game in {'halo4', 'halo2a'}
+                             and self.game in LEGACY_GAMES | {'reach'})
         convert_style = self.convert_animations and (
             self.game in LEGACY_GAMES and self.target_game in REACH_PLUS_GAMES
-            or self.game in REACH_PLUS_GAMES and self.target_game in LEGACY_GAMES)
+            or self.game in REACH_PLUS_GAMES and self.target_game in LEGACY_GAMES
+            or convert_locomotes)
         # Style conversion needs the graph's blend-screen coordinates, even when
         # an import-info JMA is available for this graph.
         if source_files and not convert_style:
@@ -4359,26 +4362,39 @@ class NWOImporter:
             from .animation.reach_import import remap_legacy_screen_events
             remap_legacy_screen_events(self.scene_nwo.animations[imported_animation_start:], legacy_frame_maps)
 
-        if convert_to_reach and self.graph_import_animations:
+        if (convert_to_reach or convert_locomotes) and self.graph_import_animations:
             from .animation.legacy_import import generate_reach_aim_look_overlays
             from .animation.legacy_turns import convert_reach_turn_poses
-            utils.print_bullet("Converting Reach Turn Poses")
-            converted_turns = convert_reach_turn_poses(
-                self.scene_nwo, armature,
-                self.scene_nwo.animations[imported_animation_start:],
-            )
-            utils.print_bullet(f"Converted {len(converted_turns)} turn poses")
-            utils.print_bullet("Generating Reach Aim / Look Overlays")
+            converted_turns = []
+            if convert_to_reach:
+                utils.print_bullet("Converting Turn Poses")
+                converted_turns = convert_reach_turn_poses(
+                    self.scene_nwo, armature,
+                    self.scene_nwo.animations[imported_animation_start:],
+                )
+                utils.print_bullet(f"Converted {len(converted_turns)} turn poses")
+            utils.print_bullet("Generating Aim / Look Overlays")
             generated = generate_reach_aim_look_overlays(
                 self.scene_nwo, armature,
                 self.scene_nwo.animations[imported_animation_start:],
                 turns_with_aim_pose=converted_turns,
+                prefer_move=convert_locomotes,
             )
             for animation in generated:
                 animations.append(animation.name)
                 actions.extend(track.action for track in animation.action_tracks
                                if track.action is not None)
             utils.print_bullet(f"Generated {len(generated)} aim/look overlays")
+
+        if convert_locomotes and self.graph_import_animations:
+            from .animation.locomote_import import convert_locomotion
+            utils.print_bullet("Generating Locomote Composites")
+            generated = convert_locomotion(self.scene_nwo, armature, imported_animation_start)
+            animations = [animation.name for animation in self.scene_nwo.animations[imported_animation_start:]]
+            actions = list(dict.fromkeys(track.action
+                           for animation in self.scene_nwo.animations[imported_animation_start:]
+                           for track in animation.action_tracks if track.action is not None))
+            utils.print_bullet(f"Generated {len(generated)} locomotion animations / composites")
 
         self.register_control_rig_actions(armature, actions)
 
@@ -5720,7 +5736,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
 
     convert_animations: bpy.props.BoolProperty(
         name="Convert Animations for Project",
-        description="Convert animation names, turn poses, and aim/look overlays to the current project game",
+        description="Convert animation names, turn poses, aim/look overlays, and Halo 4 / H2AMP locomote composites to the current project game",
         default=True,
     )
 
