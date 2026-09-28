@@ -409,7 +409,32 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
 
     def render_meshes(self) -> list[StructureBspRenderMesh]:
         """Decode every model mesh through blam-tags' cross-game decoder."""
-        decoded = self.tag.render_model_meshes()
+        instance_mesh_index = self.instance_mesh_index()
+        if instance_mesh_index >= 0:
+            # The decoder emits triangle ranges per part, whereas placements
+            # (and permutation mask bits) index subparts. Decode each instance
+            # as its own part so material batching cannot merge placements.
+            # Use a detached tag: the source's parts and strip offsets must not
+            # be changed, and the decoder must convert each strip separately.
+            decode_tag = self.api.TagFile.read_from_bytes(self.tag.write_to_bytes())
+            geometry = self.required_field(decode_tag.root(), 'render geometry').as_struct()
+            mesh = self.block(geometry, 'meshes')[instance_mesh_index]
+            parts = self.block(mesh, 'parts')
+            original_count = len(parts)
+            for index, subpart in enumerate(self.block(mesh, 'subparts')):
+                parent_index = int(self.value(subpart, 'part index'))
+                part = parts[parts.add()]
+                for field in parts[parent_index].fields():
+                    self.required_field(part, field.name).copy_value_from(field)
+                for name in ('index start', 'index count'):
+                    self.required_field(part, name).set(self.value(subpart, name))
+                self.required_field(part, 'subpart start').set(index)
+                self.required_field(part, 'subpart count').set(1)
+            for index in reversed(range(original_count)):
+                parts.delete(index)
+            decoded = decode_tag.render_model_meshes()
+        else:
+            decoded = self.tag.render_model_meshes()
         records = []
         for index, mesh in enumerate(decoded):
             node_indices = tuple(tuple(map(int, value)) for value in mesh['node_indices'])
