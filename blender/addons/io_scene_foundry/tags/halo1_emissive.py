@@ -6,7 +6,7 @@ from shutil import copy2
 
 from blam_tags import RealRgbColor
 
-from .backend import TagDocument
+from .backend import TagDocument, read_only_tags
 
 
 HALO1_EMISSIVE_SHADER_EXTENSIONS = frozenset({
@@ -104,6 +104,7 @@ def _emissive_fields(shader, create=False):
     return pairs
 
 
+@read_only_tags()
 def read_material_emissive(tag_path, tags_root, game='halo1'):
     path = shader_environment_path(tag_path, tags_root, game)
     with TagDocument(path, tags_root=tags_root, game=game, must_exist=True) as shader:

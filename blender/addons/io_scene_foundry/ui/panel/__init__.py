@@ -445,6 +445,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.scale_y = 1.5
 
         col.operator('nwo.scale_scene', text='Transform Scene', icon='MOD_LENGTH')
+        if any(addon.module.split('.')[-1] == 'io_scene_halo' for addon in bpy.context.preferences.addons):
+            col.separator()
+            col.operator('nwo.convert_scene', text='Convert Toolset Scene', icon='TOOL_SETTINGS')
         col = box.column()
         col.scale_y = 1.25
         col.separator()
@@ -3356,8 +3359,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     halo2 = bool(project and project.game == 'halo2')
                     classic_material = bool(for_material and project and project.game in {'halo1', 'halo2'})
                     if classic_material:
-                        operator = 'nwo.update_halo2_material_emissive' if halo2 else 'nwo.update_halo1_material_emissive'
-                        box.operator(operator, icon='MATERIAL', text="Update Shader Emission")
+                        box.operator('nwo.update_halo_material_emissive', icon='MATERIAL', text="Update Shader Emission")
                     else:
                         box.operator("nwo.add_emissive_node", icon='MATERIAL', text="Update Emissive Light")
                     row = box.row()
@@ -4359,7 +4361,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
             col.operator('nwo.foundry_import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
             col.operator('nwo.rename_import', text="Import Animation Renames & Copies", icon_value=get_icon_id("animation_rename"))
-            col.operator("nwo.convert_scene", text="Convert Scene", icon='RIGHTARROW')
         
     def draw_rig_tools(self, box, nwo):
         row = box.row()

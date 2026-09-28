@@ -432,6 +432,8 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
     row = box.row(align=True)
     row.prop(prefs, "update_materials_on_shader_path")
     row = box.row(align=True)
+    row.prop(prefs, "import_classic_shader_emission")
+    row = box.row(align=True)
     row.prop(prefs, "rename_halo_collections")
     row = box.row(align=True)
     row.prop(prefs, "rename_material")
@@ -517,6 +519,12 @@ class FoundryPreferences(AddonPreferences):
         default=False,
     )
     
+    import_classic_shader_emission: BoolProperty(
+        name="Import H1/H2 Shader Emission",
+        description="Import Halo 1 and Halo 2 shader emission as a material attribute and add Halo emission to the Blender shader when converting materials",
+        default=True,
+    )
+
     sync_timeline_range: BoolProperty(
         name="Update Timeline Range on Switching Animation",
         description="Sets the scene timeline to match the start and end frame range of the current animation if using the Foundry Animation Panel to switch animations. On switching to a base, replacement, or world animation the timeline range is purposely set 1 frame short of the animation's final frame. This is to mimic how the game will slice off the final frame of a base, replacement, or world animation",

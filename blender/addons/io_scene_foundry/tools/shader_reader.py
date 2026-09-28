@@ -4,6 +4,7 @@ import time
 import bpy
 
 from .node_tree_arrange import arrange
+from ..tags.backend import read_only_tags
 from ..tags.shader_glass import ShaderGlassTag
 from ..tags.shader_custom import ShaderCustomTag
 from ..tags.shader_halogram import ShaderHalogramTag
@@ -198,6 +199,7 @@ class NWO_ShaderToNodes(bpy.types.Operator):
         layout = self.layout
         layout.prop(self, "always_extract_bitmaps")
 
+@read_only_tags()
 def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_extract_bitmaps=False, *, target_game=None) -> set | None:
     """Turns a shader/material tag into blender material nodes"""
     

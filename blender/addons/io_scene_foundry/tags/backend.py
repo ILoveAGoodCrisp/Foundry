@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 import importlib
 import json
@@ -112,6 +114,19 @@ def group_names(metadata_path: str | PathLike[str]) -> dict[str, str]:
     return {group.rstrip(): extension for group, extension in names.items()}
 
 
+_read_only_tags = ContextVar('foundry_read_only_tags', default=False)
+
+
+@contextmanager
+def read_only_tags():
+    """Prevent tag saves throughout a read operation, including nested tags."""
+    token = _read_only_tags.set(True)
+    try:
+        yield
+    finally:
+        _read_only_tags.reset(token)
+
+
 class TagDocument:
     """Explicit change tracking; failed operations never implicitly save."""
 
@@ -123,6 +138,7 @@ class TagDocument:
         self._tag: blam_tags.TagFile | None = None
         self.tag_has_changes: bool = False
         self.always_save: bool = always_save
+        self.read_only: bool = _read_only_tags.get()
         if game not in PROFILES:
             raise ValueError(f'Unsupported Foundry game: {game!r}')
         self.game: str = game
@@ -147,7 +163,7 @@ class TagDocument:
         self.tag_is_new: bool = not self.system_path.exists()
         schema = self.definitions / self.definitions_profile / (self.system_path.suffix[1:] + '.json')
         if self.tag_is_new:
-            if must_exist:
+            if must_exist or self.read_only:
                 raise FileNotFoundError(self.system_path)
             if not schema.is_file():
                 raise FileNotFoundError(f'Missing blam-tags schema: {schema}')
@@ -181,13 +197,16 @@ class TagDocument:
                  exc_value: BaseException | None,
                  traceback: TracebackType | None) -> None:
         try:
-            if exc_type is None and self.valid and (self.tag_has_changes or self.always_save):
+            if (exc_type is None and self.valid and not self.read_only
+                    and not _read_only_tags.get() and (self.tag_has_changes or self.always_save)):
                 self.save()
         finally:
             self._tag = None
             self.valid = False
 
     def save(self) -> None:
+        if self.read_only or _read_only_tags.get():
+            raise RuntimeError('Cannot save tags during a read-only operation')
         if not self.valid:
             raise RuntimeError('Cannot save a closed tag')
         self.system_path.parent.mkdir(parents=True, exist_ok=True)

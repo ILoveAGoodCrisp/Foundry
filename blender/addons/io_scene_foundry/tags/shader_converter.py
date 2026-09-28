@@ -1502,9 +1502,11 @@ class ShaderTag(BlenderTag, TagDocument):
         self.generated_uvs = generated_uvs
         if self.game == 'halo1':
             self._to_nodes_halo1(blender_material)
+            self._import_classic_emission(blender_material)
             return
         if self.game == 'halo2':
             self._to_nodes_halo2(blender_material)
+            self._import_classic_emission(blender_material)
             return
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         family = self.system_path.suffix.lstrip('.').casefold()
@@ -1521,6 +1523,26 @@ class ShaderTag(BlenderTag, TagDocument):
             flags = self._native_root.SelectField("Struct:render_method[0]/WordFlags:shader flags")
             if flags is not None and flags.TestBit("only render for shields"):
                 utils.material_add_shield(blender_material)
+
+    def _import_classic_emission(self, blender_material: bpy.types.Material):
+        """Apply tag emission after building the classic shader's surface nodes."""
+        if not utils.get_prefs().import_classic_shader_emission:
+            return
+        from .halo1_emissive import HALO1_EMISSIVE_SHADER_EXTENSIONS, read_material_emissive
+
+        extensions = HALO1_EMISSIVE_SHADER_EXTENSIONS if self.game == 'halo1' else {'.shader'}
+        if self.system_path.suffix.casefold() not in extensions:
+            return
+        power, color = read_material_emissive(self.system_path, self.tags_dir, self.game)
+        prop = next((p for p in blender_material.nwo.material_props if p.type == 'emissive'), None)
+        if prop is None:
+            if power <= 0:
+                return
+            prop = blender_material.nwo.material_props.add()
+            prop.type = 'emissive'
+        prop.material_lighting_emissive_power = power
+        prop.material_lighting_emissive_color = color
+        utils.update_classic_emissive_material(blender_material, self.game)
 
     def _to_nodes_halo1_group(self, blender_material: bpy.types.Material, shader_type: str):
         """Populate the Halo 1 resource groups from their classic tag layouts."""
@@ -2155,16 +2177,6 @@ class ShaderTag(BlenderTag, TagDocument):
         tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
 
         root = self.tag.root()
-        if self.system_path.suffix.casefold() == '.shader' and not any(
-                p.type == 'emissive' for p in blender_material.nwo.material_props):
-            from .halo1_emissive import read_material_emissive
-            power, color = read_material_emissive(self.system_path, self.tags_dir, 'halo2')
-            if power > 0:
-                prop = blender_material.nwo.material_props.add()
-                prop.type = 'emissive'
-                prop.material_lighting_emissive_power = power
-                prop.material_lighting_emissive_color = color
-
         if self.system_path.suffix.casefold() == '.decal':
             blender_material.surface_render_method = 'BLENDED'
             reference = TagDocument.reference(self, root, 'bitmap')

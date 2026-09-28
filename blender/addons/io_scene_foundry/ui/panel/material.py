@@ -9,10 +9,10 @@ from ...tags.halo1_emissive import (asset_shader_folder, localize_shader_environ
                                     write_material_emissive, read_material_emissive)
 
 
-class NWO_OT_UpdateHalo1MaterialEmissive(bpy.types.Operator):
-    bl_idname = 'nwo.update_halo1_material_emissive'
+class NWO_OT_UpdateHaloMaterialEmissive(bpy.types.Operator):
+    bl_idname = 'nwo.update_halo_material_emissive'
     bl_label = 'Update Shader Emission'
-    bl_description = 'Write this material emission to its Halo 1 shader tag and Blender emissive node'
+    bl_description = 'Write Blender material emission to its Halo 1 or Halo 2 shader tag and update the preview'
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -39,8 +39,6 @@ class NWO_OT_UpdateHalo1MaterialEmissive(bpy.types.Operator):
             target, copied = localize_shader_environment(
                 source, folder, project.tags_directory, project.game)
             tag_path = str(target.relative_to(Path(project.tags_directory).resolve()))
-            if material.nwo.shader_path != tag_path:
-                material.nwo.shader_path = tag_path
             if (utils.material_read_only(tag_path) and
                     not material_emissive_matches(
                         tag_path, project.tags_directory,
@@ -54,6 +52,10 @@ class NWO_OT_UpdateHalo1MaterialEmissive(bpy.types.Operator):
                     tag_path, project.tags_directory,
                     prop.material_lighting_emissive_power,
                     prop.material_lighting_emissive_color, project.game)
+            # Set the path only after writing. Its update callback can import
+            # the tag and replace the Blender emission with the saved values.
+            if material.nwo.shader_path != tag_path:
+                material.nwo.shader_path = tag_path
             utils.update_classic_emissive_material(material, project.game)
             message = 'Updated shader emission and preview' if changed else 'Updated emission preview; tag already matches'
             if copied:
@@ -63,10 +65,6 @@ class NWO_OT_UpdateHalo1MaterialEmissive(bpy.types.Operator):
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             self.report({'ERROR'}, str(exc))
             return {'CANCELLED'}
-
-class NWO_OT_UpdateHalo2MaterialEmissive(NWO_OT_UpdateHalo1MaterialEmissive):
-    bl_idname = 'nwo.update_halo2_material_emissive'
-    bl_description = 'Update the asset shader power and color and preview its surface power scale'
 
 
 class NWO_OT_MaterialOpenTag(bpy.types.Operator):

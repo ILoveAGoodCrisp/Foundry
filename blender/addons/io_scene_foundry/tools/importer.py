@@ -1077,13 +1077,16 @@ class XREF:
 
 
 class NWO_OT_ConvertScene(bpy.types.Operator):
-    bl_label = "Convert Scene"
+    bl_label = "Convert Toolset Scene"
     bl_idname = "nwo.convert_scene"
     bl_description = "Convert an io_scene_halo JMS/ASS scene to Foundry export properties"
     bl_options = {'REGISTER', 'UNDO'}
 
     selected_only: bpy.props.BoolProperty(
         name="Selected Only", description="Convert only selected objects")
+    include_disabled_collections: bpy.props.BoolProperty(
+        name="Include Disabled Collections", default=True,
+        description="Include objects in collections excluded from the current view layer or disabled in the viewport; Selected Only still limits conversion to selected objects")
     convert_scale: bpy.props.BoolProperty(
         name="Convert Scale", default=True,
         description="Convert geometry from Halo scale to the current Foundry scene scale; ignored when the scene uses Halo scale")
@@ -1113,6 +1116,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
     def draw(self, context):
         scene_nwo = utils.get_scene_props()
         self.layout.prop(self, 'selected_only')
+        self.layout.prop(self, 'include_disabled_collections')
         self.layout.label(text="Source: Halo Scale, +X Forward")
         scale = 'Blender Scale' if scene_nwo.scale == 'blender' else 'Halo Scale'
         forward = {'x': '+X', 'x-': '-X', 'y': '+Y', 'y-': '-Y'}[scene_nwo.forward_direction]
@@ -1137,6 +1141,18 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
             return {'CANCELLED'}
         from ..legacy.scene_converter import HaloSceneConverter
         objects = list(context.selected_objects if self.selected_only else context.scene.objects)
+        if not self.include_disabled_collections:
+            enabled_objects = set()
+
+            def collect_enabled(layer):
+                if layer.exclude or layer.collection.hide_viewport:
+                    return
+                enabled_objects.update(layer.collection.objects)
+                for child in layer.children:
+                    collect_enabled(child)
+
+            collect_enabled(context.view_layer.layer_collection)
+            objects = [ob for ob in objects if ob in enabled_objects]
         if any(not ob.get('foundry_converted_from_toolset') and
                (ob.library or (ob.data and ob.data.library)) for ob in objects):
             self.report({'WARNING'}, "Make linked objects and their data local before converting")
