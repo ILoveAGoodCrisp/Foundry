@@ -322,8 +322,8 @@ def render_manifest(version: str, wheel_files: list[str]) -> str:
         "\n"
         'license = ["SPDX:GPL-3.0-or-later"]\n'
         "\n"
-        'platforms = ["windows-amd64", "windows-x64"]\n'
-        "\n"
+        # 'platforms = ["windows-amd64", "windows-x64"]\n'
+        # "\n"
         "wheels = [\n"
         f"{wheel_lines}\n"
         "]\n"
