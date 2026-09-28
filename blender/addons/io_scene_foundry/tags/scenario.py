@@ -77,6 +77,63 @@ class ScenarioDocument(TagDocument):
         self.required_field(struct, name).set(value)
         self.tag_has_changes = True
 
+    def ensure_environment_object_palettes(self) -> int:
+        """Preload Reach BSP objects before Sapien starts switching BSPs.
+
+        Loading an environment object's definition for the first time during
+        the initial BSP switch can assert in breakable-surface redirection.
+        Palette references load the definitions with the scenario; placements
+        and their IDs remain owned by the BSP.
+        """
+        if self.game != 'reach':
+            return 0
+        palettes = {
+            'scenery': 'scenery palette', 'crate': 'crate palette',
+            'biped': 'biped palette', 'vehicle': 'vehicle palette',
+            'equipment': 'equipment palette', 'weapon': 'weapon palette',
+            'device_machine': 'machine palette', 'device_control': 'control palette',
+            'device_terminal': 'terminal palette',
+            'sound_scenery': 'sound scenery palette', 'effect_scenery': 'effect scenery palette',
+            'creature': 'creature palette', 'giant': 'giant palette',
+        }
+        references = {}
+        for element in self.block(self.tag.root(), 'structure bsps'):
+            bsp_path = self.reference(element, 'structure bsp')
+            if not self.path_exists(bsp_path):
+                continue
+            with TagDocument(bsp_path, tags_root=self.tags_root, game=self.game,
+                             must_exist=True, definitions=self.definitions) as bsp:
+                palette = bsp.block(bsp.tag.root(), 'environment object palette')
+                for instance in bsp.block(bsp.tag.root(), 'environment objects'):
+                    index = int(bsp.value(instance, 'palette_index'))
+                    if not 0 <= index < len(palette):
+                        continue
+                    reference = bsp.reference(palette[index], 'definition')
+                    if reference is not None and reference.Extension in palettes:
+                        references[reference.RelativePathWithExtension.casefold()] = reference
+
+        added = 0
+        for extension, block_name in palettes.items():
+            wanted = [reference for reference in references.values()
+                      if reference.Extension == extension]
+            if not wanted:
+                continue
+            palette = self.block(self.tag.root(), block_name)
+            existing = {
+                reference.RelativePathWithExtension.casefold()
+                for element in palette
+                if (reference := self.reference(element, 'name')) is not None
+            }
+            for reference in wanted:
+                key = reference.RelativePathWithExtension.casefold()
+                if key in existing:
+                    continue
+                index = palette.add()
+                self.set_reference(palette[index], 'name', reference)
+                existing.add(key)
+                added += 1
+        return added
+
     def ensure_structure_bsps(self, paths: Iterable[TagPathInput]) -> None:
         """Append missing structure BSP references while preserving existing entries."""
         block = self.block(self.tag.root(), 'structure bsps')

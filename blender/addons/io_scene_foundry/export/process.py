@@ -3106,6 +3106,12 @@ class ExportScene:
                         scenario.ensure_global_tags()
 
 
+            if self.project_game == 'reach':
+                with ScenarioMetadataTag() as scenario:
+                    added = scenario.ensure_environment_object_palettes()
+                    if added:
+                        self.print_post(f"--- Added {added} environment object palette references")
+
             if self.export_settings.allow_proxy_decals and not self.corinth and self.any_collision_proxies:
                 self.print_post(f"--- Fixing Up collision proxy surface mapping")
                 with ScenarioMetadataTag() as scenario:

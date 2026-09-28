@@ -4498,11 +4498,11 @@ class AnimationTag(AnimationGraphTag):
             
             animation_bounds = axis.SelectField("animation bounds").Data
             blender_axis.animation_source_bounds_manual = True
-            blender_axis.animation_source_bounds = (*animation_bounds,)
+            blender_axis.animation_source_bounds = (animation_bounds.lower, animation_bounds.upper)
             
             input_bounds = axis.SelectField("input bounds").Data
             blender_axis.runtime_source_bounds_manual = True
-            blender_axis.runtime_source_bounds = (*input_bounds,)
+            blender_axis.runtime_source_bounds = (input_bounds.lower, input_bounds.upper)
             
             blender_axis.animation_source_limit = axis.SelectField("blend limit").Data
             
@@ -4518,7 +4518,7 @@ class AnimationTag(AnimationGraphTag):
                 blender_dead_zone = blender_axis.dead_zones.add()
                 blender_dead_zone.name = f"dead_zone{dead_zone_index}"
                 bounds = dead_zone.SelectField("bounds").Data
-                blender_dead_zone.bounds = [n * 360 for n in bounds]
+                blender_dead_zone.bounds = (bounds.lower * 360, bounds.upper * 360)
                 blender_dead_zone.rate = dead_zone.SelectField("rate").Data * 360
             
             imported_axis_indices[axis_index] = len(imported_axes)
