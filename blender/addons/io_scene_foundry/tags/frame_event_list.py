@@ -5,6 +5,7 @@ import bpy
 from .blender import BlenderTag
 from .backend import TagDocument
 from .. import utils
+from ..animation_events import canonical_frame_event
 
 import json
 from bpy.types import PropertyGroup, bpy_prop_collection
@@ -72,6 +73,8 @@ def apply_dict_to_propgroup(pg: PropertyGroup, data: dict):
         if not hasattr(pg, key):
             continue
 
+        if key == "frame_name":
+            value = canonical_frame_event(value)
         current = getattr(pg, key)
 
         if isinstance(current, PropertyGroup):
@@ -289,7 +292,7 @@ def apply_event_map_to_blender(
             if event.end_frame > event.frame:
                 blender_event.multi_frame = 'range'
                 blender_event.frame_range = blender_animation.frame_start + event.end_frame
-            blender_event.frame_name = event.type
+            blender_event.frame_name = canonical_frame_event(event.type)
             blender_event.event_id = event.unique_id
             data_events = event.sound_events + event.effect_events + event.dialogue_events
             data_events.sort(key=lambda value: value.frame_offset)
@@ -348,8 +351,9 @@ class FrameEventListTag(BlenderTag, TagDocument):
 
     def _set_enum(self, element, name, value):
         field = self.required_field(element, name)
+        key = canonical_frame_event if name == 'type' else self._enum_label
         matches = [i for i, label in enumerate(field.options().names)
-                   if self._enum_label(label) == value]
+                   if key(label) == key(value)]
         if len(matches) != 1:
             raise ValueError(f'{self.path}: unsupported {name}: {value!r}')
         field.set(matches[0])
@@ -561,7 +565,7 @@ class FrameEventListTag(BlenderTag, TagDocument):
                 identifier = self.value(element, 'unique ID')
                 if identifier:
                     event.unique_id = identifier
-                event.type = self._enum(element, 'type')
+                event.type = canonical_frame_event(self._enum(element, 'type'))
                 if event.type in {'jetpack closed', 'jetpack open', 'sound event', 'effect event'}:
                     event.type = 'none'
                 events.append(event)

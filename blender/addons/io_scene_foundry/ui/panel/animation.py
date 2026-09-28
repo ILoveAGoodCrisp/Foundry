@@ -775,7 +775,8 @@ class NWO_UL_AnimProps_Events(bpy.types.UIList):
                     data_types = {d.data_type for d in item.event_data}
                     layout.label(text=f"{item.frame_frame} - {', '.join(data_types).title().strip(', ')}", icon_value=get_icon_id("animation_event"))
                 else:
-                    layout.label(text=f"{item.frame_frame} - {item.frame_name.title()}", icon_value=get_icon_id("animation_event"))
+                    event_label = bpy.types.UILayout.enum_item_name(item, "frame_name", item.frame_name)
+                    layout.label(text=f"{item.frame_frame} - {event_label}", icon_value=get_icon_id("animation_event"))
             case '_connected_geometry_animation_event_type_object_function':
                 layout.label(text=f"Event Function {item.object_function_name.rpartition('_')[2].upper()}", icon='GRAPH')
             case '_connected_geometry_animation_event_type_import':

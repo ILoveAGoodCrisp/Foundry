@@ -7,6 +7,7 @@ from math import degrees, radians
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
+from ..animation_events import canonical_frame_event
 from .backend import RelativeTagPath, TagDocument, TagPathInput, TagReference
 from .blender import BlenderTag
 from .animation_names import (
@@ -993,9 +994,10 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                         name: str, value: str) -> None:
         field = self.required_field(element, name)
         options = field.options()
+        key = canonical_frame_event if name == 'type' else self._event_key
         matches = [] if options is None else [
             index for index, label in enumerate(options.names)
-            if self._event_key(label) == self._event_key(value)
+            if key(label) == key(value)
         ]
         if len(matches) != 1:
             raise ValueError(f'{self.path}: unsupported {name}: {value!r}')
@@ -1371,7 +1373,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 event = AnimationEvent()
                 event.frame = utils.blender_frame(int(self.value(element, 'frame')))
                 event.end_frame = event.frame
-                event.type = self._event_enum(self.value(element, 'type'))
+                event.type = canonical_frame_event(self._event_enum(self.value(element, 'type')))
                 if event.type in {'jetpack closed', 'jetpack open', 'sound event', 'effect event'}:
                     event.type = 'none'
                 events.append(event)

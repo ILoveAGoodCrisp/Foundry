@@ -4,6 +4,7 @@ import bpy
 from bpy.types import PropertyGroup
 from mathutils import Matrix
 
+from ..animation_events import frame_event_items_for_game
 from ..constants import get_named_color
 
 from ..tools.asset_types import asset_type_items
@@ -1106,39 +1107,15 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
         update=update_frame_range,
     )
 
+    def frame_event_items(self, context):
+        project = utils.get_project(use_external=False) if context is not None else None
+        return frame_event_items_for_game(getattr(project, 'game', ''))
+
     frame_name: bpy.props.EnumProperty(
         name="Frame Event",
-        default="none",
+        default=0,
         options=set(),
-        items=[
-            ("none", "None", "Doesn't trigger any special events in animation, but can be used to play sounds, effects, and dialogue"),
-            ("primary keyframe", "Primary Keyframe", "Activates the primary function of an animation, for example:\nCompletes a weapon reload\nApplies damage on melee\nThrows a grenade\nKicks a vehicle occupant when boarding]\nLast frame a biped is on the ground in a ranged action\nPoint in an assassination at which the the victim will die if the animation is interrupted"),
-            ("secondary keyframe", "Secondary Keyframe", "Activates the secondary function of an animation, for example:\nTaking over a vehicle seat after boarding and kicking out the occupant\nDoes something with melee strikes but I'm not sure\nApex of a ranged action"),
-            ("tertiary keyframe", "Tertiary Keyframe", "Activates the tertiary function of an animation, for example:\nDoes something for sync action assassinations\nFirst frame when a biped lands in a ranged action"),
-            ("left foot", "Left Foot", "Point in the animation where the biped's left foot impacts the ground. Used to create footstep effects"),
-            ("right foot", "Right Foot", "Point in the animation where the biped's right foot impacts the ground. Used to create footstep effects"),
-            ("allow interruption", "Allow Interruption", "Point at which an animation may be interrupted, for example it will allow the player to switch weapon when reloading, meleeing, or throwing a grenade"),
-            ("do not allow interruption", "Do Not Allow Interruption", "Prevents an player animation from being interupted by player action... or should do. I haven't found any examples of it being used"),
-            ("both-feet shuffle", "Both-Feet Shuffle", "Point in animation where both feet move along the ground"),
-            ("body impact", "Body Impact", "Plays body impact effects"),
-            ("left foot lock", "Left Foot Lock", "Locks the biped's left foot to the ground"),
-            ("left foot unlock", "Left Foot Unlock", "Unlocks the biped's left foot from the ground"),
-            ("right foot lock", "Right Foot Lock", "Locks the biped's right foot to the ground"),
-            ("right foot unlock", "Right Foot Unlock", "Unlocks the biped's right foot from the ground"),
-            ("blend range marker", "Blend Range Marker", "Necessary for ranged actions (where AI jump from point to point). A blend range marker must be added for the primary, secondary, and teritary events of a ranged action"),
-            ("stride expansion", "Stride Expansion", "Used in walking/running animations to indicate when the biped's stride begins"),
-            ("stride contraction", "Stride Contraction", "Used in walking/running animations to indicate when the biped's stride contracts"),
-            ("ragdoll keyframe", "Ragdoll Keyframe", "Makes the biped ragdoll in death and assassination animations"),
-            ("drop weapon keyframe", "Drop Weapon Keyframe", "Makes the biped drop their weapons in death and assassination animations"),
-            ("match a", "Match A", "Important for walk/run cycles. The point at which the biped's legs are side by side"),
-            ("match b", "Match B", "Important for walk/run cycles. After Match A, the point at which the leading foot touches the ground"),
-            ("match c", "Match C", "Important for walk/run cycles. After Match B, the point at which the legs are side by side again"),
-            ("match d", "Match D", "Important for walk/run cycles. After Match C, the point at which the new leading foot touches the ground"),
-            # ("jetpack closed", "Jetpack Closed", ""),
-            # ("jetpack open", "Jetpack Open", ""),
-            # ("sound event", "Sound Event", ""),
-            # ("effect event", "Effect Event", ""),
-        ],
+        items=frame_event_items,
     )
 
     # frame_trigger: bpy.props.BoolProperty(
