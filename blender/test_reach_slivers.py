@@ -10,7 +10,8 @@ import bmesh
 import numpy as np
 
 from io_scene_foundry.tags.reach_geometry import (
-    preserve_two_sided_sealers, recover_mapped_collision, retriangulate_render_slivers)
+    preserve_two_sided_sealers, recover_mapped_collision, retriangulate_render_slivers,
+    repair_collision_triangulation)
 
 
 def make_patch(seam=False):
@@ -28,6 +29,33 @@ def make_patch(seam=False):
 
 
 class ReachSliverTests(unittest.TestCase):
+    def test_helper_triangulation_preserves_boundary_and_visible_faces(self):
+        mesh = make_patch(seam=True)
+        h.utils.add_face_prop(mesh, 'face_mode').face_mode = 'collision_only'
+        points = {tuple(v.co) for v in mesh.vertices}
+        boundary = h.solid_edge_counts(mesh)
+        self.assertEqual(repair_collision_triangulation(mesh, .001), 1)
+        self.assertEqual(len(mesh.polygons), 2, 'helper UV seams must not retain overlapping special faces')
+        self.assertEqual({tuple(v.co) for v in mesh.vertices}, points)
+        self.assertEqual(h.solid_edge_counts(mesh), boundary)
+        self.assertTrue(all(f.area > .1 for f in mesh.polygons))
+        self.assertEqual(repair_collision_triangulation(mesh, .001), 0)
+        visible = make_patch()
+        self.assertEqual(repair_collision_triangulation(visible, .001), 0)
+
+    def test_large_helper_triangle_repairs_float_normal_degeneracy(self):
+        mesh = bpy.data.meshes.new('long_seam')
+        mesh.from_pydata([(0, -14000, 250), (0, -750, -90),
+                          (0, -700, -90), (0, -100, 250)], [], [(0, 1, 2), (0, 2, 3)])
+        mesh.materials.append(bpy.data.materials.new('+seam'))
+        h.utils.add_face_prop(mesh, 'face_mode').face_mode = 'collision_only'
+        boundary = h.solid_edge_counts(mesh)
+        points = {tuple(v.co) for v in mesh.vertices}
+        self.assertEqual(repair_collision_triangulation(mesh, .000762), 1)
+        self.assertEqual(h.solid_edge_counts(mesh), boundary)
+        self.assertEqual({tuple(v.co) for v in mesh.vertices}, points)
+        self.assertEqual(repair_collision_triangulation(mesh, .000762), 0)
+
     def test_mapped_polygon_keeps_missing_half_and_uses_all_clusters(self):
         material = bpy.data.materials.new('mapped_surface')
 

@@ -284,6 +284,48 @@ class ReachGeometryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'cycle'):
             reconstruct_reach_portals(records, cycle)
 
+    def test_fragmented_portal_connection_preserves_flagged_footprints(self):
+        from dataclasses import replace
+        from io_scene_foundry.tags.reach_portals import reconstruct_reach_portals, _area
+        ordinary = StructureBspPortal(0, False, False, False, False, False,
+            ((-1, -1, 0), (0, -1, 0), (0, 1, 0), (-1, 1, 0)), 0, 0, 2)
+        blocked = replace(ordinary, index=3, no_way=True,
+                          vertices=((-1, -.5, 0), (-.5, -.5, 0), (-.5, .5, 0), (-1, .5, 0)))
+        second = replace(blocked, index=4,
+                         vertices=((-1.5, -.5, 0), (-1.25, -.5, 0), (-1.25, .5, 0), (-1.5, .5, 0)))
+        vertical = replace(ordinary, index=2, plane_index=1, front_cluster=1,
+            vertices=((0, -1, -1), (0, 1, -1), (0, 1, 0), (0, -1, 0)))
+        data = dict(planes=[(0, 0, 1, 0), (1, 0, 0, 0)],
+                    nodes=[(0, 1, 0x80000002), (1, 0x80000000, 0x80000001)],
+                    supernodes=[], clusters=[0, 1, 2], bounds=[(-2, 2)] * 3)
+        records = [ordinary, blocked, second, vertical, replace(ordinary, index=5)]
+        for inputs in (records, list(reversed(records))):
+            rebuilt = reconstruct_reach_portals(inputs, data)
+            horizontal = [r for r in rebuilt if r.plane_index == 0]
+            self.assertTrue(all(r.polygons for r in rebuilt))
+            areas = [(r.no_way, sum(_area([np.array(r.vertices[i]) for i in f])
+                                       for f in r.polygons)) for r in horizontal]
+            self.assertAlmostEqual(sum(a for _, a in areas), 8)
+            self.assertAlmostEqual(sum(a for blocked, a in areas if blocked), .75)
+            self.assertEqual(sum(not r.no_way for r in horizontal), 1)
+
+    def test_collision_matching_tolerance_tracks_reach_import_scale(self):
+        from mathutils import Vector
+        from io_scene_foundry import import_transform
+        matcher = Mesh.__new__(Mesh)
+        for scale in ('blender', 'max'):
+            bpy.context.scene.nwo.scale = scale
+            factor = import_transform.scale_factor()
+            mesh = bpy.data.meshes.new('nearby_render_layer')
+            mesh.from_pydata([(0, 0, .01*factor), (factor, 0, .01*factor),
+                              (factor, factor, .01*factor), (0, factor, .01*factor)], [], [(0, 1, 2, 3)])
+            collision = [Vector((0, 0, 0)), Vector((factor, 0, 0)),
+                         Vector((factor, factor, 0)), Vector((0, factor, 0))]
+            self.assertEqual(matcher._find_matching_render_faces(collision, matcher._render_face_match_data(mesh)), [])
+            for vertex in mesh.vertices:
+                vertex.co.z = 0
+            self.assertEqual(matcher._find_matching_render_faces(collision, matcher._render_face_match_data(mesh)), [0])
+
     def test_closed_thin_shell_survives_cluster_join_at_both_scales(self):
         for scale in ('blender', 'max'):
             with self.subTest(scale=scale):

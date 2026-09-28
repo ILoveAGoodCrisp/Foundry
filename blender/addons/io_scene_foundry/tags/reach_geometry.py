@@ -135,7 +135,7 @@ def recover_mapped_collision(collision_mesh, render_meshes, tolerance):
     return recovered
 
 
-def retriangulate_render_slivers(mesh, tolerance):
+def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False):
     """Replace bad diagonals without moving vertices or crossing data seams.
 
     Reach's compiled render triangles can be nearly collinear, even though
@@ -161,10 +161,17 @@ def retriangulate_render_slivers(mesh, tolerance):
         uv_layers = list(bm.loops.layers.uv.values())
         separated = set()
         excluded = {f for f in bm.faces for prop in mesh.nwo.face_props
-                    if (prop.type == 'face_mode' and prop.face_mode != 'normal'
+                    if (prop.type == 'face_mode' and prop.face_mode not in
+                        ({'normal', 'collision_only'} if collision_only else {'normal'})
                         or prop.type == 'face_sides' and prop.two_sided)
                     and mesh.attributes.get(prop.attribute_name) is not None
                     and mesh.attributes[prop.attribute_name].data[f.index].value}
+        if collision_only:
+            helpers = {f for f in bm.faces for prop in mesh.nwo.face_props
+                       if prop.type == 'face_mode' and prop.face_mode == 'collision_only'
+                       and mesh.attributes.get(prop.attribute_name) is not None
+                       and mesh.attributes[prop.attribute_name].data[f.index].value}
+            excluded.update(f for f in bm.faces if f not in helpers)
 
         def altitude(points):
             a, b, c = points
@@ -178,7 +185,11 @@ def retriangulate_render_slivers(mesh, tolerance):
             if not face.is_valid or face in separated or face in excluded or len(face.verts) != 3:
                 continue
             old_altitude = altitude([v.co for v in face.verts])
-            if old_altitude > tolerance:
+            # Tool also loses normals on very long, narrow helper triangles:
+            # normalized float edges can round to parallel despite large area.
+            relative_tolerance = (max(e.calc_length() for e in face.edges) * .0002
+                                  if collision_only else 0)
+            if old_altitude > max(tolerance, relative_tolerance):
                 continue
             choices = []
             for loop in face.loops:
@@ -210,14 +221,18 @@ def retriangulate_render_slivers(mesh, tolerance):
                 for l in face.loops:
                     previous = loops.get(l.vert)
                     if previous is not None:
-                        if any((l[layer].uv-previous[layer].uv).length > 1e-5 for layer in uv_layers):
+                        if not collision_only and any((l[layer].uv-previous[layer].uv).length > 1e-5 for layer in uv_layers):
                             compatible = False
-                        if preserve_normals and (normal(l)-normal(previous)).length > 1e-3:
+                        if not collision_only and preserve_normals and (normal(l)-normal(previous)).length > 1e-3:
                             compatible = False
                     else:
                         loops[l.vert] = l
                 choices.append((compatible, quality, other, edge, triangles, loops))
             if not choices:
+                if collision_only:
+                    # Helper surfaces have no visible UV/normal seam to keep.
+                    # Do not retain overlapping render-only special materials.
+                    continue
                 # A folded sliver can backtrack along a neighbour's boundary:
                 # A--C--D is one straight edge, but the compiled pair takes
                 # A--D--B--C--A. Keep the visible faces, and recover collision
@@ -304,3 +319,51 @@ def retriangulate_render_slivers(mesh, tolerance):
             mesh.attributes.remove(attribute)
         utils.calc_face_prop_counts(mesh)
     return changed
+
+
+def repair_collision_triangulation(mesh, tolerance):
+    """Bake a safer helper triangulation only when it repairs a bad diagonal."""
+    helpers = set()
+    for prop in mesh.nwo.face_props:
+        if prop.type == 'face_mode' and prop.face_mode == 'collision_only':
+            attribute = mesh.attributes.get(prop.attribute_name)
+            if attribute is not None:
+                helpers.update(i for i, value in enumerate(attribute.data) if value.value)
+    if not helpers:
+        return 0
+    candidate = mesh.copy()
+    try:
+        bm = bmesh.new()
+        try:
+            bm.from_mesh(candidate)
+            if candidate.has_custom_normals:
+                utils.save_loop_normals(bm, candidate)
+            bmesh.ops.triangulate(bm, faces=[f for f in bm.faces
+                                          if f.index in helpers and len(f.verts) > 3])
+            bm.to_mesh(candidate)
+        finally:
+            bm.free()
+        if mesh.has_custom_normals:
+            utils.apply_loop_normals(candidate)
+        changed = retriangulate_render_slivers(candidate, tolerance, collision_only=True)
+        if not changed:
+            return 0
+        normals = [tuple(n.vector) for n in candidate.corner_normals] if candidate.has_custom_normals else None
+        bm = bmesh.new()
+        try:
+            bm.from_mesh(candidate)
+            bm.to_mesh(mesh)
+        finally:
+            bm.free()
+        mesh.nwo.face_props.clear()
+        for prop in candidate.nwo.face_props:
+            result = mesh.nwo.face_props.add()
+            for key, value in prop.items():
+                result[key] = value
+        mesh.update()
+        if normals:
+            mesh.normals_split_custom_set(normals)
+        utils.calc_face_prop_counts(mesh)
+        return changed
+    finally:
+        bpy.data.meshes.remove(candidate)

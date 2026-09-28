@@ -776,6 +776,9 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 weld_classic_vertices(ob.data)
             if connect_edges and not for_cinematic:
                 utils.connect_verts_on_edge(ob.data, spatial_search=self.game == 'reach')
+            if self.game == 'reach' and not for_cinematic:
+                from .reach_geometry import repair_collision_triangulation
+                repair_collision_triangulation(ob.data, 0.025 * import_transform.scale_factor())
             objects.append(ob)
             # utils.unlink(ob)
             structure_collection.objects.link(ob)

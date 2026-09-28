@@ -308,3 +308,72 @@ The complete Tool log is `%TEMP%/sword-tool-final.log`. Native extraction repair
 are in `tags/reach_geometry.py`; focused tests are in `blender/test_reach_slivers.py`.
 Restart Blender before testing a fresh import so it loads the updated Python
 modules. Runtime traversal/visual inspection in Sapien remains unverified.
+
+## Powerhouse follow-up (2026-09-28)
+
+Inputs: `data/foundry_blam/powerhouse/powerhouse.blend`, original
+`tags/levels/multi/30_settlement/30_settlement.scenario`, and the attached export
+log from 11:54. Original scene and source tags are preserved.
+
+- **garage_storage_rack13 (definition 230):** all 138 native collision surfaces
+  are unmapped and form a closed shell. The importer inferred 14 render matches
+  using a fixed 0.005 scene-unit tolerance, producing 100 open edges. Reach now
+  scales the matching tolerance with the import transform. The native 138
+  collision polygons and all 3,268 render faces are retained, with a closed
+  collision shell. No general proxy fallback or guessed hole filling was added.
+- **wall_retaining_concrete_08 (definition 63):** an otherwise closed collision
+  polygon produced a nearly collinear export triangle. Helper polygons now get
+  a verified triangulation when a compatible diagonal change improves the bad
+  triangle. Boundary positions and face-property boundaries are retained.
+  Invisible helper faces can change their diagonal without preserving a UV or
+  normal seam as overlapping render-only `+seamsealer` geometry.
+- **30_shared_seams:** a large seam triangle has enough area but extremely
+  parallel normalized edges. Tool drops it, causing four open edges across the
+  seam and adjacent structure. The helper repair also detects this relative
+  aspect-ratio case and changes the diagonal without moving boundary vertices.
+- **Portals:** repeated coplanar connections, including No Way fragments,
+  triggered a whole-BSP fallback to the simpler H1 reconstruction. Reach now
+  reconstructs the complete cluster cut once per connection, retaining flagged
+  footprints and subtracting them from the ordinary portal region. Conflicting
+  flagged-only connections and non-convex flagged footprints still fall back.
+  Tests check area conservation, record-order independence and retained flags.
+
+The user confirmed that `dormitory_` and `utility_house` originally used **Chops
+Portals**. These two object flags are restored in the repaired scene. The native
+Reach instance flags do not contain this authoring property; this change does
+not claim to recover it automatically on future imports or enable it on all
+instances. Original portal geometry plus these flags still produced 52 portal
+leak reports, versus 42 in the supplied export. Reconstructed portals with
+these flags produced zero portal leakage in the first complete comparison.
+
+Validation artifacts are isolated under `foundry_blam/codex_powerhouse_final`.
+The complete final Tool log is `%TEMP%/codex_powerhouse_final-tool.log`.
+The original scene's sidecar destination is retained in the repaired scene.
+Runtime traversal and visibility in Sapien remain unverified.
+
+Final validation:
+
+- Tool completed at 12:25:37 with exit code 0 in 3m13.2s: **zero open edges and
+  zero portal leakage** across the three BSPs. The supplied log had 100 rack,
+  three retaining-wall and four shared-BSP open edges, plus 42 portal leaks.
+- Six main-BSP leaky-connection warnings and the `river_rocks08` degenerate
+  triangle warning remain. The latter produces no open-edge report. These
+  warnings are not claimed fixed.
+- The rebuilt main BSP has 102 portals and 15 clusters, versus 101 portal
+  records and 16 clusters in the source. Exact original visibility partitioning
+  is not claimed; Sapien visibility/traversal still needs visual verification.
+- Saved and reopened `data/foundry_blam/powerhouse/powerhouse_geometry_fixed.blend`.
+  Both affected instance shells are closed; both confirmed Chops Portals flags
+  and the original Powerhouse sidecar path are retained. The original blend
+  remains 93,348,825 bytes with its 11:56:12 modification time.
+- 36 regression tests passed (16 Reach geometry/portal, 11 Reach sliver,
+  four classic geometry, five H1 portal export); one optional H1 fixture skipped.
+- A full fresh Powerhouse main-BSP import completed with 1,936 unique meshes
+  and 260,318 faces. The raw decoder retained all 229,315 render faces.
+- Full Forge World import completed with 913 unique meshes and 176,545 faces;
+  the previously fixed rock and tunnel remain closed, including tunnel export
+  triangulation. All 144,528 raw render faces remain intact.
+
+Restart Blender before a fresh import to load the updated modules. Restore
+Chops Portals on the two confirmed instances after a fresh tag import; that
+authoring flag is not inferred by the importer.

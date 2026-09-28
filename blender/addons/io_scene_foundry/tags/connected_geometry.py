@@ -422,11 +422,13 @@ class InstanceDefinition:
         if (render_valid and self.has_collision and not self.collision_is_proxy
                 and getattr(utils.get_project(), 'game', None) == 'reach'):
             from .classic_geometry import weld_classic_vertices
-            from .reach_geometry import preserve_two_sided_sealers, retriangulate_render_slivers
+            from .reach_geometry import (preserve_two_sided_sealers, retriangulate_render_slivers,
+                                         repair_collision_triangulation)
             weld_classic_vertices(self.blender_render.data)
             if retriangulate_render_slivers(self.blender_render.data, 0.025 * import_transform.scale_factor()):
                 weld_classic_vertices(self.blender_render.data)
             preserve_two_sided_sealers(self.blender_render.data)
+            repair_collision_triangulation(self.blender_render.data, 0.025 * import_transform.scale_factor())
 
         if self.blender_render:
             objects.append(self.blender_render)
@@ -3285,7 +3287,13 @@ class Mesh:
 
         return render_faces
 
-    def _find_matching_render_faces(self, collision_coords: list[Vector], render_faces, tolerance=0.005) -> list[int]:
+    def _find_matching_render_faces(self, collision_coords: list[Vector], render_faces, tolerance=None) -> list[int]:
+        if tolerance is None:
+            # Matching runs after conversion to the scene's import scale.
+            # A fixed 0.005 Blender-unit tolerance can mistake nearby render
+            # detail for a different native collision surface on Reach props.
+            tolerance = (0.0025 * import_transform.scale_factor()
+                         if getattr(utils.get_project(), 'game', None) == 'reach' else 0.005)
         collision_normal = self._polygon_normal(collision_coords)
         collision_area = self._polygon_area(collision_coords)
         if collision_normal is None or collision_area <= 0.0:

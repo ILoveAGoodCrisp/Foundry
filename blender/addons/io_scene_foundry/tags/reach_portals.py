@@ -113,8 +113,8 @@ def _cluster_tree(data):
 def reconstruct_reach_portals(records, data):
     """Use cluster cuts for connected volumes and H1 repair for isolated holes.
 
-    Return one mesh record per original portal connection, with convex polygons
-    in ``polygons``. Do not join different flags or invent cluster connections.
+    Return mesh records for the original connections, with convex polygons
+    in ``polygons``. Preserve flagged footprints inside ordinary connections.
     Missing metadata retains the existing conservative reconstruction.
     """
     if not data or any(r.plane_index < 0 or r.back_cluster < 0 or r.front_cluster < 0 for r in records):
@@ -130,20 +130,34 @@ def reconstruct_reach_portals(records, data):
         return reconstruct_portals(records)[0]
 
     owners = {}
+    overlays = {}
+    flags = ('one_way', 'no_way', 'ai_deafening', 'blocks_sounds', 'is_door')
+    groups = {}
     for record in records:
         if record.plane_index not in selected:
             continue
         key = record.plane_index, frozenset((record.back_cluster, record.front_cluster))
-        if key in owners:
-            # Distinct authored doors/flags on the same connection cannot be
-            # recovered from the leaf cluster table alone.
-            return reconstruct_portals(records)[0]
-        owners[key] = record
+        groups.setdefault(key, []).append(record)
+    for key, group in groups.items():
+        ordinary = [r for r in group if not any(getattr(r, name) for name in flags)]
+        if ordinary:
+            owners[key] = ordinary[0]
+            # Compilation can split a connection around several instances.
+            # Keep each flagged footprint, regardless of source record order.
+            overlays[key] = [r for r in group if r not in ordinary]
+        else:
+            first = group[0]
+            if any(any(getattr(first, name) != getattr(r, name) for name in flags)
+                   or r.one_way and first.back_cluster != r.back_cluster for r in group[1:]):
+                return reconstruct_portals(records)[0]
+            owners[key] = first
 
     tree = _cluster_tree(data)
     planes = np.asarray(data['planes'], dtype=np.float64)
     bounds = data['bounds']
     recovered = {r.index: [] for r in owners.values()}
+    for group in overlays.values():
+        recovered.update((r.index, []) for r in group)
     for plane_index in sorted(selected):
         if not 0 <= plane_index < len(planes):
             raise ValueError('Portal plane is outside the collision plane table')
@@ -184,22 +198,56 @@ def reconstruct_reach_portals(records, data):
             for polygon, front in partition(tree, back_poly, 1):
                 if back == front or back is None or front is None or _area(polygon) <= 1e-7:
                     continue
-                record = owners.get((plane_index, frozenset((back, front))))
+                connection = plane_index, frozenset((back, front))
+                record = owners.get(connection)
                 if record is None:
                     continue
-                original = np.asarray(record.vertices)
-                winding = sum((np.cross(a - original[0], b - original[0])
-                               for a, b in zip(original, np.roll(original, -1, axis=0))), np.zeros(3))
-                if np.dot(winding, normal) < 0:
-                    polygon = list(reversed(polygon))
-                recovered[record.index].append(polygon)
+                remaining = [polygon]
+                for overlay in overlays.get(connection, ()):
+                    footprint = [np.asarray(p) for p in overlay.vertices]
+                    winding = sum((np.cross(a-footprint[0], b-footprint[0])
+                                   for a, b in zip(footprint, footprint[1:]+footprint[:1])), np.zeros(3))
+                    constraints = []
+                    for a, b in zip(footprint, footprint[1:]+footprint[:1]):
+                        inward = np.cross(normal, b-a)
+                        if np.dot(winding, normal) < 0:
+                            inward = -inward
+                        length = np.linalg.norm(inward)
+                        if length < 1e-8:
+                            continue
+                        inward /= length
+                        constraint = np.append(inward, np.dot(inward, a))
+                        if min(np.dot(p, inward)-constraint[3] for p in footprint) < -1e-4:
+                            return reconstruct_portals(records)[0]
+                        constraints.append(constraint)
+                    outside = []
+                    for piece in remaining:
+                        inside = piece
+                        for constraint in constraints:
+                            if not inside:
+                                break
+                            part = _clip(inside, constraint, False)
+                            if _area(part) > 1e-7:
+                                outside.append(part)
+                            inside = _clip(inside, constraint, True)
+                        if _area(inside) > 1e-7:
+                            recovered[overlay.index].append(inside)
+                    remaining = outside
+                recovered[record.index].extend(remaining)
 
     if any(not polygons for polygons in recovered.values()):
         return reconstruct_portals(records)[0]
     result = reconstruct_portals([r for r in records if r.plane_index not in selected])[0]
-    for record in owners.values():
+    output_records = list(owners.values()) + [r for group in overlays.values() for r in group]
+    for record in output_records:
         vertices, faces = [], []
+        original = np.asarray(record.vertices)
+        winding = sum((np.cross(a-original[0], b-original[0])
+                       for a, b in zip(original, np.roll(original, -1, axis=0))), np.zeros(3))
+        reverse = np.dot(winding, planes[record.plane_index, :3]) < 0
         for polygon in recovered[record.index]:
+            if reverse:
+                polygon = list(reversed(polygon))
             faces.append(tuple(range(len(vertices), len(vertices) + len(polygon))))
             vertices.extend(tuple(map(float, p)) for p in polygon)
         result.append(replace(record, vertices=tuple(vertices), polygons=tuple(faces)))
