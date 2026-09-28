@@ -198,7 +198,10 @@ def export_bitmap(image: bpy.types.Image, report=None, *, bitmaps_data_dir=None)
                 if converted:
                     first = bitmap.block_bitmaps[0]
                     actual = tuple(bitmap._select_int(first, field) for field in ('width', 'height'))
-                    if actual != tuple(image.size):
+                    # preserve_size uses DXT5, whose smallest block is 4x4.
+                    # Older conversions can contain valid 1x1 constant maps.
+                    expected = tuple(max(4, dimension) for dimension in image.size)
+                    if actual not in (tuple(image.size), expected):
                         raise RuntimeError(f'{image.name}: compiled bitmap is {actual}, expected {tuple(image.size)}')
                 elif not bitmap.is_cubemap:
                     raise RuntimeError(f'{image.name}: bitmap compiler did not produce a cubemap')

@@ -251,6 +251,7 @@ class NWO_AnimationLeavesItems(PropertyGroup):
     
 class NWO_AnimationGroupItems(PropertyGroup):
     name: bpy.props.StringProperty(name="Name", options=set())
+    phase_set: bpy.props.StringProperty(name="Phase Set", options=set(), description="Optional phase set on this axis to receive this group's animations; blank keeps them directly on the axis")
     manual_blend_axis_0: bpy.props.BoolProperty(
         name="Manual Blend Axis",
         description="Manually assign a value to this blend axix instead of allowing it to be calculated",
@@ -357,6 +358,9 @@ class NWO_AnimationGroupItems(PropertyGroup):
     
 class NWO_AnimationPhaseSetsItems(PropertyGroup):
     name: bpy.props.StringProperty(name="Name", options=set())
+    timing_source: bpy.props.StringProperty(name="Timing Source", options=set(), description="Optional timing animation for this set; blank uses the composite timing source")
+    bounds_manual: bpy.props.BoolProperty(name="Manual Set Bounds", options=set(), description="Override this set's range on the outermost blend axis")
+    bounds: bpy.props.FloatVectorProperty(name="Set Bounds", size=2, options=set(), description="Range in the outermost animation axis units")
     priority: bpy.props.EnumProperty(
         name="Priority",
         options=set(),
@@ -400,6 +404,13 @@ class NWO_AnimationDeadZonesItems(PropertyGroup):
     rate: bpy.props.FloatProperty(name="Dead Zone Rate", options=set(), min=0, default=90)
 
 class NWO_AnimationBlendAxisItems(PropertyGroup):
+    phase_priority: bpy.props.EnumProperty(
+        name="Phase Selection Priority", options=set(),
+        description="Tool phase_select policy for this axis; runtime switching behaviour depends on the game",
+        items=[('default', 'Default (Current)', 'Use Tool default; preserve legacy set priority if specified'),
+               ('current', 'Current', 'Export Tool current phase-selection policy'),
+               ('cycle', 'Cycle', 'Export Tool cycle phase-selection policy'),
+               ('alternate', 'Alternate', 'Export Tool alternate phase-selection policy')])
     name: bpy.props.EnumProperty(
         name="Type",
         options=set(),

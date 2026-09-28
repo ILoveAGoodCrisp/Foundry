@@ -1,6 +1,6 @@
 """Native render-model metadata and renderer-ready geometry."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import cast
 
 from .backend import TagDocument
@@ -475,6 +475,31 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
                 parts=parts,
                 water=water,
             ))
+        if self.game in {'halo4', 'halo2a'}:
+            # The native decoder omits bufferless clone meshes, including their
+            # parts. Reuse the source's decoded triangle ranges, but preserve
+            # the clone's material overrides from the tag.
+            geometry = self.required_field(self.tag.root(), 'render geometry').as_struct()
+            raw_meshes = self.block(geometry, 'meshes')
+            for region in self.regions():
+                permutations = {p.name: p for p in region.permutations}
+                for permutation in region.permutations:
+                    if not permutation.clone_name or permutation.mesh_index < 0:
+                        continue
+                    source = permutations[permutation.clone_name]
+                    for offset in range(permutation.mesh_count):
+                        index = permutation.mesh_index + offset
+                        if records[index].parts:
+                            continue
+                        source_mesh = records[source.mesh_index + offset]
+                        raw_parts = self.block(raw_meshes[index], 'parts')
+                        if len(raw_parts) != len(source_mesh.parts):
+                            raise ValueError(f'{self.path}: clone mesh {index} has a different part count from its source')
+                        parts = tuple(replace(part,
+                            material_index=int(self.value(raw_part, 'render method index')),
+                            part_type=int(self.value(raw_part, 'part type')),
+                        ) for part, raw_part in zip(source_mesh.parts, raw_parts))
+                        records[index] = replace(source_mesh, index=index, parts=parts)
         return records
 
     def insert_empty_region_perms(self, empty_region_perms: dict[str, set]):

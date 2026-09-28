@@ -246,7 +246,7 @@ class RenderModelTag(RenderModelMetadataTag):
 
                 if self.corinth and allowed_region_permutations and permutation.mesh_index > -1:
                     for i in range(permutation.mesh_count):
-                        region_perm_raw_mesh[(region.name, permutation.name, i)] = permutation.mesh_index
+                        region_perm_raw_mesh[(region.name, permutation.name, i)] = permutation.mesh_index + i
 
         if valid_instance_indexes is not None:
             for record in self._native_instance_placements:

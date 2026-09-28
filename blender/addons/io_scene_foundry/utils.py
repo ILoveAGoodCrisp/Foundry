@@ -799,7 +799,10 @@ def _create_patched_tool_process(command, cwd, stdout, stderr, tool_patches, std
             startup.dwFlags |= _STARTF_USESTDHANDLES
             startup.hStdInput = _stdio_child_handle(stdin, _STD_INPUT_HANDLE, "rb", handles_to_close, files_to_close)[0]
             startup.hStdOutput, stdout_file = _stdio_child_handle(stdout, _STD_OUTPUT_HANDLE, "wb", handles_to_close, files_to_close)
-            startup.hStdError, stderr_file = _stdio_child_handle(stderr, _STD_ERROR_HANDLE, "wb", handles_to_close, files_to_close)
+            if stderr == subprocess.STDOUT:
+                startup.hStdError = startup.hStdOutput
+            else:
+                startup.hStdError, stderr_file = _stdio_child_handle(stderr, _STD_ERROR_HANDLE, "wb", handles_to_close, files_to_close)
 
         command_line = subprocess.list2cmdline([str(arg) for arg in command])
         command_line_buffer = ctypes.create_unicode_buffer(command_line)
@@ -1024,6 +1027,47 @@ def _write_tool_memory_patch(process_handle, image_base, sections, offset, patch
             ctypes.byref(restored_protect),
         )
 
+class _CompositeWatchdog:
+    """Bound a composite even if Tool keeps printing warnings or repeats itself."""
+    def __init__(self, idle_seconds=60, maximum_seconds=180, silent_seconds=1800):
+        self.idle_seconds = idle_seconds
+        self.maximum_seconds = maximum_seconds
+        self.name = None
+        self.started = self.last_output = 0.0
+        self.silent_seconds = silent_seconds
+        self.last_activity = time.monotonic()
+
+    def observe(self, line, now):
+        if line.strip():
+            self.last_activity = now
+        match = re.search(r'processing composite \[([^\]]+)\]', line, re.IGNORECASE)
+        if match:
+            if match.group(1) != self.name:
+                self.name = match.group(1)
+                self.started = now
+            self.last_output = now
+        elif self.name:
+            if any(marker in line.lower() for marker in (
+                    'sorting graph entries', 'processing rename.txt', 'restoring old animation graph data',
+                    'animation verification will be skipped', 'verification graph from')):
+                self.name = None
+            elif line.strip():
+                self.last_output = now
+
+    def expired(self, now):
+        return now - self.last_activity >= self.silent_seconds or self.name is not None and (
+            now - self.last_output >= self.idle_seconds or now - self.started >= self.maximum_seconds)
+
+    def explanation(self):
+        if self.name is None:
+            return (f"Tool produced no output for {self.silent_seconds}s. Foundry stopped this Tool process. "
+                    "Enable Tool output and retry to identify the stalled import stage.")
+        return (f"Tool stopped responding while processing composite [{self.name}]. "
+                f"Foundry stopped this Tool process after {self.idle_seconds}s without output "
+                f"or {self.maximum_seconds}s in the same composite. Check the composite's "
+                "sample layout, angle wrap, blend limits and sync events before retrying.")
+
+
 def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     failed = False
@@ -1044,14 +1088,11 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
     log_warnings = event_level == 'LOG'
     tmp_log = None
     try:
-        if cull_warnings:
-            p = _popen_tool(command, project_dir, stdout=output_stream, stderr=subprocess.PIPE, tool_patches=tool_patches)
-        elif log_warnings:
+        if log_warnings:
             tmp_log = Path(tempfile.gettempdir(), "halo_errors.txt")
-            with open(tmp_log, "w") as file:
-                p = _popen_tool(command, project_dir, stdout=output_stream, stderr=file, tool_patches=tool_patches)
-        else:
-            p = _popen_tool(command, project_dir, stdout=output_stream, stderr=output_stream, tool_patches=tool_patches)
+            tmp_log.write_bytes(b'')
+        # Every output mode must pass through the watchdog, on both streams.
+        p = _popen_tool(command, project_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, tool_patches=tool_patches)
     except _ToolMemoryPatchError as e:
         return True, str(e)
     except OSError as e:
@@ -1065,37 +1106,53 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
     if not (cull_warnings or log_warnings):
         set_tool_event_level(event_level)
         
-    composite_timeout_active = False
-    last_activity_time = time.time()
-    timeout_seconds = 10
+    watchdog = _CompositeWatchdog()
 
     q = queue.Queue()
-    if cull_warnings:
-        t = threading.Thread(target=_stderr_reader, args=(p.stderr, q), daemon=True)
-        t.start()
+    t = threading.Thread(target=_stderr_reader, args=(p.stdout, q), daemon=True)
+    t.start()
+    output_closed = False
             
     # Read and print stderr contents while writing to the file
-    if cull_warnings:
+    try:
         while True:
-            now = time.time()
+            now = time.monotonic()
+            if output_closed and p.poll() is not None and q.empty():
+                break
 
-            if composite_timeout_active and (now - last_activity_time) > timeout_seconds:
+            if watchdog.expired(now) and p.poll() is None:
                 p.kill()
-                raise RuntimeError("Failed to parse composite animation")
+                p.wait(timeout=5)
+                return True, watchdog.explanation()
 
             try:
                 item = q.get(timeout=0.1)
             except queue.Empty:
-                item = None
+                continue
 
             if item is None:
-                if p.poll() is not None and q.empty():
-                    break
+                output_closed = True
                 continue
 
             line = item.decode(errors="replace").rstrip("\r\n")
+            line = _tool_structured_output_text(line)
+            watchdog.observe(line, now)
+            if ('failed to construct composite triangulation' in line.lower()
+                    or 'composite: failed to compute weights' in line.lower()):
+                failed = True
+                if not error:
+                    error = line
+            if not cull_warnings:
+                output_stream.write(item)
+                if tmp_log is not None:
+                    with tmp_log.open('ab') as file:
+                        file.write(item)
+                if is_error_line(line):
+                    failed = True
+                elif failed and not error:
+                    error = get_error_explanation(line)
+                continue
             if structured_output:
-                line = _tool_structured_output_text(line)
                 if not line:
                     continue
 
@@ -1151,10 +1208,7 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
                     fix_tag_copy_fail(project_dir, tags_dir, line)
                 elif "animation:import: processing composite" in line:
                     print(line)
-                    composite_timeout_active = True
-                    last_activity_time = now
                 else:
-                    composite_timeout_active = False
                     # need to handle animation stuff. Most animation output is written to stderr...
                     if line.startswith("animation:import:"):
                         warning_line = line.rpartition("animation:import: ")[2]
@@ -1167,13 +1221,15 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
                     else:
                         print_warning(line)
                         
-        if composite_timeout_active:
-            while True:
-                if (time.time() - last_activity_time) > timeout_seconds:
-                    raise RuntimeError("Failed to parse composite animation")
-                if p.poll() is not None:
-                    break
-                time.sleep(0.1)
+    except BaseException:
+        if p.poll() is None:
+            p.kill()
+            p.wait(timeout=5)
+        raise
+    finally:
+        if p.poll() is not None:
+            t.join(timeout=1)
+            p.stdout.close()
 
     returncode = p.wait()
     if returncode and not failed:

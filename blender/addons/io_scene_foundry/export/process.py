@@ -3203,7 +3203,7 @@ class ExportScene:
                     
         if self.asset_type == AssetType.CINEMATIC:
             
-            cinematic_path = Path(self.asset_path, self.asset_name)
+            cinematic_path = Path(self.asset_path_relative, self.asset_name)
             with CinematicTag(path=cinematic_path) as cinematic:
                 term = "Created" if cinematic.tag_is_new else "Updated"
                 self.print_post(f"--- {term} cinematic tag: {cinematic.tag_path.RelativePathWithExtension}")

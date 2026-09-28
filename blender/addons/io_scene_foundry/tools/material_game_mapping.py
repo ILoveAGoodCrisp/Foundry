@@ -144,7 +144,7 @@ class Mapping:
             return self.set(target or source, _signal(socket))
         return False
 
-    def mix(self, a, b, factor=1.0, mode='MULTIPLY', label=''):
+    def mix(self, a, b, factor=1.0, mode='MULTIPLY'):
         if not any(hasattr(value, 'is_output') for value in (a, b, factor)):
             def rgb(value):
                 return tuple(value[:3]) if isinstance(value, (tuple, list)) else (value,) * 3
@@ -154,7 +154,6 @@ class Mapping:
             return tuple(x * (1 - factor) + blend(x, y) * factor for x, y in zip(rgb(a), rgb(b))) + (1,)
         node = self.tree.nodes.new('ShaderNodeMixRGB')
         node.blend_type = mode
-        node.label = label
         for socket, value in zip(node.inputs, (factor, a, b)):
             _put(self.tree, socket, value)
         return node.outputs[0]
@@ -313,7 +312,7 @@ def _halo1_to_modern(m):
             # Native default albedo applies the resulting detail exactly once.
             detail_factor = m.mix(detail, (2, 2, 2, 1)) if mode == 'double/biased multiply' else detail
             effective_detail = m.mix(effective_detail, m.mix((1, 1, 1, 1), detail_factor, mask, 'MIX'))
-        base = m.mix(base, blended, mask, 'MIX', 'Halo 1 detail blend')
+        base = m.mix(base, blended, mask, 'MIX')
     else:
         if active_details:
             if bake_base:
@@ -446,6 +445,8 @@ def _modern_to_h4(m):
             m.notes.add('Alpha testing is approximated with alpha blending in the selected H4 family')
             m.set('blend mode', 'alpha_blend')
         m.copy('alpha_test_map.a', 'color_map_alpha')
+        if _name(m.target) == 'srf_char_blinn_clip':
+            m.notes.add('Character clip shader preserves alpha testing; separate reflection and self-illumination controls are unavailable')
     m.notes.add('H4 lighting uses Blinn equivalents; composed color/control maps are baked for export')
 
 
@@ -536,9 +537,9 @@ def _target_group(tree, source, target_game):
                 'shader_halogram': 'srf_constant_clip' if alpha_test else 'srf_constant'}.get(family)
         if name is None:
             if _value(source, 'self_illumination', 'off') != 'off' or _value(source, 'environment_mapping', 'none') != 'none':
-                name = 'srf_char_blinn_reflection_selfillum'
+                name = 'srf_char_blinn_clip' if alpha_test else 'srf_char_blinn_reflection_selfillum'
             elif _linked(source, 'detail_map.rgb'):
-                name = 'srf_blinn_detail'
+                name = 'srf_blinn_clip' if alpha_test else 'srf_blinn_detail'
             else:
                 name = 'srf_blinn_clip' if alpha_test else 'srf_blinn'
         return _new_group(tree, library, name)
@@ -711,7 +712,6 @@ def convert_material_game(material, source_game, target_game):
                 else:
                     _modern_to_h4(m)
             target.location = source.location
-            target.label = f'{target_game}: {_family(target)}'
             _prepare_shader_export(tree, target, baker, notes)
             replacements.append((source, target, intermediates))
     except Exception as exc:
@@ -722,6 +722,7 @@ def convert_material_game(material, source_game, target_game):
         utils.print_warning(f'{material.name}: material conversion failed ({exc}); keeping source nodes. Material is not ready for target-game shader export')
         return False
 
+    material.surface_render_method = 'DITHERED'
     for source, target, intermediates in replacements:
         shader_output = next(socket for socket in target.outputs if socket.type == 'SHADER')
         for socket in source.outputs:

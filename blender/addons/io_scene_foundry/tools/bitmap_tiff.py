@@ -1,9 +1,17 @@
 """Uncompressed RGBA TIFFs supported by the editing kits' TIFF readers."""
 import struct
+from io import BytesIO
 
 
 def write_rgba_tiff(path, width, height, rgba):
     """Write 8-bit straight RGBA bytes in top-to-bottom row order."""
+    encoded = rgba_tiff_bytes(width, height, rgba)
+    with open(path, 'wb') as stream:
+        stream.write(encoded)
+
+
+def rgba_tiff_bytes(width, height, rgba):
+    """Encode the canonical TIFF representation, also used to detect conflicts."""
     if width < 1 or height < 1 or len(rgba) != width * height * 4:
         raise ValueError('Invalid RGBA TIFF dimensions or pixel data')
     count = 11
@@ -13,12 +21,13 @@ def write_rgba_tiff(path, width, height, rgba):
               (258, 3, 4, bits_offset), (259, 3, 1, 1), (262, 3, 1, 2),
               (273, 4, 1, pixel_offset), (277, 3, 1, 4), (278, 4, 1, height),
               (279, 4, 1, len(rgba)), (284, 3, 1, 1), (338, 3, 1, 2)]
-    with open(path, 'wb') as stream:
+    with BytesIO() as stream:
         stream.write(struct.pack('<2sHIH', b'II', 42, 8, count))
         for tag, kind, length, value in fields:
             stream.write(struct.pack('<HHII', tag, kind, length, value))
         stream.write(struct.pack('<I4H', 0, 8, 8, 8, 8))
         stream.write(rgba)
+        return stream.getvalue()
 
 
 def write_image_tiff(image, path):

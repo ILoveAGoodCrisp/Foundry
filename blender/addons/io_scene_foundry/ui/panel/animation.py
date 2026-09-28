@@ -2684,8 +2684,11 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
         speed_blend_axis.runtime_source_bounds = 0, 1
         speed_blend_axis.runtime_source_clamped = True
         
-        speed_blend_axis.leaves.add().animation = f"sprint {self.composite_weapon_class} move_front_fast"
-        speed_blend_axis.leaves.add().animation = f"sprint {self.composite_weapon_class} move_front_fast"
+        for value in (0.0, 1.0):
+            leaf = speed_blend_axis.leaves.add()
+            leaf.animation = f"sprint {self.composite_weapon_class} move_front_fast"
+            leaf.manual_blend_axis_0 = True
+            leaf.blend_axis_0 = value
         
     def preset_locomote(self, composite):
         composite.timing_source = f"{self.composite_mode} {self.composite_weapon_class} locomote_run_front"

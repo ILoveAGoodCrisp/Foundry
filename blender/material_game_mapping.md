@@ -34,6 +34,13 @@ differences produce warnings; unsupported target menus retain their resource
 defaults. Conversion notes are also stored on the material as
 `foundry_material_conversion_notes`.
 
+Alpha-tested character materials use `srf_char_blinn_clip`. Its separate
+reflection/self-illumination controls are unavailable, which is recorded in the
+conversion notes. Alpha-tested detail materials use `srf_blinn_clip`, with detail
+baked into color. Opaque and clipped materials use Blender's Dithered render
+method; actual blended surfaces use Blended. Created nodes retain default names
+and labels.
+
 ## H1 multipurpose bitmaps
 
 The layouts follow the shipped H1 model node's channel-order switch:
@@ -62,13 +69,14 @@ bounds/activation values.
 Conversion writes derived TIFFs under the current project's data directory,
 mirroring the source bitmap's original tagset directory. For example,
 `objects/weapons/rifle/bitmaps/rifle_multi.bitmap` produces TIFFs alongside
-`objects/weapons/rifle/bitmaps/rifle_multi_<conversion>_<digest>.tif`. The normal
+`objects/weapons/rifle/bitmaps/rifle_multi_<conversion>.tif`. The normal
 bitmap exporter uses the same relative paths under the current project's tags
 directory. Intermediate bakes retain the original source path. Inputs with no
 source bitmap path are written directly under the data root.
 
-Names include the source bitmap stem, conversion name, and a digest of dimensions
-and pixel content so separate derived maps do not overwrite each other. Source image pixels and
+Names include the source bitmap stem and conversion name. Identical saved TIFFs
+are reused; different content at an existing path adds a short numeric suffix
+such as `_2`. Source image pixels and
 files are not modified. Masks use Non-Color data and independent packed alpha.
 Color blends are computed in linear RGB and saved as sRGB; ACEScg and other
 configured source spaces use Blender's OCIO transform. Image saving bypasses
@@ -93,13 +101,15 @@ Ordinary 2D images with different resolutions and static UV scale/offset can be
 resampled into the reference texture's coordinates. Resolution increases to
 retain detail density, up to 4096 per axis for combined bakes; a warning records
 any limit or color clipping. Single-image mask extraction retains its original
-resolution. Derived TIFFs are 8-bit, matching typical extracted packed masks.
+resolution. Constant-only maps use 4x4 pixels, the minimum compressed block size.
+Derived TIFFs are 8-bit, matching typical extracted packed masks.
 
 Derived TIFFs use uncompressed RGBA storage. Blender's default TIFF save uses
 Adobe Deflate, which Reach Tool rejects while still returning success and
 producing a 1x1 bitmap. Converted images are file-backed so the saved pixels
 survive reopening the blend. Export disables size optimization for these maps
-and verifies the compiled dimensions. The next shader build repairs older
+and verifies the compiled dimensions, allowing the compiler's minimum 4x4 size
+for older tiny maps. The next shader build repairs older
 converted TIFFs and recompiles their existing bitmap tags automatically.
 
 Cubemaps keep an equirectangular image for Blender preview, with the original
@@ -157,6 +167,8 @@ in-engine rendering or shader-tag compilation.
 
 `test_bitmap_export.py` tests uncompressed TIFF storage, row/alpha preservation,
 file-backed conversions, cubemap source selection and missing-source errors.
+Use `-- --game halo4 --kit <Halo 4 editing kit directory>` to verify tiny-map
+compilation and preserved dimensions with Halo 4 Tool.
 Append `-- --kit <Reach editing kit directory>` to its Blender invocation to
 also run the real bitmap compiler in a temporary project. Those tests verify
 decoded color/alpha and dimensions, all six compiled cubemap faces, and replacement of existing

@@ -1485,6 +1485,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if len(parent_stack) > 1:
                     parent_stack.pop()
                 parent_stack.append(axis)
+            if idx == item.blend_axis_active_index:
+                break
         
         col = box.column()
         col.use_property_split = True
@@ -1503,6 +1505,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.prop(blend_axis, "runtime_source_bounds")
         col.prop(blend_axis, "runtime_source_clamped")
         col.prop(blend_axis, "adjusted")
+        col.prop(blend_axis, "phase_priority")
         col.separator()
         if not blend_axis.dead_zones:
             col.operator("nwo.animation_dead_zone_add", text="Add Dead Zone", icon='CON_OBJECTSOLVER')
@@ -1557,8 +1560,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col = box.column()
                 col.use_property_split = True
                 col.prop(phase_set, "name")
-                col.prop(phase_set, "priority")
-                col.label(text="Keys")
+                col.prop_search(phase_set, "timing_source", self.scene_nwo, "animations", icon='ANIM')
+                col.prop(phase_set, "bounds_manual")
+                if phase_set.bounds_manual:
+                    col.prop(phase_set, "bounds")
+                col.label(text="Synchronise Using Frame Events")
                 grid = col.grid_flow()
                 grid.prop(phase_set, 'key_primary_keyframe')
                 grid.prop(phase_set, 'key_secondary_keyframe')
@@ -1610,6 +1616,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             group = blend_axis.groups[blend_axis.groups_active_index]
             col = box.column()
             col.use_property_split = True
+            col.prop_search(group, "phase_set", blend_axis, "phase_sets", icon='PRESET')
             for idx, par in enumerate(parent_stack):
                 if idx > 9:
                     break

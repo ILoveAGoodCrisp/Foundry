@@ -4,14 +4,13 @@ Packed masks stay linear. Color expressions are evaluated in scene-linear RGB
 and written as sRGB. Resampling supports static affine 2D UV mappings only;
 unsupported inputs raise instead of leaving a misleading exportable graph.
 """
-from hashlib import sha256
 from pathlib import Path
 import os
 import re
 
 import bpy
 import numpy as np
-from .bitmap_tiff import write_image_tiff
+from .bitmap_tiff import rgba_tiff_bytes
 
 
 def _input(socket):
@@ -119,7 +118,8 @@ class DataTextureBaker:
                 raise ValueError('Animated, tiled or missing texture cannot be baked')
             if min(node.image.size) <= 0:
                 raise ValueError('Texture has no pixels')
-        size = tuple(anchor.image.size) if anchor else (1, 1)
+        # Constant maps still go through block compression in the editing kits.
+        size = tuple(anchor.image.size) if anchor else (4, 4)
         transforms = {}
         if sources and any(sampling(node) != sampling(anchor) for node in sources):
             if not resample:
@@ -247,7 +247,6 @@ class DataTextureBaker:
         pixels = np.clip(pixels, 0, 1)
         name = re.sub(r'[^a-z0-9_]+', '_', name.lower()).strip('_')
         space = 'sRGB' if color else 'Non-Color'
-        digest = sha256(str((size, space)).encode() + pixels.tobytes()).hexdigest()[:16]
         # Preserve the source tagset layout, including across intermediate bakes.
         # A packed bitmap can produce several outputs, so keep their names distinct.
         source_path = ''
@@ -259,30 +258,29 @@ class DataTextureBaker:
         if relative is not None and (relative.is_absolute() or relative.drive or '..' in relative.parts):
             raise ValueError('Source bitmap path must be relative to its tagset')
         if relative is not None:
-            path = self.directory / relative.parent / f'{relative.stem}_{name}_{digest}.tif'
+            path = self.directory / relative.parent / f'{relative.stem}_{name}.tif'
         else:
             # Generated inputs have no original tagset directory to preserve.
-            path = self.directory / f'{name}_{digest}.tif'
+            path = self.directory / f'{name}.tif'
+        rgba = np.rint(pixels.reshape(size[1], size[0], 4) * 255).astype(np.uint8)
+        encoded = rgba_tiff_bytes(*size, rgba[::-1].tobytes())
+        # Reuse identical outputs on repeat imports. Only a real on-disk
+        # conflict earns a suffix; never overwrite a different authored bitmap.
+        base_path = path
+        suffix = 2
+        while path.exists() and path.read_bytes() != encoded:
+            path = base_path.with_stem(f'{base_path.stem}_{suffix}')
+            suffix += 1
         key = str(path), anchor.as_pointer() if anchor else None
         cached = self.cache.get(key)
         if cached is not None:
             return cached
         path.parent.mkdir(parents=True, exist_ok=True)
-        image = bpy.data.images.new(path.stem, width=size[0], height=size[1], alpha=True)
+        if not path.exists():
+            path.write_bytes(encoded)
+        image = bpy.data.images.load(str(path), check_existing=False)
         image.colorspace_settings.name = space
         image.alpha_mode = 'CHANNEL_PACKED'
-        image.pixels.foreach_set(pixels.ravel())
-        image.filepath_raw = str(path)
-        image.file_format = 'TIFF'
-        try:
-            # Image.save uses Adobe Deflate, unsupported by the Halo TIFF reader.
-            write_image_tiff(image, path)
-            # Persist the saved pixels when the .blend is reopened.
-            image.source = 'FILE'
-            image.reload()
-        except Exception:
-            bpy.data.images.remove(image)
-            raise
         if hasattr(image, 'nwo'):
             image.nwo.filepath = str(path.relative_to(self.directory))
             image.nwo.source_name = path.name
@@ -292,7 +290,6 @@ class DataTextureBaker:
             image['foundry_source_bitmap_path'] = str(relative)
         node = self.tree.nodes.new('ShaderNodeTexImage')
         node.image = image
-        node.label = name.replace('_', ' ').title()
         if anchor:
             node.interpolation = anchor.interpolation
             node.extension = anchor.extension

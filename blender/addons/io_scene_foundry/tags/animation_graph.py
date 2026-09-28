@@ -1327,15 +1327,18 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             for animation in self.block(definitions, 'animations'):
                 name = str(self.value(animation, 'name'))
                 events: list[AnimationEvent] = []
-                for field_name, event_type in (
-                        ('left foot frame index', 'left foot'),
-                        ('right foot frame index', 'right foot')):
+                for field_name, event_type, frame_base in (
+                        ('key frame index', 'primary keyframe', 0),
+                        ('second key frame index', 'secondary keyframe', 0),
+                        ('left foot frame index', 'left foot', 1),
+                        ('right foot frame index', 'right foot', 1)):
                     frame = int(self.value(animation, field_name))
-                    # Halo 1 reserves zero for "no foot event".
+                    # Zero means no event. Keyframe indices are zero-based;
+                    # foot slots use one-based frame numbers.
                     if frame <= 0:
                         continue
                     event = AnimationEvent()
-                    event.frame = utils.blender_frame(frame - 1)
+                    event.frame = utils.blender_frame(frame - frame_base)
                     event.end_frame = event.frame
                     event.type = event_type
                     events.append(event)
@@ -1552,8 +1555,9 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             animation = self.required_field(element, 'animation').as_struct()
             if animation is None:
                 raise TypeError(f'{self.path}: blend screen {index} animation is not a struct')
-            if self.game == 'reach':
-                self.required_field(animation, 'graph index').set(-1)
+            # Newly added native blocks default to zero. These sources belong
+            # to this graph, which uses -1 in Reach and H4/H2AMP alike.
+            self.required_field(animation, 'graph index').set(-1)
             self.required_field(animation, 'animation').set(animation_index)
 
             state = name.rsplit(':', 1)[-1]

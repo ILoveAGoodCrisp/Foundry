@@ -1,5 +1,8 @@
 
 from pathlib import Path
+import math
+from copy import deepcopy
+from itertools import combinations
 import bpy
 
 from ... import utils
@@ -423,14 +426,11 @@ class CompositeXML:
         self._automatic_value_ranges = {}
         
     def build_xml(self):
+        if not self.data.timing_source.strip():
+            raise RuntimeError(f"Composite [{self.data.name}]: select a timing source animation")
         self._automatic_value_ranges = self.automatic_value_ranges()
         element_composite = ET.Element("composite")
-        timing_source_name = utils.AnimationName(self.data.timing_source)
-        if timing_source_name.variant:
-            timing_name = f"{timing_source_name.state} {timing_source_name.variant}"
-        else:
-            timing_name = timing_source_name.state
-        ET.SubElement(element_composite, "timing", source=timing_name)
+        ET.SubElement(element_composite, "timing", source=self.source_name(self.data.timing_source))
         
         parent_stack = []
         element_stack = []
@@ -454,7 +454,8 @@ class CompositeXML:
                 element_stack.append(parent_element)
 
             element_stack[-1] = self.write_blend_axis_entry(blend_axis, element=parent_element, parent_stack=parent_stack)
-            
+
+        self.prepare_blend_space(element_composite)
         dom = xml.dom.minidom.parseString(ET.tostring(element_composite))
         xml_string = dom.toprettyxml(indent="  ")
         part1, part2 = xml_string.split("?>")
@@ -476,6 +477,192 @@ class CompositeXML:
                 )
             
         return str(relative_path)
+
+    def source_name(self, label):
+        """Short names inherit composite scope; retain explicitly different scopes."""
+        name = utils.AnimationName(label)
+        composite = utils.AnimationName(self.data.name)
+        if (name.valid and not name.custom and name.type == utils.AnimationStateType.ACTION
+                and all(getattr(name, field) == getattr(composite, field)
+                        for field in ('mode', 'weapon_class', 'weapon_type', 'set'))):
+            return f'{name.state} {name.variant}' if name.variant else name.state
+        return label.replace(':', ' ').strip()
+
+    def prepare_blend_space(self, root):
+        """Repair redundant movement dimensions in exported XML, then validate sets.
+
+        Keep authored Blender data intact. Tool counts every axis and expects
+        every leaf at the end of one axis chain, including leaves in phase sets.
+        """
+        def fail(message):
+            raise RuntimeError(f"Composite [{self.data.name}]: {message}")
+
+        axes = list(root.iter('blend_axis'))
+        if not axes:
+            fail('add at least one blend axis')
+        parent = root
+        for axis in axes:
+            if parent.findall('blend_axis') != [axis]:
+                fail('Tool requires a single chain of blend axes; use Child relationships')
+            if parent is not root and (parent.findall('leaf') or parent.findall('phase_set')):
+                fail('place all animations and phase sets on the innermost blend axis')
+            parent = axis
+        if len(axes) > 3:
+            fail('the supplied Tool importer supports at most three blend axes')
+        leaves = list(root.iter('leaf'))
+        if not leaves:
+            fail('no animation sources are configured')
+
+        # A constant movement direction is not a blend dimension. Speed-only
+        # forward locomotion must remain valid for old .blend files as well.
+        for axis in sorted(axes, key=lambda item: item.find('animation').get('source') != 'linear_movement_angle'):
+            source = axis.find('animation').get('source')
+            if source not in {'linear_movement_angle', 'linear_movement_speed'} or len(axes) == 1:
+                continue
+            selection = axis.find('phase_select')
+            if selection is not None and selection.get('priority') != 'current':
+                continue  # Do not discard an explicitly authored selection policy.
+            values = [leaf.get(source) for leaf in leaves]
+            if any(value is None for value in values):
+                continue  # Tool will measure unresolved motion from its animation data.
+            values = [float(value) for value in values]
+            if not all(math.isfinite(value) for value in values):
+                fail(f'non-finite sample value on {axis.get("name")}')
+            if max(values) - min(values) > 1e-6:
+                continue
+            if axis is axes[0] and any('bounds' in phase.attrib for phase in root.iter('phase_set')):
+                continue  # Explicit set bounds belong to the original outer axis.
+            owner = next(node for node in root.iter() if axis in list(node))
+            position = list(owner).index(axis)
+            owner.remove(axis)
+            for child in list(axis):
+                if child.tag in {'blend_axis', 'phase_set', 'leaf'}:
+                    owner.insert(position, child)
+                    position += 1
+            for leaf in leaves:
+                leaf.attrib.pop(source, None)
+            axes.remove(axis)
+            utils.print_warning(f"Composite [{self.data.name}]: omitted constant {axis.get('name')} axis from export")
+
+        terminal = axes[-1]
+        sets = terminal.findall('phase_set')
+        loose = terminal.findall('leaf')
+        if sets and loose:
+            # Tool's sets use contiguous offsets. Mixing loose leaves with named
+            # sets otherwise makes those offsets ambiguous.
+            name = '__ungrouped'
+            while any(phase.get('name') == name for phase in sets):
+                name += '_'
+            implicit = ET.SubElement(terminal, 'phase_set', name=name)
+            for leaf in loose:
+                terminal.remove(leaf)
+                implicit.append(leaf)
+            sets.append(implicit)
+        populations = sets or [terminal]
+        sources = [axis.find('animation').get('source') for axis in axes]
+        for population in populations:
+            label = population.get('name', 'animations')
+            if 'bounds' in population.attrib:
+                lo, hi = map(float, population.get('bounds').split(','))
+                if not math.isfinite(lo) or not math.isfinite(hi) or hi < lo:
+                    fail(f'phase set [{label}] needs finite, ordered set bounds')
+            samples = []
+            seen = set()
+            for leaf in population.findall('leaf'):
+                key = tuple(sorted(leaf.attrib.items()))
+                if key in seen:
+                    population.remove(leaf)
+                else:
+                    samples.append(leaf)
+                    seen.add(key)
+            if not samples:
+                fail(f'phase set [{label}] has no animation sources')
+            # A deliberate constant-pose speed blend can reference one clip at
+            # two endpoints. This does not invent a different animation or gait.
+            if len(axes) == 1 and sources == ['linear_movement_speed'] and len({leaf.get('source') for leaf in samples}) == 1:
+                bounds = [float(value) for value in axes[0].find('animation').get('bounds').split(',')]
+                if bounds[0] == bounds[1] and len(samples) == 1:
+                    # Equal bounds mean automatic extents to Tool. A single
+                    # speed sample needs a nonzero interval for the fallback.
+                    bounds = [0.0, max(float(samples[0].get(sources[0], '1')), 1e-3)]
+                    axes[0].find('animation').set('bounds', self.two_vector_string(bounds))
+                if bounds[1] > bounds[0] and len(samples) == 1:
+                    samples[0].set(sources[0], self.format_number(bounds[0]))
+                    other = deepcopy(samples[0])
+                    other.set(sources[0], self.format_number(bounds[1]))
+                    population.append(other)
+                    samples.append(other)
+                    utils.print_warning(f"Composite [{self.data.name}]: using one clip at both speed endpoints; verify stride and playback in game")
+            if len(samples) <= len(axes):
+                fail(f'phase set [{label}] has {len(samples)} samples for {len(axes)} axes; needs at least {len(axes) + 1}')
+            points = []
+            for leaf in samples:
+                point = []
+                for axis, source in zip(axes, sources):
+                    value = leaf.get(source if source != 'none' else axis.find('runtime').get('source'))
+                    if value is None:
+                        break
+                    lo, hi = map(float, axis.find('animation').get('bounds').split(','))
+                    value = float(value)
+                    if not math.isfinite(value) or not math.isfinite(lo) or not math.isfinite(hi) or hi < lo:
+                        fail(f'phase set [{label}] has invalid values or bounds on {axis.get("name")}')
+                    point.append((value - lo) / (hi - lo) if hi != lo else value)
+                if len(point) != len(axes):
+                    break
+                points.append(point)
+            if len(points) != len(samples):
+                utils.print_warning(f"Composite [{self.data.name}]: phase set [{label}] has unresolved motion values; Tool must validate its geometry")
+                continue
+            for i, point in enumerate(points):
+                if any(max(abs(a-b) for a, b in zip(point, other)) < 1e-6 for other in points[:i]):
+                    fail(f'phase set [{label}] contains duplicate sample coordinates')
+            rows = [[a-b for a, b in zip(point, points[0])] for point in points[1:]]
+            rank = 0
+            for column in range(len(axes)):
+                pivot = next((i for i in range(rank, len(rows)) if abs(rows[i][column]) > 1e-6), None)
+                if pivot is None:
+                    continue
+                rows[rank], rows[pivot] = rows[pivot], rows[rank]
+                scale = rows[rank][column]
+                rows[rank] = [value / scale for value in rows[rank]]
+                for i in range(rank + 1, len(rows)):
+                    scale = rows[i][column]
+                    rows[i] = [a - scale*b for a, b in zip(rows[i], rows[rank])]
+                rank += 1
+            if rank < len(axes):
+                fail(f'phase set [{label}] samples only span {rank} dimensions for {len(axes)} axes; remove an unused axis or add suitable movement samples')
+            if len(axes) == 2:
+                limits = []
+                for axis in axes:
+                    node = axis.find('animation')
+                    limit = float(node.get('limit', '0'))
+                    lo, hi = map(float, node.get('bounds').split(','))
+                    limits.append((limit / (hi - lo) if hi > lo else limit) if limit > 0 else math.inf)
+                if any(math.isfinite(limit) for limit in limits):
+                    # Full rank alone is insufficient: Tool's blend limits must
+                    # allow a non-degenerate triangle at every sample. Converted
+                    # diagonals often lie exactly between two cardinal samples.
+                    def allowed(a, b):
+                        return all(abs(x-y) <= limit + 1e-6 for x, y, limit in zip(a, b, limits))
+                    for index, point in enumerate(points):
+                        neighbors = [other for i, other in enumerate(points) if i != index and allowed(point, other)]
+                        supported = False
+                        for a, b in combinations(neighbors, 2):
+                            area = (a[0]-point[0]) * (b[1]-point[1]) - (a[1]-point[1]) * (b[0]-point[0])
+                            if abs(area) > 1e-6 and allowed(a, b):
+                                supported = True
+                                break
+                        if not supported:
+                            for axis, limit in zip(axes, limits):
+                                if math.isfinite(limit):
+                                    axis.find('animation').set('limit', '0')
+                            utils.print_warning(
+                                f'Composite [{self.data.name}]: phase set [{label}] blend limits leave '
+                                f'[{samples[index].get("source")}] without a non-degenerate triangle. '
+                                'Tool can hang on this layout. Exported finite Animation Source Limits '
+                                'as 0 (unlimited); saved Blender settings are unchanged. Check blending '
+                                'in game, or author a complete directional grid to retain finite limits.')
+                            break
 
     def automatic_value_for_axis(self, animation_name, blend_axis):
         raw_value = self.raw_automatic_value_for_axis(animation_name, blend_axis.name)
@@ -507,7 +694,7 @@ class CompositeXML:
 
     def collect_automatic_value_ranges(self, parent, parent_stack, ranges):
         for leaf in getattr(parent, "leaves", []):
-            self.collect_leaf_automatic_value_ranges(leaf, parent_stack, ranges)
+            self.collect_leaf_automatic_value_ranges(leaf, parent_stack, ranges, parent)
 
         for phase_set in getattr(parent, "phase_sets", []):
             self.collect_automatic_value_ranges(phase_set, parent_stack, ranges)
@@ -515,9 +702,9 @@ class CompositeXML:
         for group in getattr(parent, "groups", []):
             self.collect_automatic_value_ranges(group, parent_stack, ranges)
 
-    def collect_leaf_automatic_value_ranges(self, leaf, parent_stack, ranges):
+    def collect_leaf_automatic_value_ranges(self, leaf, parent_stack, ranges, parent=None):
         for idx, blend_axis in enumerate(parent_stack):
-            if idx > 9 or getattr(leaf, f"manual_blend_axis_{idx}"):
+            if idx > 9 or getattr(leaf, f"manual_blend_axis_{idx}") or getattr(parent, f"manual_blend_axis_{idx}", False):
                 continue
 
             source = animation_source_from_name(blend_axis.name)
@@ -600,31 +787,50 @@ class CompositeXML:
         ET.SubElement(element_blend_axis, "runtime", source=runtime_source_name, bounds=self.two_vector_string(self.runtime_bounds_for_axis(blend_axis)), clamped=str(blend_axis.runtime_source_clamped).lower())
         if blend_axis.adjusted != "none":
             ET.SubElement(element_blend_axis, "adjustment", rate=blend_axis.adjusted)
+        priority = getattr(blend_axis, 'phase_priority', 'default')
+        if priority == 'default':
+            legacy = {phase.priority for phase in blend_axis.phase_sets if phase.priority != 'default'}
+            if len(legacy) > 1:
+                raise RuntimeError(f"Composite [{self.data.name}]: conflicting legacy phase priorities; select one priority on the blend axis")
+            priority = next(iter(legacy), 'current')
+        ET.SubElement(element_blend_axis, 'phase_select', priority=priority)
             
         for dead_zone in blend_axis.dead_zones:
             ET.SubElement(element_blend_axis, "dead_zone", bounds=self.two_vector_string(dead_zone.bounds), rate=self.format_number(dead_zone.rate))
         
-        emitted_leaf_values = set()
+        emitted_leaf_values = {}
         for leaf in blend_axis.leaves:
             self.write_leaf_entry(element_blend_axis, leaf, parent_stack, emitted_leaf_values=emitted_leaf_values)
         
+        phase_names = {phase.name for phase in blend_axis.phase_sets}
+        for group in blend_axis.groups:
+            if group.phase_set and group.phase_set not in phase_names:
+                raise RuntimeError(f"Composite [{self.data.name}]: group [{group.name}] refers to missing phase set [{group.phase_set}]")
         for phase_set in blend_axis.phase_sets:
-            self.write_phase_set_entry(element_blend_axis, phase_set, parent_stack)
+            groups = [group for group in blend_axis.groups if group.phase_set == phase_set.name]
+            self.write_phase_set_entry(element_blend_axis, phase_set, parent_stack, groups)
             
         for group in blend_axis.groups:
-            self.write_group_entry(element_blend_axis, group, parent_stack, emitted_leaf_values)
+            if not group.phase_set:
+                self.write_group_entry(element_blend_axis, group, parent_stack, emitted_leaf_values)
             
         return element_blend_axis
             
-    def write_phase_set_entry(self, element_blend_axis, phase_set, parent_stack):
+    def write_phase_set_entry(self, element_blend_axis, phase_set, parent_stack, groups=()):
         element_phase_set = ET.SubElement(element_blend_axis, "phase_set", name=phase_set.name)
+        if phase_set.timing_source:
+            element_phase_set.set('timing', self.source_name(phase_set.timing_source))
+        if phase_set.bounds_manual:
+            element_phase_set.set('bounds', self.two_vector_string(phase_set.bounds))
         for k in keys:
             if getattr(phase_set, f"key_{k}"):
                 ET.SubElement(element_phase_set, "sync", key=k.replace("_", " "))
                 
-        emitted_leaf_values = set()
+        emitted_leaf_values = {}
         for leaf in phase_set.leaves:
             self.write_leaf_entry(element_phase_set, leaf, parent_stack, emitted_leaf_values=emitted_leaf_values)
+        for group in groups:
+            self.write_group_entry(element_phase_set, group, parent_stack, emitted_leaf_values)
             
     def write_group_entry(self, element_blend_axis, group, parent_stack, emitted_leaf_values=None):
         props = {}
@@ -639,13 +845,9 @@ class CompositeXML:
             self.write_leaf_entry(element_blend_axis, leaf, parent_stack, props, emitted_leaf_values)
 
     def write_leaf_entry(self, element, leaf, parent_stack, inherited_props=None, emitted_leaf_values=None):
-        name = utils.AnimationName(leaf.animation)
-        state = name.state
-
-        if name.variant:
-            state = f"{state} {name.variant}"
-
-        props = {"source": state}
+        if not leaf.animation.strip():
+            raise RuntimeError(f"Composite [{self.data.name}]: select an animation for every source")
+        props = {"source": self.source_name(leaf.animation)}
         if inherited_props:
             props.update(inherited_props)
 
@@ -668,8 +870,11 @@ class CompositeXML:
             key = self.leaf_parameter_key(parent_stack, props)
             if key is not None:
                 if key in emitted_leaf_values:
+                    previous = emitted_leaf_values[key]
+                    if previous != props['source']:
+                        raise RuntimeError(f"Composite [{self.data.name}]: [{previous}] and [{props['source']}] have identical blend coordinates; choose one source or assign meaningful distinct values")
                     return
-                emitted_leaf_values.add(key)
+                emitted_leaf_values[key] = props['source']
 
         ET.SubElement(element, "leaf", props)
 

@@ -336,6 +336,17 @@ class ShaderTag(BlenderTag, TagDocument):
                 return element
         return None
 
+    def _Element_remove_if_needed(self, block, field_name: str, value):
+        # Resolve matches before mutating the native block: deletion invalidates
+        # element views and shifts every subsequent element's index.
+        indices = []
+        for element in block.Elements:
+            field = element.SelectField(field_name)
+            if field is not None and field.Value == value:
+                indices.append(element.ElementIndex)
+        for index in reversed(indices):
+            block.RemoveElement(index)
+
     @staticmethod
     def _EnumIntValue(block, field_name: str, value: str) -> int | None:
         element = block.Elements[0] if block.Elements.Count else None
@@ -1568,8 +1579,6 @@ class ShaderTag(BlenderTag, TagDocument):
                 return None
             image_node = nodes.new('ShaderNodeTexEnvironment' if result.cubemap
                                    else 'ShaderNodeTexImage')
-            image_node.name = name
-            image_node.label = name
             image_node.location = (-400, -240 * sum(
                 n.type in {'TEX_IMAGE', 'TEX_ENVIRONMENT'} for n in nodes))
             image_node.image = result.image
@@ -1589,7 +1598,6 @@ class ShaderTag(BlenderTag, TagDocument):
                                       'Generated' if self.generated_uvs else 'UV']
             if not reflection and tiling != (1.0, 1.0):
                 mapping = nodes.new('ShaderNodeMapping')
-                mapping.label = name + ' scale'
                 mapping.location = (-700, image_node.location.y)
                 mapping.inputs['Scale'].default_value = (*tiling, 1.0)
                 tree.links.new(vector, mapping.inputs['Vector'])

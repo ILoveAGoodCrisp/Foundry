@@ -914,7 +914,10 @@ class Sidecar:
     
 def write_composite_xml(composite, blend_axis_values=None) -> str:
     composite_xml = CompositeXML(composite, blend_axis_values)
-    return composite_xml.build_xml()
+    try:
+        return composite_xml.build_xml()
+    except RuntimeError as error:
+        raise ExportCancelled(str(error)) from error
 
 def get_cinematic_scenes(filepath: Path | str) -> list[str] | None:
     """Opens the specified sidecar and gets a list of all cinematic scenes"""
