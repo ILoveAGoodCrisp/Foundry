@@ -151,6 +151,23 @@ class ScenarioDocument(TagDocument):
             self.set_reference(block[index], 'structure bsp', reference)
             existing.add(key)
 
+    def retain_structure_bsps(self, paths: Iterable[TagPathInput]) -> int:
+        """Remove BSP references outside the exported asset, keeping retained rows."""
+        wanted = {
+            self.reference_from_path(path).RelativePathWithExtension.casefold()
+            for path in paths
+        }
+        block = self.block(self.tag.root(), 'structure bsps')
+        removed = 0
+        for index in range(len(block) - 1, -1, -1):
+            reference = self.reference(block[index], 'structure bsp')
+            if reference is None or reference.RelativePathWithExtension.casefold() not in wanted:
+                block.delete(index)
+                removed += 1
+        if removed:
+            self.tag_has_changes = True
+        return removed
+
     def scenario_type(self) -> int:
         field = self.required_field(self.tag.root(), 'type')
         value = field.value
@@ -573,6 +590,12 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
         return [reference.RelativePathWithExtension for element in self.block(root, 'skies')
                 if (reference := self.reference(element, 'sky')) is not None
                 and self.path_exists(reference)]
+
+    def get_sky_references(self):
+        """Return every sky slot in tag order, including unresolved references."""
+        return [reference.RelativePathWithExtension if reference is not None else ""
+                for element in self.block(self.tag.root(), 'skies')
+                for reference in (self.reference(element, 'sky'),)]
 
     def child_scenario_paths(self):
         root = self.tag.root()
@@ -1096,6 +1119,35 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 if self.value(element, 'default sky') == -1:
                     self._set_value(element, 'default sky', sky_index)
         return sky_name, sky_index
+
+    def set_skies(self, paths):
+        """Replace the ordered skies block while preserving other object-name indices."""
+        paths = list(paths)
+        for path in paths:
+            if not path or Path(path).suffix.lower() not in {'.sky', '.scenery'} or Path(path).is_absolute() or '..' in Path(path).parts:
+                raise ValueError(f'Invalid sky tag path: {path!r}')
+        root = self.tag.root()
+        skies = self.block(root, 'skies')
+        object_names = self.block(root, 'object names')
+        name_indices = [self.value(element, 'name') for element in skies]
+        if len(skies):
+            self.tag_has_changes = True
+        skies.clear()
+        for sky_index, path in enumerate(paths):
+            skies = self.block(root, 'skies')
+            skies.add()
+            skies = self.block(root, 'skies')
+            self.set_reference(skies[sky_index], 'sky', path)
+            name_index = name_indices[sky_index] if sky_index < len(name_indices) else -1
+            if not isinstance(name_index, int) or not 0 <= name_index < len(object_names):
+                name_index = object_names.add()
+                object_names = self.block(root, 'object names')
+            self._set_value(object_names[name_index], 'name', Path(path).stem)
+            self._set_value(skies[sky_index], 'name', name_index)
+        if self.corinth and paths:
+            for element in self.block(root, 'structure bsps'):
+                if self.value(element, 'default sky') == -1:
+                    self._set_value(element, 'default sky', 0)
 
     def set_bsp_default_sky(self, bsp_name, sky_index):
         element = self._bsp(bsp_name)

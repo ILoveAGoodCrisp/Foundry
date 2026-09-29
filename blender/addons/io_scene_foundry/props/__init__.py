@@ -31,6 +31,7 @@ classes = [
     scene.NWO_AnimationEventData_ListItems,
     scene.NWO_Animation_ListItems,
     scene.NWO_AnimationPropertiesGroup,
+    scene.NWO_ScenarioSky,
     scene.NWO_ZoneSets_ListItems,
     scene.NWO_MaterialOverrides,
     scene.NWO_PermutationClones,

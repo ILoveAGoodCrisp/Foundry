@@ -820,7 +820,7 @@ def ensure_import_operator_enum_defaults(keywords):
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "jms", "jma", "bitmap", "camera_track", "model", "render_model", "physics_model", "sky", "scenario", "scenario_structure_bsp", "scenario_structure_lighting_info", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
+formats = "jms", "jma", "wrl", "bitmap", "camera_track", "model", "render_model", "physics_model", "sky", "scenario", "scenario_structure_bsp", "scenario_structure_lighting_info", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
 
 xref_tag_types = (
     ".crate",
@@ -850,6 +850,7 @@ object_tag_types = (
 filetype_suffixes = (
     ("jms", legacy_model_formats),
     ("jma", legacy_animation_formats),
+    ("wrl", (".wrl",)),
     ("bitmap", (".bitmap",)),
     ("camera_track", (".camera_track",)),
     ("render_model", (".render_model", ".gbxmodel")),
@@ -1175,7 +1176,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
 class NWO_Import(bpy.types.Operator):
     bl_label = "Foundry Import"
     bl_idname = "nwo.foundry_import"
-    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: JMA, JMS, ASS, bitmap tags, camera_track tags, model tags (collision & skeleton only)"
+    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: JMA, JMS, ASS, WRL diagnostics, bitmap tags, camera_track tags, model tags (collision & skeleton only)"
     
     @classmethod
     def poll(cls, context):
@@ -1668,6 +1669,9 @@ class NWO_Import(bpy.types.Operator):
                 
                 if 'jms' in importer.extensions:
                     imported_objects.extend(importer.import_jms_files(importer.sorted_filepaths["jms"], self.legacy_type))
+
+                if 'wrl' in importer.extensions:
+                    importer.import_wrl_files(importer.sorted_filepaths["wrl"])
 
 
                             
@@ -2552,6 +2556,8 @@ class NWO_Import(bpy.types.Operator):
             if 'jms' in self.scope:
                 self.legacy_okay = True
                 self.filter_glob += '*.jms;*.ass;'
+            if 'wrl' in self.scope:
+                self.filter_glob += '*.wrl;'
             if 'jma' in self.scope:
                 self.legacy_okay = True
                 self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;'
@@ -2571,7 +2577,7 @@ class NWO_Import(bpy.types.Operator):
         scope_items = set(self.scope.split(',')) if self.scope else set()
         corinth = project.corinth if project is not None else corinth
         if (utils.get_scene_props().asset_type != 'cinematic' and 'cinematic' not in scope_items
-                and (not scope_items or any(item not in {'jms', 'jma'} for item in scope_items))):
+                and (not scope_items or any(item not in {'jms', 'jma', 'wrl'} for item in scope_items))):
             box = layout.box()
             box.label(text="Tag Source Data")
             box.prop(self, "use_import_info")
@@ -3055,7 +3061,7 @@ class NWOImporter:
         if cached is not None:
             return cached
         self.import_info_source_cache[key] = []
-        if Path(tag_path).suffix.lower() in legacy_model_formats + legacy_animation_formats:
+        if Path(tag_path).suffix.lower() in legacy_model_formats + legacy_animation_formats + ('.wrl',):
             return []
         try:
             with utils.TagImportMover(self.tags_dir, tag_path) as mover:
@@ -4609,7 +4615,9 @@ class NWOImporter:
     
     def import_scenarios(self, paths, build_blender_materials, always_extract_bitmaps, return_collection=False, merge_sky_to_scenario_collection=False):
         imported_objects = []
+        scene_skies = utils.get_scene_props().scenario_skies
         for file in paths:
+            scene_skies.clear()
             if self.tag_zone_set:
                 utils.print_section(f'Importing Scenario Tag: {Path(file).with_suffix("").name} with Zone Set {self.tag_zone_set}')
             else:
@@ -4618,6 +4626,8 @@ class NWOImporter:
             with utils.TagImportMover(self.tags_dir, file) as mover:
                 with ScenarioMetadataTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
+                    for sky_path in scenario.get_sky_references():
+                        scene_skies.add().path = sky_path
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
                     if scenario.game in {'halo1', 'halo2'} and self.tag_bsp:
                         bsps = [bsp for bsp in bsps if Path(bsp).stem.casefold() == self.tag_bsp.casefold()]
@@ -5099,6 +5109,14 @@ class NWOImporter:
 
 # JMS/ASS importer
 ######################################################################
+
+    def import_wrl_files(self, wrl_files):
+        from ..legacy.wrl import import_errors
+
+        rotation = utils.blender_halo_rotation_diff(self.scene_nwo.forward_direction)
+        scale = 1 / import_transform.scale_factor(self.scene_nwo)
+        for path in wrl_files:
+            import_errors(Path(path), self.context.scene, rotation, scale)
 
     def import_jms_files(self, jms_files, legacy_type, *, tag_armature=None,
                          parent_collection=None, geometry_only=False):
@@ -5997,7 +6015,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import_from_drop"
-    bl_file_extensions = ".jms;.ass;.bitmap;.model;.gbxmodel;.render_model;.physics_model;.physics;.sky;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.model_animations;.prefab;.structure_design;.polyart_asset;.decorator_set"
+    bl_file_extensions = ".wrl;.jms;.ass;.bitmap;.model;.gbxmodel;.render_model;.physics_model;.physics;.sky;.scenario;.scenario_structure_bsp;.scenario_structure_lighting_info;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track;.particle_model;.biped;.crate;.creature;.device_control;.device_dispenser;.effect_scenery;.equipment;.giant;.device_machine;.projectile;.scenery;.spawner;.sound_scenery;.device_terminal;.vehicle;.weapon;.model_animation_graph;.model_animations;.prefab;.structure_design;.polyart_asset;.decorator_set"
 
     @classmethod
     def poll_drop(cls, context):

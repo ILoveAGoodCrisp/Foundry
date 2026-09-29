@@ -3790,21 +3790,40 @@ class AnimationTag(AnimationGraphTag):
         animation_data = self._build_animation(tag_animation, defaults, overlay_defaults, graph, shared_static_codec, resource_cache, animation_cache, all_tag_animations)
         converter = getattr(self, '_legacy_converter', None)
         frames = converter.frames(tag_animation, animation_data) if converter else animation_data.frame_matrices()
+        pedestal_node = getattr(self, '_reach_pedestal_node', None)
+        transition_offset = None
+        state = tag_animation.name.state.lower()
+        if pedestal_node is not None and frames and ('enter' in state or 'exit' in state):
+            # Exit from the root to the final pelvis offset; enter from the
+            # initial pelvis offset back to the root. Keep all other bone motion
+            # on the pelvis, including rotation and deviations from this line.
+            entering = 'exit' not in state
+            endpoint = frames[0 if entering else -1][0]
+            endpoint = import_transform.armature_bone_matrix(endpoint, root=True)
+            pelvis_rest = import_transform.armature_bone_matrix(
+                Matrix.Translation(defaults[0].translation), root=True)
+            transition_offset = endpoint.translation - pelvis_rest.translation
         transforms = {}
         for frame_index, frame_matrices in enumerate(frames, start=1):
             frame_transforms = {}
             for node, matrix in zip(nodes, frame_matrices):
                 matrix = import_transform.armature_bone_matrix(matrix, root=node.parent is None)
                 frame_transforms[node] = matrix
-            pedestal_node = getattr(self, '_reach_pedestal_node', None)
             if pedestal_node is not None:
                 from ..tools.animation.legacy_import import split_root_movement
                 root = nodes[0]
-                unmoved_roots = self._reach_unmoved_roots.get(id(animation_data))
-                unmoved = (import_transform.armature_bone_matrix(unmoved_roots[frame_index - 1], root=True)
-                           if unmoved_roots else frame_transforms[root])
-                frame_transforms[pedestal_node], frame_transforms[root] = split_root_movement(
-                    frame_transforms[root], unmoved, self._reach_pedestal_rest)
+                if transition_offset is not None:
+                    progress = (frame_index - 1) / max(len(frames) - 1, 1)
+                    weight = 1.0 - progress if entering else progress
+                    pedestal = Matrix.Translation(transition_offset * weight) @ self._reach_pedestal_rest
+                    frame_transforms[root] = pedestal.inverted_safe() @ frame_transforms[root]
+                    frame_transforms[pedestal_node] = pedestal
+                else:
+                    unmoved_roots = self._reach_unmoved_roots.get(id(animation_data))
+                    unmoved = (import_transform.armature_bone_matrix(unmoved_roots[frame_index - 1], root=True)
+                               if unmoved_roots else frame_transforms[root])
+                    frame_transforms[pedestal_node], frame_transforms[root] = split_root_movement(
+                        frame_transforms[root], unmoved, self._reach_pedestal_rest)
             transforms[frame_index] = frame_transforms
         return transforms
         

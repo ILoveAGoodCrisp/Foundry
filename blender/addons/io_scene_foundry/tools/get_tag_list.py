@@ -71,6 +71,14 @@ class NWO_GetTagsList(bpy.types.Operator):
     
     def execute(self, context):
         scene_nwo = get_scene_props()
+        if self.list_type == 'sky_path':
+            if not scene_nwo.scenario_skies:
+                return {'CANCELLED'}
+            index = min(max(scene_nwo.active_scenario_sky_index, 0), len(scene_nwo.scenario_skies) - 1)
+            nwo = scene_nwo.scenario_skies[index]
+            nwo.path = self.tag_list
+            redraw_area(context, 'VIEW_3D')
+            return {'FINISHED'}
         if self.list_type in scene_props:
             nwo = scene_nwo
         elif self.list_type == 'shader_path':
@@ -104,6 +112,8 @@ def extensions_from_type(list_type):
     project = get_project()
     halo1 = project is not None and project.game == 'halo1'
     match list_type:
+        case 'sky_path':
+            return ('.sky', '.scenery')
         case "marker_game_instance_tag_name":
             return (".crate", ".scenery", ".effect_scenery", ".device_control", ".device_machine", ".device_terminal",
                         ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment",
@@ -264,14 +274,19 @@ class NWO_TagExplore(bpy.types.Operator):
                 if not open_in_explorer(self.filepath):
                     self.report({'WARNING'}, "Failed to open file")
         else:
-            setattr(self.nwo, self.prop, relative_path(self.filepath))
+            setattr(self.nwo, 'path' if self.prop == 'sky_path' else self.prop, relative_path(self.filepath))
             if getattr(self, "do_rename", False):
                 context.object.active_material.name = Path(self.filepath).with_suffix("").name
         return {"FINISHED"}
     
     def set_nwo(self, context):
         scene_nwo = get_scene_props()
-        if self.prop in scene_props:
+        if self.prop == 'sky_path':
+            if not scene_nwo.scenario_skies:
+                return
+            index = min(max(scene_nwo.active_scenario_sky_index, 0), len(scene_nwo.scenario_skies) - 1)
+            nwo = scene_nwo.scenario_skies[index]
+        elif self.prop in scene_props:
             nwo = scene_nwo
         elif self.prop == 'shader_path':
             nwo = context.object.active_material.nwo
@@ -293,7 +308,7 @@ class NWO_TagExplore(bpy.types.Operator):
             nwo = context.object.nwo
             
         self.nwo = nwo
-        self.filepath = str(Path(get_tags_path(), relative_path(getattr(nwo, self.prop, ""))))
+        self.filepath = str(Path(get_tags_path(), relative_path(getattr(nwo, 'path' if self.prop == 'sky_path' else self.prop, ""))))
 
     def invoke(self, context, event):
         self.open_in_explorer = event.alt
@@ -312,6 +327,8 @@ def get_glob_from_prop(prop):
     project = get_project()
     halo1 = project is not None and project.game == 'halo1'
     match prop:
+        case 'sky_path':
+            return '*.sky;*.scenery'
         case 'marker_game_instance_tag_name':
             return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light;dec*_set"
         case 'attachment_type':

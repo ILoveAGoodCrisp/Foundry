@@ -3,6 +3,7 @@ from mathutils import Euler, Matrix, Vector
 from .connected_geometry import ModelCollision, PathfindingSphere
 from .blender import BlenderTag
 from .collision import CollisionDocument
+from .model_permutations import select_model_records
 from .. import utils
 from .. import import_transform
 import bpy
@@ -19,24 +20,7 @@ class CollisionTag(BlenderTag, CollisionDocument):
         if armature is None:
             armature = utils.get_rig()
         meshes, spheres = self.read_collision()
-        if variant:
-            if isinstance(variant, str):
-                allowed_region_permutations = set()
-                if variant != 'all_permutations':
-                    records_by_region = {}
-                    for record in meshes:
-                        records_by_region.setdefault(record.region, []).append(record)
-                    for region, records in records_by_region.items():
-                        selected = next(
-                            (record for record in records if record.permutation == variant),
-                            records[0],
-                        )
-                        allowed_region_permutations.add((region, selected.permutation))
-            else:
-                allowed_region_permutations = set(variant)
-            if allowed_region_permutations:
-                meshes = [record for record in meshes
-                          if (record.region, record.permutation) in allowed_region_permutations]
+        meshes = select_model_records(meshes, variant)
         if not meshes and not spheres:
             return []
         if armature is None:

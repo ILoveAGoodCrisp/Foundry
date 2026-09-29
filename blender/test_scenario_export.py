@@ -93,6 +93,31 @@ class ScenarioExportTests(unittest.TestCase):
         self.assert_setup('collection_export')
         self.assertFalse(self.tag_path().exists())
 
+    def test_structure_bsp_references_follow_exported_asset(self):
+        for game in ('halo1', 'halo2', 'halo3', 'halo3odst'):
+            with self.subTest(game=game):
+                path = self.tags / game / 'level.scenario'
+                prefix = f'{game}/level/'
+                with ScenarioDocument(path, tags_root=self.tags, game=game) as tag:
+                    block = tag.block(tag.tag.root(), 'structure bsps')
+                    for name in ('bsp_a', 'obsolete', 'bsp_b'):
+                        index = block.add()
+                        tag.set_reference(block[index], 'structure bsp',
+                                          prefix + name + '.scenario_structure_bsp')
+                    index = block.add()
+                    tag.set_reference(block[index], 'structure bsp',
+                                      'another_asset/bsp_c.scenario_structure_bsp')
+                with ScenarioDocument(path, tags_root=self.tags, game=game) as tag:
+                    removed = tag.retain_structure_bsps(
+                        prefix + name + '.scenario_structure_bsp'
+                        for name in ('bsp_a', 'bsp_b'))
+                    self.assertEqual(removed, 2)
+                with ScenarioDocument(path, tags_root=self.tags, game=game,
+                                      must_exist=True) as tag:
+                    references = [tag.reference(entry, 'structure bsp').ShortName
+                                  for entry in tag.block(tag.tag.root(), 'structure bsps')]
+                    self.assertEqual(references, ['bsp_a', 'bsp_b'])
+
 
 if __name__ == '__main__':
     result = unittest.main(argv=[__file__], exit=False).result

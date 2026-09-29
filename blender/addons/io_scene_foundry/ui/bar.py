@@ -513,6 +513,8 @@ class NWO_HaloExportSettings(bpy.types.Panel):
             if not scene_nwo_export.legacy_generate_checksum:
                 col.prop(scene_nwo_export, "legacy_file_checksum")
         scenario = asset_type == "scenario"
+        if scenario and project and project.game in {'halo1', 'halo2'}:
+            col.prop(scene_nwo_export, "import_wrl")
         if halo1 and scenario:
             col.prop(scene_nwo_export, "halo1_fix_phantom_bsp")
         render = utils.poll_ui(("model", "sky"))
@@ -928,6 +930,12 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     )
 
     legacy_asset_path: bpy.props.StringProperty(name="Legacy Asset Folder", subtype='DIR_PATH')
+
+    import_wrl: bpy.props.BoolProperty(
+        name="Import WRL Diagnostics",
+        description="Import newly generated BSP diagnostic WRL files even when Halo 1 or Halo 2 scenario compilation succeeds. Failed compilations always import diagnostics",
+        default=False, options=set(),
+    )
 
     halo1_fix_phantom_bsp: bpy.props.BoolProperty(
         name="Fix Phantom BSP",

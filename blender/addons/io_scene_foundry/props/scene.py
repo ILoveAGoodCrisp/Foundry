@@ -1720,6 +1720,13 @@ class NWO_CinematicShot(bpy.types.PropertyGroup):
     )
     active_actor_index: bpy.props.IntProperty()
 
+class NWO_ScenarioSky(PropertyGroup):
+    def clean_path(self, context):
+        self['path'] = utils.relative_path(self.path.strip('"'))
+
+    path: bpy.props.StringProperty(name="Sky Tag", description="Tag-relative path to a sky or scenery tag", update=clean_path, options=set())
+
+
 class NWO_ZoneSets_ListItems(PropertyGroup):
     name: bpy.props.StringProperty()
     bsp_0: bpy.props.BoolProperty()
@@ -3354,6 +3361,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
         description="On export, assigns non-BSP-defining scenario objects to the BSP that contains their origin. Objects outside all BSPs use the default BSP only when automatic structure is being generated"
     )
+    skies_authored_from_blender: bpy.props.BoolProperty(
+        name="Skies Authored From Blender", default=True, options=set(),
+        description="Update the scenario skies block from this ordered list on export",
+    )
+    scenario_skies: bpy.props.CollectionProperty(type=NWO_ScenarioSky, options=set())
+    active_scenario_sky_index: bpy.props.IntProperty(default=0, options=set())
     
     
 
@@ -4186,7 +4199,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="On export, animation frame events will be updated from Blender",
         default=True,
     )
-
     blend_screens_from_blender: bpy.props.BoolProperty(
         name="Blend Screens Authored From Blender",
         description="Replace classic animation graph blend screens with the screens stored in this blend file on export",

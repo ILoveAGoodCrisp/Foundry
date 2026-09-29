@@ -881,7 +881,23 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.prop(nwo, "scenario_add_globals")
         col.prop(nwo, "scenario_auto_bsp_by_origin")
         col.separator()
-        col.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
+        col.prop(nwo, "skies_authored_from_blender")
+        row = col.row()
+        row.template_list("NWO_UL_ScenarioSkies", "", nwo, "scenario_skies", nwo, "active_scenario_sky_index", rows=3)
+        buttons = row.column(align=True)
+        buttons.operator("nwo.scenario_sky_add", text="", icon='ADD')
+        buttons.operator("nwo.scenario_sky_remove", text="", icon='REMOVE')
+        buttons.separator()
+        buttons.operator("nwo.scenario_sky_move", text="", icon='TRIA_UP').direction = -1
+        buttons.operator("nwo.scenario_sky_move", text="", icon='TRIA_DOWN').direction = 1
+        if nwo.scenario_skies:
+            index = min(max(nwo.active_scenario_sky_index, 0), len(nwo.scenario_skies) - 1)
+            sky = nwo.scenario_skies[index]
+            row = col.row(align=True)
+            row.prop(sky, "path", text="Sky Tag")
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "sky_path"
+            row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = "sky_path"
+        col.operator("nwo.scenario_skies_update", text="Update Scenario Skies", icon_value=get_icon_id('sky'))
         
     def draw_decorators(self, box: bpy.types.UILayout, nwo):
         box_decorators = box.box()

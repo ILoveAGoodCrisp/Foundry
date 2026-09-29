@@ -1,6 +1,7 @@
 """Native physics import; unsupported shapes fail before object allocation."""
 from .blender import BlenderTag
 from .physics import PhysicsDocument, PhysicsShapesUnsupported
+from .model_permutations import select_model_records
 from .connected_geometry import Constraint, Sphere, Box, Pill, Polyhedron, RigidBody, HavokCollision
 from mathutils import Matrix
 from .. import import_transform
@@ -25,6 +26,7 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
         objects = []
         try:
             records = self.primitive_bodies(include_serialized=True)
+            records = select_model_records(records, variant)
             if self.game == 'halo1' and armature is not None:
                 bones = list(armature.pose.bones)
                 for record in records:

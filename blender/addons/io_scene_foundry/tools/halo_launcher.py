@@ -2,6 +2,7 @@
 
 import os
 import ctypes
+import winreg
 from pathlib import Path
 import bpy
 import xml.etree.ElementTree as ET
@@ -46,6 +47,12 @@ GROUNDHOG_FOUNDATION_VERSION = "1.41.0.0"
 
 GUERILLA_GAMES = {"Halo1", "Halo2", "Halo3", "Halo3ODST"}
 LEGACY_SAPIEN_GAMES = {"halo1", "halo2", "halo3", "halo3odst"}
+LEGACY_SAPIEN_REGISTRY_KEYS = {
+    "halo1": r"Software\i343\halo1a_sapien",
+    "halo2": r"Software\i343\halo2_sapien",
+    "halo3": r"Software\i343\halo3_sapien",
+    "halo3odst": r"Software\i343\halo3odst_sapien",
+}
 
 
 class _VSFixedFileInfo(ctypes.Structure):
@@ -479,6 +486,16 @@ def launch_tag_editor(settings, context, report):
 launch_foundation = launch_tag_editor
 
 
+def _set_legacy_sapien_last_directory(game, scenario_path, report=None):
+    """Start legacy Sapien's scenario picker in the asset scenario's folder."""
+    try:
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, LEGACY_SAPIEN_REGISTRY_KEYS[game]) as key:
+            winreg.SetValueEx(key, "last directory", 0, winreg.REG_SZ, str(scenario_path.parent))
+    except OSError as error:
+        if report:
+            report({'WARNING'}, f"Could not set Sapien's last directory: {error}")
+
+
 def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, report=None):
     asset_path = scene_nwo.asset_directory
     asset_name = scene_nwo.asset_name
@@ -748,6 +765,12 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
             xml.last_scenario = str(Path(relative_path(filepath)).with_suffix(""))
             if xml.parse(project_xml.parent):
                 project.last_scenario = xml.last_scenario
+
+    if (legacy_sapien and settings.game_default == "asset"
+            and scene_nwo.is_valid_asset and scene_nwo.asset_type == "scenario"):
+        scenario_path = Path(get_tag_if_exists(asset_path, asset_name, "scenario"))
+        if scenario_path.is_file():
+            _set_legacy_sapien_last_directory(project.game, scenario_path, report)
     
     run_ek_cmd(args, True)
 
@@ -765,11 +788,11 @@ def open_file_explorer(type, is_tags, scene_nwo):
         if valid_nwo_asset():
             if is_tags:
                 if Path(tags_dir, asset_path).exists():
-                    os.startfile(Path(tags_dir, asset_path))
-                    return
+                    return os.startfile(Path(tags_dir, asset_path))
+                else:
+                    return open_file_explorer_default(is_tags, tags_dir, data_dir)
             else:
-                os.startfile(Path(data_dir, asset_path))
-                return
+                return os.startfile(Path(data_dir, asset_path))
 
     if type == "asset" or type == "blend":
         blend_folder = os.path.dirname(bpy.data.filepath)
@@ -782,20 +805,17 @@ def open_file_explorer(type, is_tags, scene_nwo):
             folder_path2 = os.path.dirname(folder_path)
             folder_path3 = os.path.dirname(folder_path2)
             if os.path.exists(folder_path):
-                os.startfile(folder_path)
-                return
+                return os.startfile(folder_path)
             elif os.path.exists(folder_path2):
-                os.startfile(folder_path2)
-                return
+                return os.startfile(folder_path2)
             elif os.path.exists(folder_path3):
-                os.startfile(folder_path3)
-                return
+                return os.startfile(folder_path3)
             else:
                 return open_file_explorer_default(is_tags, tags_dir, data_dir)
         
         elif Path(data_dir, relative).exists():
-            os.startfile(Path(data_dir, relative))
-            return
+            return os.startfile(Path(data_dir, relative))
+            
         
     return open_file_explorer_default(is_tags, tags_dir, data_dir)
 
@@ -1054,7 +1074,7 @@ class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
         description="Select whether to open Sapien / Tag Test and select a scenario, open the current scenario asset if it exists, or load the last scenario launched",
         default="asset",
         options=set(),
-        items=[("default", "Browse", "Opens a file browser. If no valid scenario is selected, fallsback to the last scenario launched"), ("asset", "Asset", "Loads the asset scenario if this is a scenario or cinematic asset. Otherwise opens the file browser"), ("last", "Last", "Loads to the last scenario launched for the current project")],
+        items=[("default", "Browse", "Opens a file browser. If no valid scenario is selected, fallsback to the last scenario launched"), ("asset", "Asset", "Loads the asset scenario where supported, or starts legacy Sapien's browser in its folder. Otherwise opens the file browser"), ("last", "Last", "Loads to the last scenario launched for the current project")],
     )
 
     open_model: bpy.props.BoolProperty(

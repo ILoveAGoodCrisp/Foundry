@@ -31,7 +31,7 @@ from ..tags.prefab import ScenarioStructureBspMetadataTag
 from ..tags.object_blender import ObjectTag
 
 from ..tags.cinematic_root import CinematicTag
-from ..tags.scenario import ScenarioMetadataTag
+from ..tags.scenario import ScenarioDocument, ScenarioMetadataTag
 
 from .cinematic import QUA, Actor, CinematicScene
 
@@ -3014,6 +3014,17 @@ class ExportScene:
                 print("")
                 print("+" * len(dev_message))
             raise ExportCancelled("Export failed due to Tool assertion. See above")
+
+        if self.asset_type == AssetType.SCENARIO and self.project_game in {'halo3', 'halo3odst'}:
+            scenario_path = Path(self.tags_dir, self.asset_path_relative,
+                                 self.asset_name).with_suffix('.scenario')
+            bsp_paths = [Path(self.asset_path_relative, bsp).with_suffix('.scenario_structure_bsp')
+                         for bsp in structure]
+            with ScenarioDocument(scenario_path, tags_root=self.tags_dir,
+                                  game=self.project_game, must_exist=True) as scenario:
+                removed = scenario.retain_structure_bsps(bsp_paths)
+            if removed:
+                self.print_post(f"--- Removed {removed} structure BSP references outside this asset export")
             
             
     def print_pre(self, txt):
@@ -3082,6 +3093,10 @@ class ExportScene:
                 animation.setup_blend_screens(self.pose_overlays)
                     
         if self.asset_type == AssetType.SCENARIO:
+            if self.scene_settings.skies_authored_from_blender:
+                sky_paths = [item.path for item in self.scene_settings.scenario_skies]
+                with ScenarioMetadataTag() as scenario:
+                    scenario.set_skies(sky_paths)
             if self.setup_scenario or self.export_settings.create_debug_zone_set:
                 lm_value = 6 if self.corinth else 3
                 with ScenarioMetadataTag() as scenario:

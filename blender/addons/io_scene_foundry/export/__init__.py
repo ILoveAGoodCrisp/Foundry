@@ -542,6 +542,8 @@ class NWO_ExportScene(Operator, ExportHelper):
         scene_nwo_export = utils.get_export_props()
         scene_nwo = utils.get_scene_props()
         scenario = scene_nwo.asset_type == "scenario"
+        if scenario and game in {'halo1', 'halo2'}:
+            col.prop(scene_nwo_export, "import_wrl")
         prefab = scene_nwo.asset_type == "prefab"
         for p in projects:
             if p.name == scene_nwo.scene_project:

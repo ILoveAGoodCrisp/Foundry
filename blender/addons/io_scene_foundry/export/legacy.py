@@ -461,6 +461,7 @@ class LegacyExportScene(ExportScene):
                            ['structure', self.asset_path_relative, source.stem])
                 if self.target_game == 'halo1' and self.export_settings.halo1_fix_phantom_bsp:
                     command.append('true')
+                tool_failed = False
                 try:
                     utils.run_tool(
                         command,
@@ -468,11 +469,14 @@ class LegacyExportScene(ExportScene):
                         force_tool=True,
                     )
                 except subprocess.CalledProcessError:
+                    tool_failed = True
+                    raise
+                finally:
                     # Scene restoration has already finished before write_tags.
                     # Only display diagnostics produced by this Tool invocation.
                     try:
                         current = error_path.stat() if error_path.is_file() else None
-                        if current and (previous is None or
+                        if (tool_failed or self.export_settings.import_wrl) and current and (previous is None or
                                 (current.st_mtime_ns, current.st_size) !=
                                 (previous.st_mtime_ns, previous.st_size)):
                             from ..legacy.wrl import import_errors
@@ -480,7 +484,6 @@ class LegacyExportScene(ExportScene):
                                           self.rotation_correction, self.to_halo_scale)
                     except Exception as error:
                         print(f'Could not import BSP error geometry: {error}')
-                    raise
             self.write_classic_scenario_tag(structure_sources)
             return
         if self.asset_type.name in {'PARTICLE_MODEL', 'DECORATOR_SET'}:
@@ -983,6 +986,7 @@ class LegacyExportScene(ExportScene):
             destination, tags_root=self.tags_dir, game=self.target_game
         ) as scenario:
             scenario.ensure_structure_bsps(bsp_paths)
+            scenario.retain_structure_bsps(bsp_paths)
             if is_new:
                 scenario.create_default_profile()
                 scenario.set_scenario_type(self.scene_settings.scenario_type)
