@@ -26,6 +26,10 @@ def material_variant(shader, props, global_material='default', ass_version=None,
     elif get('face_type') == 2:
         sky_index = get('sky_permutation_index')
         name = '+sky' + (str(sky_index) if target_game == 'halo1' and sky_index else '')
+    if target_game == 'halo1' and name.startswith('+'):
+        # Tool interprets these names as BSP helpers. Face-property symbols
+        # change their behaviour and can leave sky boundaries open.
+        return ('+unused$' if name == '+unused' else name), ()
     # These suffixes are also understood by Foundry's legacy importer.
     sides, mode = get('face_sides'), get('face_mode')
     if mode == 4 and (ass_version is None or ass_version < 4):
@@ -42,8 +46,6 @@ def material_variant(shader, props, global_material='default', ass_version=None,
         flags[9] = bool(get('mesh_portal_ai_deafening'))
         # Later games' symbols are not H1 material flags.
         flags = [flag and symbol in '%#!@*$^-&' for flag, symbol in zip(flags, suffixes)]
-        if name == '+unused':
-            return '+unused$', ()
     name += ''.join(s for flag, s in zip(flags, suffixes) if flag)
     legacy_resolution = target_game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
     lmres = get('lightmap_resolution_scale', 1 if legacy_resolution else 3)

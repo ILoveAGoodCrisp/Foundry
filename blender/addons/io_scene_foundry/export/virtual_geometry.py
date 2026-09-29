@@ -3339,7 +3339,8 @@ class FaceSet:
 def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh, num_faces: int, scene: VirtualScene, sorted_order, special_mats_dict: dict, prop_mats_dict: dict, props: dict, force_render_only: bool, bungie_attributes: list[bpy.types.Attribute]) -> dict:
     is_structure = props.get("bungie_mesh_type") == MeshType.default.value
     face_properties = {}
-    deferred_transparencies = []
+    deferred_material_transparencies = []
+    deferred_face_transparencies = []
     deferred_opaques = []
     mesh_cache_key = (mesh.as_pointer(), num_faces)
     FaceSet._material_index_cache.pop(mesh_cache_key, None)
@@ -3407,7 +3408,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         face_properties.setdefault("bungie_face_sides", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_sides"], dtype=np.int32))).update_from_material(mesh, material_indices, side_value)
                 case 'transparent':
                     if props.get("bungie_face_sides") is None and prop.transparent:
-                        deferred_transparencies.append(material_indices)
+                        deferred_material_transparencies.append(material_indices)
                             
                         # face_properties.setdefault("bungie_face_sides", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_sides"], dtype=np.int32))).update_from_material(mesh, material_indices, 1, additive=True)
                 case 'region':
@@ -3550,7 +3551,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         prop_face_indices = np.zeros(len(mesh.polygons), dtype=np.int8)
                         attribute.data.foreach_get("value", prop_face_indices)
                         if prop.transparent:
-                            deferred_transparencies.append(np.nonzero(prop_face_indices)[0])
+                            deferred_face_transparencies.append(np.nonzero(prop_face_indices)[0])
                         else:
                             deferred_opaques.append(np.nonzero(prop_face_indices)[0])
                     # face_properties.setdefault("bungie_face_sides", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_sides"], dtype=np.int32))).update(mesh, prop, 1, additive=True)
@@ -3656,14 +3657,18 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     face_properties.setdefault("bungie_lighting_attenuation_falloff", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_attenuation_falloff"], np.single))).update(mesh, prop, falloff * scene.atten_scalar * WU_SCALAR)
                     face_properties.setdefault("bungie_lighting_emissive_focus", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_focus"], np.single))).update(mesh, prop, 1 - degrees(prop.material_lighting_emissive_focus) / 180)
                     
-    if deferred_transparencies:
-        transparent_indices = np.unique(np.concatenate([a for a in deferred_transparencies]))
-        if deferred_opaques:
-            opaque_indices = np.unique(np.concatenate([a for a in deferred_opaques]))
-            mask = ~np.isin(transparent_indices, opaque_indices)
-            transparent_indices = transparent_indices[mask]
-            
-        face_properties.setdefault("bungie_face_sides", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_sides"], dtype=np.int32))).update_from_material(mesh, transparent_indices, 1, additive=True)
+    if deferred_material_transparencies or deferred_face_transparencies:
+        transparent_mask = np.zeros(num_faces, dtype=bool)
+        if deferred_material_transparencies:
+            material_indices = np.empty(num_faces, dtype=np.int32)
+            mesh.polygons.foreach_get("material_index", material_indices)
+            transparent_materials = np.unique(np.concatenate(deferred_material_transparencies))
+            transparent_mask |= np.isin(material_indices, transparent_materials)
+        for face_indices in deferred_face_transparencies:
+            transparent_mask[face_indices] = True
+        for face_indices in deferred_opaques:
+            transparent_mask[face_indices] = False
+        face_properties.setdefault("bungie_face_sides", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_sides"], dtype=np.int32))).array[transparent_mask] += 1
                     
     for material, material_indices in special_mats_dict.items():
         if material.name.lower().startswith('+seamsealer') and props.get("bungie_face_type") is None:

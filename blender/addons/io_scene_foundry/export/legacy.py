@@ -1431,9 +1431,13 @@ class LegacyExportScene(ExportScene):
                     'section must use one bone')
         if self.target_game == 'halo1' and folder == 'structure':
             from ..legacy.portal_geometry import planarize_halo1_portals
+            from ..legacy.structure_geometry import stabilize_halo1_collision_slivers
             corrected = planarize_halo1_portals(asset)
             # if corrected:
             #     utils.print_step(f'Stabilized {corrected} portal plane(s)')
+            repaired = stabilize_halo1_collision_slivers(asset)
+            if repaired:
+                utils.print_step(f'Stabilized {repaired} thin sky collision surface(s)')
         return asset
 
     def ass_asset(self, name, nodes, markers=(), lights=()):
