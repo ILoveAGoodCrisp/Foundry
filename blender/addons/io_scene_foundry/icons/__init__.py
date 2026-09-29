@@ -76,7 +76,7 @@ def _ensure_collection(recreate=False):
         return None
 
 
-def _load_icon_into_collection(icon_id, icon_path, force_reload=False):
+def _load_icon_into_collection(icon_id, icon_path):
     collection = _ensure_collection()
     if collection is None:
         return 0
@@ -86,66 +86,54 @@ def _load_icon_into_collection(icon_id, icon_path, force_reload=False):
 
     key = str(icon_id)
     image_path = str(icon_path)
-    # Fast path when icon is already valid.
-    if not force_reload:
-        existing_id = _preview_icon_id(collection, key)
-        if existing_id:
-            return existing_id
+    existing_id = _preview_icon_id(collection, key)
+    if existing_id:
+        return existing_id
 
-    errors = []
-    attempted_force_reload = force_reload
-    for _ in range(2):
+    # Blender rejects duplicate keys even when force_reload is True.
+    if key in collection:
         try:
-            preview = collection.load(key, image_path, "IMAGE", attempted_force_reload)
-            loaded_id = int(getattr(preview, "icon_id", 0) or 0)
-            if loaded_id > 0:
-                return loaded_id
+            del collection[key]
         except Exception as ex:
-            errors.append(ex)
+            _warn_once(f"Failed to release icon '{key}': {ex}")
+            return 0
 
-        # If we got a 0 id or an exception, retry in force-reload mode.
-        if attempted_force_reload:
-            break
-        attempted_force_reload = True
+    try:
+        preview = collection.load(key, image_path, "IMAGE")
+        loaded_id = int(getattr(preview, "icon_id", 0) or 0)
+        if loaded_id > 0:
+            return loaded_id
+    except Exception as ex:
+        _warn_once(f"Failed to load icon '{key}' from '{icon_path.name}': {ex}")
+        return 0
 
-    # Final recovery: rebuild collection and try one last force-reload.
-    collection = _ensure_collection(recreate=True)
-    if collection is not None:
-        try:
-            preview = collection.load(key, image_path, "IMAGE", True)
-            loaded_id = int(getattr(preview, "icon_id", 0) or 0)
-            if loaded_id > 0:
-                return loaded_id
-        except Exception as ex:
-            errors.append(ex)
-
-    if errors:
-        _warn_once(f"Failed to load icon '{key}' from '{icon_path.name}': {errors[-1]}")
-    else:
-        _warn_once(
-            f"Failed to load icon '{key}' from '{icon_path.name}': Blender returned icon_id 0"
-        )
+    _warn_once(f"Failed to load icon '{key}' from '{icon_path.name}': Blender returned icon_id 0")
     return 0
 
 
-def _load_builtin_icon(icon_name, force_reload=False):
-    return _load_icon_into_collection(
-        icon_name, icons_dir / f"{icon_name}.png", force_reload=force_reload
-    )
+def _load_builtin_icon(icon_name):
+    return _load_icon_into_collection(icon_name, icons_dir / f"{icon_name}.png")
 
 
 def load_all_icons(force_reload=False):
     if bpy.app.background:
         return
 
+    if force_reload:
+        _ensure_collection(recreate=True)
+
     for path in icons_dir.glob("*.png"):
-        _load_icon_into_collection(path.stem, path, force_reload=force_reload)
+        _load_icon_into_collection(path.stem, path)
 
 
 @persistent
 def _reload_icons(_dummy):
-    # Keep the same collection where possible so ids remain stable for cached UI.
+    # Blender may discard preview image data on file load.
     load_all_icons(force_reload=True)
+    for window in bpy.context.window_manager.windows:
+        if window.screen:
+            for area in window.screen.areas:
+                area.tag_redraw()
 
 
 def get_icon_id(id):
@@ -161,15 +149,7 @@ def get_icon_id(id):
     if existing_id:
         return existing_id
 
-    # Lazy-load missing or invalid built-in icons so startup/cache races self-heal.
-    icon_id = _load_builtin_icon(key, force_reload=True)
-    if icon_id:
-        return icon_id
-
-    # Last resort: refresh full atlas then retry this icon lookup once.
-    load_all_icons(force_reload=True)
-    collection = _ensure_collection()
-    return _preview_icon_id(collection, key)
+    return _load_builtin_icon(key)
 
 
 def get_icon_id_in_directory(thumnail_path):
@@ -193,20 +173,15 @@ def get_icon_id_in_directory(thumnail_path):
     if existing_id:
         return existing_id
 
-    try:
-        preview = collection.load(key, str(thumbnail_path), "IMAGE", True)
-        loaded_id = int(getattr(preview, "icon_id", 0) or 0)
-        if loaded_id > 0:
-            return loaded_id
-    except Exception:
-        pass
+    if key in collection:
+        try:
+            del collection[key]
+        except Exception as ex:
+            _warn_once(f"Failed to release thumbnail icon '{thumbnail_path}': {ex}")
+            return 0
 
-    collection = _ensure_collection(recreate=True)
-    if collection is None:
-        return 0
-    load_all_icons(force_reload=True)
     try:
-        preview = collection.load(key, str(thumbnail_path), "IMAGE", True)
+        preview = collection.load(key, str(thumbnail_path), "IMAGE")
         loaded_id = int(getattr(preview, "icon_id", 0) or 0)
         if loaded_id > 0:
             return loaded_id
