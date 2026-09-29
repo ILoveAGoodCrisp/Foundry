@@ -3803,6 +3803,16 @@ class AnimationTag(AnimationGraphTag):
             pelvis_rest = import_transform.armature_bone_matrix(
                 Matrix.Translation(defaults[0].translation), root=True)
             transition_offset = endpoint.translation - pelvis_rest.translation
+            # Parameterize the straight pedestal path by pelvis distance traveled,
+            # so pauses and bursts of movement happen on the same frames. Source
+            # space has the same distance ratios after the import rotation/scale.
+            distances = [0.0]
+            for previous, current in zip(frames, frames[1:]):
+                distances.append(distances[-1] + (current[0].translation - previous[0].translation).length)
+            total_distance = distances[-1]
+            transition_progress = ([distance / total_distance for distance in distances]
+                                   if total_distance > 1e-8 else
+                                   [index / max(len(frames) - 1, 1) for index in range(len(frames))])
         transforms = {}
         for frame_index, frame_matrices in enumerate(frames, start=1):
             frame_transforms = {}
@@ -3813,7 +3823,7 @@ class AnimationTag(AnimationGraphTag):
                 from ..tools.animation.legacy_import import split_root_movement
                 root = nodes[0]
                 if transition_offset is not None:
-                    progress = (frame_index - 1) / max(len(frames) - 1, 1)
+                    progress = transition_progress[frame_index - 1]
                     weight = 1.0 - progress if entering else progress
                     pedestal = Matrix.Translation(transition_offset * weight) @ self._reach_pedestal_rest
                     frame_transforms[root] = pedestal.inverted_safe() @ frame_transforms[root]
