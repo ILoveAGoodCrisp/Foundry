@@ -3104,14 +3104,16 @@ class ExportScene:
                     
         if self.asset_type == AssetType.SCENARIO:
             self.update_scenario_skies()
-            if self.setup_scenario or self.export_settings.create_debug_zone_set:
+            create_debug_zone_set = (self.export_settings.create_debug_zone_set
+                                     and self.project_game not in {'halo1', 'halo2'})
+            if self.setup_scenario or create_debug_zone_set:
                 lm_value = 6 if self.corinth else 3
                 with ScenarioMetadataTag() as scenario:
                     if self.setup_scenario:
                         for bsp in self.virtual_scene.structure:
                             res = scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
                             self.print_post(f"--- Setting scenario lightmap resolution to {res}")
-                    if self.export_settings.create_debug_zone_set:
+                    if create_debug_zone_set:
                         self.print_post("--- Adding debug zone set")
                         scenario.write_foundry_zone_set()
 

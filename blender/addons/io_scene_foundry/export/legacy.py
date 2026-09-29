@@ -442,8 +442,12 @@ class LegacyExportScene(ExportScene):
             structure_sources = sorted(
                 path for path in structure_dir.iterdir()
                 if path.is_file() and path.suffix.lower() == structure_extension
+                and (not self.limit_bsps_to_selection or path.stem in self.selected_bsps)
             ) if structure_dir.is_dir() else []
             if not structure_sources:
+                if self.limit_bsps_to_selection:
+                    raise ExportCancelled(
+                        f'No selected BSP {structure_extension} sources were found in {structure_dir}')
                 raise ExportCancelled(
                     f'No {structure_extension} structure sources were found in {structure_dir}')
             if self.target_game == 'halo1':
@@ -986,7 +990,8 @@ class LegacyExportScene(ExportScene):
             destination, tags_root=self.tags_dir, game=self.target_game
         ) as scenario:
             scenario.ensure_structure_bsps(bsp_paths)
-            scenario.retain_structure_bsps(bsp_paths)
+            if not self.limit_bsps_to_selection:
+                scenario.retain_structure_bsps(bsp_paths)
             if is_new:
                 scenario.create_default_profile()
                 scenario.set_scenario_type(self.scene_settings.scenario_type)

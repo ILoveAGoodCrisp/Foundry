@@ -2,7 +2,6 @@
 
 import os
 import ctypes
-import winreg
 from pathlib import Path
 import bpy
 import xml.etree.ElementTree as ET
@@ -47,12 +46,6 @@ GROUNDHOG_FOUNDATION_VERSION = "1.41.0.0"
 
 GUERILLA_GAMES = {"Halo1", "Halo2", "Halo3", "Halo3ODST"}
 LEGACY_SAPIEN_GAMES = {"halo1", "halo2", "halo3", "halo3odst"}
-LEGACY_SAPIEN_REGISTRY_KEYS = {
-    "halo1": r"Software\i343\halo1a_sapien",
-    "halo2": r"Software\i343\halo2_sapien",
-    "halo3": r"Software\i343\halo3_sapien",
-    "halo3odst": r"Software\i343\halo3odst_sapien",
-}
 
 
 class _VSFixedFileInfo(ctypes.Structure):
@@ -486,16 +479,6 @@ def launch_tag_editor(settings, context, report):
 launch_foundation = launch_tag_editor
 
 
-def _set_legacy_sapien_last_directory(game, scenario_path, report=None):
-    """Start legacy Sapien's scenario picker in the asset scenario's folder."""
-    try:
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, LEGACY_SAPIEN_REGISTRY_KEYS[game]) as key:
-            winreg.SetValueEx(key, "last directory", 0, winreg.REG_SZ, str(scenario_path.parent))
-    except OSError as error:
-        if report:
-            report({'WARNING'}, f"Could not set Sapien's last directory: {error}")
-
-
 def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, report=None):
     asset_path = scene_nwo.asset_directory
     asset_name = scene_nwo.asset_name
@@ -766,12 +749,6 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
             if xml.parse(project_xml.parent):
                 project.last_scenario = xml.last_scenario
 
-    if (legacy_sapien and settings.game_default == "asset"
-            and scene_nwo.is_valid_asset and scene_nwo.asset_type == "scenario"):
-        scenario_path = Path(get_tag_if_exists(asset_path, asset_name, "scenario"))
-        if scenario_path.is_file():
-            _set_legacy_sapien_last_directory(project.game, scenario_path, report)
-    
     run_ek_cmd(args, True)
 
 def open_file_explorer_default(is_tags, tags_dir, data_dir):

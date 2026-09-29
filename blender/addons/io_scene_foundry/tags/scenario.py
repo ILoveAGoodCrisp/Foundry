@@ -561,6 +561,8 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
         return result
 
     def write_foundry_zone_set(self):
+        if self.game in {'halo1', 'halo2'}:
+            return
         root, bsps, designs = self._blocks()
         zone_sets = self.block(root, 'zone sets')
         index = None
