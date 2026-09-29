@@ -15,6 +15,12 @@ from .generate_aim_look_overlays import (
 )
 
 
+# Debug comparison switch for newly generated base and aim locomotes.
+# False: Blend Axis Animations. True: a locomotion phase set with supported
+# foot-sync keys. Reload the add-on/restart Blender after changing this value;
+# existing composites are preserved, so regenerate them to compare approaches.
+DEBUG_LOCOMOTE_USE_PHASE_SETS = False
+
 ANGLES = {'front': 0, 'frontleft': 45, 'left': 90, 'backleft': 135,
           'back': 180, 'backright': -135, 'right': -90, 'frontright': -45}
 DIAGONALS = {'frontleft': ('front', 'left'), 'frontright': ('front', 'right'),
@@ -29,7 +35,7 @@ def locomote_name(label):
         return label
     if not _is_eligible_animation_mode(name.mode):
         return label
-    match = MOVEMENT.fullmatch(name.state)
+    match = MOVEMENT.fullmatch(name.state.replace('walk_frontslow', 'walkslow_front'))
     if match is None:
         return label
     gait = 'run' if match['gait'] == 'move' else match['gait']
@@ -143,12 +149,51 @@ def _speed(animation, armature, scene_nwo):
             * 0.03048 * WU_SCALAR / import_transform.scale_factor(scene_nwo))
 
 
+def _inplace_copy(scene_nwo, armature, source_index, target_name):
+    """Keep the gait and its events, holding the motion root at its first pose."""
+    existing = next((i for i, item in enumerate(scene_nwo.animations)
+                     if _normalized_name(item.name) == _normalized_name(target_name)), None)
+    if existing is not None:
+        return existing
+    source = scene_nwo.animations[source_index]
+    track = _armature_track(source, armature)
+    pedestal = _pose_bone_from_usage(armature, scene_nwo.node_usage_pedestal, ('pedestal',))
+    if track is None or pedestal is None or source.frame_end <= source.frame_start:
+        utils.print_warning(f'Cannot create [{target_name}]: forward cycle needs an action and motion root')
+        return None
+    curves, slot = _fcurve_map(track.action, armature)
+    rest = {bone.name: _rest_local_matrix(bone) for bone in armature.pose.bones}
+    initial = _sample_local_matrices(armature, curves, source.frame_start, rest)
+    roots = {pedestal.name, *(bone.name for bone in pedestal.parent_recursive)}
+    frames = {frame: {name: initial[name].copy() for name in roots}
+              for frame in range(source.frame_start, source.frame_end + 1)}
+    action = track.action.copy()
+    action.name = target_name
+    try:
+        _write_generated_transforms(action, armature, slot, frames, roots, rest, preserve_other_transforms=True)
+    except Exception:
+        bpy.data.actions.remove(action)
+        raise
+    target = scene_nwo.animations.add()
+    source = scene_nwo.animations[source_index]
+    _copy_property_group(source, target, skip={'name', 'name_old', 'action_tracks', 'animation_renames', 'blend_axis_active_index'})
+    target_track = target.action_tracks.add()
+    _copy_property_group(_armature_track(source, armature), target_track)
+    target_track.action = action
+    target.name = target.name_old = target_name
+    target.state = utils.AnimationName(target_name).state
+    target.animation_movement_data = 'none'
+    target.external = False
+    target.gr2_path = target.blend_path = ''
+    return len(scene_nwo.animations) - 1
+
+
 def _composite(scene_nwo, name, leaves, *, overlay=False):
     if not leaves or any(_normalized_name(item.name) == _normalized_name(name) for item in scene_nwo.animations):
         return None
     directional = len({ANGLES.get(direction, 0) for _, value, direction in leaves if value > 0}) > 1
     # Keep all source actions, but choose one representative for each generated
-    # blend coordinate (idle wins over an in-place gait because it comes first).
+    # blend coordinate (the generated in-place cycle is added first).
     unique = {}
     for source, value, direction in leaves:
         key = (round(value, 6), ANGLES.get(direction, 0) if directional else 0)
@@ -180,17 +225,26 @@ def _composite(scene_nwo, name, leaves, *, overlay=False):
     speed.animation_source_bounds_manual = speed.runtime_source_bounds_manual = True
     speed.animation_source_bounds = speed.runtime_source_bounds = (0, 1)
     speed.runtime_source_clamped = True
-    # A single population needs no explicit phase set. Keep the leaves directly
-    # on the terminal axis, as in retail locomotes.
+    destination = speed.leaves
+    if DEBUG_LOCOMOTE_USE_PHASE_SETS:
+        phase = speed.phase_sets.add()
+        phase.name = 'locomotion'
+        sources = [scene_nwo.animations.get(source) for source, _, _ in leaves]
+        for key in ('left foot', 'right foot'):
+            present = bool(sources) and all(animation is not None and any(
+                event.event_type == '_connected_geometry_animation_event_type_frame'
+                and event.frame_name == key for event in animation.animation_events) for animation in sources)
+            setattr(phase, 'key_' + key.replace(' ', '_'), present and not overlay)
+        destination = phase.leaves
     for source, value, direction in leaves:
-        leaf = speed.leaves.add()
+        leaf = destination.add()
         leaf.animation = source
         leaf.manual_blend_axis_0 = leaf.manual_blend_axis_1 = True
         leaf.blend_axis_0, leaf.blend_axis_1 = (ANGLES.get(direction, 0), value) if directional else (value, 0)
     if len(leaves) == 1:
         # One source is a constant-pose speed blend, not a one-point simplex.
-        speed.leaves[0].blend_axis_0 = 0
-        leaf = speed.leaves.add()
+        destination[0].blend_axis_0 = 0
+        leaf = destination.add()
         leaf.animation = leaves[0][0]
         leaf.manual_blend_axis_0 = leaf.manual_blend_axis_1 = True
         leaf.blend_axis_0 = speed.animation_source_bounds[1]
@@ -251,17 +305,6 @@ def convert_locomotion(scene_nwo, armature, imported_start):
     generated = []
     for group_name, gaits in groups.items():
         base_leaves, aim_leaves = [], []
-        idle_name = _replace_action_state(group_name, 'idle')
-        idle = next((item for item in scene_nwo.animations[imported_start:]
-                     if _normalized_name(item.name) == _normalized_name(idle_name)
-                     and item.animation_type == 'base'), None)
-        if idle is not None:
-            base_leaves.append((idle.name, 0.0, 'front'))
-        still_name = _replace_action_state(group_name, 'aim_still_up')
-        still = next((item for item in scene_nwo.animations[imported_start:]
-                      if _normalized_name(item.name) == _normalized_name(still_name)
-                      and item.animation_type == 'overlay' and item.pose_overlay), None)
-        still_source = still.name if still is not None else None
         for gait, directions in gaits.items():
             for diagonal, (first, second) in DIAGONALS.items():
                 if diagonal in directions or first not in directions or second not in directions:
@@ -282,6 +325,8 @@ def convert_locomotion(scene_nwo, armature, imported_start):
             generated.extend(new_aim)
             occupied.update(_normalized_name(name) for name in new_aim)
             for direction, index in directions.items():
+                if direction == 'inplace':
+                    continue  # Zero-speed sources are derived from the forward gait below.
                 animation = scene_nwo.animations[index]
                 speed = 0.0 if direction == 'inplace' else {'run': 1.0, 'sprint': 1.0, 'walk': 0.5, 'walkslow': 0.2}[gait]
                 base_leaves.append((animation.name, speed, direction))
@@ -291,20 +336,31 @@ def convert_locomotion(scene_nwo, armature, imported_start):
                             and item.animation_type == 'overlay' and item.pose_overlay), None)
                 if aim is not None:
                     aim_leaves.append((aim.name, speed, direction))
-        if aim_leaves and still_source is not None:
-            aim_leaves.append((still_source, 0.0, 'front'))
         for name, leaves, overlay in ((group_name, base_leaves, False),
                                       (_replace_action_state(group_name, 'aim_locomote_up'), aim_leaves, True)):
-            # Normalized gait rows need stationary support across the angular
-            # range. A single idle at angle zero can still stall triangulation,
-            # even with unlimited blending. Reuse its action at each column.
-            stationary = next((source for source, value, _ in leaves if value == 0), None)
-            if stationary is not None:
-                moving_directions = {direction for _, value, direction in leaves if value > 0}
-                stationary_angles = {ANGLES.get(direction, 0) for _, value, direction in leaves if value == 0}
-                if len(moving_directions) > 1:
-                    leaves.extend((stationary, 0.0, direction) for direction in sorted(moving_directions)
-                                  if ANGLES.get(direction, 0) not in stationary_angles)
+            # Each zero-speed column must retain its own directional gait.
+            # Choose the slowest available moving source independently per angle,
+            # including generated diagonals and matching aim movement sources.
+            slowest = {}
+            for source, value, direction in sorted(leaves, key=lambda leaf: leaf[1]):
+                if value > 0:
+                    slowest.setdefault(direction, source)
+            for direction, source in slowest.items():
+                source_index = next(i for i, item in enumerate(scene_nwo.animations) if item.name == source)
+                state = f'aim_locomote_inplace_{direction}_up' if overlay else f'locomote_inplace_{direction}'
+                target_name = _replace_action_state(group_name, state)
+                is_new = _normalized_name(target_name) not in occupied
+                index = _inplace_copy(scene_nwo, armature, source_index, target_name)
+                if index is not None:
+                    leaves.append((scene_nwo.animations[index].name, 0.0, direction))
+                    if is_new:
+                        generated.append(target_name)
+                        occupied.add(_normalized_name(target_name))
+            if len(leaves) == 1:
+                utils.print_warning(f'Skipping [{name}]: could not create the stationary endpoint')
+                continue
+            # Front, front-left, left, ...; in-place then slow-to-fast at each angle.
+            leaves.sort(key=lambda leaf: (ANGLES.get(leaf[2], 0) % 360, leaf[1], leaf[0]))
             result = _composite(scene_nwo, name, leaves, overlay=overlay)
             if result is not None:
                 generated.append(result)
