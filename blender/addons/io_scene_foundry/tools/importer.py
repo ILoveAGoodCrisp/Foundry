@@ -3515,16 +3515,21 @@ class NWOImporter:
                     source_tag_root = mover.potential_source_tag_dir if mover.needs_to_move else self.tags_dir
                     render = sky.get_model_path(source_tag_root)
                     animation = sky.get_animation_path(source_tag_root)
-                    if not render or not Path(render).is_file():
-                        utils.print_warning(f'Sky tag [{Path(file).name}] has no valid model reference')
-                        continue
-
                     model_collection = bpy.data.collections.new(sky.tag_path.ShortName)
                     scene_collection.children.link(model_collection)
                     if make_non_export:
                         model_collection.nwo.type = 'exclude'
+                    sky_lights = sky.lights_to_blender(model_collection)
+                    for ob in sky_lights:
+                        ob.visible_shadow = False
+                    imported_objects.extend(sky_lights)
+                    if not render or not Path(render).is_file():
+                        utils.print_warning(f'Sky tag [{Path(file).name}] has no valid model reference')
+                        continue
                     render_objects, armature = self.import_render_model(
                         render, model_collection, existing_armature, set())
+                    for ob in render_objects:
+                        ob.visible_shadow = False
                     imported_objects.extend(render_objects)
 
                     if animation and self.tag_animation and armature is not None and Path(animation).is_file():
@@ -4180,12 +4185,22 @@ class NWOImporter:
                         parent_collection=collection, geometry_only=True)
                     if self.build_control_rig and allow_control_rig:
                         render_model._apply_control_rig_deform_shapes_after_geometry()
+                    sky_data = render_model.sky_data()
+                    if sky_data.is_sky or sky_data.lights:
+                        for ob in tag_objects + source_objects:
+                            ob.visible_shadow = False
             return tag_objects + source_objects, armature
         if source_files:
             objects = self.import_jms_files(source_files, 'model', parent_collection=model_collection)
             armature = next((ob for ob in objects if ob.type == 'ARMATURE'), existing_armature)
             if armature is not None and self.game != 'halo1':
                 armature.nwo.node_order_source = utils.relative_path(file)
+            with utils.TagImportMover(self.tags_dir, file) as mover:
+                with RenderModelTag(path=mover.tag_path) as render_model:
+                    sky_data = render_model.sky_data()
+                    if sky_data.is_sky or sky_data.lights:
+                        for ob in objects:
+                            ob.visible_shadow = False
             return objects, armature
         render_model_objects = []
         armature = None
@@ -4195,6 +4210,10 @@ class NWOImporter:
             with RenderModelTag(path=mover.tag_path) as render_model:
                 render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals, build_control_rig=self.build_control_rig and allow_control_rig, selected_lod=self.render_lod)
                 render_model_objects.extend(render_model.skylights_to_blender(collection))
+                sky_data = render_model.sky_data()
+                if sky_data.is_sky or sky_data.lights:
+                    for ob in render_model_objects:
+                        ob.visible_shadow = False
             
         return render_model_objects, armature
     

@@ -30,6 +30,7 @@ from ..legacy import ass_format as ass
 from ..legacy.mirror import mirror_ass, mirror_jms, mirror_transform
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, legacy_bone_order, node_checksum, write_jms, write_ass
 from ..tags.backend import TagDocument
+from ..tags.sky import SkyDocument, SkyLightRecord, MAX_SKY_LIGHTS
 from ..tags.halo1_emissive import (asset_shader_folder, localize_shader_environment,
                                  shader_environment_path, material_emissive_matches,
                                  write_material_emissive)
@@ -904,6 +905,10 @@ class LegacyExportScene(ExportScene):
         model_path = Path(self.tags_dir, self.asset_path_relative,
                           self.asset_name).with_suffix(
                               '.gbxmodel' if self.target_game == 'halo1' else '.model')
+        if (self.asset_type.name == 'SKY'
+                and self.target_game in {'halo1', 'halo2'}):
+            self.write_classic_sky_tag(model_path)
+            return
         if self.target_game != 'halo1' and not model_path.is_file():
             raise ExportCancelled(
                 f'Model compilation did not create the expected tag: {model_path}')
@@ -930,11 +935,6 @@ class LegacyExportScene(ExportScene):
             with ModelTag(path=model_path) as model:
                 model.set_asset_paths(allowed_components=allowed_components)
             print(f'--- Wrote model tag paths to {model_path}')
-
-        if (self.asset_type.name == 'SKY'
-                and self.target_game in {'halo1', 'halo2'}):
-            self.write_classic_sky_tag(model_path)
-            return
 
         outputs = {'scenery'} if self.asset_type.name == 'SKY' else {
             tag_type for tag_type in self.supported_object_tag_types
@@ -995,7 +995,11 @@ class LegacyExportScene(ExportScene):
     def write_classic_sky_tag(self, model_path: Path) -> None:
         """Create/update the distinct H1/H2 sky tag reference layout."""
         destination = model_path.with_suffix('.sky')
-        with TagDocument(destination, tags_root=self.tags_dir,
+        suns = [ob for ob in self.sky_lights if ob.data.type == 'SUN']
+        if len(suns) > MAX_SKY_LIGHTS:
+            raise ExportCancelled(
+                f'Sky tags support at most {MAX_SKY_LIGHTS} sun lights; found {len(suns)}')
+        with SkyDocument(destination, tags_root=self.tags_dir,
                          game=self.target_game) as tag:
             root = tag.tag.root()
             if self.target_game == 'halo1':
@@ -1008,10 +1012,25 @@ class LegacyExportScene(ExportScene):
                         f'Sky compilation did not create the expected tag: {render_model}')
                 tag.set_reference(root, 'render model',
                                   utils.relative_path(render_model))
+                if tag.tag_is_new:
+                    tag.required_field(root, 'render model scale').set(1.0)
+                    tag.required_field(root, 'movement scale').set(1.0)
                 animation = model_path.with_suffix('.model_animation_graph')
             if animation.is_file():
                 tag.set_reference(root, 'animation graph',
                                   utils.relative_path(animation))
+            # An empty Blender light list means the tag lights are authored by hand.
+            if suns:
+                rotation = Matrix.Rotation(
+                    utils.blender_halo_rotation_diff(self.scene_settings.forward_direction),
+                    3, 'Z')
+                records = []
+                for ob in suns:
+                    direction = (rotation @ (ob.matrix_world.to_quaternion()
+                                             @ Vector((0, 0, 1)))).normalized()
+                    records.append(SkyLightRecord(
+                        tuple(direction), tuple(ob.data.color), ob.data.energy))
+                tag.set_sky_lights(records)
         print(f'--- Wrote {destination}')
 
     def write_classic_animation_events(self) -> None:

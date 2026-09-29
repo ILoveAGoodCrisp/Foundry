@@ -668,7 +668,8 @@ class ExportScene:
                             continue
                 if ob.type == 'LIGHT':
                     if (self.legacy_export and self.project_game in {'halo1', 'halo2'}
-                            and ob.data.type != 'AREA'):
+                            and ob.data.type != 'AREA'
+                            and not (self.asset_type == AssetType.SKY and ob.data.type == 'SUN')):
                         continue
                     if ob.data.energy < 0:
                         self.warnings.append(f"Light {ob.name} has power less than zero. Ignoring")
@@ -3166,16 +3167,14 @@ class ExportScene:
             self.print_post(f"--- Writing {len(self.airprobes)} airprobe{'s' if len(self.airprobes) != 1 else ''}")
             export_airprobes(self.airprobes)
                 
-        # H4 skies get their lighting info added to the scenery tag
+        # H4 and H2AMP skies use scenery tags for their structure lighting.
         if self.corinth and self.asset_type == AssetType.SKY:
             expected_scenery_path = utils.get_asset_tag("scenery", True)
             lighting_info = utils.get_asset_tag("scenario_structure_lighting_info", True)
-            if Path(expected_scenery_path).exists() and Path(lighting_info).exists():
-                
+            if expected_scenery_path and lighting_info:
                 with ObjectTag(path=expected_scenery_path) as scenery:
-                    lighting_info_tag_path = scenery.reference_from_path(lighting_info)
-                    self.print_post(f"--- Setting sky scenery lighting info to {lighting_info_tag_path.RelativePathWithExtension}")
-                    scenery.set_structure_lighting(lighting_info_tag_path.RelativePathWithExtension)
+                    scenery.set_structure_lighting(lighting_info)
+                    self.print_post(f"--- Setting sky scenery lighting info to {scenery.reference_from_path(lighting_info).RelativePathWithExtension}")
                     
         if self.asset_type == AssetType.DECORATOR_SET:
             with DecoratorSetTag() as decorator_set:
