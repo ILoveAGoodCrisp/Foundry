@@ -282,13 +282,14 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 return bsps[index]
 
     def _sky_name(self, element):
-        root = self.tag.root()
-        object_names = self.block(root, 'object names')
-        index = self.value(element, 'name')
-        if isinstance(index, int) and 0 <= index < len(object_names):
-            name = self.value(object_names[index], 'name')
-            if name:
-                return name
+        if self.game not in {'halo1', 'halo2'}:
+            root = self.tag.root()
+            object_names = self.block(root, 'object names')
+            index = self.value(element, 'name')
+            if isinstance(index, int) and 0 <= index < len(object_names):
+                name = self.value(object_names[index], 'name')
+                if name:
+                    return name
         reference = self.reference(element, 'sky')
         return reference.ShortName if reference is not None else None
 
@@ -1105,13 +1106,14 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
         skies = self.block(root, 'skies')
         self.set_reference(skies[sky_index], 'sky', path)
 
-        object_names = self.block(root, 'object names')
-        name_index = object_names.add()
-        object_names = self.block(root, 'object names')
         sky_name = Path(path).stem
-        self._set_value(object_names[name_index], 'name', sky_name)
-        skies = self.block(root, 'skies')
-        self._set_value(skies[sky_index], 'name', name_index)
+        if self.game not in {'halo1', 'halo2'}:
+            object_names = self.block(root, 'object names')
+            name_index = object_names.add()
+            object_names = self.block(root, 'object names')
+            self._set_value(object_names[name_index], 'name', sky_name)
+            skies = self.block(root, 'skies')
+            self._set_value(skies[sky_index], 'name', name_index)
 
         if self.corinth and sky_index == 0:
             bsps = self.block(root, 'structure bsps')
@@ -1128,8 +1130,10 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 raise ValueError(f'Invalid sky tag path: {path!r}')
         root = self.tag.root()
         skies = self.block(root, 'skies')
-        object_names = self.block(root, 'object names')
-        name_indices = [self.value(element, 'name') for element in skies]
+        has_name = self.game not in {'halo1', 'halo2'}
+        if has_name:
+            object_names = self.block(root, 'object names')
+            name_indices = [self.value(element, 'name') for element in skies]
         if len(skies):
             self.tag_has_changes = True
         skies.clear()
@@ -1138,12 +1142,13 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
             skies.add()
             skies = self.block(root, 'skies')
             self.set_reference(skies[sky_index], 'sky', path)
-            name_index = name_indices[sky_index] if sky_index < len(name_indices) else -1
-            if not isinstance(name_index, int) or not 0 <= name_index < len(object_names):
-                name_index = object_names.add()
-                object_names = self.block(root, 'object names')
-            self._set_value(object_names[name_index], 'name', Path(path).stem)
-            self._set_value(skies[sky_index], 'name', name_index)
+            if has_name:
+                name_index = name_indices[sky_index] if sky_index < len(name_indices) else -1
+                if not isinstance(name_index, int) or not 0 <= name_index < len(object_names):
+                    name_index = object_names.add()
+                    object_names = self.block(root, 'object names')
+                self._set_value(object_names[name_index], 'name', Path(path).stem)
+                self._set_value(skies[sky_index], 'name', name_index)
         if self.corinth and paths:
             for element in self.block(root, 'structure bsps'):
                 if self.value(element, 'default sky') == -1:

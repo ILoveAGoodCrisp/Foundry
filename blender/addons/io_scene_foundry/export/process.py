@@ -3044,6 +3044,15 @@ class ExportScene:
             
         print(txt)
             
+    def update_scenario_skies(self):
+        if self.asset_type != AssetType.SCENARIO or not self.scene_settings.skies_authored_from_blender:
+            return
+        scenario_path = Path(self.tags_dir, self.asset_path_relative, self.asset_name).with_suffix('.scenario')
+        sky_paths = [item.path for item in self.scene_settings.scenario_skies]
+        with ScenarioMetadataTag(path=scenario_path) as scenario:
+            scenario.set_skies(sky_paths)
+        self.print_post(f'--- Updated {len(sky_paths)} scenario skies')
+
     def postprocess_tags(self):
         """Tag edits to run after Tool import is called."""
         # if not self.is_child_asset:
@@ -3094,10 +3103,7 @@ class ExportScene:
                 animation.setup_blend_screens(self.pose_overlays)
                     
         if self.asset_type == AssetType.SCENARIO:
-            if self.scene_settings.skies_authored_from_blender:
-                sky_paths = [item.path for item in self.scene_settings.scenario_skies]
-                with ScenarioMetadataTag() as scenario:
-                    scenario.set_skies(sky_paths)
+            self.update_scenario_skies()
             if self.setup_scenario or self.export_settings.create_debug_zone_set:
                 lm_value = 6 if self.corinth else 3
                 with ScenarioMetadataTag() as scenario:

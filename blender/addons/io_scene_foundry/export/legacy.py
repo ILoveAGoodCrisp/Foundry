@@ -1694,8 +1694,10 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
             export.write_tags(single_animation)
             if project.game != 'halo1':
                 export.postprocess_tags()
-            elif (scene_settings.asset_type == 'scenario' and
-                  export_settings.lightmap_structure):
+            elif classic_scenario:
+                export.update_scenario_skies()
+            if (project.game == 'halo1' and scene_settings.asset_type == 'scenario' and
+                    export_settings.lightmap_structure):
                 scenario_path = Path(export.asset_path_relative, export.asset_name)
                 scenario_tag = Path(export.tags_dir, scenario_path).with_suffix('.scenario')
                 with ScenarioDocument(scenario_tag, tags_root=export.tags_dir,
