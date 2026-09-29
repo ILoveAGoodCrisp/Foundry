@@ -5,9 +5,11 @@ from bpy.app.handlers import persistent
 from bpy.utils import previews
 
 icons_dir = Path(__file__).parent.resolve()
+icons_light_dir = icons_dir.parent / "icons_light"
 preview_collections = {}
 foundry_icons = None
 icons_active = False
+_active_icons_dir = None
 _warned_messages = set()
 
 
@@ -16,6 +18,25 @@ def _warn_once(message):
         return
     _warned_messages.add(message)
     print(f"[Foundry Icons] {message}")
+
+
+def _theme_icons_dir():
+    try:
+        color = bpy.context.preferences.themes[0].user_interface.wcol_regular.inner
+        brightness = 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
+        if brightness >= 0.5 and icons_light_dir.is_dir():
+            return icons_light_dir
+    except (AttributeError, IndexError, TypeError):
+        pass
+    return icons_dir
+
+
+def _builtin_icon_path(icon_name):
+    directory = _active_icons_dir or _theme_icons_dir()
+    themed_path = directory / f"{icon_name}.png"
+    if themed_path.is_file():
+        return themed_path
+    return icons_dir / f"{icon_name}.png"
 
 
 def _is_collection_valid(collection):
@@ -112,28 +133,49 @@ def _load_icon_into_collection(icon_id, icon_path):
 
 
 def _load_builtin_icon(icon_name):
-    return _load_icon_into_collection(icon_name, icons_dir / f"{icon_name}.png")
+    return _load_icon_into_collection(icon_name, _builtin_icon_path(icon_name))
 
 
 def load_all_icons(force_reload=False):
+    global _active_icons_dir
     if bpy.app.background:
         return
 
-    if force_reload:
-        _ensure_collection(recreate=True)
+    directory = _theme_icons_dir()
+    collection = _ensure_collection(recreate=force_reload or directory != _active_icons_dir)
+    if collection is None:
+        return
+    _active_icons_dir = directory
 
-    for path in icons_dir.glob("*.png"):
-        _load_icon_into_collection(path.stem, path)
+    names = {path.stem for path in icons_dir.glob("*.png")}
+    if directory != icons_dir:
+        names.update(path.stem for path in directory.glob("*.png"))
+    for name in names:
+        _load_builtin_icon(name)
+
+
+def _tag_redraw():
+    window_manager = bpy.context.window_manager
+    if window_manager is None:
+        return
+    for window in window_manager.windows:
+        if window.screen:
+            for area in window.screen.areas:
+                area.tag_redraw()
+
+
+def _check_theme():
+    if _theme_icons_dir() != _active_icons_dir:
+        load_all_icons(force_reload=True)
+        _tag_redraw()
+    return 1.0
 
 
 @persistent
 def _reload_icons(_dummy):
     # Blender may discard preview image data on file load.
     load_all_icons(force_reload=True)
-    for window in bpy.context.window_manager.windows:
-        if window.screen:
-            for area in window.screen.areas:
-                area.tag_redraw()
+    _tag_redraw()
 
 
 def get_icon_id(id):
@@ -197,10 +239,14 @@ def register():
     load_all_icons(force_reload=True)
     if _reload_icons not in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.append(_reload_icons)
+    if not bpy.app.timers.is_registered(_check_theme):
+        bpy.app.timers.register(_check_theme, first_interval=1.0, persistent=True)
 
 
 def unregister():
-    global foundry_icons, icons_active
+    global foundry_icons, icons_active, _active_icons_dir
+    if bpy.app.timers.is_registered(_check_theme):
+        bpy.app.timers.unregister(_check_theme)
     try:
         if _reload_icons in bpy.app.handlers.load_post:
             bpy.app.handlers.load_post.remove(_reload_icons)
@@ -216,3 +262,4 @@ def unregister():
     preview_collections.clear()
     foundry_icons = None
     icons_active = False
+    _active_icons_dir = None
