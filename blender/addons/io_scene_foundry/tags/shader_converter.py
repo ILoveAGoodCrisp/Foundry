@@ -1546,7 +1546,11 @@ class ShaderTag(BlenderTag, TagDocument):
             prop.type = 'emissive'
         prop.material_lighting_emissive_power = power
         prop.material_lighting_emissive_color = color
-        if self.game != 'halo1' or H1_WRITE_RADIOSITY_TO_NODES:
+        uses_h2_group = self.game == 'halo2' and blender_material.use_nodes and any(
+            node.type == 'GROUP' and node.node_tree is not None
+            and node.node_tree.name == 'Basic H2 shader'
+            for node in blender_material.node_tree.nodes)
+        if not uses_h2_group and (self.game != 'halo1' or H1_WRITE_RADIOSITY_TO_NODES):
             utils.update_classic_emissive_material(blender_material, self.game)
 
     def _to_nodes_halo1_group(self, blender_material: bpy.types.Material, shader_type: str):
@@ -1749,8 +1753,6 @@ class ShaderTag(BlenderTag, TagDocument):
                 parent = parent.parent
             inputs[(*path, item.name)] = sockets[item.identifier]
 
-        unsupported = set()
-
         def assign(path, value):
             socket = inputs.get(path)
             if socket is None:
@@ -1760,11 +1762,7 @@ class ShaderTag(BlenderTag, TagDocument):
             except (TypeError, ValueError):
                 if socket.bl_idname != 'NodeSocketMenu':
                     raise
-                # WIP menus without an internal menu switch have no enum items.
-                # Retain their tag values for inspection until the group supports them.
-                group['tag ' + socket.identifier] = {
-                    'input': ' / '.join(path), 'value': value}
-                unsupported.add(' / '.join(path))
+                # Skip unfinished menus until the resource group supports them.
 
         def enum(struct, name):
             return self.required_field(struct, name).options().current_name
@@ -1889,10 +1887,6 @@ class ShaderTag(BlenderTag, TagDocument):
                     for destination in ('AB', 'CD'):
                         menu(stage, f'output {destination.lower()} function',
                              (*path, 'color outputs', f'output {destination} function'))
-        if unsupported:
-            utils.print_warning(
-                f'Halo 1 generic node group has {len(unsupported)} unfinished menu inputs; '
-                'their tag values are retained as node custom properties')
         return True
 
     def _to_nodes_halo1(self, blender_material: bpy.types.Material):
@@ -2353,21 +2347,20 @@ class ShaderTag(BlenderTag, TagDocument):
         output.location = (600, 100)
 
     def _to_nodes_halo2(self, blender_material: bpy.types.Material):
-        """Populate the basic Halo 2 resource shader, with a Principled fallback."""
+        """Connect tag textures directly to the Halo 2 resource shader."""
         from .backend import TagDocument
 
         blender_material.use_nodes = True
         tree = blender_material.node_tree
         nodes = tree.nodes
         nodes.clear()
-        output = nodes.new(type='ShaderNodeOutputMaterial')
-        output.location = (420, 0)
-        bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-        bsdf.location = (120, 0)
-        tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-
+        output = nodes.new('ShaderNodeOutputMaterial')
+        output.location = (400, 0)
         root = self.tag.root()
         if self.system_path.suffix.casefold() == '.decal':
+            bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+            bsdf.location = (120, 0)
+            tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
             blender_material.surface_render_method = 'BLENDED'
             reference = TagDocument.reference(self, root, 'bitmap')
             if reference is None or not reference.RelativePath:
@@ -2393,297 +2386,71 @@ class ShaderTag(BlenderTag, TagDocument):
             return
 
         group_tree = utils.add_node_from_resources('h2_nodes', 'Basic H2 shader')
-        group = None
-        if group_tree is not None:
-            group = nodes.new('ShaderNodeGroup')
-            group.node_tree = group_tree
-            group.location = (120, 0)
-            # A static import should not enable active camouflage by default.
-            group.inputs['Active Camo amount'].default_value = 0.0
+        if group_tree is None:
+            utils.print_warning('Missing Basic H2 shader node group in h2_nodes.blend')
+            return
+        group = nodes.new('ShaderNodeGroup')
+        group.node_tree = group_tree
+        group.location = (0, 0)
+        group.inputs['Active Camo amount'].default_value = 0.0
+        tree.links.new(group.outputs['Shader'], output.inputs['Surface'])
 
-        template = TagDocument.reference(self, root, 'template')
-        template_name = template.RelativePath.casefold() if template is not None else ''
-        transparent = '\\transparent\\' in template_name
-        if transparent:
-            blender_material.surface_render_method = 'BLENDED'
+        parameters = {
+            str(self.value(element, 'name')).casefold(): element
+            for element in self.block(root, 'parameters')
+        }
 
-        parameters = {}
-        for element in self.block(root, 'parameters'):
-            parameters[str(self.value(element, 'name')).casefold()] = element
-
-        alpha_tested = ('alpha_test' in template_name or
-                        'alphatest_map' in parameters)
-        if alpha_tested:
-            blender_material.surface_render_method = 'DITHERED'
-
-        def color(name: str):
-            element = parameters.get(name)
-            if element is None:
-                return None
-            value = self.value(element, 'const color')
-            return (value.red, value.green, value.blue, 1.0)
-
-        def real(name: str, default: float = 0.0) -> float:
+        def real(name, default=1.0):
             element = parameters.get(name)
             return default if element is None else float(self.value(element, 'const value'))
 
-        def image(name: str, *, non_color=False):
+        texcoord = None
+        row = 0
+        for socket in group.inputs:
+            name = socket.name
             element = parameters.get(name)
-            if element is None:
-                return None
-            bitmap = TagDocument.reference(self, element, 'bitmap')
-            if bitmap is None or not bitmap.RelativePath:
-                return None
-            result = bitmap_to_image(bitmap.Filename, self.always_extract_bitmaps)
-            node_type = ('ShaderNodeTexEnvironment' if getattr(result, 'cubemap', False)
-                         else 'ShaderNodeTexImage')
-            image_node = nodes.new(type=node_type)
-            image_node.name = name
-            image_node.label = name
-            image_node.image = result.image
-            if non_color and image_node.image is not None:
-                image_node.image.colorspace_settings.name = 'Non-Color'
-            return image_node
-
-        alpha_map = image('alpha_blend_map')
-        alpha_test_map = image('alphatest_map', non_color=True)
-        base = image('base_map')
-        if base is None:
-            base = alpha_map or image('self_illum_map')
-        if base is not None:
-            base.location = (-520, 160)
-            base_color = base.outputs['Color']
-            detail_nodes = [node for node in (image('detail_map'), image('secondary_detail_map'))
-                            if node is not None]
-            for index, detail in enumerate(detail_nodes):
-                detail.location = (-520, -40 - index * 180)
-                prefix = 'detail' if index == 0 else 'secondary_detail'
-                scale_x = real(f'{prefix}_scale_x', 1.0) or 1.0
-                scale_y = real(f'{prefix}_scale_y', scale_x) or scale_x
-                if scale_x != 1.0 or scale_y != 1.0:
-                    texture = nodes.new(type='ShaderNodeTexCoord')
-                    texture.location = (-1050, detail.location.y)
-                    mapping = nodes.new(type='ShaderNodeMapping')
-                    mapping.location = (-820, detail.location.y)
-                    mapping.inputs['Scale'].default_value = (scale_x, scale_y, 1.0)
-                    tree.links.new(texture.outputs['UV'], mapping.inputs['Vector'])
-                    tree.links.new(mapping.outputs['Vector'], detail.inputs['Vector'])
-                if group is not None and index == 0:
-                    tree.links.new(detail.outputs['Color'], group.inputs['detail_map'])
+            if name.endswith('_map'):
+                if element is None and name == 'environment_map':
+                    element = parameters.get('specular_cube_map')
+                if element is None:
                     continue
-                multiply = nodes.new(type='ShaderNodeVectorMath')
-                multiply.operation = 'MULTIPLY'
-                multiply.location = (-250 + index * 180, 160)
-                double = nodes.new(type='ShaderNodeVectorMath')
-                double.operation = 'SCALE'
-                double.inputs['Scale'].default_value = 2.0
-                double.location = (-70 + index * 180, 160)
-                tree.links.new(base_color, multiply.inputs[0])
-                tree.links.new(detail.outputs['Color'], multiply.inputs[1])
-                tree.links.new(multiply.outputs['Vector'], double.inputs['Vector'])
-                base_color = double.outputs['Vector']
-
-            multiply_map = image('multiply_map')
-            if multiply_map is not None:
-                multiply_map.location = (-520, -400)
-                multiply_color = nodes.new(type='ShaderNodeVectorMath')
-                multiply_color.operation = 'MULTIPLY'
-                multiply_color.location = (300, 160)
-                tree.links.new(base_color, multiply_color.inputs[0])
-                tree.links.new(multiply_map.outputs['Color'], multiply_color.inputs[1])
-                base_color = multiply_color.outputs['Vector']
-
-            change_map = image('change_color_map', non_color=True)
-            if change_map is not None:
-                change_map.location = (-520, -580)
-                separate = nodes.new(type='ShaderNodeSeparateColor')
-                separate.location = (-280, -580)
-                tree.links.new(change_map.outputs['Color'], separate.inputs['Color'])
-                masks = (
-                    (separate.outputs['Red'], 'Primary Color'),
-                    (separate.outputs['Green'], 'Secondary Color'),
-                    (separate.outputs['Blue'], 'Tertiary Color'),
-                    (change_map.outputs['Alpha'], 'Quaternary Color'),
-                )
-                for index, (mask, attribute_name) in enumerate(masks):
-                    attribute = nodes.new(type='ShaderNodeAttribute')
-                    attribute.attribute_name = attribute_name
-                    attribute.attribute_type = 'INSTANCER'
-                    attribute.location = (-40, -500 - index * 120)
-                    tinted = nodes.new(type='ShaderNodeVectorMath')
-                    tinted.operation = 'MULTIPLY'
-                    tinted.location = (170, -420 - index * 120)
-                    color_mix = nodes.new(type='ShaderNodeMixRGB')
-                    color_mix.blend_type = 'MIX'
-                    color_mix.location = (380, -340 - index * 120)
-                    tree.links.new(base_color, tinted.inputs[0])
-                    tree.links.new(attribute.outputs['Color'], tinted.inputs[1])
-                    tree.links.new(mask, color_mix.inputs[0])
-                    tree.links.new(base_color, color_mix.inputs[1])
-                    tree.links.new(tinted.outputs['Vector'], color_mix.inputs[2])
-                    base_color = color_mix.outputs['Color']
-
-            if group is None:
-                environment = image('environment_map')
-                if environment is None:
-                    environment = image('specular_cube_map')
-                if environment is not None:
-                    environment.location = (-520, 620)
-                    texture = nodes.new(type='ShaderNodeTexCoord')
-                    texture.location = (-1050, 620)
-                    tree.links.new(texture.outputs['Reflection'], environment.inputs['Vector'])
-
-                    environment_tint = color('env_tint_color') or color('environment_color')
-                    glancing_tint = color('env_glancing_tint_color') or environment_tint
-                    environment_tint = environment_tint or (1.0, 1.0, 1.0, 1.0)
-                    glancing_tint = glancing_tint or environment_tint
-                    environment_brightness = real('env_brightness', 1.0)
-                    glancing_brightness = real('env_glancing_brightness', environment_brightness)
-
-                    facing = nodes.new(type='ShaderNodeLayerWeight')
-                    facing.location = (-280, 720)
-                    reflection_tint = nodes.new(type='ShaderNodeMixRGB')
-                    reflection_tint.blend_type = 'MIX'
-                    reflection_tint.location = (-40, 620)
-                    reflection_tint.inputs[1].default_value = tuple(
-                        component * glancing_brightness for component in glancing_tint)
-                    reflection_tint.inputs[2].default_value = tuple(
-                        component * environment_brightness for component in environment_tint)
-                    tree.links.new(facing.outputs['Facing'], reflection_tint.inputs[0])
-
-                    tinted_reflection = nodes.new(type='ShaderNodeVectorMath')
-                    tinted_reflection.operation = 'MULTIPLY'
-                    tinted_reflection.location = (170, 580)
-                    tree.links.new(environment.outputs['Color'], tinted_reflection.inputs[0])
-                    tree.links.new(reflection_tint.outputs['Color'], tinted_reflection.inputs[1])
-                    # A cubemap added directly to Base Color makes H2 surfaces look
-                    # wet even when viewed head-on. Keep the tag's brightness and
-                    # tint, but attenuate the reflection by the view angle.
-                    fresnel_reflection = nodes.new(type='ShaderNodeVectorMath')
-                    fresnel_reflection.operation = 'SCALE'
-                    fresnel_reflection.location = (370, 580)
-                    tree.links.new(tinted_reflection.outputs['Vector'], fresnel_reflection.inputs['Vector'])
-                    tree.links.new(facing.outputs['Fresnel'], fresnel_reflection.inputs['Scale'])
-                    add_reflection = nodes.new(type='ShaderNodeVectorMath')
-                    add_reflection.operation = 'ADD'
-                    add_reflection.location = (570, 360)
-                    tree.links.new(base_color, add_reflection.inputs[0])
-                    tree.links.new(fresnel_reflection.outputs['Vector'], add_reflection.inputs[1])
-                    base_color = add_reflection.outputs['Vector']
-            tree.links.new(base_color, bsdf.inputs['Base Color'])
-
-        if transparent:
-            alpha_source = alpha_map or base
-            opacity = real('alpha_blend_opacity', 1.0)
-            alpha_output = None if alpha_source is None else alpha_source.outputs.get('Alpha')
-            if alpha_output is None:
-                bsdf.inputs['Alpha'].default_value = opacity
-            elif opacity == 1.0:
-                tree.links.new(alpha_output, bsdf.inputs['Alpha'])
-            else:
-                multiply_alpha = nodes.new(type='ShaderNodeMath')
-                multiply_alpha.operation = 'MULTIPLY'
-                multiply_alpha.inputs[1].default_value = opacity
-                multiply_alpha.location = (-100, -420)
-                tree.links.new(alpha_output, multiply_alpha.inputs[0])
-                tree.links.new(multiply_alpha.outputs[0], bsdf.inputs['Alpha'])
-        elif alpha_test_map is not None:
-            alpha_test_map.location = (-520, -760)
-            alpha_output = alpha_test_map.outputs.get('Alpha')
-            if alpha_output is not None:
-                tree.links.new(alpha_output, bsdf.inputs['Alpha'])
-
-        bump = image('bump_map', non_color=True)
-        if bump is not None:
-            bump.location = (-520, -180)
-            normal = nodes.new(type='ShaderNodeNormalMap')
-            normal.location = (-180, -180)
-            tree.links.new(bump.outputs['Color'], normal.inputs['Color'])
-            tree.links.new(normal.outputs['Normal'], bsdf.inputs['Normal'])
-
-        specular = color('specular_color')
-        specular_input = bsdf.inputs.get('Specular IOR Level')
-        if specular is not None and specular_input is not None:
-            specular_input.default_value = max(specular[:3])
-
-        emission = image('self_illum_map')
-        emission_input = bsdf.inputs.get('Emission Color')
-        if emission_input is None:
-            emission_input = bsdf.inputs.get('Emission')
-        if emission is not None and emission_input is not None:
-            emission.location = (-520, -500)
-            emission_color = color('emissive_color') or color('self_illum_color')
-            if emission_color is None:
-                tree.links.new(emission.outputs['Color'], emission_input)
-            else:
-                tint = nodes.new(type='ShaderNodeRGB')
-                tint.outputs['Color'].default_value = emission_color
-                multiply_emission = nodes.new(type='ShaderNodeVectorMath')
-                multiply_emission.operation = 'MULTIPLY'
-                multiply_emission.location = (-100, -500)
-                tree.links.new(emission.outputs['Color'], multiply_emission.inputs[0])
-                tree.links.new(tint.outputs['Color'], multiply_emission.inputs[1])
-                tree.links.new(multiply_emission.outputs['Vector'], emission_input)
-            strength = bsdf.inputs.get('Emission Strength')
-            if strength is not None:
-                strength.default_value = max(float(self.value(parameters.get('emissive_power'), 'const value'))
-                                             if parameters.get('emissive_power') is not None else 1.0, 1.0)
-        elif (emission_color := color('self_illum_color') or color('emissive_color')) is not None and emission_input is not None:
-            emission_input.default_value = emission_color
-
-        if group is not None:
-            base_input = bsdf.inputs['Base Color']
-            if base_input.is_linked:
-                tree.links.new(base_input.links[0].from_socket, group.inputs['base_map'])
-            if bump is not None:
-                tree.links.new(bump.outputs['Color'], group.inputs['bump_map'])
-                nodes.remove(normal)
-            camo = image('active_camo_bump_map', non_color=True)
-            if camo is not None:
-                camo.location = (-520, -1000)
-                tree.links.new(camo.outputs['Color'], group.inputs['active_camo_bump_map'])
-            environment = image('environment_map')
-            if environment is None:
-                environment = image('specular_cube_map')
-            if environment is not None:
-                environment.location = (-520, 620)
-                texture = nodes.new('ShaderNodeTexCoord')
-                texture.location = (-820, 620)
-                tree.links.new(texture.outputs['Reflection'], environment.inputs['Vector'])
-                tree.links.new(environment.outputs['Color'], group.inputs['environment_map'])
-            group.inputs['env_tint_color'].default_value = (
-                color('env_tint_color') or color('environment_color') or (1.0, 1.0, 1.0, 1.0))
-            group.inputs['env_brightness'].default_value = real('env_brightness', 1.0)
-            surface = group.outputs['Shader']
-            if emission_input is not None and (emission_input.is_linked or
-                    any(emission_input.default_value[:3])):
-                emissive = nodes.new('ShaderNodeEmission')
-                emissive.location = (350, -220)
-                if emission_input.is_linked:
-                    tree.links.new(emission_input.links[0].from_socket, emissive.inputs['Color'])
-                else:
-                    emissive.inputs['Color'].default_value = emission_input.default_value
-                emissive.inputs['Strength'].default_value = bsdf.inputs['Emission Strength'].default_value
-                add = nodes.new('ShaderNodeAddShader')
-                add.location = (560, 0)
-                tree.links.new(surface, add.inputs[0])
-                tree.links.new(emissive.outputs[0], add.inputs[1])
-                surface = add.outputs[0]
-            if transparent or alpha_tested:
-                alpha = bsdf.inputs['Alpha']
-                transparent_node = nodes.new('ShaderNodeBsdfTransparent')
-                mix = nodes.new('ShaderNodeMixShader')
-                mix.location = (760, 0)
-                if alpha.is_linked:
-                    tree.links.new(alpha.links[0].from_socket, mix.inputs[0])
-                else:
-                    mix.inputs[0].default_value = alpha.default_value
-                tree.links.new(transparent_node.outputs[0], mix.inputs[1])
-                tree.links.new(surface, mix.inputs[2])
-                surface = mix.outputs[0]
-            tree.links.new(surface, output.inputs['Surface'])
-            output.location = (1000, 0)
-            nodes.remove(bsdf)
+                reference = TagDocument.reference(self, element, 'bitmap')
+                if reference is None or not reference.RelativePath:
+                    continue
+                result = bitmap_to_image(reference.Filename, self.always_extract_bitmaps)
+                if result.image is None:
+                    continue
+                image = nodes.new('ShaderNodeTexEnvironment' if result.cubemap
+                                  else 'ShaderNodeTexImage')
+                image.name = name
+                image.label = name
+                image.image = result.image
+                image.location = (-400, -row * 280)
+                row += 1
+                if name in {'bump_map', 'active_camo_bump_map'}:
+                    image.image.colorspace_settings.name = 'Non-Color'
+                tree.links.new(image.outputs['Color'], socket)
+                reflection = name == 'environment_map'
+                prefix = name.removesuffix('_map')
+                scale_x = real(f'{prefix}_scale_x') or 1.0
+                scale_y = real(f'{prefix}_scale_y', scale_x) or scale_x
+                if reflection or scale_x != 1.0 or scale_y != 1.0:
+                    if texcoord is None:
+                        texcoord = nodes.new('ShaderNodeTexCoord')
+                        texcoord.location = (-1000, 0)
+                    vector = texcoord.outputs['Reflection' if reflection else 'UV']
+                    if not reflection:
+                        mapping = nodes.new('ShaderNodeMapping')
+                        mapping.location = (-700, image.location.y)
+                        mapping.inputs['Scale'].default_value = (scale_x, scale_y, 1.0)
+                        tree.links.new(vector, mapping.inputs['Vector'])
+                        vector = mapping.outputs['Vector']
+                    tree.links.new(vector, image.inputs['Vector'])
+            elif element is not None and socket.type == 'RGBA':
+                value = self.value(element, 'const color')
+                socket.default_value = (value.red, value.green, value.blue, 1.0)
+            elif element is not None and socket.type == 'VALUE':
+                socket.default_value = real(name)
 
     def _option_value_from_index(self, index):
         if index >= self.block_options.Elements.Count:
