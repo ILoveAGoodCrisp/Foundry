@@ -11,24 +11,27 @@ from mathutils import Matrix, Quaternion, Vector
 
 from .ass_format import ASS, ASSError
 from .jms_format import JMS, Material, Node, Transform, Shape
-from .jms_importer import JMSImporter, is_frame_name
+from .jms_importer import JMSImporter, is_frame_name, canonical_bone_name
 from .. import utils
 from ..constants import face_prop_game_supported
 
 
 class ASSImporter(JMSImporter):
-    def __init__(self, owner, path, legacy_type, *, parent_collection=None):
+    def __init__(self, owner, path, legacy_type, *, parent_collection=None,
+                 tag_armature=None, geometry_only=False, allowed_region_permutations=()):
         self.owner, self.path = owner, Path(path)
         self.ass = ASS.from_file(path)
         self.scale = owner.scale_factor
         self.rotation = Matrix.Rotation(owner.from_x_rot, 4, 'Z')
         self.objects, self.materials, self.created_materials, self.props = [], {}, [], {}
         self.armature, self.node_world = None, {}
-        self.tag_armature, self.parent_collection = None, parent_collection
-        self.tag_bone_names, self.geometry_only = {}, False
+        self.tag_armature, self.parent_collection = tag_armature, parent_collection
+        self.tag_bone_names, self.geometry_only = {}, geometry_only
+        self.allowed_region_permutations = set(allowed_region_permutations)
         self.source_indices, self.templates, self.anchors = {}, {}, {}
         self.frame_instances = set()
         self.instance_objects = {}
+        self.bone_aliases = {}
         weighted = {b for i in self.ass.instances for b in i.bones if b != -1}
         self.is_model = legacy_type == 'model' or (legacy_type == 'auto' and (
             bool(weighted) or self.path.parent.name.lower() in {'render', 'collision', 'physics'}))
@@ -36,6 +39,37 @@ class ASSImporter(JMSImporter):
         if self.is_model:
             self.bone_instances |= {index for index, i in enumerate(self.ass.instances)
                                     if i.name.lower().startswith(('b ', 'b_', 'bone', 'frame', 'bip01')) and i.unique_id != -1}
+        if tag_armature is not None:
+            # Tool can omit authoring-only roots from the compiled skeleton.
+            # Keep their source transforms, but do not recreate them as bones.
+            tag_names = {canonical_bone_name(b.name) for b in tag_armature.data.bones}
+            matched = {index for index in self.bone_instances
+                       if canonical_bone_name(self.ass.instances[index].name) in tag_names}
+            for index in weighted - matched:
+                ancestor = self.ass.instances[index].parent
+                while ancestor != -1 and ancestor not in matched:
+                    ancestor = self.ass.instances[ancestor].parent
+                if ancestor == -1:
+                    # An omitted authoring root can still carry weights. Tool
+                    # transfers these to its surviving compiled root child.
+                    roots = []
+                    for candidate in matched:
+                        name = canonical_bone_name(self.ass.instances[candidate].name)
+                        bone = next(b for b in tag_armature.data.bones
+                                    if canonical_bone_name(b.name) == name)
+                        if bone.parent is not None:
+                            continue
+                        parent = self.ass.instances[candidate].parent
+                        while parent != -1 and parent != index:
+                            parent = self.ass.instances[parent].parent
+                        if parent == index:
+                            roots.append(candidate)
+                    ancestor = roots[0] if len(roots) == 1 else -1
+                if ancestor == -1:
+                    raise ASSError(f'{self.path}: weighted ASS bone absent from render model: '
+                                   f'{self.ass.instances[index].name}')
+                self.bone_aliases[index] = ancestor
+            self.bone_instances = matched
         self.order = self.ass.instance_order()
         self.world = {}
         for index in self.order:
@@ -260,6 +294,7 @@ class ASSImporter(JMSImporter):
                 if palette != -1 and weight > 0:
                     bone = instance.bones[palette]
                     if bone != -1:
+                        bone = self.bone_aliases.get(bone, bone)
                         combined[bone] += weight
             total = sum(combined.values())
             for bone, weight in combined.items():
@@ -267,7 +302,8 @@ class ASSImporter(JMSImporter):
         groups = {}
         for (bone, weight), vertices in buckets.items():
             if bone not in groups:
-                groups[bone] = ob.vertex_groups.new(name=self.ass.instances[bone].name)
+                groups[bone] = ob.vertex_groups.new(name=self.tag_bone_names.get(
+                    self.bone_map[bone], self.ass.instances[bone].name))
             groups[bone].add(vertices, weight, 'REPLACE')
         if buckets and self.armature:
             modifier = ob.modifiers.new('Armature', 'ARMATURE')
@@ -289,12 +325,15 @@ class ASSImporter(JMSImporter):
             if instance.parent in self.bone_map:
                 anchor.parent = self.armature
                 anchor.parent_type = 'BONE'
-                anchor.parent_bone = self.ass.instances[instance.parent].name
+                anchor.parent_bone = self.tag_bone_names.get(
+                    self.bone_map[instance.parent], self.ass.instances[instance.parent].name)
             else:
                 anchor.parent = self.anchors.get(instance.parent)
             anchor.matrix_world = self.scene_matrix(self.world[index])
             anchor['ass_instance'] = json.dumps(asdict(instance))
             if is_frame_name(instance.name):
+                if self.geometry_only:
+                    continue
                 anchor.name = instance.name
                 anchor.empty_display_type = 'ARROWS'
                 anchor.empty_display_size = max(self.scale, 0.001)
@@ -306,6 +345,9 @@ class ASSImporter(JMSImporter):
             if instance.unique_id == -1:
                 continue
             geometry = self.ass.geometries[instance.geometry] if instance.geometry != -1 else None
+            if self.geometry_only and (instance.name.startswith('#') or geometry is None
+                                       or geometry.xref_path or geometry.kind == 'GENERIC_LIGHT'):
+                continue
             matrix = self.scene_matrix(self.world[index] @ self.ass_matrix(instance.pivot))
             if geometry and geometry.xref_path:
                 ob = self.object(instance.name.lstrip('#'))
@@ -352,7 +394,11 @@ class ASSImporter(JMSImporter):
                             ob.nwo.marker_permutations.add().name = ob.nwo.permutation_name
                     self.bind_skin(ob, instance, geometry)
             for ob in objects:
-                ob.parent = anchor
+                # Skinning already applies the bones' motion. Inheriting that
+                # motion through a bone-parented anchor applies it twice.
+                skinned = any(mod.type == 'ARMATURE' and mod.object == self.armature
+                              for mod in ob.modifiers)
+                ob.parent = self.armature if skinned else anchor
                 ob.parent_type = 'OBJECT'
                 ob.matrix_world = matrix
                 ob['ass_geometry'] = instance.geometry
@@ -448,5 +494,8 @@ class ASSImporter(JMSImporter):
         return ob
 
 
-def import_ass(owner, path, legacy_type, *, parent_collection=None):
-    return ASSImporter(owner, path, legacy_type, parent_collection=parent_collection).build()
+def import_ass(owner, path, legacy_type, *, parent_collection=None, tag_armature=None,
+               geometry_only=False, allowed_region_permutations=()):
+    return ASSImporter(owner, path, legacy_type, parent_collection=parent_collection,
+                       tag_armature=tag_armature, geometry_only=geometry_only,
+                       allowed_region_permutations=allowed_region_permutations).build()

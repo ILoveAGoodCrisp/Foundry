@@ -3016,7 +3016,9 @@ class ExportScene:
                 print("+" * len(dev_message))
             raise ExportCancelled("Export failed due to Tool assertion. See above")
 
-        if self.asset_type == AssetType.SCENARIO and self.project_game in {'halo3', 'halo3odst'}:
+        if (self.asset_type == AssetType.SCENARIO
+                and self.project_game in {'halo3', 'halo3odst'}
+                and not self.export_settings.preserve_non_asset_bsps):
             scenario_path = Path(self.tags_dir, self.asset_path_relative,
                                  self.asset_name).with_suffix('.scenario')
             bsp_paths = [Path(self.asset_path_relative, bsp).with_suffix('.scenario_structure_bsp')

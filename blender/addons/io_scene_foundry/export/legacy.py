@@ -990,7 +990,7 @@ class LegacyExportScene(ExportScene):
             destination, tags_root=self.tags_dir, game=self.target_game
         ) as scenario:
             scenario.ensure_structure_bsps(bsp_paths)
-            if not self.limit_bsps_to_selection:
+            if not self.limit_bsps_to_selection and not self.export_settings.preserve_non_asset_bsps:
                 scenario.retain_structure_bsps(bsp_paths)
             if is_new:
                 scenario.create_default_profile()

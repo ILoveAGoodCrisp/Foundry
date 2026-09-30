@@ -4170,7 +4170,10 @@ class NWOImporter:
             path for path in self.import_info_sources_for_tag(file)
             if Path(path).suffix.lower() in legacy_model_formats
         ]
-        if source_files and self.game == 'halo2' and all(Path(path).suffix.lower() == '.jms' for path in source_files):
+        use_tag_skeleton = source_files and (
+            (self.game == 'halo2' and all(Path(path).suffix.lower() == '.jms' for path in source_files))
+            or (self.game in {'halo3', 'halo3odst'} and all(Path(path).suffix.lower() == '.ass' for path in source_files)))
+        if use_tag_skeleton:
             collection = bpy.data.collections.new(Path(file).stem + '_render')
             model_collection.children.link(collection)
             with utils.TagImportMover(self.tags_dir, file) as mover:
@@ -4182,7 +4185,9 @@ class NWOImporter:
                     tag_objects.extend(render_model.skylights_to_blender(collection))
                     source_objects = self.import_jms_files(
                         source_files, 'model', tag_armature=armature,
-                        parent_collection=collection, geometry_only=True)
+                        parent_collection=collection, geometry_only=True,
+                        allowed_region_permutations=render_model._resolve_region_permutations(
+                            allowed_region_permutations))
                     if self.build_control_rig and allow_control_rig:
                         render_model._apply_control_rig_deform_shapes_after_geometry()
                     sky_data = render_model.sky_data()
@@ -4634,9 +4639,9 @@ class NWOImporter:
     
     def import_scenarios(self, paths, build_blender_materials, always_extract_bitmaps, return_collection=False, merge_sky_to_scenario_collection=False):
         imported_objects = []
-        scene_skies = utils.get_scene_props().scenario_skies
+        scene_nwo = utils.get_scene_props()
+        scene_skies = scene_nwo.scenario_skies
         for file in paths:
-            scene_skies.clear()
             if self.tag_zone_set:
                 utils.print_section(f'Importing Scenario Tag: {Path(file).with_suffix("").name} with Zone Set {self.tag_zone_set}')
             else:
@@ -4645,6 +4650,8 @@ class NWOImporter:
             with utils.TagImportMover(self.tags_dir, file) as mover:
                 with ScenarioMetadataTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
+                    scene_skies.clear()
+                    scene_nwo.skies_authored_from_blender = True
                     for sky_path in scenario.get_sky_references():
                         scene_skies.add().path = sky_path
                     bsps = scenario.get_bsp_paths(self.tag_zone_set)
@@ -5138,7 +5145,7 @@ class NWOImporter:
             import_errors(Path(path), self.context.scene, rotation, scale)
 
     def import_jms_files(self, jms_files, legacy_type, *, tag_armature=None,
-                         parent_collection=None, geometry_only=False):
+                         parent_collection=None, geometry_only=False, allowed_region_permutations=()):
         """Import JMS and ASS natively, with conversion inside each adapter."""
         from ..legacy.jms_importer import import_jms
         from ..legacy.ass_importer import import_ass
@@ -5149,9 +5156,11 @@ class NWOImporter:
                 objects.extend(reader(self, path, legacy_type,
                                       tag_armature=tag_armature,
                                       parent_collection=parent_collection,
-                                      geometry_only=geometry_only))
+                                      geometry_only=geometry_only,
+                                      allowed_region_permutations=allowed_region_permutations))
             else:
-                objects.extend(reader(self, path, legacy_type, parent_collection=parent_collection))
+                objects.extend(reader(self, path, legacy_type, parent_collection=parent_collection,
+                                      allowed_region_permutations=allowed_region_permutations))
         return objects
 
 

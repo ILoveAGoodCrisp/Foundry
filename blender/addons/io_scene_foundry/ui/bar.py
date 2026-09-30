@@ -633,9 +633,7 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
         scene_nwo = utils.get_scene_props()
         project = utils.get_project(scene_nwo.scene_project)
         game = project.game if project else None
-        if game in {'halo1', 'halo2'}:
-            return False
-        if game in {'halo3', 'halo3odst'}:
+        if game in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
             return utils.poll_ui(('scenario',))
         return utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation', 'multi_model', 'multi_prefab'))
 
@@ -661,6 +659,10 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
         col = flow.column()
         if utils.uses_legacy_export(scene_nwo.scene_project):
             if scenario:
+                col.prop(scene_nwo_export, "preserve_non_asset_bsps")
+                project = utils.get_project(scene_nwo.scene_project)
+                if project and project.game in {'halo1', 'halo2'}:
+                    return
                 col.prop(scene_nwo_export, "create_debug_zone_set")
                 col.prop(scene_nwo_export, "allow_proxy_decals")
             return
@@ -1268,6 +1270,12 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     # def set_show_output(self, value):
     #     self["show_output"] = value
     
+    preserve_non_asset_bsps: bpy.props.BoolProperty(
+        name="Preserve Non-Asset BSPs",
+        description="Keep existing scenario BSP references that are not part of this asset when exporting",
+        default=False,
+    )
+
     create_debug_zone_set: bpy.props.BoolProperty(
         name="Create Debug Zone Set",
         description="Adds a zone set containing all BSPs and structure designs to the scenario on export",

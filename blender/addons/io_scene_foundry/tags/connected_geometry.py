@@ -3651,10 +3651,10 @@ class Mesh:
                 if parent:
                     ob.parent = parent
                     if parent.type == 'ARMATURE':
-                        if self.rigid_node_index > -1:
+                        if parent_bone or self.rigid_node_index > -1:
                             ob.parent_type = "BONE"
                             ob.parent_bone = parent_bone or nodes[self.rigid_node_index].name
-                        else:
+                        elif not self.instances:
                             ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
                 ob.matrix_world = final_matrix
                 return ob
@@ -3733,10 +3733,10 @@ class Mesh:
         if parent:
             ob.parent = parent
             if parent.type == 'ARMATURE':
-                if self.rigid_node_index > -1:
+                if parent_bone or self.rigid_node_index > -1:
                     ob.parent_type = "BONE"
                     ob.parent_bone = parent_bone or nodes[self.rigid_node_index].name
-                else:
+                elif not self.instances:
                     node_indices = self.raw_node_indices[idx_start:idx_end + 1]
                     node_weights = self.raw_node_weights[idx_start:idx_end + 1]
                     vgroups = ob.vertex_groups
@@ -4056,7 +4056,7 @@ class MarkerGroup:
         for e in element.SelectField("markers").Elements:
             self.markers.append(Marker(e, nodes, regions))
             
-    def to_blender(self, armature: bpy.types.Object, collection: bpy.types.Collection, size_factor: float, allowed_region_permutations: set):
+    def to_blender(self, armature: bpy.types.Object, collection: bpy.types.Collection, size_factor: float, allowed_region_permutations: set, *, target_scale_is_radius=True):
         # Find duplicate markers
         objects = []
         skip_markers = []
@@ -4137,7 +4137,11 @@ class MarkerGroup:
             ob.empty_display_size *= size_factor * import_transform.scale_factor()
             
             if self.type == MarkerType._connected_geometry_marker_type_target:
-                ob.empty_display_size = import_transform.distance(marker.scale)
+                if target_scale_is_radius:
+                    ob.empty_display_size = import_transform.distance(marker.scale)
+                else:
+                    # H3 target markers retain a dimensionless marker scale.
+                    ob.empty_display_size *= marker.scale
                 ob.empty_display_type = "SPHERE"
             elif self.type == MarkerType._connected_geometry_marker_type_garbage:
                 ob.nwo.marker_velocity = marker.direction

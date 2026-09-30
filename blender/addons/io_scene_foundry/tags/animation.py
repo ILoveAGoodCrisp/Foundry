@@ -3749,6 +3749,8 @@ class AnimationTag(AnimationGraphTag):
                 if base_animation.frame_count:
                     pose_defaults = self._native_frame_tuples(base_animation.first_frame())
 
+        # The native decoder prefers retained uncompressed authoring tracks,
+        # while keeping runtime section offsets for node flags and movement.
         native_pose = animation_pose(index, pose_defaults)
         if self.game == 'halo1' and tag_animation.animation_type == AnimationType.OVERLAY:
             from ..legacy.writers import halo1_overlay_pose

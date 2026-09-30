@@ -667,12 +667,14 @@ class NWO_ExportScene(Operator, ExportHelper):
         col.prop(scene_nwo_export, 'triangulate_quad_method', text="Quad Method")
         col.prop(scene_nwo_export, 'triangulate_ngon_method', text="N-gon Method")
         
-        if game in {'halo3', 'halo3odst'} and scenario:
+        if game in {'halo1', 'halo2', 'halo3', 'halo3odst'} and scenario:
             box = layout.box()
             box.label(text="Import Flags")
             col = box.column()
-            col.prop(scene_nwo_export, "create_debug_zone_set")
-            col.prop(scene_nwo_export, "allow_proxy_decals")
+            col.prop(scene_nwo_export, "preserve_non_asset_bsps")
+            if game in {'halo3', 'halo3odst'}:
+                col.prop(scene_nwo_export, "create_debug_zone_set")
+                col.prop(scene_nwo_export, "allow_proxy_decals")
         elif not legacy:
             box = layout.box()
             box.label(text="Import Flags")

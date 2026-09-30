@@ -422,7 +422,11 @@ class RenderModelTag(RenderModelMetadataTag):
                               if self.bounds is not None else 0.05)
         for record in self._native_marker_groups:
             marker_group = MarkerGroup.from_native(record, self.nodes, self.regions)
-            objects.extend(marker_group.to_blender(self.armature, markers_collection, marker_size_factor, allowed_region_permutations))
+            objects.extend(marker_group.to_blender(
+                self.armature, markers_collection, marker_size_factor,
+                allowed_region_permutations,
+                target_scale_is_radius=self.game not in {'halo3', 'halo3odst'},
+            ))
             
         return objects
     

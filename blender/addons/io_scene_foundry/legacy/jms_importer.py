@@ -28,7 +28,7 @@ def canonical_bone_name(name):
 
 class JMSImporter:
     def __init__(self, owner, path, legacy_type, *, tag_armature=None,
-                 parent_collection=None, geometry_only=False):
+                 parent_collection=None, geometry_only=False, allowed_region_permutations=()):
         self.owner = owner
         self.path = Path(path)
         self.jms = JMS.from_file(path)
@@ -46,6 +46,7 @@ class JMSImporter:
         self.parent_collection = parent_collection
         self.tag_bone_names = {}
         self.geometry_only = geometry_only
+        self.allowed_region_permutations = set(allowed_region_permutations)
 
     def model_import(self, legacy_type, tag_armature):
         if legacy_type != 'auto':
@@ -317,6 +318,9 @@ class JMSImporter:
         rotation = self.rotation.to_3x3()
         skipped_triangles = 0
         for (region, permutation, lod), triangles in j.triangle_groups().items():
+            if (self.allowed_region_permutations
+                    and (region, permutation) not in self.allowed_region_permutations):
+                continue
             # Object-only portal policies cannot be represented by face layers.
             groups = defaultdict(list)
             for triangle in triangles:
@@ -528,7 +532,8 @@ class JMSImporter:
 
 
 def import_jms(owner, path, legacy_type, *, tag_armature=None,
-               parent_collection=None, geometry_only=False):
+               parent_collection=None, geometry_only=False, allowed_region_permutations=()):
     return JMSImporter(owner, path, legacy_type, tag_armature=tag_armature,
                        parent_collection=parent_collection,
-                       geometry_only=geometry_only).build()
+                       geometry_only=geometry_only,
+                       allowed_region_permutations=allowed_region_permutations).build()

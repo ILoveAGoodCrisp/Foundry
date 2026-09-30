@@ -49,6 +49,7 @@ class NWO_ScenarioSkyAdd(bpy.types.Operator):
     def execute(self, context):
         nwo = utils.get_scene_props()
         nwo.scenario_skies.add()
+        nwo.skies_authored_from_blender = True
         nwo.active_scenario_sky_index = len(nwo.scenario_skies) - 1
         return {'FINISHED'}
 

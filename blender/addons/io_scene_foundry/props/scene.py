@@ -3362,7 +3362,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="On export, assigns non-BSP-defining scenario objects to the BSP that contains their origin. Objects outside all BSPs use the default BSP only when automatic structure is being generated"
     )
     skies_authored_from_blender: bpy.props.BoolProperty(
-        name="Skies Authored From Blender", default=True, options=set(),
+        name="Skies Authored From Blender", default=False, options=set(),
         description="Update the scenario skies block from this ordered list on export",
     )
     scenario_skies: bpy.props.CollectionProperty(type=NWO_ScenarioSky, options=set())
