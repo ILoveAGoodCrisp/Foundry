@@ -14,6 +14,7 @@ from .animation_names import (
     DIRECTIONS,
     REGIONS,
     convert_animation_name_for_project,
+    copies_from_paths,
     renames_from_paths,
 )
 
@@ -327,7 +328,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                     sets_field = weapon_type.field('sets')
                     sets = None if sets_field is None else sets_field.as_block()
                     if sets is None:
-                        set_records = ((weapon_type, type_tokens),)
+                        set_records = ((weapon_type, type_tokens + ['any']),)
                     else:
                         set_records = tuple(
                             (animation_set,
@@ -386,14 +387,54 @@ class AnimationGraphTag(BlenderTag, TagDocument):
     def generate_renames(
             self, contains: str = '', convert_names=False,
             target_game: str = '') -> tuple[int, int]:
-        """Add mode/state aliases from this graph to matching Blender animations."""
+        """Add graph aliases as hierarchy copies or individual renames."""
         blender_animations = {
             animation.name.replace(' ', ':'): animation
             for animation in self.scene_nwo.animations
         }
-        renames = self.animation_renames()
+        paths = self.animation_state_paths()
+        renames = renames_from_paths(paths)
+        rename_pairs = set(renames)
+        copies = copies_from_paths(paths) if self.game != 'halo1' else []
+        covered_renames: set[tuple[str, str]] = set()
+        existing_copies = {
+            (item.source_name.casefold(), item.name.casefold())
+            for item in self.scene_nwo.animation_copies
+        }
+        applied_copies = 0
+        for source, destination, covered in copies:
+            if not covered <= rename_pairs:
+                continue
+            eligible = True
+            for name, _ in covered:
+                converted_name = (convert_animation_name_for_project(
+                    name, self.game, target_game) if convert_names else name)
+                if ((contains and contains not in name and
+                     contains not in converted_name) or
+                        converted_name.replace(' ', ':') not in blender_animations):
+                    eligible = False
+                    break
+            if not eligible:
+                continue
+            converted_source = (convert_animation_name_for_project(
+                source, self.game, target_game) if convert_names else source)
+            converted_destination = (convert_animation_name_for_project(
+                destination, self.game, target_game) if convert_names else destination)
+            if converted_source.casefold() == converted_destination.casefold():
+                continue
+            key = (converted_source.casefold(), converted_destination.casefold())
+            if key not in existing_copies:
+                item = self.scene_nwo.animation_copies.add()
+                item.source_name = converted_source
+                item.name = converted_destination
+                existing_copies.add(key)
+                applied_copies += 1
+                print(f'copied "{converted_source}" ==> "{converted_destination}"')
+            covered_renames.update(covered)
         applied = 0
         for source_name, rename in renames:
+            if (source_name, rename) in covered_renames:
+                continue
             converted_source = (convert_animation_name_for_project(
                 source_name, self.game, target_game) if convert_names else source_name)
             converted_rename = (convert_animation_name_for_project(
@@ -411,8 +452,8 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 animation.animation_renames.add().name = converted_rename.replace(':', ' ')
             applied += 1
             print(f'renamed "{converted_source}" ==> "{converted_rename}"')
-        print(f'Generated {len(renames)} renames from tag and applied these to '
-              f'{applied} Blender animation entries')
+        print(f'Generated {len(renames)} graph aliases: applied {applied} renames '
+              f'and {applied_copies} copies')
         return len(renames), applied
 
     def event_animations(self) -> list[AnimationGraphEventAnimation]:

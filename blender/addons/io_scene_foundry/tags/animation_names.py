@@ -188,6 +188,71 @@ def renames_from_paths(
     return renames
 
 
+def copies_from_paths(
+        name_to_paths: Mapping[str, Iterable[str]],
+        ) -> list[tuple[str, str, frozenset[tuple[str, str]]]]:
+    """Find complete hierarchy copies among graph aliases.
+
+    The first four path components are mode, class, type and set. A copy is
+    inferred only when at least two distinct source animations have canonical
+    paths in the source subtree and *every* such path occurs in the destination
+    subtree with the same animation index/name and unchanged remainder.
+    """
+    paths: dict[tuple[str, ...], set[str]] = defaultdict(set)
+    canonical: dict[tuple[str, ...], str] = {}
+    paths_by_name: dict[str, set[tuple[str, ...]]] = defaultdict(set)
+    for name, graph_paths in name_to_paths.items():
+        normalized_name = normalized_animation_graph_path(name)
+        for path in graph_paths:
+            tokens = tuple(token for token in path.replace(' ', ':').split(':') if token)
+            if len(tokens) < 5:
+                continue
+            paths[tokens].add(name)
+            paths_by_name[name].add(tokens)
+            if normalized_animation_graph_path(path) == normalized_name:
+                canonical[tokens] = name
+
+    source_groups: dict[tuple[int, tuple[str, ...]], dict[tuple[str, ...], set[str]]] = defaultdict(dict)
+    for path, names in paths.items():
+        for depth in range(1, 5):
+            source_groups[depth, path[:depth]][path] = names
+
+    candidates = set()
+    for source_path, source_name in canonical.items():
+        for destination_path in paths_by_name[source_name]:
+            for depth in range(1, 5):
+                source_prefix = source_path[:depth]
+                destination_prefix = destination_path[:depth]
+                if (source_prefix == destination_prefix or
+                        source_path[depth:] != destination_path[depth:]):
+                    continue
+                members = source_groups[depth, source_prefix]
+                if len(set().union(*members.values())) < 2:
+                    continue
+                if any(paths.get(destination_prefix + path[depth:]) != names
+                       for path, names in members.items()):
+                    continue
+                covered = frozenset(
+                    (name, normalized_animation_graph_path(
+                        ':'.join(destination_prefix + path[depth:])))
+                    for path, names in members.items() for name in names)
+                if not covered:
+                    continue
+                source_copy = ' '.join(source_prefix + ('any',) * (4 - depth))
+                destination_copy = ' '.join(destination_prefix + ('any',) * (4 - depth))
+                candidates.add((depth, source_copy, destination_copy, covered))
+
+    result = []
+    claimed: set[tuple[str, str]] = set()
+    for _, source, destination, covered in sorted(
+            candidates, key=lambda item: (item[0], -len(item[3]), item[1], item[2])):
+        if covered & claimed:
+            continue
+        result.append((source, destination, covered))
+        claimed.update(covered)
+    return result
+
+
 def detect_renames(graph: dict[str, object]) -> list[tuple[str, str]]:
     """Collect rename pairs from the legacy detached graph representation."""
     name_to_paths: dict[str, list[str]] = defaultdict(list)

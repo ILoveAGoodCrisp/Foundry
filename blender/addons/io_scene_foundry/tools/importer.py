@@ -1491,9 +1491,9 @@ class NWO_Import(bpy.types.Operator):
         description="Imports animations with their PCA (face animation) data"
     )
     graph_generate_renames: bpy.props.BoolProperty(
-        name="Generate Animation Renames",
+        name="Generate Animation Renames and Copies",
         default=True,
-        description="Parses the animation mode n state graph to work out which graph elements were imported as renames and adds these to relevant animations in this blend scene"
+        description="Reads graph paths to add complete hierarchy copies and individual animation renames"
     )
     graph_import_events: bpy.props.BoolProperty(
         name="Import Animation Events",
@@ -4386,7 +4386,7 @@ class NWOImporter:
                         legacy_frame_maps = graph.legacy_frame_maps
 
             if self.graph_generate_renames:
-                utils.print_bullet("Generating Animation Renames")
+                utils.print_bullet("Generating Animation Renames and Copies")
                 with AnimationGraphTag(path=mover.tag_path) as graph:
                     graph.generate_renames(
                         filter, self.convert_animations, self.target_game)
@@ -5694,9 +5694,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         default=True,
     )
     graph_generate_renames: bpy.props.BoolProperty(
-        name="Generate Renames",
+        name="Generate Renames and Copies",
         default=True,
-        description="Parses the animation mode n state graph to work out what animations were imported as renames"
+        description="Reads graph paths to add complete hierarchy copies and individual animation renames"
     )
     graph_import_events: bpy.props.BoolProperty(
         name="Import Animation Events",

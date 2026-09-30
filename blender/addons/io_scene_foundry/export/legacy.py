@@ -1175,8 +1175,8 @@ class LegacyExportScene(ExportScene):
                 name, lighting = material_variant(shader, props, gm,
                     asset.version if isinstance(asset, ass.ASS) else None,
                     self.target_game)
-                if props.get('foundry_weather_polyhedron'):
-                    name = '+weatherpoly' if self.target_game == 'halo1' else '+weather'
+                if props.get('foundry_weather_polyhedron') and self.target_game != 'halo1':
+                    name = '+weather'
                 if node.tag_type in {'collision', 'physics'}:
                     name = gm  # Physics/collision material names are surface types, not display shaders.
                 permutation = node.permutation or 'default'

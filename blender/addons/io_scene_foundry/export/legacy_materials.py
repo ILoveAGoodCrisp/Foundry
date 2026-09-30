@@ -18,18 +18,14 @@ def material_variant(shader, props, global_material='default', ass_version=None,
                    8: '+weatherpoly'}
         if get('mesh_type') == 13 and props.get('foundry_portal_exact', shader.startswith('+exactportal')):
             special[13] = '+exactportal'
-        if props.get('foundry_weather_polyhedron'):
-            return '+weatherpoly', ()
     name = special.get(get('mesh_type'), name)
+    if target_game == 'halo1' and props.get('foundry_weather_polyhedron'):
+        name = '+weatherpoly'
     if get('face_type') == 1:
         name = '+seamsealer'
     elif get('face_type') == 2:
         sky_index = get('sky_permutation_index')
         name = '+sky' + (str(sky_index) if target_game == 'halo1' and sky_index else '')
-    if target_game == 'halo1' and name.startswith('+'):
-        # Tool interprets these names as BSP helpers. Face-property symbols
-        # change their behaviour and can leave sky boundaries open.
-        return ('+unused$' if name == '+unused' else name), ()
     # These suffixes are also understood by Foundry's legacy importer.
     sides, mode = get('face_sides'), get('face_mode')
     if mode == 4 and (ass_version is None or ass_version < 4):
