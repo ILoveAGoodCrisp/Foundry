@@ -27,6 +27,10 @@ from .render_method_definition import RenderMethodDefinitionTag
 global_render_method_definition = None
 last_group_node = None
 
+# Opt in to applying imported H1 radiosity power/color to the node preview.
+# The material's export properties are still imported when this is disabled.
+H1_WRITE_RADIOSITY_TO_NODES = False
+
 
 class _EmptyReference:
     Path = None
@@ -1542,7 +1546,8 @@ class ShaderTag(BlenderTag, TagDocument):
             prop.type = 'emissive'
         prop.material_lighting_emissive_power = power
         prop.material_lighting_emissive_color = color
-        utils.update_classic_emissive_material(blender_material, self.game)
+        if self.game != 'halo1' or H1_WRITE_RADIOSITY_TO_NODES:
+            utils.update_classic_emissive_material(blender_material, self.game)
 
     def _to_nodes_halo1_group(self, blender_material: bpy.types.Material, shader_type: str):
         """Populate the Halo 1 resource groups from their classic tag layouts."""
@@ -1708,11 +1713,196 @@ class ShaderTag(BlenderTag, TagDocument):
             bitmap(reflection, 'reflection cube map', reflection=True)
         return True
 
+    def _to_nodes_halo1_generic(self, blender_material: bpy.types.Material):
+        """Import generic combiners into the resource's map and stage panels."""
+        group_tree = utils.add_node_from_resources(
+            'h1_nodes', 'foundry_h1.shader_transparent_generic')
+        if group_tree is None:
+            group_tree = utils.add_node_from_resources(
+                'h1_nodes', 'foundry_h1.shader_transparent_generic (major wip)')
+        if group_tree is None:
+            utils.print_warning('Missing Halo 1 generic node group; using basic material')
+            return False
+
+        blender_material.use_nodes = True
+        tree = blender_material.node_tree
+        nodes = tree.nodes
+        nodes.clear()
+        output = nodes.new('ShaderNodeOutputMaterial')
+        output.location = (400, 0)
+        group = nodes.new('ShaderNodeGroup')
+        group.node_tree = group_tree
+        tree.links.new(group.outputs['Shader'], output.inputs['Surface'])
+
+        # Socket names repeat between maps, stages, and color/alpha combiners.
+        # Interface identifiers retain the panel association on the node instance.
+        sockets = {s.identifier: s for s in group.inputs}
+        inputs = {}
+        for item in group_tree.interface.items_tree:
+            if item.item_type != 'SOCKET' or item.in_out != 'INPUT':
+                continue
+            path = []
+            parent = item.parent
+            while parent is not None:
+                if parent.name:
+                    path.insert(0, parent.name)
+                parent = parent.parent
+            inputs[(*path, item.name)] = sockets[item.identifier]
+
+        unsupported = set()
+
+        def assign(path, value):
+            socket = inputs.get(path)
+            if socket is None:
+                return
+            try:
+                socket.default_value = value
+            except (TypeError, ValueError):
+                if socket.bl_idname != 'NodeSocketMenu':
+                    raise
+                # WIP menus without an internal menu switch have no enum items.
+                # Retain their tag values for inspection until the group supports them.
+                group['tag ' + socket.identifier] = {
+                    'input': ' / '.join(path), 'value': value}
+                unsupported.add(' / '.join(path))
+
+        def enum(struct, name):
+            return self.required_field(struct, name).options().current_name
+
+        def menu(struct, field, path):
+            value = enum(struct, field)
+            mapping_names = {
+                'clamp x': 'clamp(x)', '1 clamp x': '1 - clamp(x)',
+                '2': '2*clamp(x) - 1', '1 2': '1 - 2*clamp(x)',
+                'clamp x 1 2': 'clamp(x) - 1/2',
+                '1 2 clamp x': '1/2 - clamp(x)', 'x 1': '-x',
+            }
+            if 'input' in field and 'mapping' in field:
+                value = mapping_names.get(value, value)
+            elif field.startswith('output mapping'):
+                value = value.removeprefix('color ')
+                value = {'scale by 1 2': 'scale by 1/2',
+                         'bias by 1 2': 'bias by -1/2'}.get(value, value)
+            elif field.startswith('output') and 'function' not in field:
+                # The native schema labels shared output enums as alpha even
+                # for color destinations (and spells color output CD as BC).
+                value = value.removeprefix('alpha ')
+                if path[-2] == 'color outputs':
+                    value = value.replace('alpha', 'color').replace('fog', '').strip()
+                value = value.replace(' final ', ' / final ')
+            else:
+                value = value.replace('variable period', '(variable period)')
+                for text, display in (
+                        (' diffuse light', ' / diffuse light'),
+                        (' fade perpendicular', ' / fade(perpendicular)'),
+                        (' fade none', ' / fade(none)'),
+                        (' fade parallel', ' / fade(parallel)'),
+                        (' blue light', ' / blue light')):
+                    value = value.replace(text, display)
+            assign(path, value)
+
+        root = self.tag.root()
+        properties = self.required_field(root, 'properties').as_struct()
+        flags = self.required_field(properties, 'flags')
+        alpha_tested = flags.get_flag('alpha tested')
+        for flag, socket in (('alpha tested', 'alpha-tested'), ('two sided', 'two-sided')):
+            assign(('generic transparent shader', socket), flags.get_flag(flag))
+        menu(properties, 'framebuffer blend function',
+             ('generic transparent shader', 'framebuffer blend function'))
+        blender_material.surface_render_method = 'DITHERED' if alpha_tested else 'BLENDED'
+
+        coordinates = None
+        maps = self.block(root, 'maps')
+        for index in range(4):
+            path = ('MAPS', f'map{index}')
+            assign((*path, f'map{index}'), index < len(maps))
+            if index >= len(maps):
+                continue
+            parameters = self.required_field(maps[index], 'parameters').as_struct()
+            reference = TagDocument.reference(self, parameters, 'map')
+            if reference is None or not reference.RelativePath:
+                continue
+            result = bitmap_to_image(reference.Filename, self.always_extract_bitmaps)
+            if result.image is None:
+                continue
+            image = nodes.new('ShaderNodeTexEnvironment' if result.cubemap else 'ShaderNodeTexImage')
+            image.image = result.image
+            image.label = f'map{index}'
+            image.location = (-400, -240 * index)
+            tree.links.new(image.outputs['Color'], inputs[(*path, 'map')])
+            alpha = image.outputs.get('Alpha')
+            if alpha is not None:
+                tree.links.new(alpha, inputs[(*path, 'map alpha')])
+            map_flags = self.required_field(maps[index], 'flags')
+            image.interpolation = 'Closest' if map_flags.get_flag('unfiltered') else 'Linear'
+            if not result.cubemap and all(map_flags.get_flag(axis + ' clamped') for axis in ('u', 'v')):
+                image.extension = 'EXTEND'
+            if coordinates is None:
+                coordinates = nodes.new('ShaderNodeTexCoord')
+                coordinates.location = (-1000, 0)
+            first_type = enum(properties, 'first map type') if index == 0 else '2d map'
+            coordinate = ('Reflection' if 'reflection' in first_type else
+                          'Generated' if 'object centered' in first_type else
+                          'Normal' if 'viewer centered' in first_type else
+                          'Window' if index == 0 and flags.get_flag('first map is in screenspace') else
+                          'Generated' if self.generated_uvs else 'UV')
+            mapping = nodes.new('ShaderNodeMapping')
+            mapping.location = (-700, image.location.y)
+            mapping.inputs['Scale'].default_value = (
+                float(self.value(parameters, 'map u scale')) or 1.0,
+                float(self.value(parameters, 'map v scale')) or 1.0, 1.0)
+            mapping.inputs['Location'].default_value = (
+                float(self.value(parameters, 'map u offset')),
+                float(self.value(parameters, 'map v offset')), 0.0)
+            mapping.inputs['Rotation'].default_value[2] = radians(float(self.value(parameters, 'map rotation')))
+            tree.links.new(coordinates.outputs[coordinate], mapping.inputs['Vector'])
+            tree.links.new(mapping.outputs['Vector'], image.inputs['Vector'])
+
+        stages = self.block(root, 'stages')
+        for index in range(7):
+            path = ('STAGES', f'stage{index}')
+            assign((*path, f'stage{index}'), index < len(stages))
+            if index >= len(stages):
+                continue
+            stage = stages[index]
+            constants = (*path, 'constants and animation')
+            menu(stage, 'color0 animation function', (*constants, 'color0 animation function'))
+            assign((*constants, 'color0 animation period'), self.value(stage, 'color0 animation period'))
+            for name in ('color0 animation lower bound', 'color0 animation upper bound', 'color1'):
+                color = self.value(stage, name)
+                assign((*constants, name), (color.red, color.green, color.blue, color.alpha))
+                assign((*constants, name + ' alpha'), color.alpha)
+            for channel in ('color', 'alpha'):
+                suffix = ' alpha' if channel == 'alpha' else ''
+                for letter in 'ABCD':
+                    for mapping_suffix in ('', ' mapping'):
+                        menu(stage, f'input {letter.lower()}{mapping_suffix}{suffix}',
+                             (*path, channel + ' inputs', f'input {letter}{mapping_suffix}'))
+                for destination in ('AB', 'CD', 'AB CD mux/sum', 'mapping'):
+                    field = ('output mapping' + (' alpha' if suffix else ' color')
+                             if destination == 'mapping' else
+                             'output ' + destination.lower().replace('mux/sum', 'mux sum') + suffix)
+                    if channel == 'color' and destination == 'CD':
+                        field = 'output bc'
+                    menu(stage, field, (*path, channel + ' outputs', 'output ' + destination))
+                if channel == 'color':
+                    for destination in ('AB', 'CD'):
+                        menu(stage, f'output {destination.lower()} function',
+                             (*path, 'color outputs', f'output {destination} function'))
+        if unsupported:
+            utils.print_warning(
+                f'Halo 1 generic node group has {len(unsupported)} unfinished menu inputs; '
+                'their tag values are retained as node custom properties')
+        return True
+
     def _to_nodes_halo1(self, blender_material: bpy.types.Material):
         """Use Halo 1 resource groups, with basic materials for other families."""
         from .backend import TagDocument
 
         shader_type = self.system_path.suffix[1:].casefold()
+        if shader_type == 'shader_transparent_generic':
+            if self._to_nodes_halo1_generic(blender_material):
+                return
         if shader_type in {'shader_model', 'shader_environment'}:
             if self._to_nodes_halo1_group(blender_material, shader_type):
                 return
