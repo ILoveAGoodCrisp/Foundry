@@ -750,7 +750,7 @@ def biped_weapon_source_items(_self, _context):
     items = [
         (BIPED_WEAPON_SOURCE_BIPED_TAG, "Default", "Import the weapons referenced by the biped tag"),
     ]
-    weapon_paths = defaultdict(set)
+    weapon_paths = set()
 
     if tags_dir:
         tags_root = Path(tags_dir)
@@ -759,12 +759,19 @@ def biped_weapon_source_items(_self, _context):
                 if Path(filename).suffix.lower() != '.weapon':
                     continue
                 path = (Path(directory) / filename).relative_to(tags_root)
-                weapon_paths[str(path.parent)].add(str(path))
+                with ObjectTag(path=path, tag_must_exist=True, raise_on_error=False, hide_prints=True) as weapon:
+                    if not weapon.valid:
+                        continue
+                    model_path = weapon.get_model_tag_path_full()
+                    model_extension = '.gbxmodel' if weapon.game == 'halo1' else '.model'
+                    if not model_path or Path(model_path).suffix.lower() != model_extension or not Path(model_path).is_file():
+                        continue
+                weapon_paths.add(str(path))
 
-    for folder, paths in sorted(weapon_paths.items()):
-        items.append(("", folder, ""))
-        for path in sorted(paths, key=lambda p: Path(p).with_suffix("").name):
-            items.append((path, Path(path).stem, path))
+    # A flat enum lets Blender wrap long menus into columns instead of measuring
+    # the full folder headings and collapsing the menu to a scrolling column.
+    for path in sorted(weapon_paths, key=lambda p: (Path(p).stem.casefold(), p.casefold(), p)):
+        items.append((path, Path(path).stem, path))
 
     biped_weapon_source_item_cache[cache_key] = items
     return items
