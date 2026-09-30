@@ -2163,7 +2163,7 @@ class ShaderTag(BlenderTag, TagDocument):
         output.location = (600, 100)
 
     def _to_nodes_halo2(self, blender_material: bpy.types.Material):
-        """Build a useful Principled material from Halo 2 shader parameters."""
+        """Populate the basic Halo 2 resource shader, with a Principled fallback."""
         from .backend import TagDocument
 
         blender_material.use_nodes = True
@@ -2201,6 +2201,15 @@ class ShaderTag(BlenderTag, TagDocument):
             tree.links.new(multiply.outputs['Vector'], bsdf.inputs['Base Color'])
             tree.links.new(image_node.outputs['Alpha'], bsdf.inputs['Alpha'])
             return
+
+        group_tree = utils.add_node_from_resources('h2_nodes', 'Basic H2 shader')
+        group = None
+        if group_tree is not None:
+            group = nodes.new('ShaderNodeGroup')
+            group.node_tree = group_tree
+            group.location = (120, 0)
+            # A static import should not enable active camouflage by default.
+            group.inputs['Active Camo amount'].default_value = 0.0
 
         template = TagDocument.reference(self, root, 'template')
         template_name = template.RelativePath.casefold() if template is not None else ''
@@ -2269,6 +2278,9 @@ class ShaderTag(BlenderTag, TagDocument):
                     mapping.inputs['Scale'].default_value = (scale_x, scale_y, 1.0)
                     tree.links.new(texture.outputs['UV'], mapping.inputs['Vector'])
                     tree.links.new(mapping.outputs['Vector'], detail.inputs['Vector'])
+                if group is not None and index == 0:
+                    tree.links.new(detail.outputs['Color'], group.inputs['detail_map'])
+                    continue
                 multiply = nodes.new(type='ShaderNodeVectorMath')
                 multiply.operation = 'MULTIPLY'
                 multiply.location = (-250 + index * 180, 160)
@@ -2321,52 +2333,53 @@ class ShaderTag(BlenderTag, TagDocument):
                     tree.links.new(tinted.outputs['Vector'], color_mix.inputs[2])
                     base_color = color_mix.outputs['Color']
 
-            environment = image('environment_map')
-            if environment is None:
-                environment = image('specular_cube_map')
-            if environment is not None:
-                environment.location = (-520, 620)
-                texture = nodes.new(type='ShaderNodeTexCoord')
-                texture.location = (-1050, 620)
-                tree.links.new(texture.outputs['Reflection'], environment.inputs['Vector'])
+            if group is None:
+                environment = image('environment_map')
+                if environment is None:
+                    environment = image('specular_cube_map')
+                if environment is not None:
+                    environment.location = (-520, 620)
+                    texture = nodes.new(type='ShaderNodeTexCoord')
+                    texture.location = (-1050, 620)
+                    tree.links.new(texture.outputs['Reflection'], environment.inputs['Vector'])
 
-                environment_tint = color('env_tint_color') or color('environment_color')
-                glancing_tint = color('env_glancing_tint_color') or environment_tint
-                environment_tint = environment_tint or (1.0, 1.0, 1.0, 1.0)
-                glancing_tint = glancing_tint or environment_tint
-                environment_brightness = real('env_brightness', 1.0)
-                glancing_brightness = real('env_glancing_brightness', environment_brightness)
+                    environment_tint = color('env_tint_color') or color('environment_color')
+                    glancing_tint = color('env_glancing_tint_color') or environment_tint
+                    environment_tint = environment_tint or (1.0, 1.0, 1.0, 1.0)
+                    glancing_tint = glancing_tint or environment_tint
+                    environment_brightness = real('env_brightness', 1.0)
+                    glancing_brightness = real('env_glancing_brightness', environment_brightness)
 
-                facing = nodes.new(type='ShaderNodeLayerWeight')
-                facing.location = (-280, 720)
-                reflection_tint = nodes.new(type='ShaderNodeMixRGB')
-                reflection_tint.blend_type = 'MIX'
-                reflection_tint.location = (-40, 620)
-                reflection_tint.inputs[1].default_value = tuple(
-                    component * glancing_brightness for component in glancing_tint)
-                reflection_tint.inputs[2].default_value = tuple(
-                    component * environment_brightness for component in environment_tint)
-                tree.links.new(facing.outputs['Facing'], reflection_tint.inputs[0])
+                    facing = nodes.new(type='ShaderNodeLayerWeight')
+                    facing.location = (-280, 720)
+                    reflection_tint = nodes.new(type='ShaderNodeMixRGB')
+                    reflection_tint.blend_type = 'MIX'
+                    reflection_tint.location = (-40, 620)
+                    reflection_tint.inputs[1].default_value = tuple(
+                        component * glancing_brightness for component in glancing_tint)
+                    reflection_tint.inputs[2].default_value = tuple(
+                        component * environment_brightness for component in environment_tint)
+                    tree.links.new(facing.outputs['Facing'], reflection_tint.inputs[0])
 
-                tinted_reflection = nodes.new(type='ShaderNodeVectorMath')
-                tinted_reflection.operation = 'MULTIPLY'
-                tinted_reflection.location = (170, 580)
-                tree.links.new(environment.outputs['Color'], tinted_reflection.inputs[0])
-                tree.links.new(reflection_tint.outputs['Color'], tinted_reflection.inputs[1])
-                # A cubemap added directly to Base Color makes H2 surfaces look
-                # wet even when viewed head-on. Keep the tag's brightness and
-                # tint, but attenuate the reflection by the view angle.
-                fresnel_reflection = nodes.new(type='ShaderNodeVectorMath')
-                fresnel_reflection.operation = 'SCALE'
-                fresnel_reflection.location = (370, 580)
-                tree.links.new(tinted_reflection.outputs['Vector'], fresnel_reflection.inputs['Vector'])
-                tree.links.new(facing.outputs['Fresnel'], fresnel_reflection.inputs['Scale'])
-                add_reflection = nodes.new(type='ShaderNodeVectorMath')
-                add_reflection.operation = 'ADD'
-                add_reflection.location = (570, 360)
-                tree.links.new(base_color, add_reflection.inputs[0])
-                tree.links.new(fresnel_reflection.outputs['Vector'], add_reflection.inputs[1])
-                base_color = add_reflection.outputs['Vector']
+                    tinted_reflection = nodes.new(type='ShaderNodeVectorMath')
+                    tinted_reflection.operation = 'MULTIPLY'
+                    tinted_reflection.location = (170, 580)
+                    tree.links.new(environment.outputs['Color'], tinted_reflection.inputs[0])
+                    tree.links.new(reflection_tint.outputs['Color'], tinted_reflection.inputs[1])
+                    # A cubemap added directly to Base Color makes H2 surfaces look
+                    # wet even when viewed head-on. Keep the tag's brightness and
+                    # tint, but attenuate the reflection by the view angle.
+                    fresnel_reflection = nodes.new(type='ShaderNodeVectorMath')
+                    fresnel_reflection.operation = 'SCALE'
+                    fresnel_reflection.location = (370, 580)
+                    tree.links.new(tinted_reflection.outputs['Vector'], fresnel_reflection.inputs['Vector'])
+                    tree.links.new(facing.outputs['Fresnel'], fresnel_reflection.inputs['Scale'])
+                    add_reflection = nodes.new(type='ShaderNodeVectorMath')
+                    add_reflection.operation = 'ADD'
+                    add_reflection.location = (570, 360)
+                    tree.links.new(base_color, add_reflection.inputs[0])
+                    tree.links.new(fresnel_reflection.outputs['Vector'], add_reflection.inputs[1])
+                    base_color = add_reflection.outputs['Vector']
             tree.links.new(base_color, bsdf.inputs['Base Color'])
 
         if transparent:
@@ -2427,7 +2440,61 @@ class ShaderTag(BlenderTag, TagDocument):
                                              if parameters.get('emissive_power') is not None else 1.0, 1.0)
         elif (emission_color := color('self_illum_color') or color('emissive_color')) is not None and emission_input is not None:
             emission_input.default_value = emission_color
-            
+
+        if group is not None:
+            base_input = bsdf.inputs['Base Color']
+            if base_input.is_linked:
+                tree.links.new(base_input.links[0].from_socket, group.inputs['base_map'])
+            if bump is not None:
+                tree.links.new(bump.outputs['Color'], group.inputs['bump_map'])
+                nodes.remove(normal)
+            camo = image('active_camo_bump_map', non_color=True)
+            if camo is not None:
+                camo.location = (-520, -1000)
+                tree.links.new(camo.outputs['Color'], group.inputs['active_camo_bump_map'])
+            environment = image('environment_map')
+            if environment is None:
+                environment = image('specular_cube_map')
+            if environment is not None:
+                environment.location = (-520, 620)
+                texture = nodes.new('ShaderNodeTexCoord')
+                texture.location = (-820, 620)
+                tree.links.new(texture.outputs['Reflection'], environment.inputs['Vector'])
+                tree.links.new(environment.outputs['Color'], group.inputs['environment_map'])
+            group.inputs['env_tint_color'].default_value = (
+                color('env_tint_color') or color('environment_color') or (1.0, 1.0, 1.0, 1.0))
+            group.inputs['env_brightness'].default_value = real('env_brightness', 1.0)
+            surface = group.outputs['Shader']
+            if emission_input is not None and (emission_input.is_linked or
+                    any(emission_input.default_value[:3])):
+                emissive = nodes.new('ShaderNodeEmission')
+                emissive.location = (350, -220)
+                if emission_input.is_linked:
+                    tree.links.new(emission_input.links[0].from_socket, emissive.inputs['Color'])
+                else:
+                    emissive.inputs['Color'].default_value = emission_input.default_value
+                emissive.inputs['Strength'].default_value = bsdf.inputs['Emission Strength'].default_value
+                add = nodes.new('ShaderNodeAddShader')
+                add.location = (560, 0)
+                tree.links.new(surface, add.inputs[0])
+                tree.links.new(emissive.outputs[0], add.inputs[1])
+                surface = add.outputs[0]
+            if transparent or alpha_tested:
+                alpha = bsdf.inputs['Alpha']
+                transparent_node = nodes.new('ShaderNodeBsdfTransparent')
+                mix = nodes.new('ShaderNodeMixShader')
+                mix.location = (760, 0)
+                if alpha.is_linked:
+                    tree.links.new(alpha.links[0].from_socket, mix.inputs[0])
+                else:
+                    mix.inputs[0].default_value = alpha.default_value
+                tree.links.new(transparent_node.outputs[0], mix.inputs[1])
+                tree.links.new(surface, mix.inputs[2])
+                surface = mix.outputs[0]
+            tree.links.new(surface, output.inputs['Surface'])
+            output.location = (1000, 0)
+            nodes.remove(bsdf)
+
     def _option_value_from_index(self, index):
         if index >= self.block_options.Elements.Count:
             if self.reference.Path:
