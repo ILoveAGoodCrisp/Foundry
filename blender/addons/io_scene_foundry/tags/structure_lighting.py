@@ -187,8 +187,12 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
             for _ in range(len(light_instances)):
                 self._add(self.block_generic_light_instances)
 
-            self._write_reach_light_definitions(light_definitions)
-            self._write_reach_light_instances(light_instances, light_definitions)
+            if self.game in {'halo3', 'halo3odst'}:
+                self._write_halo3_light_definitions(light_definitions)
+                self._write_halo3_light_instances(light_instances, light_definitions)
+            else:
+                self._write_reach_light_definitions(light_definitions)
+                self._write_reach_light_instances(light_instances, light_definitions)
 
         self.tag_has_changes = True
 
@@ -274,6 +278,37 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
             self._set(element, 'Light Definition ID', id)
             self._set(element, 'Light Definition Index', self._definition_index_from_id(id))
             self._set(element, 'light mode', light.light_mode)
+            self._set(element, 'origin', light.origin)
+            self._set(element, 'forward', light.forward)
+            self._set(element, 'up', light.up)
+
+    def _write_halo3_light_definitions(self, light_definitions):
+        """H3/ODST have the original 52-byte generic light definition."""
+        for idx, light in enumerate(light_definitions):
+            element = self.block_generic_light_definitions[idx]
+            light.index = idx
+            self._set(element, 'type', light.type)
+            self._set(element, 'shape', light.shape)
+            self._set(element, 'color', light.color)
+            self._set(element, 'intensity', light.intensity)
+            if light.type == 1:
+                self._set(element, 'hotspot size', light.hotspot_size)
+                self._set(element, 'hotspot falloff size', light.hotspot_cutoff)
+            self._set(element, 'near attenuation bounds',
+                      [light.near_attenuation_start, light.near_attenuation_end])
+            self._set(element, 'far attenuation bounds',
+                      [light.far_attenuation_start, light.far_attenuation_end])
+            flags = self.required_field(element, 'flags')
+            flags.set_flag('use near attenuation', light.near_attenuation_end > 0)
+            flags.set_flag('use far attenuation', True)
+            self._set(element, 'aspect', light.aspect)
+
+    def _write_halo3_light_instances(self, light_instances, light_definitions):
+        """H3/ODST instances contain only a definition index and transform."""
+        for idx, light in enumerate(light_instances):
+            element = self.block_generic_light_instances[idx]
+            self._set(element, 'definition index',
+                      self._definition_index_from_data_name(light.data_name, light_definitions))
             self._set(element, 'origin', light.origin)
             self._set(element, 'forward', light.forward)
             self._set(element, 'up', light.up)

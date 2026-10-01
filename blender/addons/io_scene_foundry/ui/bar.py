@@ -1103,6 +1103,14 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     
     def lightmap_quality_items(self, context: bpy.types.Context) -> list[bpy.types.EnumProperty]:
         items = []
+        project = utils.get_project(use_external=False)
+        if project and project.game == 'halo2':
+            return [(name, name.replace('_', ' ').title(), '') for name in
+                    ('direct_only', 'checkerboard', 'cuban', 'draft_low',
+                     'draft_medium', 'draft_high', 'draft_super', 'low', 'medium', 'high', 'super')]
+        if project and project.game in {'halo3', 'halo3odst'}:
+            return [(name, name.replace('_', ' ').title(), '') for name in
+                    ('direct_only', 'draft', 'low', 'medium', 'high', 'super_slow', 'debug')]
         lightmapper_globals_tag_path = Path(utils.get_tags_path(), r"globals\lightmapper_globals.lightmapper_globals")
         if not lightmapper_globals_tag_path.exists():
             return [("direct_only", "Direct Only", ""),

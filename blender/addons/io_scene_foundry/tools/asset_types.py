@@ -55,13 +55,16 @@ asset_types = [model, scenario, sky, decorator_set, particle_model, animation, c
 _COMMON_ASSETS = frozenset({
     'model', 'sky', 'animation', 'single_animation', 'camera_track_set', 'resource',
 })
+_HALO3_ASSETS = _COMMON_ASSETS | {
+    'scenario', 'decorator_set', 'particle_model', 'cinematic', 'multi_model',
+}
 _REACH_ASSETS = frozenset(a.internal_name for a in asset_types if not a.corinth_only)
 _ALL_ASSETS = frozenset(a.internal_name for a in asset_types)
 SUPPORTED_ASSETS = {
     'halo1': _COMMON_ASSETS | {'scenario'},
     'halo2': _COMMON_ASSETS | {'scenario', 'particle_model', 'decorator_set'},
-    'halo3': _COMMON_ASSETS,
-    'halo3odst': _COMMON_ASSETS,
+    'halo3': _HALO3_ASSETS,
+    'halo3odst': _HALO3_ASSETS,
     'reach': _REACH_ASSETS,
     'halo4': _ALL_ASSETS,
     'halo2a': _ALL_ASSETS,

@@ -28,6 +28,7 @@ from .shader_collections import ShaderCollections
 from ..legacy import jms_format as jms
 from ..legacy import ass_format as ass
 from ..legacy.mirror import mirror_ass, mirror_jms, mirror_transform
+from ..legacy.mesh_geometry import clean_ass_mesh
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, legacy_bone_order, node_checksum, write_jms, write_ass
 from ..tags.backend import TagDocument
 from ..tags.sky import SkyDocument, SkyLightRecord, MAX_SKY_LIGHTS
@@ -38,7 +39,7 @@ from ..tags.animation_graph import AnimationGraphTag
 from ..tags.model_blender import ModelTag
 from ..tags.object import ObjectDocument
 from ..tags.scenario import ScenarioDocument
-from ..tools.scenario.lightmap import run_halo1_lightmapper
+from ..tools.scenario.lightmap import run_halo1_lightmapper, run_lightmapper
 from .. import utils, foundry_output
 
 
@@ -415,11 +416,11 @@ class LegacyExportScene(ExportScene):
 
     def write_tags(self, single_animation=False):
         """Compile legacy model sources, then update object tags natively."""
-        supported_asset_types = {'MODEL', 'SKY', 'ANIMATION', 'SINGLE_ANIMATION'}
-        if self.target_game in {'halo1', 'halo2'}:
-            supported_asset_types.add('SCENARIO')
-        if self.target_game == 'halo2':
+        supported_asset_types = {'MODEL', 'SKY', 'ANIMATION', 'SINGLE_ANIMATION', 'SCENARIO', 'CAMERA_TRACK_SET', 'MULTI_MODEL'}
+        if self.target_game in {'halo2', 'halo3', 'halo3odst'}:
             supported_asset_types.update({'PARTICLE_MODEL', 'DECORATOR_SET'})
+            if self.target_game in {'halo3', 'halo3odst'}:
+                supported_asset_types.add('CINEMATIC')
         if self.asset_type.name not in supported_asset_types:
             raise ExportCancelled(
                 f'Legacy tag writing is not implemented for {self.asset_type.name.lower()} assets')
@@ -461,9 +462,13 @@ class LegacyExportScene(ExportScene):
                 print(f'--- Tool processing BSP: {source.stem} ({source})', flush=True)
                 error_path = source.with_name(source.stem + '_errors.wrl')
                 previous = error_path.stat() if error_path.is_file() else None
-                command = (['structure-new-from-ass', source.relative_to(self.data_dir)]
-                           if self.target_game == 'halo2' else
-                           ['structure', self.asset_path_relative, source.stem])
+                if self.target_game == 'halo1':
+                    command = ['structure', self.asset_path_relative, source.stem]
+                else:
+                    command = [
+                        'structure-new-from-ass' if self.target_game == 'halo2' else 'structure',
+                        source.relative_to(self.data_dir),
+                    ]
                 if self.target_game == 'halo1' and self.export_settings.halo1_fix_phantom_bsp:
                     command.append('true')
                 tool_failed = False
@@ -971,7 +976,7 @@ class LegacyExportScene(ExportScene):
             print(f'--- Wrote {destination}')
 
     def write_classic_scenario_tag(self, structure_sources: list[Path]) -> None:
-        """Create/update an H1/H2 scenario with its compiled BSP references."""
+        """Create/update a classic scenario with its compiled BSP references."""
         destination = Path(
             self.tags_dir, self.asset_path_relative, self.asset_name
         ).with_suffix('.scenario')
@@ -1487,6 +1492,16 @@ class LegacyExportScene(ExportScene):
                     if node.negative_scaling:
                         indices = indices[0], indices[2], indices[1]
                     geometry.triangles.append(jms.Triangle(materials[face][0], indices))
+                try:
+                    removed, repaired = clean_ass_mesh(geometry)
+                except ValueError as error:
+                    raise ExportCancelled(f'{node.name}: {error}') from error
+                if not geometry.triangles:
+                    raise ExportCancelled(f'{node.name}: ASS mesh has no non-degenerate triangles')
+                # if removed or repaired:
+                #     self.warnings.append(
+                #         f'{node.name}: removed {removed} zero-area ASS triangles '
+                #         f'and recovered {repaired} invalid vertex normals')
                 geometry_index = len(asset.geometries)
                 asset.geometries.append(geometry)
                 if uniform:
@@ -1705,12 +1720,12 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
                 export.postprocess_tags()
             elif classic_scenario:
                 export.update_scenario_skies()
-            if (project.game == 'halo1' and scene_settings.asset_type == 'scenario' and
+            if (project.game in {'halo1', 'halo2'} and scene_settings.asset_type == 'scenario' and
                     export_settings.lightmap_structure):
                 scenario_path = Path(export.asset_path_relative, export.asset_name)
                 scenario_tag = Path(export.tags_dir, scenario_path).with_suffix('.scenario')
                 with ScenarioDocument(scenario_tag, tags_root=export.tags_dir,
-                                      game='halo1') as scenario:
+                                      game=project.game) as scenario:
                     block = scenario.block(scenario.tag.root(), 'structure bsps')
                     bsps = [reference.ShortName for entry in block
                             if (reference := scenario.reference(entry, 'structure bsp')) is not None]
@@ -1719,7 +1734,17 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
                     if bsp not in bsps:
                         raise ExportCancelled(f'Specified BSP [{bsp}] does not exist in {scenario_tag}')
                     bsps = [bsp]
-                run_halo1_lightmapper(str(scenario_path), bsps, export_settings)
+                if project.game == 'halo1':
+                    run_halo1_lightmapper(str(scenario_path), bsps, export_settings)
+                else:
+                    result = run_lightmapper(
+                        False, str(scenario_path), export_settings.lightmap_quality,
+                        lightmap_all_bsps=export_settings.lightmap_all_bsps,
+                        lightmap_specific_bsp=export_settings.lightmap_specific_bsp,
+                        cpu_threads=export_settings.lightmap_threads, structure_bsps=bsps,
+                    )
+                    if result.lightmap_failed:
+                        raise ExportCancelled(result.lightmap_message)
             for warning in export.warnings[warnings_before_tags:]:
                 utils.print_warning(warning)
         finally:

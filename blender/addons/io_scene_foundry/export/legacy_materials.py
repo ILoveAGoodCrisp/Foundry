@@ -57,8 +57,10 @@ def material_variant(shader, props, global_material='default', ass_version=None,
         name += f' lp:{power:g}'
     lighting = ()
     if ass_version and ass_version >= 4:
-        tint = tuple(get('lightmap_translucency_tint_color', (0, 0, 0)))[:3]
-        additive = tuple(get('lightmap_additive_transparency', (0, 0, 0)))[:3]
+        # Resolved face properties use 0-255 RGB for these two colours;
+        # ASS lighting records require normalized real RGB values.
+        tint = tuple(v / 255 for v in get('lightmap_translucency_tint_color', (0, 0, 0)))[:3]
+        additive = tuple(v / 255 for v in get('lightmap_additive_transparency', (0, 0, 0)))[:3]
         color = tuple(get('lighting_emissive_color', (1, 1, 1)))[:3]
         lighting = (
             'BM_FLAGS ' + ''.join('1' if v else '0' for v in flags),

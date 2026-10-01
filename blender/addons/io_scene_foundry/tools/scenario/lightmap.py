@@ -1,4 +1,6 @@
 import datetime
+from contextlib import ExitStack
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import math
 from pathlib import Path
@@ -10,7 +12,7 @@ from ...patches import ToolPatcher
 from ...tags.lightmapper_globals import LightmapperGlobalsTag
 
 from ...tags.scenario import ScenarioMetadataTag
-from ... import utils
+from ... import utils, foundry_output
 import os
 
 def scenario_exists() -> bool:
@@ -211,7 +213,13 @@ def run_lightmapper(
         if not_bungie_game:
             lightmap_results = lightmap.lightmap_h4()
         else:
-            lightmap_results = lightmap.lightmap_reach()
+            project = utils.get_project(use_external=False)
+            if project and project.game == 'halo2':
+                lightmap_results = lightmap.lightmap_halo2()
+            elif project and project.game in {'halo3', 'halo3odst'}:
+                lightmap_results = lightmap.lightmap_halo3()
+            else:
+                lightmap_results = lightmap.lightmap_reach()
     except CalledProcessError as error:
         lightmap.abort_tool_error("lightmapping", error=error)
         lightmap_results = lightmap
@@ -341,15 +349,102 @@ class LightMapper:
 
         return True
 
+    def lightmap_halo2(self):
+        """Bake individual H2 BSPs, farming only when multiple workers are requested."""
+        qualities = {'checkerboard', 'cuban', 'draft_low', 'draft_medium',
+                     'draft_high', 'draft_super', 'direct_only', 'low',
+                     'medium', 'high', 'super'}
+        if self.quality not in qualities:
+            raise ValueError(f'Invalid Halo 2 lightmap quality: {self.quality}')
+        if self.thread_count < 1:
+            raise ValueError('Halo 2 lightmapping requires at least one worker')
+        bsps = list(dict.fromkeys(self.bsps if self.bsp == 'all' else [self.bsp]))
+        if not bsps or any(not bsp for bsp in bsps):
+            raise ValueError('No BSPs selected for Halo 2 lightmapping')
+        self.tool_patches = []
+        for bsp in bsps:
+            print(f'--- Lightmapping BSP {bsp}')
+            if self.thread_count == 1:
+                if not self.run_tool_or_abort(
+                    ['lightmaps', self.scenario, bsp, self.quality],
+                    f'lightmaps ({bsp})', force_tool=True,
+                ):
+                    return self
+            elif not self._halo2_farm(bsp):
+                return self
+        self.lightmap_message = f'{utils.formalise_string(self.quality)} Quality lightmap complete'
+        return self
+
+    def _halo2_farm(self, bsp):
+        log_dir = Path(utils.get_project_path(), 'lightmap_logs', 'halo2',
+                       str(calc_job_id(self.scenario, bsp)))
+        log_dir.mkdir(parents=True, exist_ok=True)
+        processes = []
+        with ExitStack() as logs:
+            try:
+                # Worker zero writes shared scenery lighting data. Give all
+                # other workers a 30-second head start before launching it.
+                for index in [*range(1, self.thread_count), 0]:
+                    if index == 0:
+                        print('--- Waiting 30 seconds before launching worker 0')
+                        deadline = time.monotonic() + 30
+                        while time.monotonic() < deadline:
+                            foundry_output._raise_if_cancel_requested()
+                            for process, log_path in processes:
+                                code = process.poll()
+                                if code is not None and code != 0:
+                                    self.abort_tool_error('lightmaps-farm-worker',
+                                                          returncode=code, log_filename=str(log_path))
+                                    return False
+                            time.sleep(0.25)
+                    foundry_output._raise_if_cancel_requested()
+                    log_path = log_dir / f'worker_{index}.txt'
+                    log = logs.enter_context(log_path.open('w'))
+                    process = utils.run_tool(
+                        ['lightmaps-farm-worker', self.scenario, bsp, self.quality,
+                         str(index), str(self.thread_count)],
+                        in_background=True, log_file=log, force_tool=True,
+                    )
+                    processes.append((process, log_path))
+                    print(f'--- Spawned lightmap worker {index}')
+                for process, log_path in processes:
+                    code = process.wait()
+                    if code != 0:
+                        self.abort_tool_error('lightmaps-farm-worker', returncode=code,
+                                              log_filename=str(log_path))
+                        return False
+            except CalledProcessError as error:
+                self.abort_tool_error('lightmaps-farm-worker', error=error)
+                return False
+            finally:
+                # Also stop workers when launching fails or the user cancels.
+                for process, _ in processes:
+                    if process.poll() is None:
+                        process.kill()
+                        process.wait()
+        return self.run_tool_or_abort(
+            ['lightmaps-farm-merge', self.scenario, bsp, str(self.thread_count)],
+            f'lightmaps-farm-merge ({bsp})', force_tool=True,
+        )
+
     def lightmap_reach(self):
+        return self._lightmap_farm(reach=True)
+
+    def lightmap_halo3(self):
+        """Run the H3/ODST local farm without Reach Tool memory patches."""
+        return self._lightmap_farm(reach=False)
+
+    def _lightmap_farm(self, *, reach):
         self.blob_dir_name = str(calc_job_id(self.scenario, self.bsp))
         self.analytical_light = "true"
         self.blob_dir = os.path.join("faux", self.blob_dir_name)
         self.start_time = datetime.datetime.now()
         
-        tool_path = Path(utils.get_project_path(), "tool_fast.exe")
-        patcher = ToolPatcher(tool_path)
-        self.tool_patches = patcher.reach_lightmap_color(return_patches=True)
+        self.tool_patches = []
+        if reach:
+            tool_path = Path(utils.get_project_path(), "tool_fast.exe")
+            patcher = ToolPatcher(tool_path)
+            self.tool_patches = patcher.reach_lightmap_color(return_patches=True)
 
         print("\n\nFaux Data Sync")
         print(
@@ -364,16 +459,18 @@ class LightMapper:
             "-------------------------------------------------------------------------\n"
         )
         # self.print_exec_time()
+        begin_args = [
+            "faux_farm_begin",
+            self.scenario,
+            self.bsp,
+            self.light_group if reach else (self.light_group or "all"),
+            self.quality,
+            self.blob_dir_name,
+        ]
+        if reach:
+            begin_args.append(self.analytical_light)
         if not self.run_tool_or_abort(
-            [
-                "faux_farm_begin",
-                self.scenario,
-                self.bsp,
-                self.light_group,
-                self.quality,
-                self.blob_dir_name,
-                self.analytical_light,
-            ],
+            begin_args,
             "faux_farm_begin",
             force_tool_fast=True
         ):
@@ -395,8 +492,14 @@ class LightMapper:
         print(
             "-------------------------------------------------------------------------\n"
         )
-        if not self.farm("radest_extillum"):
-            return self 
+        if reach:
+            if not self.farm("radest_extillum"):
+                return self
+        else:
+            if not self.farm("radest"):
+                return self
+            if not self.farm("extillum"):
+                return self
         print("\nFinal Gather")
         print(
             "-------------------------------------------------------------------------\n"
@@ -409,6 +512,19 @@ class LightMapper:
             "-------------------------------------------------------------------------\n"
         )
         if not self.run_tool_or_abort(["faux_farm_finish", self.blob_dir], "faux_farm_finish", force_tool_fast=True):
+            return self
+
+        if not reach:
+            for command in (
+                "faux-build-linear-textures-with-intensity-from-quadratic",
+                "faux-compress-scenario-bitmaps-dxt5",
+                "faux-farm-compression-merge",
+            ):
+                if not self.run_tool_or_abort(
+                    [command, self.scenario, self.bsp], command, force_tool_fast=True
+                ):
+                    return self
+            self.lightmap_message = f"{utils.formalise_string(self.quality)} Quality lightmap complete"
             return self
 
         if not self.run_tool_or_abort(
