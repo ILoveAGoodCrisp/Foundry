@@ -119,3 +119,86 @@ def generate_reach_aim_look_overlays(scene_nwo, armature, imported_animations, *
         except ValueError as error:
             utils.print_warning(f"Failed to generate overlays for [{source.name}]: {error}")
     return [scene_nwo.animations[name] for name in generated]
+
+
+def combine_reach_acc_overlays(scene_nwo, armature, imported_animations):
+    """Join legacy acceleration screens, keeping one additive reference frame."""
+    from .generate_aim_look_overlays import (
+        _armature_track, _copy_property_group, _fcurve_map,
+        _rest_local_matrix, _sample_local_matrices, _write_generated_transforms,
+    )
+
+    states = ('acc_left_right', 'acc_front_back', 'acc_up_down')
+    groups = {}
+    for animation in imported_animations:
+        name = utils.AnimationName(animation.name)
+        if (name.state not in states or animation.animation_type != 'overlay'
+                or _armature_track(animation, armature) is None):
+            continue
+        tokens = animation.name.replace(':', ' ').split()
+        tokens[tokens.index(name.state)] = 'acc'
+        target_name = ':'.join(tokens)
+        groups.setdefault(target_name, []).append((states.index(name.state), animation))
+
+    rest = {bone.name: _rest_local_matrix(bone) for bone in armature.pose.bones}
+    generated = []
+    for target_name, sources in groups.items():
+        if any(item.name.replace(' ', ':').casefold() == target_name.casefold()
+               for item in scene_nwo.animations):
+            utils.print_warning(f'Skipping acceleration conversion for [{target_name}]: already exists')
+            continue
+        sources.sort(key=lambda item: item[0])
+        first = sources[0][1]
+        frames = {}
+        events = []
+        for _, source in sources:
+            curves, slot = _fcurve_map(_armature_track(source, armature).action, armature)
+            if not frames:
+                frames[1] = _sample_local_matrices(armature, curves, source.frame_start, rest)
+            frame_map = {source.frame_start: 1} if source.pose_overlay else {}
+            start = source.frame_start + int(source.pose_overlay)
+            for frame in range(start, source.frame_end + 1):
+                target_frame = len(frames) + 1
+                frames[target_frame] = _sample_local_matrices(armature, curves, frame, rest)
+                frame_map[frame] = target_frame
+            events.extend((event, frame_map) for event in source.animation_events)
+
+        first_track = _armature_track(first, armature)
+        action = first_track.action.copy()
+        action.name = target_name
+        _, slot = _fcurve_map(action, armature)
+        try:
+            _write_generated_transforms(action, armature, slot, frames, set(rest), rest)
+        except Exception:
+            bpy.data.actions.remove(action)
+            raise
+        target = scene_nwo.animations.add()
+        _copy_property_group(first, target, skip={
+            'name', 'name_old', 'action_tracks', 'animation_renames', 'animation_events',
+        })
+        track = target.action_tracks.add()
+        _copy_property_group(first_track, track)
+        track.action = action
+        target.name = target.name_old = target_name
+        target.state = 'acc'
+        target.pose_overlay = True
+        target.pose_overlay_source = 'pose'
+        target.blend_screen = ''
+        target.source_authoring_data = ''
+        target.frame_start = action.frame_start = 1
+        target.frame_end = action.frame_end = len(frames)
+        for source_event, frame_map in events:
+            event = target.animation_events.add()
+            _copy_property_group(source_event, event)
+            # Capture both endpoints before setters enforce range >= start.
+            endpoints = {field: frame_map.get(getattr(source_event, field),
+                                             getattr(source_event, field))
+                         for field in ('frame_frame', 'frame_range')}
+            for field in ('frame_frame', 'frame_range'):
+                setattr(event, field, endpoints[field])
+        pointers = {source.as_pointer() for _, source in sources}
+        for index in reversed(range(len(scene_nwo.animations))):
+            if scene_nwo.animations[index].as_pointer() in pointers:
+                scene_nwo.animations.remove(index)
+        generated.append(target_name)
+    return generated

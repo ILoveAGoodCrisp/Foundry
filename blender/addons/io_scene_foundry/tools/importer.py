@@ -4422,6 +4422,19 @@ class NWOImporter:
             from .animation.reach_import import remap_legacy_screen_events
             remap_legacy_screen_events(self.scene_nwo.animations[imported_animation_start:], legacy_frame_maps)
 
+        if convert_to_reach and self.graph_import_animations:
+            from .animation.legacy_import import combine_reach_acc_overlays
+            combined = combine_reach_acc_overlays(
+                self.scene_nwo, armature,
+                self.scene_nwo.animations[imported_animation_start:],
+            )
+            if combined:
+                animations = [item.name for item in self.scene_nwo.animations[imported_animation_start:]]
+                actions = list(dict.fromkeys(track.action
+                               for item in self.scene_nwo.animations[imported_animation_start:]
+                               for track in item.action_tracks if track.action is not None))
+                utils.print_bullet(f'Combined {len(combined)} acceleration overlays')
+
         if (convert_to_reach or convert_locomotes) and self.graph_import_animations:
             from .animation.legacy_import import generate_reach_aim_look_overlays
             from .animation.legacy_turns import convert_reach_turn_poses
