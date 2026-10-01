@@ -1,5 +1,6 @@
 """Reach-style skeleton and animation conversion for native legacy imports."""
 import bpy
+from math import radians
 from mathutils import Matrix
 
 from ... import import_transform, utils
@@ -184,6 +185,7 @@ def combine_reach_acc_overlays(scene_nwo, armature, imported_animations):
     from .generate_aim_look_overlays import (
         _armature_track, _copy_property_group, _fcurve_map,
         _rest_local_matrix, _sample_local_matrices, _write_generated_transforms,
+        _pose_bone_from_usage, _world_matrices,
     )
 
     states = ('acc_left_right', 'acc_front_back', 'acc_up_down')
@@ -204,6 +206,11 @@ def combine_reach_acc_overlays(scene_nwo, armature, imported_animations):
         groups.setdefault(target_name, []).append((states.index(name.state), source_index))
 
     rest = {bone.name: _rest_local_matrix(bone) for bone in armature.pose.bones}
+    pedestal = _pose_bone_from_usage(armature, scene_nwo.node_usage_pedestal, ('pedestal',))
+    yaw_bone = _pose_bone_from_usage(armature, scene_nwo.node_usage_pose_blend_yaw, ('aim_yaw',))
+    pitch_bone = _pose_bone_from_usage(armature, scene_nwo.node_usage_pose_blend_pitch, ('aim_pitch',))
+    if groups and any(bone is None for bone in (pedestal, yaw_bone, pitch_bone)):
+        raise ValueError('Acceleration conversion requires pedestal, aim_yaw and aim_pitch bones')
     generated = []
     removed_indices = set()
 
@@ -223,16 +230,40 @@ def combine_reach_acc_overlays(scene_nwo, armature, imported_animations):
         first = source_at(first_index)
         frames = {}
         events = []
-        for _, source_index in sources:
+        aim_samples = {}
+        for state_index, source_index in sources:
             source = source_at(source_index)
             curves, slot = _fcurve_map(_armature_track(source, armature).action, armature)
             if not frames:
                 frames[1] = _sample_local_matrices(armature, curves, source.frame_start, rest)
             frame_map = {source.frame_start: 1} if source.pose_overlay else {}
             start = source.frame_start + int(source.pose_overlay)
+            sample_count = source.frame_end - start + 1
             for frame in range(start, source.frame_end + 1):
+                # Match Foundry's acceleration preset, with yaw before pitch.
+                # The front endpoint uses -1 rather than 0 degrees, as in the
+                # preset, to keep it distinct from the neutral aim sample.
+                fraction = (frame - start) / max(sample_count - 1, 1)
+                yaw, pitch = ((-90 + 180 * fraction, 0) if state_index == 0 else
+                              (180 + 179 * fraction, 0) if state_index == 1 else
+                              (0, 90 - 180 * fraction))
+                yaw_matrix = Matrix.Rotation(radians(yaw), 4, 'Z')
+                pitch_matrix = Matrix.Rotation(radians(pitch), 4, 'Y')
+                signature = tuple(round(matrix[row][column], 6)
+                                  for matrix in (yaw_matrix, pitch_matrix)
+                                  for row in range(3) for column in range(3))
+                if signature in aim_samples:
+                    frame_map[frame] = aim_samples[signature]
+                    continue
                 target_frame = len(frames) + 1
-                frames[target_frame] = _sample_local_matrices(armature, curves, frame, rest)
+                pose = _sample_local_matrices(armature, curves, frame, rest)
+                world = _world_matrices(armature, pose)
+                for bone, rotation in ((yaw_bone, yaw_matrix), (pitch_bone, pitch_matrix)):
+                    desired = world[pedestal.name] @ rotation
+                    pose[bone.name] = (world[bone.parent.name].inverted_safe() @ desired
+                                       if bone.parent else desired)
+                frames[target_frame] = pose
+                aim_samples[signature] = target_frame
                 frame_map[frame] = target_frame
             events.extend((source_index, index, frame_map)
                           for index in range(len(source.animation_events)))

@@ -114,8 +114,8 @@ class ExportScene:
         self.export_settings = export_settings
         self.scene_settings = scene_settings
         
-        self.limit_perms_to_selection = export_settings.export_all_perms == 'selected' and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.SCENARIO, AssetType.PREFAB, AssetType.MULTI_MODEL, AssetType.MULTI_PREFAB}
-        self.limit_bsps_to_selection = export_settings.export_all_bsps == 'selected' and self.asset_type == AssetType.SCENARIO
+        self.limit_perms_to_selection = not export_settings.export_all_permutations and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.SCENARIO, AssetType.PREFAB, AssetType.MULTI_MODEL, AssetType.MULTI_PREFAB}
+        self.limit_bsps_to_selection = not export_settings.lightmap_all_bsps and self.asset_type == AssetType.SCENARIO
         
         self.project_root = self.tags_dir.parent
         
@@ -185,7 +185,7 @@ class ExportScene:
         self.start_scene = start_scene
         
         self.has_no_virtual_scene = True
-        self.selected_bsps = []
+        self.selected_bsps = [export_settings.lightmap_specific_bsp] if self.limit_bsps_to_selection else []
         self.selected_actors = []
         self.cinematic_scene = None
         self.cinematic_actors = []
@@ -294,8 +294,8 @@ class ExportScene:
         self.global_materials_list = []
         self.processed_meshes = {}
         self.processed_poop_meshes = set()
-        self.selected_permutations = set()
-        self.selected_bsps = set()
+        self.selected_permutations = {self.export_settings.export_specific_perm} if self.limit_perms_to_selection else set()
+        self.selected_bsps = {self.export_settings.lightmap_specific_bsp} if self.limit_bsps_to_selection else set()
         self.warnings = []
         self.exported_animations = []
         self.lights = {}
@@ -704,13 +704,6 @@ class ExportScene:
                 if is_armature:
                     if self.asset_type == AssetType.CINEMATIC and self.selected_cinematic_objects_only and ob.select_get():
                         self.selected_actors.add(ob)
-                else:
-                    if self.limit_perms_to_selection:
-                        if ob.ob.select_get():
-                            self.selected_permutations.add(permutation)
-                    if self.limit_bsps_to_selection:
-                        if ob.ob.select_get():
-                            self.selected_bsps.add(region)
                 
                 parent = ob.parent
                 has_parent = parent is not None

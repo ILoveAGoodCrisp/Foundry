@@ -643,10 +643,15 @@ class NWO_ExportScene(Operator, ExportHelper):
         col.use_property_split = False
         col.separator()
         if scene_nwo.asset_type == "scenario":
-            col.prop(scene_nwo_export, "export_all_bsps", expand=True, text=" ")
+            if not scene_nwo_export.lightmap_all_bsps:
+                col.prop(scene_nwo_export, "lightmap_specific_bsp")
+            col.prop(scene_nwo_export, "lightmap_all_bsps")
             col.separator()
         if scene_nwo.asset_type not in {"scenario", "prefab"} or not legacy:
-            col.prop(scene_nwo_export, "export_all_perms", expand=True, text=" ")
+            is_layer = scene_nwo.asset_type in {'scenario', 'prefab'}
+            if not scene_nwo_export.export_all_permutations:
+                col.prop(scene_nwo_export, "export_specific_perm", text="Specific Layer" if is_layer else "Specific Permutation")
+            col.prop(scene_nwo_export, "export_all_permutations", text="All Layers" if is_layer else "All Permutations")
             col.separator()
         if scene_nwo.asset_type in {'animation', 'model'}:
             col.prop(scene_nwo_export, "export_animations", expand=True)

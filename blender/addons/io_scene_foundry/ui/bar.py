@@ -597,14 +597,19 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
         col.use_property_split = False
         if scene_nwo.asset_type == "scenario":
             col.separator()
-            col.prop(scene_nwo_export, "export_all_bsps", expand=True, text=" ")
+            if not scene_nwo_export.lightmap_all_bsps:
+                col.prop(scene_nwo_export, "lightmap_specific_bsp")
+            col.prop(scene_nwo_export, "lightmap_all_bsps")
             col.separator()
         if scene_nwo.asset_type == 'model' or (
             scene_nwo.asset_type in {'scenario', 'prefab'}
             and not utils.uses_legacy_export(scene_nwo.scene_project)
         ):
             col.separator()
-            col.prop(scene_nwo_export, "export_all_perms", expand=True, text=" ")
+            is_layer = scene_nwo.asset_type in {'scenario', 'prefab'}
+            if not scene_nwo_export.export_all_permutations:
+                col.prop(scene_nwo_export, "export_specific_perm", text="Specific Layer" if is_layer else "Specific Permutation")
+            col.prop(scene_nwo_export, "export_all_permutations", text="All Layers" if is_layer else "All Permutations")
         if scene_nwo.asset_type in {'animation', 'model'}:
             col.separator()
             col.prop(scene_nwo_export, "export_animations", expand=True)
@@ -971,26 +976,23 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         ]
     )
     
-    export_all_bsps: bpy.props.EnumProperty(
-        name="BSPs",
-        description="Specify whether to export all BSPs, or just those currently selected. Whether a BSP is considered selected is dependant on the object selection",
-        default="all",
-        items=[("all", "All BSPs", ""), ("selected", "Selected BSPs", "")],
+    export_all_permutations: bpy.props.BoolProperty(
+        name="All Permutations",
+        description="Export all layers or permutations",
+        default=True,
         options=set(),
     )
-    
+
     def perm_items(self, context):
-        if utils.poll_ui(("scenario", "prefab")):
-            return [("all", "All Layers", ""), ("selected", "Selected Layers", "")]
-        else:
-            return [("all", "All Permutations", ""), ("selected", "Selected Permutations", "")]
-    
-    export_all_perms: bpy.props.EnumProperty(
-        name="Perms",
-        description="Specify whether to export all permutations, or just those selected. Whether a permutation is considered selected is dependant on the object selection",
+        return [(perm.name, perm.name, '') for perm in utils.get_scene_props().permutations_table]
+
+    export_specific_perm: bpy.props.EnumProperty(
+        name="Specific Permutation",
+        description="The layer or permutation to export when exporting a single one",
         items=perm_items,
         options=set(),
     )
+
     import_to_game: bpy.props.BoolProperty(
         name="Import to Game",
         description="",
@@ -1128,6 +1130,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     )
     lightmap_all_bsps: bpy.props.BoolProperty(
         name="All BSPs",
+        description="Export and lightmap all BSPs instead of the specific BSP",
         default=True,
         options=set(),
     )
@@ -1142,6 +1145,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     
     lightmap_specific_bsp: bpy.props.EnumProperty(
         name="Specific BSP",
+        description="The BSP to export and lightmap when All BSPs is disabled",
         options=set(),
         items=bsp_items,
     )
