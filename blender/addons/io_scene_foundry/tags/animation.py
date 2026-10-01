@@ -3912,11 +3912,12 @@ class AnimationTag(AnimationGraphTag):
         pedestal_node = getattr(self, '_reach_pedestal_node', None)
         transition_offset = None
         state = tag_animation.name.state.lower()
-        if pedestal_node is not None and frames and ('enter' in state or 'exit' in state):
-            # Exit from the root to the final pelvis offset; enter from the
+        exiting = 'exit' in state or 'ejection' in state
+        entering = 'enter' in state
+        if pedestal_node is not None and frames and (entering or exiting):
+            # Exit/ejection from the root to the final pelvis offset; enter from the
             # initial pelvis offset back to the root. Keep all other bone motion
             # on the pelvis, including rotation and deviations from this line.
-            entering = 'exit' not in state
             endpoint = frames[0 if entering else -1][0]
             endpoint = import_transform.armature_bone_matrix(endpoint, root=True)
             pelvis_rest = import_transform.armature_bone_matrix(
