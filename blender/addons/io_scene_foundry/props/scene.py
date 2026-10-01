@@ -70,6 +70,8 @@ def animation_from_phase_set(self, context):
     animation_from_leaf(phase_set, context)
     
 def animation_from_blend_axis(self, context):
+    if not 0 <= self.blend_axis_active_index < len(self.blend_axis):
+        return
     axis = self.blend_axis[self.blend_axis_active_index]
     animation_from_leaf(axis, context)
     

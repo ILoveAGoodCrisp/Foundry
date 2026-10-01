@@ -4013,6 +4013,7 @@ class AnimationTag(AnimationGraphTag):
         self._legacy_conversion = convert_to_legacy
         self._legacy_converter = None
         self.legacy_frame_maps = {}
+        self.reach_duplicate_frames = {}
         self._reach_pedestal_node = None
         self._reach_unmoved_roots = {}
         reach_bones = None
@@ -4279,7 +4280,8 @@ class AnimationTag(AnimationGraphTag):
                     record = legacy_blend_screens.get(source_name.tag_name)
                     if record is not None:
                         from ..tools.animation.legacy_import import convert_blend_screen
-                        convert_blend_screen(armature, blender_animation, action, slot, record, reach_bones)
+                        self.reach_duplicate_frames[blender_animation.name] = convert_blend_screen(
+                            armature, blender_animation, action, slot, record, reach_bones)
 
         if self.corinth and import_pca:
             pca_groups = {}

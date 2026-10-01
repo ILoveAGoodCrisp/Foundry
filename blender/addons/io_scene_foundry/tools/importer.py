@@ -4322,6 +4322,7 @@ class NWOImporter:
         actions = []
         animations = []
         legacy_frame_maps = {}
+        reach_duplicate_frames = {}
         imported_animation_start = len(self.scene_nwo.animations)
         filter = self.tag_animation_filter.replace(" ", ":")
         self.context.scene.render.fps = 30
@@ -4403,6 +4404,8 @@ class NWOImporter:
                             actions, animations = result
                     if convert_to_legacy:
                         legacy_frame_maps = graph.legacy_frame_maps
+                    if convert_to_reach:
+                        reach_duplicate_frames = graph.reach_duplicate_frames
 
             if self.graph_generate_renames:
                 utils.print_bullet("Generating Animation Renames and Copies")
@@ -4423,7 +4426,13 @@ class NWOImporter:
             remap_legacy_screen_events(self.scene_nwo.animations[imported_animation_start:], legacy_frame_maps)
 
         if convert_to_reach and self.graph_import_animations:
-            from .animation.legacy_import import combine_reach_acc_overlays
+            from .animation.legacy_import import (
+                combine_reach_acc_overlays, strip_reach_blend_screen_duplicates,
+            )
+            strip_reach_blend_screen_duplicates(
+                armature, self.scene_nwo.animations[imported_animation_start:],
+                reach_duplicate_frames,
+            )
             combined = combine_reach_acc_overlays(
                 self.scene_nwo, armature,
                 self.scene_nwo.animations[imported_animation_start:],

@@ -55,6 +55,63 @@ def split_root_movement(moved, unmoved, pedestal_rest):
     return moved @ unmoved.inverted_safe() @ pedestal_rest, pedestal_rest.inverted_safe() @ unmoved
 
 
+def blend_screen_duplicate_frames(screen, frame_start=1):
+    """Map repeated yaw/pitch samples to their first authored pose.
+
+    Compare the two aim rotations separately: yaw remains meaningful at the
+    pitch poles. The additive reference is not a blend-screen sample.
+    """
+    unique = []
+    duplicates = {}
+    for index, (yaw, pitch, _wrap) in enumerate(screen.transforms):
+        frame = frame_start + index + 1
+        for first_frame, first_yaw, first_pitch in unique:
+            if all(abs(a[row][column] - b[row][column]) <= 1e-6
+                   for a, b in ((yaw, first_yaw), (pitch, first_pitch))
+                   for row in range(3) for column in range(3)):
+                duplicates[frame] = first_frame
+                break
+        else:
+            unique.append((frame, yaw, pitch))
+    return duplicates
+
+
+def strip_reach_blend_screen_duplicates(armature, animations, duplicate_frames):
+    """Compact every action curve and event after native events are imported."""
+    from .generate_aim_look_overlays import _armature_track, _fcurve_map
+
+    for animation in animations:
+        duplicates = duplicate_frames.get(animation.name, {})
+        if not duplicates:
+            continue
+        track = _armature_track(animation, armature)
+        if track is None:
+            continue
+        retained = [frame for frame in range(animation.frame_start, animation.frame_end + 1)
+                    if frame not in duplicates]
+        frame_map = {frame: animation.frame_start + index
+                     for index, frame in enumerate(retained)}
+        frame_map.update({frame: frame_map[first] for frame, first in duplicates.items()})
+        _, slot = _fcurve_map(track.action, armature)
+        curves = utils.get_fcurves(track.action, slot)
+        # Sample before clearing so sparse source curves retain their poses.
+        for curve in curves:
+            values = [curve.evaluate(frame) for frame in retained]
+            curve.keyframe_points.clear()
+            curve.keyframe_points.add(len(retained))
+            for point, frame, value in zip(curve.keyframe_points, retained, values):
+                point.co = (frame_map[frame], value)
+                point.interpolation = 'LINEAR'
+            curve.update()
+        for event in animation.animation_events:
+            start = frame_map.get(event.frame_frame, event.frame_frame)
+            end = frame_map.get(event.frame_range, event.frame_range)
+            event.frame_frame = start
+            event.frame_range = max(start, end)
+        animation.frame_end = track.action.frame_end = frame_map[retained[-1]]
+        animation.source_authoring_data = ''
+
+
 def convert_blend_screen(armature, animation, action, slot, record, names):
     screen = BlendScreen()
     screen.from_record(record)
@@ -74,6 +131,7 @@ def convert_blend_screen(armature, animation, action, slot, record, names):
         animation.frame_end = builder.build_from_blend_screen(
             bpy.context.scene, animation, action, wrap_events, screen, slot)
     action.frame_end = animation.frame_end
+    return blend_screen_duplicate_frames(screen, animation.frame_start)
 
 
 def generate_reach_aim_look_overlays(scene_nwo, armature, imported_animations, *, turns_with_aim_pose=(),
@@ -130,28 +188,43 @@ def combine_reach_acc_overlays(scene_nwo, armature, imported_animations):
 
     states = ('acc_left_right', 'acc_front_back', 'acc_up_down')
     groups = {}
-    for animation in imported_animations:
+    imported_pointers = {animation.as_pointer() for animation in imported_animations}
+    for source_index, animation in enumerate(scene_nwo.animations):
+        if animation.as_pointer() not in imported_pointers:
+            continue
         name = utils.AnimationName(animation.name)
         if (name.state not in states or animation.animation_type != 'overlay'
                 or _armature_track(animation, armature) is None):
             continue
         tokens = animation.name.replace(':', ' ').split()
         tokens[tokens.index(name.state)] = 'acc'
-        target_name = ':'.join(tokens)
-        groups.setdefault(target_name, []).append((states.index(name.state), animation))
+        target_name = ' '.join(tokens)
+        # Blender collection additions/removals can invalidate RNA references.
+        # Names are not unique. Adjust original positions as sources are removed.
+        groups.setdefault(target_name, []).append((states.index(name.state), source_index))
 
     rest = {bone.name: _rest_local_matrix(bone) for bone in armature.pose.bones}
     generated = []
+    removed_indices = set()
+
+    def current_index(original_index):
+        return original_index - sum(index < original_index for index in removed_indices)
+
+    def source_at(original_index):
+        return scene_nwo.animations[current_index(original_index)]
+
     for target_name, sources in groups.items():
-        if any(item.name.replace(' ', ':').casefold() == target_name.casefold()
+        if any(' '.join(item.name.replace(':', ' ').split()).casefold() == target_name.casefold()
                for item in scene_nwo.animations):
             utils.print_warning(f'Skipping acceleration conversion for [{target_name}]: already exists')
             continue
         sources.sort(key=lambda item: item[0])
-        first = sources[0][1]
+        first_index = sources[0][1]
+        first = source_at(first_index)
         frames = {}
         events = []
-        for _, source in sources:
+        for _, source_index in sources:
+            source = source_at(source_index)
             curves, slot = _fcurve_map(_armature_track(source, armature).action, armature)
             if not frames:
                 frames[1] = _sample_local_matrices(armature, curves, source.frame_start, rest)
@@ -161,7 +234,8 @@ def combine_reach_acc_overlays(scene_nwo, armature, imported_animations):
                 target_frame = len(frames) + 1
                 frames[target_frame] = _sample_local_matrices(armature, curves, frame, rest)
                 frame_map[frame] = target_frame
-            events.extend((event, frame_map) for event in source.animation_events)
+            events.extend((source_index, index, frame_map)
+                          for index in range(len(source.animation_events)))
 
         first_track = _armature_track(first, armature)
         action = first_track.action.copy()
@@ -173,8 +247,11 @@ def combine_reach_acc_overlays(scene_nwo, armature, imported_animations):
             bpy.data.actions.remove(action)
             raise
         target = scene_nwo.animations.add()
+        first = source_at(first_index)
+        first_track = _armature_track(first, armature)
         _copy_property_group(first, target, skip={
             'name', 'name_old', 'action_tracks', 'animation_renames', 'animation_events',
+            'blend_axis_active_index',
         })
         track = target.action_tracks.add()
         _copy_property_group(first_track, track)
@@ -187,7 +264,8 @@ def combine_reach_acc_overlays(scene_nwo, armature, imported_animations):
         target.source_authoring_data = ''
         target.frame_start = action.frame_start = 1
         target.frame_end = action.frame_end = len(frames)
-        for source_event, frame_map in events:
+        for source_index, event_index, frame_map in events:
+            source_event = source_at(source_index).animation_events[event_index]
             event = target.animation_events.add()
             _copy_property_group(source_event, event)
             # Capture both endpoints before setters enforce range >= start.
@@ -196,9 +274,8 @@ def combine_reach_acc_overlays(scene_nwo, armature, imported_animations):
                          for field in ('frame_frame', 'frame_range')}
             for field in ('frame_frame', 'frame_range'):
                 setattr(event, field, endpoints[field])
-        pointers = {source.as_pointer() for _, source in sources}
-        for index in reversed(range(len(scene_nwo.animations))):
-            if scene_nwo.animations[index].as_pointer() in pointers:
-                scene_nwo.animations.remove(index)
+        for original_index in sorted({index for _, index in sources}, reverse=True):
+            scene_nwo.animations.remove(current_index(original_index))
+            removed_indices.add(original_index)
         generated.append(target_name)
     return generated
