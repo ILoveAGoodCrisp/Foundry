@@ -265,8 +265,7 @@ face_prop_type_items = [
             ('sphere_collision_only', "Sphere Collision Only", "halo1,halo2,halo3,halo3odst,reach,corinth:scenario,prefab", 3),
             # ('shadow_only', "Shadow Only", "reach,corinth:model,sky"), 
             ('breakable', "Breakable", "halo1,halo2,halo3,halo3odst,reach:scenario", 4),
-            # Reach deliberately has no lightmap-only face mode.
-            ('lightmap_only', "Lightmap Only", "halo2,halo3,halo3odst,corinth:scenario,prefab", 5),
+            ('lightmap_only', "Lightmap Only", "halo2,halo3,halo3odst,reach,corinth:scenario,prefab", 5),
             ('face_sides', "Two-Sided", "halo1,halo2,halo3,halo3odst,reach,corinth:model,scenario,prefab,sky", 7), # face_two_sided & face_two_sided_type
             ('transparent', "Transparent", "halo1,halo2,halo3,halo3odst,reach,corinth:model,scenario,prefab,sky", 8),
             ('region', "Region", "halo1,halo2,halo3,halo3odst,reach,corinth:model,sky", 9),
@@ -299,6 +298,9 @@ face_prop_type_items = [
 
 def face_prop_game_supported(prop_type: str, game: str, face_mode: str | None = None) -> bool:
     """Return whether a face property has an interchange representation in a game."""
+    # Property masks share the Corinth engine identifier for both games.
+    if game in {'halo4', 'halo2a'}:
+        game = 'corinth'
     if prop_type == 'face_mode' and face_mode == 'normal':
         return True
     lookup = face_mode if prop_type == 'face_mode' else prop_type

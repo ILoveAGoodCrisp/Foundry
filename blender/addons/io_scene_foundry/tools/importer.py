@@ -3483,6 +3483,8 @@ class NWOImporter:
         if self.game == 'halo2' and getattr(jms_mat, 'emissive_power_scale', None) is not None and supports('emissive'):
             prop = utils.add_face_prop(mesh, "emissive", indices)
             prop.material_lighting_emissive_power_scale = jms_mat.emissive_power_scale
+            prop.material_lighting_attenuation_falloff = 0.0
+            prop.material_lighting_attenuation_cutoff = 0.0
         elif self.game != 'halo2' and jms_mat.emissive_power and supports('emissive'):
             prop = utils.add_face_prop(mesh, "emissive", indices)
             prop.material_lighting_emissive_power = jms_mat.emissive_power
@@ -3491,8 +3493,8 @@ class NWOImporter:
             prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
             prop.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
             prop.material_lighting_emissive_focus = jms_mat.emissive_focus
-            prop.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
-            prop.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
+            prop.material_lighting_attenuation_falloff = 0.0 if self.game == 'halo1' else jms_mat.emissive_attenuation_falloff
+            prop.material_lighting_attenuation_cutoff = 0.0 if self.game == 'halo1' else jms_mat.emissive_attenuation_cutoff
         
     # Camera track import
     def import_camera_tracks(self, paths, animation_scale):
@@ -6173,6 +6175,7 @@ class NWO_OT_ImportShader(bpy.types.Operator):
         utils.set_import_context_from_filepath(Path(self.filepath))
         try:
             shader_path = utils.relative_path(self.filepath)
+            mat.name = utils.imported_material_name(mat.name)
             mat.nwo['shader_path'] = shader_path
             tag_to_nodes(utils.is_corinth(context), mat, shader_path,
                          target_game=project.game if self.build_materials_for_project and project else None)
@@ -6272,6 +6275,9 @@ def merge_collection(collection: bpy.types.Collection, suffix="Marker"):
 def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_materials, imported_objects: list[bpy.types.Object], build_materials: bool, always_extract_bitmaps=False, emissive_meshes=None):
     starting_materials = starting_materials if isinstance(starting_materials, set) else set(starting_materials)
     new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
+    source_project = utils.get_project(importer.scene_nwo.scene_project)
+    for mat in new_materials:
+        mat.name = utils.imported_material_name(mat.name, source_project)
     # Clear duplicate materials
     missing_some_shader_paths = False
     if new_materials:
@@ -6413,7 +6419,9 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                 utils.setup_emissive_attributes(mesh, importer.game)
 
         for mesh in {ob.data for ob in imported_objects if ob.type == 'MESH'}:
-            if any(p.type == 'face_sides' and p.two_sided for p in mesh.nwo.face_props):
+            if any((p.type == 'face_sides' and p.two_sided) or
+                   (p.type == 'face_mode' and p.face_mode in utils.INVISIBLE_FACE_MODES)
+                   for p in mesh.nwo.face_props):
                 utils.setup_two_sided_preview(mesh)
 
 

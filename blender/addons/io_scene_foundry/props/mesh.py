@@ -409,9 +409,9 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     material_lighting_attenuation_cutoff: bpy.props.FloatProperty(
         name="Material Lighting Attenuation Cutoff",
         options=set(),
-        description="Determines how far light travels before it stops. Leave this at 0 to for realistic light falloff/cutoff",
+        description="Determines how far light travels before it stops. Leave both falloff and cutoff at 0 to calculate attenuation on export",
         min=0,
-        default=10,
+        default=0,
         update=update_lighting_attenuation_cutoff,
         subtype='DISTANCE',
         unit='LENGTH',
@@ -420,7 +420,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     material_lighting_attenuation_falloff: bpy.props.FloatProperty(
         name="Material Lighting Attenuation Falloff",
         options=set(),
-        description="Determines how far light travels before its power begins to falloff",
+        description="Determines how far light travels before its power begins to falloff. Leave both falloff and cutoff at 0 to calculate attenuation on export",
         min=0,
         default=0,
         update=update_lighting_attenuation_falloff,

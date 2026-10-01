@@ -404,7 +404,9 @@ class HaloSceneConverter:
             return self.converted_materials[source]
         material = source
         # Face flags belong to Foundry properties, not the exported shader name.
-        name = utils.base_material_name(props.material.name, True).lower() or 'default'
+        name = utils.imported_material_name(
+            utils.base_material_name(props.material.name, True),
+            utils.get_project(use_external=False)).lower() or 'default'
         if props.portal_exact:
             name = '+exactportal'
         shader_emissive = self.game in {'halo1', 'halo2'} and props.emissive_power
@@ -426,8 +428,8 @@ class HaloSceneConverter:
                 prop.material_lighting_emissive_quality = props.emissive_quality
                 prop.material_lighting_emissive_per_unit = props.emissive_per_unit
                 prop.material_lighting_emissive_focus = props.emissive_focus
-                prop.material_lighting_attenuation_falloff = props.emissive_attenuation_falloff
-                prop.material_lighting_attenuation_cutoff = props.emissive_attenuation_cutoff
+                prop.material_lighting_attenuation_falloff = 0.0
+                prop.material_lighting_attenuation_cutoff = 0.0
         self.converted_materials[source] = material
         return material
 

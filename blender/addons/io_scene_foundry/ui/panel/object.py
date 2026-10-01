@@ -328,6 +328,9 @@ class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
         scene_nwo = utils.get_scene_props()
         project = utils.get_project(scene_nwo.scene_project)
         game = project.game if project else 'reach'
+        # Face property masks use Corinth for Halo 4 and Halo 2 Anniversary.
+        if game in {'halo4', 'halo2a'}:
+            game = 'corinth'
         asset_type = scene_nwo.asset_type
 
         available_items = {}
@@ -819,6 +822,21 @@ class NWO_OT_UpdateTwoSidedPreview(bpy.types.Operator):
     def poll(cls, context):
         return bool(context.object and context.object.type == 'MESH'
                     and any(p.type == 'face_sides' for p in context.object.data.nwo.face_props))
+
+    def execute(self, context):
+        utils.setup_two_sided_preview(context.object.data)
+        return {'FINISHED'}
+
+
+class NWO_OT_UpdateInvisiblePreview(bpy.types.Operator):
+    bl_idname = 'nwo.update_invisible_preview'
+    bl_label = 'Update Invisible Preview'
+    bl_description = 'Apply collision-only, sphere-collision-only and lightmap-only face masks to the preview'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return bool(context.object and context.object.type == 'MESH')
 
     def execute(self, context):
         utils.setup_two_sided_preview(context.object.data)

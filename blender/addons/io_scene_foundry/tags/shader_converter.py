@@ -657,6 +657,39 @@ class ShaderTag(BlenderTag, TagDocument):
             case _:
                 return None
 
+    def _group_parameter_inputs(self, selected_options):
+        """Prefer sockets feeding the selected option when UI names repeat."""
+        group_tree = self.group_node.node_tree
+        active_identifiers = set()
+        selected_groups = {
+            f"{category} - {option}".lower()
+            for category, option in selected_options.items()
+        }
+        for node in group_tree.nodes:
+            if node.type != 'GROUP' or node.node_tree is None:
+                continue
+            name = node.node_tree.name.lower()
+            base, separator, suffix = name.rpartition('.')
+            if separator and suffix.isdigit():
+                name = base
+            if name not in selected_groups:
+                continue
+            for socket in node.inputs:
+                pending = list(socket.links)
+                visited = set()
+                while pending:
+                    link = pending.pop()
+                    source = link.from_node
+                    if source.type == 'GROUP_INPUT':
+                        active_identifiers.add(link.from_socket.identifier)
+                    elif source.type == 'REROUTE' and source not in visited:
+                        visited.add(source)
+                        pending.extend(source.inputs[0].links)
+
+        inputs = list(self.group_node.inputs)[self.group_option_start_input:]
+        # Stable ordering preserves RGB/alpha pairs and existing fallback behavior.
+        return sorted(inputs, key=lambda socket: socket.identifier not in active_identifiers)
+
     def _from_nodes_group(self) -> bool:
         if self.group_node is None or not self._group_node_matches(self.group_node):
             return False
@@ -727,8 +760,7 @@ class ShaderTag(BlenderTag, TagDocument):
             if palette_vector_node is not None:
                 parameter_nodes.append((palette_vector_node, list(palette_vector_node.inputs)))
 
-        inputs = list(self.group_node.inputs)
-        parameter_nodes.append((self.group_node, inputs[self.group_option_start_input:]))
+        parameter_nodes.append((self.group_node, self._group_parameter_inputs(selected_options)))
 
         seen_parameters = set()
         for source_node, input_sockets in parameter_nodes:
@@ -1546,6 +1578,8 @@ class ShaderTag(BlenderTag, TagDocument):
             prop.type = 'emissive'
         prop.material_lighting_emissive_power = power
         prop.material_lighting_emissive_color = color
+        prop.material_lighting_attenuation_falloff = 0.0
+        prop.material_lighting_attenuation_cutoff = 0.0
         uses_h2_group = self.game == 'halo2' and blender_material.use_nodes and any(
             node.type == 'GROUP' and node.node_tree is not None
             and node.node_tree.name == 'Basic H2 shader'

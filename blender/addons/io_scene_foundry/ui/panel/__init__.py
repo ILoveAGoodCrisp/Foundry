@@ -3348,6 +3348,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         col.operator('nwo.update_two_sided_preview', text='Update Two-Sided Preview', icon='MATERIAL')
                     if self.h4:
                         col.prop(item, 'face_sides_type')
+                case 'face_mode':
+                    col.prop(item, 'face_mode')
+                    if not for_material:
+                        col.operator('nwo.update_invisible_preview', text='Update Invisible Preview', icon='MATERIAL')
                 case 'region':
                     row = box.row()
                     row.label(text='Region')

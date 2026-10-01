@@ -383,11 +383,9 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 mesh, 'emissive', None if mask.all() else mask.astype(np.int8))
             prop.material_lighting_emissive_power = power
             prop.material_lighting_emissive_color = color
-            if self.game == 'halo1':
-                # H1 shader radiosity defines emissive power/color but no
-                # custom attenuation distances. Zero selects natural falloff.
-                prop.material_lighting_attenuation_falloff = 0.0
-                prop.material_lighting_attenuation_cutoff = 0.0
+            # Classic shader emission has no custom attenuation distances.
+            prop.material_lighting_attenuation_falloff = 0.0
+            prop.material_lighting_attenuation_cutoff = 0.0
 
     def _create_classic_portals(self, collection: bpy.types.Collection) -> list[bpy.types.Object]:
         records = self.portals()

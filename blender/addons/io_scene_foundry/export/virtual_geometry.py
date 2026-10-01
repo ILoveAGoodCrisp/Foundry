@@ -3502,8 +3502,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         continue
                     if props.get("bungie_lighting_emissive_power") is None and prop.material_lighting_emissive_power > 0:
                         color, power = utils.get_light_final_color_and_intensity(prop.material_lighting_emissive_color, prop.material_lighting_emissive_power, True, True)
-                        falloff = prop.material_lighting_attenuation_falloff
-                        cutoff = prop.material_lighting_attenuation_cutoff
+                        falloff, cutoff = utils.emissive_export_attenuation(prop, power, scene.game)
                         face_properties.setdefault("bungie_lighting_emissive_power", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_power"], np.single))).update_from_material(mesh, material_indices, power)
                         face_properties.setdefault("bungie_lighting_emissive_color", FaceSet(np.full((num_faces, 4), face_prop_defaults["bungie_lighting_emissive_color"], np.single))).update_from_material(mesh, material_indices, color)
                         face_properties.setdefault("bungie_lighting_emissive_per_unit", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_per_unit"], dtype=np.int32))).update_from_material(mesh, material_indices, int(prop.material_lighting_emissive_per_unit))
@@ -3647,8 +3646,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     continue
                 if props.get("bungie_lighting_emissive_power") is None and prop.material_lighting_emissive_power > 0:
                     color, power = utils.get_light_final_color_and_intensity(prop.material_lighting_emissive_color, prop.material_lighting_emissive_power, True, True)
-                    falloff = prop.material_lighting_attenuation_falloff
-                    cutoff = prop.material_lighting_attenuation_cutoff
+                    falloff, cutoff = utils.emissive_export_attenuation(prop, power, scene.game)
                     face_properties.setdefault("bungie_lighting_emissive_power", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_power"], np.single))).update(mesh, prop, power)
                     face_properties.setdefault("bungie_lighting_emissive_color", FaceSet(np.full((num_faces, 4), face_prop_defaults["bungie_lighting_emissive_color"], np.single))).update(mesh, prop, color)
                     face_properties.setdefault("bungie_lighting_emissive_per_unit", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lighting_emissive_per_unit"], dtype=np.int32))).update(mesh, prop, int(prop.material_lighting_emissive_per_unit))

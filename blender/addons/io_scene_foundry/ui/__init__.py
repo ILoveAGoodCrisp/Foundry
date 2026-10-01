@@ -232,6 +232,7 @@ classes = [
     object.NWO_OT_FacePropsCopyToSelected,
     object.NWO_OT_AddEmissiveNode,
     object.NWO_OT_UpdateTwoSidedPreview,
+    object.NWO_OT_UpdateInvisiblePreview,
     object.NWO_MT_FacePropOperatorsMenu,
     # object.NWO_OT_FaceAttributeAddFaceMode,
     # object.NWO_OT_FaceAttributeAddLightmap,

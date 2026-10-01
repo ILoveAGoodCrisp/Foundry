@@ -1467,8 +1467,7 @@ def print_error(string="Error"):
     print("\033[91m" + string + "\033[0m")
 
 def get_valid_shader_name(string):
-    shader_name = get_valid_material_name(string)
-    return cull_invalid_chars(shader_name)
+    return string
 
 
 def get_valid_material_name(material_name):
@@ -2776,6 +2775,23 @@ def calc_attenuation(power: float, intensity_threshold=0.5, cutoff_intensity=0.0
     cutoff = math.sqrt(power / (4 * math.pi * cutoff_intensity))
     return 0.0, cutoff
 
+def emissive_export_attenuation(prop, power: float, game: str) -> tuple[float, float]:
+    """Resolve H3+ attenuation without changing the authored properties.
+
+    Approximate a point light with inverse-square irradiance P / (4*pi*r*r).
+    The 0.5/0.05 thresholds match automatic light export and define a finite
+    far attenuation ramp, not an exact reconstruction of engine radiosity.
+    """
+    falloff = prop.material_lighting_attenuation_falloff
+    cutoff = prop.material_lighting_attenuation_cutoff
+    if game not in {'halo1', 'halo2'} and falloff == 0 and cutoff == 0:
+        # Match automatic light export's conversion from scene energy to meters.
+        power = max(power, 0.0) * get_unit_conversion_factor(bpy.context) ** 2
+        falloff = math.sqrt(power / (4 * math.pi * 0.5))
+        cutoff = math.sqrt(power / (4 * math.pi * 0.05))
+    return falloff, cutoff
+
+
 def get_blender_shader(node_tree: bpy.types.NodeTree) -> bpy.types.Node | None:
     """Gets the BSDF shader node from a node tree"""
     output = None
@@ -3056,6 +3072,23 @@ def rgb_to_float_list(red, green, blue):
 
 def copy_file(from_path, to_path):
     return shutil.copyfile(from_path, to_path)
+
+def imported_material_name(name: str, project=None) -> str:
+    """Remove Tool naming conventions using the import source's collections."""
+    if protected_material_name(name):
+        return name
+    project = project or get_project()
+    prefixes = set()
+    if project is not None:
+        from .export.shader_collections import COLLECTION_PATHS, ShaderCollections
+        game = project.game if project.game in COLLECTION_PATHS else 'halo3'
+        prefixes = ShaderCollections(project.tags_directory, game).used_prefixes
+    parts = re.sub(r'\.\d{3,}$', '', name).split()
+    parts = [part for part in parts if not part.startswith(legacy_lightmap_prefixes)]
+    while len(parts) > 1 and parts[0].casefold() in prefixes:
+        parts.pop(0)
+    return ' '.join(parts).rstrip("%#?!@*$^-&=.;)><|~({]}[' ")
+
 
 def base_material_name(name: str, strip_legacy_halo_names=False) -> str:
     """Returns a material name with legacy halo naming conventions stripped and ignoring .00X blender duplicate names"""
@@ -6304,7 +6337,7 @@ def material_add_shield(material: bpy.types.Material):
         
     arrange(node_tree)
 
-def material_add_backface(material: bpy.types.Material):
+def material_add_backface(material: bpy.types.Material, group_name='Halo Backface'):
     """Keep the backface filter immediately before the active surface output."""
     material.use_nodes = True
     material.use_backface_culling = False
@@ -6315,10 +6348,10 @@ def material_add_backface(material: bpy.types.Material):
         output = outputs[0] if outputs else tree.nodes.new('ShaderNodeOutputMaterial')
     surface = output.inputs['Surface']
     node = next((n for n in tree.nodes if n.type == 'GROUP' and n.node_tree
-                 and n.node_tree.name == 'Halo Backface'), None)
+                 and n.node_tree.name == group_name), None)
     if node is None:
         node = tree.nodes.new('ShaderNodeGroup')
-        node.node_tree = add_node_from_resources('shared_nodes', 'Halo Backface')
+        node.node_tree = add_node_from_resources('shared_nodes', group_name)
     if surface.is_linked and surface.links[0].from_node == node:
         return
     # Bypass an existing filter before moving it to the end of the chain.
@@ -6345,6 +6378,7 @@ def setup_two_sided_preview(mesh: bpy.types.Mesh):
     if was_edit_mode:
         bpy.ops.object.mode_set(mode='OBJECT')
     try:
+        _setup_invisible_preview(mesh)
         props = [p for p in mesh.nwo.face_props if p.type == 'face_sides']
         has_two_sided = any(p.two_sided for p in props)
         attribute = mesh.attributes.get('foundry_two_sided')
@@ -6371,6 +6405,36 @@ def setup_two_sided_preview(mesh: bpy.types.Mesh):
     finally:
         if was_edit_mode:
             bpy.ops.object.mode_set(mode='EDIT')
+
+
+INVISIBLE_FACE_MODES = {'collision_only', 'sphere_collision_only', 'lightmap_only'}
+
+
+def _setup_invisible_preview(mesh: bpy.types.Mesh):
+    """Resolve face modes in property order, including overrides back to visible."""
+    props = [p for p in mesh.nwo.face_props if p.type == 'face_mode']
+    has_invisible = any(p.face_mode in INVISIBLE_FACE_MODES for p in props)
+    attribute = mesh.attributes.get('foundry_invisible')
+    if not has_invisible and attribute is None:
+        return
+    values = np.zeros(len(mesh.polygons), dtype=np.single)
+    for prop in props:
+        mask_attribute = mesh.attributes.get(prop.attribute_name)
+        if mask_attribute is None:
+            continue
+        mask = np.empty(len(mesh.polygons), dtype=np.int32)
+        mask_attribute.data.foreach_get('value', mask)
+        values[mask.astype(bool)] = float(prop.face_mode in INVISIBLE_FACE_MODES)
+    if attribute is not None and (attribute.domain != 'FACE' or attribute.data_type != 'FLOAT'):
+        mesh.attributes.remove(attribute)
+        attribute = None
+    if attribute is None:
+        attribute = mesh.attributes.new('foundry_invisible', 'FLOAT', 'FACE')
+    attribute.data.foreach_set('value', values)
+    mesh.update()
+    if has_invisible:
+        for material in {m for m in mesh.materials if m is not None}:
+            material_add_backface(material, 'Halo Invisible')
 
 
 def material_add_emissive(material: bpy.types.Material, game=None):
@@ -6434,8 +6498,11 @@ def material_add_emissive(material: bpy.types.Material, game=None):
     surf_in = output_node.inputs[0]
     if surf_in.is_linked:
         last_node = surf_in.links[0].from_node
-        if last_node.type == 'GROUP' and last_node.node_tree and last_node.node_tree.name == 'Halo Backface':
+        while last_node.type == 'GROUP' and last_node.node_tree and last_node.node_tree.name in {'Halo Backface', 'Halo Invisible'}:
             surf_in = last_node.inputs['Shader']
+            if not surf_in.is_linked:
+                break
+            last_node = surf_in.links[0].from_node
     old_link = surf_in.links[0] if surf_in and surf_in.is_linked else None
     from_socket = old_link.from_socket if old_link else None
 
