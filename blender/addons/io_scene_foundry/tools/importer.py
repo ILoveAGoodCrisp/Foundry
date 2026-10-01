@@ -1648,12 +1648,12 @@ class NWO_Import(bpy.types.Operator):
                     
                 importer = NWOImporter(context, filepaths, scope_list)
                 importer.build_materials_for_project = self.build_materials_for_project
+                importer.render_lod = self.render_lod
                 if self.use_import_info:
                     importer.configure_import_info(Path(import_info_directory))
                     importer.add_import_info_sources(filepaths)
                 importer.graph_bake_to_control_rig = self.graph_bake_to_control_rig
                 importer.convert_animations = self.convert_animations
-                importer.render_lod = self.render_lod
                 switch_blender_scene = None
                 
                 mouse_matrix = utils.matrix_from_mouse(self.mouse_x, self.mouse_y)
@@ -3061,6 +3061,11 @@ class NWOImporter:
         self.import_info_output_root = output_root
 
     def import_info_sources_for_tag(self, tag_path) -> list[str]:
+        # Embedded model sources can contain multiple LODs and omit cinematic
+        # geometry. Use compiled geometry when a specific LOD is requested.
+        if (self.game in {'halo1', 'halo2'} and self.render_lod != 'ALL'
+                and Path(tag_path).suffix.lower() in {'.render_model', '.model', '.gbxmodel'}):
+            return []
         if not self.use_import_info or self.import_info_output_root is None:
             return []
         key = os.path.normcase(os.path.abspath(tag_path))
