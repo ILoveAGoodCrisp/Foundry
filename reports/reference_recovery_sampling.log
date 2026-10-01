@@ -1,0 +1,15 @@
+{'fixture': 'authoring_blender_fixture_H2AMPEK.json', 'name': 'any:aim_spine', 'frames': 10, 'max_matrix_element_error_blender_units': 1.4066696166992188e-05}
+{'fixture': 'authoring_blender_fixture_H2AMPEK.json', 'name': 'banshee_d:acc', 'frames': 7, 'max_matrix_element_error_blender_units': 9.5367431640625e-06}
+{'fixture': 'authoring_blender_fixture_H2AMPEK.json', 'name': 'combat:ball:melee_strike_1', 'frames': 35, 'max_matrix_element_error_blender_units': 1.6897916793823242e-05}
+{'fixture': 'authoring_blender_fixture_H2AMPEK.json', 'name': 'combat:ball:melee_strike_2', 'frames': 35, 'max_matrix_element_error_blender_units': 1.3709068298339844e-05}
+{'fixture': 'authoring_blender_fixture_H4EK.json', 'name': 'active_shield:any:aim_airborne_arc_up', 'frames': 6, 'max_matrix_element_error_blender_units': 1.0967254638671875e-05}
+{'fixture': 'authoring_blender_fixture_H4EK.json', 'name': 'active_shield:any:aim_locomote_run_back_up', 'frames': 16, 'max_matrix_element_error_blender_units': 1.2278556823730469e-05}
+{'fixture': 'authoring_blender_fixture_H4EK.json', 'name': 'active_shield:any:aim_turn_up', 'frames': 26, 'max_matrix_element_error_blender_units': 1.9311904907226562e-05}
+{'fixture': 'authoring_blender_fixture_H4EK.json', 'name': 'combat:armor_active_shield_enter', 'frames': 5, 'max_matrix_element_error_blender_units': 1.2934207916259766e-05}
+{'fixture': 'authoring_blender_fixture_HREK.json', 'name': 'any:aim_spine', 'frames': 10, 'max_matrix_element_error_blender_units': 3.0875205993652344e-05}
+{'fixture': 'authoring_blender_fixture_HREK.json', 'name': 'any:look', 'frames': 29, 'max_matrix_element_error_blender_units': 3.0332758115036995e-05}
+{'fixture': 'authoring_blender_fixture_HREK.json', 'name': 'combat:ball:melee_strike_2', 'frames': 35, 'max_matrix_element_error_blender_units': 3.401296311267288e-05}
+{'fixture': 'authoring_blender_fixture_HREK.json', 'name': 'combat:ball:melee_strike_3', 'frames': 35, 'max_matrix_element_error_blender_units': 3.1926800545534206e-05}
+Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40)
+
+Blender quit

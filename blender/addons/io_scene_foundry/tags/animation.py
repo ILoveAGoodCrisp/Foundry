@@ -40,7 +40,7 @@ from ..tags.animation_resource import (
     append_final_frame,
 )
 from ..tags.source_tag_resource import read_model_animation_graph_resources
-from .animation_authoring import authoring_pose, read_authoring_resource, source_metadata
+from .animation_authoring import authoring_pose, recover_reference, read_authoring_resource, source_metadata
 from ..tags.render_model_blender import RenderModelTag
 from .. import import_transform
 from ..legacy.jma import Node
@@ -3724,7 +3724,34 @@ class AnimationTag(AnimationGraphTag):
         self._authoring_decode_source = cloned
         return cloned
 
-    def _reconstruct_authoring_pose(self, tag_animation, native_pose, defaults, resource):
+    def _static_authoring_reference(self, tag_animation, defaults):
+        """Ask the native overlay composer for static channels, even on replacements.
+
+        Change only detached decoding metadata, restore it even on failure, and
+        discard playback from this probe (replacement values are not deltas).
+        This also handles H4 shared-static codecs without duplicating decoding.
+        """
+        tag = self._authoring_decode_tag()
+        if tag_animation.animation_type == AnimationType.OVERLAY:
+            return tag.animation_pose(tag_animation.index, defaults)['leading_frame']
+        root = tag.root()
+        animations = root.field_path('definitions/animations')
+        if animations is None:
+            animations = root.field_path('resources/animations')
+        animation = animations.as_block()[tag_animation.index]
+        shared = animation.field('shared animation data')
+        record = shared.as_block()[0] if shared is not None else animation
+        kind = record.field('animation type')
+        if kind is None:
+            kind = record.field('type')
+        previous = kind.value
+        try:
+            kind.set(1)  # base=0, overlay=1, replacement=2
+            return tag.animation_pose(tag_animation.index, defaults)['leading_frame']
+        finally:
+            kind.set(previous)
+
+    def _reconstruct_authoring_pose(self, tag_animation, native_pose, defaults, resource, recovery=None, fallback=None):
         parents = [node.parent_index for node in defaults]
         references = {}
         parent_records = []
@@ -3735,7 +3762,9 @@ class AnimationTag(AnimationGraphTag):
                                    'translation': use_t, 'rotation': use_r, 'scale': use_s,
                                    'motion_root': motion_root})
         pose, diagnostics = authoring_pose(native_pose, parents, resource, references,
-                                            tag_animation.animation_type == AnimationType.OVERLAY)
+                                            tag_animation.animation_type == AnimationType.OVERLAY,
+                                            *(recovery or (None, None, None)))
+        diagnostics['fallback_animation'] = fallback
         metadata = source_metadata(resource, diagnostics)
         metadata['object_space_parents'] = parent_records
         metadata['node_names'] = [node.name for node in defaults]
@@ -3787,9 +3816,23 @@ class AnimationTag(AnimationGraphTag):
                 'Restart Blender after updating Foundry so it loads the bundled wheel.'
             )
         pose_defaults = [self._native_default_tuple(node) for node in defaults]
+        resource = None
+        if self.game in {'reach', 'halo4', 'halo2a'}:
+            resource = resource_cache.get(index)
+            if index not in resource_cache:
+                resource = read_authoring_resource(self.tag, tag_animation.resource_group,
+                                                   tag_animation.resource_group_member, len(defaults))
+                resource_cache[index] = resource
+        recovery = None
+        if resource is not None and tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
+            references = {}
+            for node, translation, rotation, scale, *_ in self._object_space_parent_transform_targets(tag_animation):
+                references[node] = (*[v / 100.0 for v in translation], rotation.x, rotation.y, rotation.z, rotation.w, scale)
+            recovery = recover_reference(pose_defaults, self._static_authoring_reference(tag_animation, pose_defaults),
+                                         [node.parent_index for node in defaults], resource, references)
         selected_base_animation = None
         base_animation = None
-        if tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
+        if tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT) and (recovery is None or not recovery[1].all()):
             selected_base_animation = self._best_overlay_base_animation(
                 tag_animation, graph, all_tag_animations)
             if selected_base_animation is not None:
@@ -3806,21 +3849,20 @@ class AnimationTag(AnimationGraphTag):
                 )
                 if base_animation.frame_count:
                     pose_defaults = self._native_frame_tuples(base_animation.first_frame())
-
-        # The native decoder prefers retained uncompressed authoring tracks,
-        # while keeping runtime section offsets for node flags and movement.
-        resource = None
-        if self.game in {'reach', 'halo4', 'halo2a'}:
-            resource = resource_cache.get(index)
-            if index not in resource_cache:
-                resource = read_authoring_resource(self.tag, tag_animation.resource_group,
-                                                   tag_animation.resource_group_member, len(defaults))
-                resource_cache[index] = resource
+        if recovery is not None:
+            # Borrow only unknown components; recovered source values always win.
+            reference, known, sources = recovery
+            for c, (lo, hi) in enumerate(((3, 7), (0, 3), (7, 8))):
+                for node in range(len(defaults)):
+                    if not known[node, c]:
+                        reference[node, lo:hi] = pose_defaults[node][lo:hi]
+                        sources[node, c] = 'fallback_animation' if base_animation is not None else 'provisional_model_default'
         if not hasattr(self, '_imported_authoring_metadata'):
             self._imported_authoring_metadata = {}
         if resource is not None and tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
             native_pose = self._authoring_decode_tag().animation_pose(index, pose_defaults)
-            native_pose = self._reconstruct_authoring_pose(tag_animation, native_pose, defaults, resource)
+            native_pose = self._reconstruct_authoring_pose(tag_animation, native_pose, defaults, resource, recovery,
+                                                          selected_base_animation.name.tag_name if selected_base_animation else None)
         else:
             native_pose = animation_pose(index, pose_defaults)
             if resource is not None:

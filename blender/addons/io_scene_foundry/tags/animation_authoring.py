@@ -171,8 +171,73 @@ def local_transform(child, parent):
     return result
 
 
+def recover_reference(defaults, static_reference, parents, resource, parent_references):
+    """Recover identifiable local components before choosing any fallback clip.
+
+    static_reference is decoded as an overlay against model defaults, so its
+    nonanimated components include the static codec and omitted model defaults.
+    Absolute anchors identify local transforms only with a known parent basis.
+    """
+    reference = np.asarray(defaults, dtype=float).copy()
+    known = ~resource.animated.copy()
+    sources = np.where(known, 'static_or_model_default', 'unresolved').astype(object)
+    static_reference = np.asarray(static_reference, dtype=float)
+    for c, (lo, hi) in enumerate(((3, 7), (0, 3), (7, 8))):
+        reference[known[:, c], lo:hi] = static_reference[known[:, c], lo:hi]
+    targets = {parents[node]: np.asarray(value, dtype=float) for node, value in parent_references.items()
+               if parents[node] >= 0}
+    origins = {node: 'parent_reference' for node in targets}
+    targets.update(resource.reference_object)
+    origins.update({node: 'retained_reference' for node in resource.reference_object})
+    # A known local child and its absolute anchor also identify its parent's
+    # absolute frame. Walk upward to close gaps in retained track membership.
+    for _ in parents:
+        changed = False
+        for node in reversed(hierarchy_order(parents)):
+            parent = parents[node]
+            if node not in targets or parent < 0 or parent in targets or not np.all(known[node]):
+                continue
+            child = np.asarray(targets[node], dtype=float)
+            local = reference[node]
+            frame = child.copy()
+            frame[7] = child[7] / local[7]
+            frame[3:7] = qmultiply(qnormalize(child[3:7]), qinverse(qnormalize(local[3:7])))
+            frame[:3] = child[:3] - qrotate(frame[3:7], local[:3] * frame[7])
+            targets[parent] = frame
+            origins[parent] = 'derived_original_reference'
+            changed = True
+        if not changed:
+            break
+    objects = reference.copy()
+    object_known = np.zeros(len(parents), dtype=bool)
+    for node in hierarchy_order(parents):
+        parent = parents[node]
+        parent_known = parent < 0 or object_known[parent]
+        if node in targets:
+            objects[node] = targets[node]
+            objects[node, 3:7] = qnormalize(objects[node, 3:7])
+            object_known[node] = True
+            if parent_known:
+                reference[node] = (local_transform(objects[node], objects[parent]) if parent >= 0
+                                   else objects[node])
+                known[node] = True
+                sources[node] = origins[node]
+            else:
+                known[node] = False
+                sources[node] = 'unresolved'
+        else:
+            objects[node] = reference[node]
+            if parent >= 0:
+                objects[node, :3] = objects[parent, :3] + qrotate(objects[parent, 3:7], reference[node, :3] * objects[parent, 7])
+                objects[node, 3:7] = qmultiply(objects[parent, 3:7], reference[node, 3:7])
+                objects[node, 7] = objects[parent, 7] * reference[node, 7]
+            object_known[node] = parent_known and bool(np.all(known[node]))
+    return reference, known, sources
+
+
 def authoring_pose(native_pose: dict, parents: list[int], resource: AuthoringResource,
-                   parent_references: dict[int, tuple], overlay: bool) -> tuple[dict, dict]:
+                   parent_references: dict[int, tuple], overlay: bool,
+                   recovered_reference=None, reference_known=None, reference_sources=None) -> tuple[dict, dict]:
     """Preserve codec channels and recover the missing authoring reference basis.
 
     The input must be decoded with runtime object-space corrections disabled.
@@ -202,6 +267,8 @@ def authoring_pose(native_pose: dict, parents: list[int], resource: AuthoringRes
         deltas[..., 3:7] = qmultiply(qinverse(reference[:, 3:7]), frames[..., 3:7])
         deltas[..., 7] /= reference[:, 7]
 
+    if recovered_reference is not None:
+        reference = np.asarray(recovered_reference, dtype=float).copy()
     targets = {int(i): np.asarray(t, dtype=float).copy() for i, t in resource.reference_object.items()}
     for node, transform in parent_references.items():
         if not 0 <= node < count:
@@ -248,6 +315,10 @@ def authoring_pose(native_pose: dict, parents: list[int], resource: AuthoringRes
 
     reference = constrain_ref(reference)
     diagnostic = {'retained_reference_nodes': len(resource.reference_object), 'offset_fit_iterations': 0}
+    if reference_known is not None:
+        diagnostic['original_reference_complete'] = bool(np.all(reference_known))
+        diagnostic['unresolved_reference_components'] = int(np.count_nonzero(~reference_known))
+        diagnostic['reference_component_sources'] = reference_sources.tolist()
     offsets = resource.offsets if overlay else {}
     for node, values in offsets.items():
         if len(values) != len(frames):
@@ -265,7 +336,7 @@ def authoring_pose(native_pose: dict, parents: list[int], resource: AuthoringRes
                 ancestors.add(node)
                 node = parents[node]
         variables = [(node, component, axis) for node in order if node in ancestors and node not in targets
-                     for component in range(3) if mask[node, component]
+                     for component in range(3) if mask[node, component] and (reference_known is None or not reference_known[node, component])
                      for axis in range(1 if component == 2 else 3)]
         basis = reference.copy()
 
@@ -328,6 +399,13 @@ def authoring_pose(native_pose: dict, parents: list[int], resource: AuthoringRes
             if np.linalg.norm(update) < 1e-8:
                 break
         reference = candidate(x)
+        diagnostic['offset_fit_variable_components'] = len(set((n, c) for n, c, a in variables))
+        if reference_sources is not None:
+            fitted_sources = reference_sources.copy()
+            for value, (node, component, axis) in zip(x, variables):
+                if abs(value) > 1e-8:
+                    fitted_sources[node, component] = 'offset_fit'
+            diagnostic['reference_component_sources'] = fitted_sources.tolist()
         translation, rotation = errors(reference)
         diagnostic['offset_translation_error'] = float(np.max(np.linalg.norm(translation, axis=-1)))
         diagnostic['offset_rotation_error_degrees'] = float(np.max(2 * np.arctan2(

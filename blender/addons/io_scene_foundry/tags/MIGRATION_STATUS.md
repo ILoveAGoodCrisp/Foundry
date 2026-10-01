@@ -1181,6 +1181,20 @@ referenced H1 model through blam-tags, with All Permutations as the default, and
 the selection filters render geometry and markers across matching regions. The
 HCE grunt biped resolved `base00` and `shellback` from its referenced model.
 
+Reach, Halo 4 and Halo 2 Anniversary overlay/replacement imports now recover
+authoring frame 0 before selecting a fallback animation. Retained object-space
+tracks and parent anchors take precedence; static codec channels (including H4
+shared-static data) and omitted model defaults recover nonanimated components.
+Known static child transforms can also recover an anchored parent's missing
+object-space reference. Complete coverage bypasses base-animation selection;
+partial coverage borrows only unresolved components. Reconstruction metadata
+records component sources, completeness, fitted components and fallback name.
+Offset fits remain compatible reference estimates, not proof of an original pose.
+The static-channel probe changes and restores only a detached decoder copy.
+Validation covers 17 standalone regressions and 34 actual Blender imports across
+Reach/H4/H2AMP, including static reference checks and unchanged source tags.
+Full Tool recompilation and in-game verification remain outstanding.
+
 Halo 1 and Halo 2 overlay and replacement animation imports now use Foundry's
 Reach-style base-animation search before native pose decoding. The chosen idle
 or locomotion frame is supplied to blam-tags as the composition base, and the
