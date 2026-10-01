@@ -40,7 +40,7 @@ class NWO_OT_HaloMaterialTilingNode(bpy.types.Operator):
 class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
     bl_idname = 'nwo.halo_material_nodes'
     bl_label = ''
-    bl_description = 'Adds a Halo Material Node. This should plug into the Surface input of the Material Output node'
+    bl_description = 'Adds a Halo Material Node connected through the Foundry Node to the material output'
 
     @classmethod
     def poll(cls, context):
@@ -97,7 +97,15 @@ class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
 
         # This bit adds the node itself
         if bpy.data.node_groups.get(self.node, 0):
-            bpy.ops.node.add_node('INVOKE_DEFAULT', use_transform=True, settings=[{"name":"node_tree", "value":f"bpy.data.node_groups['{self.node}']"}], type="ShaderNodeGroup")
+            tree = context.material.node_tree
+            shader = tree.nodes.new('ShaderNodeGroup')
+            shader.node_tree = bpy.data.node_groups[self.node]
+            foundry = utils.update_foundry_material(context.material)
+            surface = next((socket for socket in shader.outputs if socket.type == 'SHADER'), None)
+            if surface is not None:
+                tree.links.new(surface, foundry.inputs['Shader'])
+            tree.nodes.active = shader
+            utils.arrange(tree)
         else:
             self.report({'ERROR', 'Failed to add node'})
             return {'CANCELLED'}

@@ -740,6 +740,7 @@ def convert_material_game(material, source_game, target_game):
         del material['foundry_material_conversion_error']
     material['foundry_material_source_game'] = source_game
     material['foundry_material_target_game'] = target_game
+    utils.update_foundry_material(material, target_game)
     material['foundry_material_conversion_notes'] = '\n'.join(sorted(notes))
     for note in sorted(notes):
         utils.print_warning(f'{material.name}: {note}')

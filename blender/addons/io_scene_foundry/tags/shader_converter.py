@@ -1539,10 +1539,12 @@ class ShaderTag(BlenderTag, TagDocument):
         if self.game == 'halo1':
             self._to_nodes_halo1(blender_material)
             self._import_classic_emission(blender_material)
+            utils.update_foundry_material(blender_material, self.game)
             return
         if self.game == 'halo2':
             self._to_nodes_halo2(blender_material)
             self._import_classic_emission(blender_material)
+            utils.update_foundry_material(blender_material, self.game)
             return
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         family = self.system_path.suffix.lstrip('.').casefold()
@@ -1559,6 +1561,8 @@ class ShaderTag(BlenderTag, TagDocument):
             flags = self._native_root.SelectField("Struct:render_method[0]/WordFlags:shader flags")
             if flags is not None and flags.TestBit("only render for shields"):
                 utils.material_add_shield(blender_material)
+
+        utils.update_foundry_material(blender_material, self.game)
 
     def _import_classic_emission(self, blender_material: bpy.types.Material):
         """Apply tag emission after building the classic shader's surface nodes."""

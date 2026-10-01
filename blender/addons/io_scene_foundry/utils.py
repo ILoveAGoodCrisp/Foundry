@@ -6337,376 +6337,166 @@ def material_add_shield(material: bpy.types.Material):
         
     arrange(node_tree)
 
-def material_add_backface(material: bpy.types.Material, group_name='Halo Backface'):
-    """Keep the backface filter immediately before the active surface output."""
+INVISIBLE_FACE_MODES = {'collision_only', 'sphere_collision_only', 'lightmap_only'}
+
+
+def setup_two_sided_preview(mesh):
+    update_foundry_mesh(mesh)
+
+
+def material_add_backface(material, group_name='Halo Backface'):
+    update_foundry_material(material)
+
+
+def material_add_emissive(material, game=None):
+    update_foundry_material(material, game)
+
+
+def setup_emissive_attributes(mesh, game=None):
+    update_foundry_mesh(mesh, game)
+
+
+def update_classic_emissive_material(material, game):
+    for mesh in {ob.data for ob in bpy.data.objects if ob.type == 'MESH'
+                 and any(slot.material == material for slot in ob.material_slots)}:
+        update_foundry_mesh(mesh, game)
+    update_foundry_material(material, game)
+
+
+def update_foundry_material(material, game=None):
+    """Insert the shared Foundry Node and reset all material overrides."""
+    if game is None:
+        project = get_project()
+        game = project.game if project else None
     material.use_nodes = True
     material.use_backface_culling = False
     tree = material.node_tree
+    # Replace legacy preview wrappers so emission/visibility is applied once.
+    legacy_groups = {'Halo Backface', 'Halo Invisible', 'Halo Emissive',
+                     'Halo 1 Emissive', 'Halo 2 Emissive'}
+    for legacy in tuple(tree.nodes):
+        if legacy.type != 'GROUP' or legacy.node_tree is None or legacy.node_tree.name not in legacy_groups:
+            continue
+        shader_in = legacy.inputs.get('Shader')
+        shader_out = legacy.outputs.get('Shader')
+        source = shader_in.links[0].from_socket if shader_in is not None and shader_in.is_linked else None
+        if shader_out is not None:
+            for link in tuple(shader_out.links):
+                target = link.to_socket
+                tree.links.remove(link)
+                if source is not None:
+                    tree.links.new(source, target)
+        tree.nodes.remove(legacy)
     outputs = [n for n in tree.nodes if n.type == 'OUTPUT_MATERIAL']
     output = next((n for n in outputs if n.is_active_output), None)
     if output is None:
         output = outputs[0] if outputs else tree.nodes.new('ShaderNodeOutputMaterial')
-    surface = output.inputs['Surface']
     node = next((n for n in tree.nodes if n.type == 'GROUP' and n.node_tree
-                 and n.node_tree.name == group_name), None)
+                 and n.node_tree.name == 'Foundry Node'), None)
     if node is None:
+        group = add_node_from_resources('shared_nodes', 'Foundry Node')
+        if group is None:
+            raise ValueError('Foundry Node is missing from shared_nodes.blend')
         node = tree.nodes.new('ShaderNodeGroup')
-        node.node_tree = add_node_from_resources('shared_nodes', group_name)
-    if surface.is_linked and surface.links[0].from_node == node:
-        return
-    # Bypass an existing filter before moving it to the end of the chain.
-    upstream = node.inputs['Shader'].links[0].from_socket if node.inputs['Shader'].is_linked else None
-    for link in tuple(node.outputs['Shader'].links):
-        target = link.to_socket
-        tree.links.remove(link)
-        if upstream is not None:
-            tree.links.new(upstream, target)
-    for link in tuple(node.inputs['Shader'].links):
-        tree.links.remove(link)
-    if surface.is_linked:
-        link = surface.links[0]
-        source = link.from_socket
-        tree.links.remove(link)
-        tree.links.new(source, node.inputs['Shader'])
-    tree.links.new(node.outputs['Shader'], surface)
-    arrange(tree)
-
-
-def setup_two_sided_preview(mesh: bpy.types.Mesh):
-    """Resolve face masks into the attribute read by Halo Backface."""
-    return # NOTE Commented out until foundry node is ready
-    was_edit_mode = mesh.is_editmode
-    if was_edit_mode:
-        bpy.ops.object.mode_set(mode='OBJECT')
-    try:
-        
-        _setup_invisible_preview(mesh)
-        props = [p for p in mesh.nwo.face_props if p.type == 'face_sides']
-        has_two_sided = any(p.two_sided for p in props)
-        attribute = mesh.attributes.get('foundry_two_sided')
-        if not has_two_sided and attribute is None:
-            return
-        values = np.zeros(len(mesh.polygons), dtype=np.single)
-        for prop in props:
-            mask_attribute = mesh.attributes.get(prop.attribute_name)
-            if mask_attribute is None:
-                continue
-            mask = np.empty(len(mesh.polygons), dtype=np.int32)
-            mask_attribute.data.foreach_get('value', mask)
-            values[mask.astype(bool)] = float(prop.two_sided)
-        if attribute is not None and (attribute.domain != 'FACE' or attribute.data_type != 'FLOAT'):
-            mesh.attributes.remove(attribute)
-            attribute = None
-        if attribute is None:
-            attribute = mesh.attributes.new('foundry_two_sided', 'FLOAT', 'FACE')
-        attribute.data.foreach_set('value', values)
-        mesh.update()
-        # NOTE Commented out until foundry node is ready
-        # if has_two_sided:
-        #     for material in {m for m in mesh.materials if m is not None}:
-        #         material_add_backface(material)
-    finally:
-        if was_edit_mode:
-            bpy.ops.object.mode_set(mode='EDIT')
-
-
-INVISIBLE_FACE_MODES = {'collision_only', 'sphere_collision_only', 'lightmap_only'}
-
-
-def _setup_invisible_preview(mesh: bpy.types.Mesh):
-    """Resolve face modes in property order, including overrides back to visible."""
-    props = [p for p in mesh.nwo.face_props if p.type == 'face_mode']
-    has_invisible = any(p.face_mode in INVISIBLE_FACE_MODES for p in props)
-    attribute = mesh.attributes.get('foundry_invisible')
-    if not has_invisible and attribute is None:
-        return
-    values = np.zeros(len(mesh.polygons), dtype=np.single)
-    for prop in props:
-        mask_attribute = mesh.attributes.get(prop.attribute_name)
-        if mask_attribute is None:
+        node.node_tree = group
+    surface = output.inputs['Surface']
+    if not surface.is_linked or surface.links[0].from_node != node:
+        upstream = node.inputs['Shader'].links[0].from_socket if node.inputs['Shader'].is_linked else None
+        for link in tuple(node.outputs['Shader'].links):
+            target = link.to_socket
+            tree.links.remove(link)
+            if upstream is not None:
+                tree.links.new(upstream, target)
+        for link in tuple(node.inputs['Shader'].links):
+            tree.links.remove(link)
+        if surface.is_linked:
+            tree.links.new(surface.links[0].from_socket, node.inputs['Shader'])
+        tree.links.new(node.outputs['Shader'], surface)
+    values = {'Force Two-Sided': False, 'Force Invisible': False,
+              'Engine': {'halo1': 'Halo 1', 'halo2': 'Halo 2'}.get(game, 'Halo 3+'),
+              'Emissive Color': (0.0, 0.0, 0.0, 1.0), 'Emissive Power': 0.0,
+              'Emissive Falloff': 0.0, 'Emissive Cutoff': 0.0}
+    for prop in material.nwo.material_props:
+        if prop.type == 'face_sides':
+            values['Force Two-Sided'] = prop.two_sided
+        elif prop.type == 'face_mode':
+            values['Force Invisible'] = prop.face_mode in INVISIBLE_FACE_MODES
+        elif prop.type == 'emissive':
+            values['Emissive Color'] = (*prop.material_lighting_emissive_color[:3], 1.0)
+            values['Emissive Power'] = prop.material_lighting_emissive_power
+            values['Emissive Falloff'] = prop.material_lighting_attenuation_falloff
+            values['Emissive Cutoff'] = prop.material_lighting_attenuation_cutoff
+    for name, value in values.items():
+        socket = node.inputs.get(name)
+        if socket is not None:
+            for link in tuple(socket.links):
+                tree.links.remove(link)
+            socket.default_value = value
+    for group_node in tree.nodes:
+        if group_node.type != 'GROUP' or group_node.node_tree is None:
             continue
-        mask = np.empty(len(mesh.polygons), dtype=np.int32)
-        mask_attribute.data.foreach_get('value', mask)
-        values[mask.astype(bool)] = float(prop.face_mode in INVISIBLE_FACE_MODES)
-    if attribute is not None and (attribute.domain != 'FACE' or attribute.data_type != 'FLOAT'):
-        mesh.attributes.remove(attribute)
-        attribute = None
-    if attribute is None:
-        attribute = mesh.attributes.new('foundry_invisible', 'FLOAT', 'FACE')
-    attribute.data.foreach_set('value', values)
-    mesh.update()
-    # NOTE Commented out until foundry node is ready
-    # if has_invisible:
-    #     for material in {m for m in mesh.materials if m is not None}:
-    #         material_add_backface(material, 'Halo Invisible')
-
-
-def material_add_emissive(material: bpy.types.Material, game=None):
-    if game is None:
-        project = get_project()
-        game = project.game if project else None
-    material.use_nodes = True
-    node_tree = material.node_tree
-    group_name = {'halo1': 'Halo 1 Emissive', 'halo2': 'Halo 2 Emissive'}.get(game, 'Halo Emissive')
-
-    def update_values(node):
-        if game not in {'halo1', 'halo2'}:
-            return
-        prop = next((p for p in material.nwo.material_props if p.type == 'emissive'), None)
-        if prop is not None:
-            power, color = prop.material_lighting_emissive_power, prop.material_lighting_emissive_color[:]
-        else:
-            from .tags.halo1_emissive import read_material_emissive
-            try:
-                power, color = read_material_emissive(relative_path(material.nwo.shader_path), get_tags_path(), game)
-            except (OSError, ValueError):
-                power, color = 0.0, (1.0, 1.0, 1.0)
-        for name, value in (('Power', power), ('Color', (*color[:3], 1.0))):
-            socket = node.inputs.get(name)
-            if socket is not None:
+        for socket in group_node.inputs:
+            name = socket.name.lower().replace('-', ' ').replace('_', ' ')
+            if socket.type == 'BOOLEAN' and 'two sided' in name and not name.startswith('force '):
                 for link in tuple(socket.links):
-                    node_tree.links.remove(link)
-                socket.default_value = value
-
-    def connect_triangle_area(node):
-        socket = node.inputs.get('H1 Triangle Area')
-        if socket is None:
-            print_warning('Halo Emissive node group is outdated; reload it from shared_nodes.blend to enable H1 triangle area')
-            return
-        if socket.is_linked:
-            return
-        attribute = next((n for n in node_tree.nodes if n.type == 'ATTRIBUTE'
-                          and n.attribute_name == 'foundry_h1_triangle_area'), None)
-        if attribute is None:
-            attribute = node_tree.nodes.new('ShaderNodeAttribute')
-            attribute.attribute_name = 'foundry_h1_triangle_area'
-            attribute.attribute_type = 'GEOMETRY'
-            attribute.label = 'H1 Triangle Area'
-        node_tree.links.new(attribute.outputs['Fac'], socket)
-
-    existing = [n for n in node_tree.nodes if n.type == 'GROUP' and n.node_tree
-                and n.node_tree.name in {'Halo Emissive', 'Halo 1 Emissive', 'Halo 2 Emissive'}]
-    if existing:
-        for node in existing:
-            if node.node_tree.name != group_name:
-                node.node_tree = add_node_from_resources('shared_nodes', group_name)
-            connect_triangle_area(node)
-            update_values(node)
-        return
-
-    output_node = next((n for n in node_tree.nodes if n.type == 'OUTPUT_MATERIAL'), None)
-    if output_node is None:
-        output_node = node_tree.nodes.new('ShaderNodeOutputMaterial')
-        # output_node.location = (400, 0)
-
-    surf_in = output_node.inputs[0]
-    if surf_in.is_linked:
-        last_node = surf_in.links[0].from_node
-        while last_node.type == 'GROUP' and last_node.node_tree and last_node.node_tree.name in {'Halo Backface', 'Halo Invisible'}:
-            surf_in = last_node.inputs['Shader']
-            if not surf_in.is_linked:
-                break
-            last_node = surf_in.links[0].from_node
-    old_link = surf_in.links[0] if surf_in and surf_in.is_linked else None
-    from_socket = old_link.from_socket if old_link else None
-
-    emissive_node = node_tree.nodes.new('ShaderNodeGroup')
-    emissive_node.node_tree = add_node_from_resources("shared_nodes", group_name)
-    update_values(emissive_node)
-    connect_triangle_area(emissive_node)
-
-    def first_socket(sockets, kind):
-        for s in sockets:
-            if s.type == kind:
-                return s
-        return sockets[0] if sockets else None
-
-    new_in = first_socket(emissive_node.inputs,  from_socket.type if from_socket else 'SHADER')
-    new_out = (emissive_node.outputs.get('Shader') or first_socket(emissive_node.outputs, surf_in.type))
-
-    if old_link:
-        node_tree.links.remove(old_link)
-    if from_socket and new_in:
-        node_tree.links.new(from_socket, new_in)
-
-    if surf_in and new_out:
-        node_tree.links.new(new_out, surf_in)
-        
-    arrange(node_tree)
+                    tree.links.remove(link)
+                socket.default_value = True
+    arrange(tree)
+    return node
 
 
-def mesh_add_emissive_attributes(mesh: bpy.types.Mesh, game=None):
-    nwo = mesh.nwo
+def update_foundry_mesh(mesh, game=None):
+    """Resolve face properties in order and delete unused preview attributes."""
     if game is None:
         project = get_project()
         game = project.game if project else None
-    
-    if not isinstance(mesh, bpy.types.Mesh):
-        return
-    
-    face_count = len(mesh.polygons)
-    
-    if not face_count:
-        return
-    
-    used_materials = {m for m in mesh.materials if m is not None}
-    
-    if not used_materials:
-        return
-    
-    color_off  = np.array((1.0, 1.0, 1.0), dtype=np.single)
-    color_data = np.tile(color_off, (face_count, 1))
-    power_off  = np.array((0.0, 0.0, 0.0), dtype=np.single)
-    power_data = np.tile(power_off, (face_count, 1))
-    base_power = np.zeros(face_count, dtype=np.single)
-    power_scales = np.ones(face_count, dtype=np.single)
-    
-    if mesh.materials:
-        material_indices = np.empty(face_count, dtype=np.int32)
-        mesh.polygons.foreach_get("material_index", material_indices)
-        
-        for idx, mat in enumerate(mesh.materials):
-            if mat is None:
-                continue
-            if game in {'halo1', 'halo2'}:
-                mask = material_indices == idx
-                prop = next((p for p in mat.nwo.material_props if p.type == 'emissive'), None)
-                if prop is not None:
-                    power, color = prop.material_lighting_emissive_power, prop.material_lighting_emissive_color[:]
-                else:
-                    from .tags.halo1_emissive import read_material_emissive
-                    try:
-                        power, color = read_material_emissive(relative_path(mat.nwo.shader_path), get_tags_path(), game)
-                    except (OSError, ValueError):
-                        power, color = 0.0, (1.0, 1.0, 1.0)
-                base_power[mask] = power
-                color_data[mask] = color
-                continue
-            for m_prop in mat.nwo.material_props:
-                if m_prop.type != 'emissive':
-                    continue
-                mask_buffer = material_indices == idx
-                mask = mask_buffer.astype(bool)
-
-                if not mask.any():
-                    continue
-
-                color_on = np.array(m_prop.material_lighting_emissive_color[:], dtype=np.single)
-                power_on = np.array((m_prop.material_lighting_emissive_power, m_prop.material_lighting_attenuation_falloff, m_prop.material_lighting_attenuation_cutoff), dtype=np.single)
-
-                color_data[mask] = color_on
-                power_data[mask] = power_on
-
-    for prop in nwo.face_props:
-        if game == 'halo1' or prop.type != 'emissive':
-            continue
-        attribute = mesh.attributes.get(prop.attribute_name)
-        if attribute is None:
-            continue
-
-        mask_buffer = np.empty(face_count, dtype=np.int32)
-        attribute.data.foreach_get("value", mask_buffer)
-        mask = mask_buffer.astype(bool)
-
-        if not mask.any():
-            continue
-
-        if game == 'halo2':
-            power_scales[mask] = prop.material_lighting_emissive_power_scale
-            continue
-        
-        color_on = np.array(prop.material_lighting_emissive_color[:], dtype=np.single)
-        power_on = np.array((prop.material_lighting_emissive_power, prop.material_lighting_attenuation_falloff, prop.material_lighting_attenuation_cutoff), dtype=np.single)
-        
-        color_data[mask] = color_on
-        power_data[mask] = power_on
-        
-    if game in {'halo1', 'halo2'}:
-        # The classic node owns base power; H2 reads only the surface scale.
-        power_data[:, 0] = power_scales
-        on_mask = base_power * power_scales > 0.0
-    else:
-        on_mask = power_data[:, 0] > 0.0
-
-    if on_mask.any() or game in {'halo1', 'halo2'}:
-        if game is None:
-            project = get_project()
-            game = project.game if project else None
-        # A face attribute cannot distinguish triangles within an n-gon.
-        # Use mean tessellated triangle area there; triangles are exact.
-        triangle_areas = np.zeros(face_count, dtype=np.single)
-        if game == 'halo1':
-            mesh.calc_loop_triangles()
-            counts = np.zeros(face_count, dtype=np.int32)
-            for triangle in mesh.loop_triangles:
-                triangle_areas[triangle.polygon_index] += triangle.area
-                counts[triangle.polygon_index] += 1
-            np.divide(triangle_areas, counts, out=triangle_areas, where=counts > 0)
-            triangle_areas[~on_mask] = 0.0
-        area_attribute = mesh.attributes.get('foundry_h1_triangle_area')
-        if area_attribute is None:
-            area_attribute = mesh.attributes.new('foundry_h1_triangle_area', 'FLOAT', 'FACE')
-        area_attribute.data.foreach_set('value', triangle_areas)
-
-        color_attribute = mesh.attributes.get("foundry_color")
-        if color_attribute is None:
-            color_attribute = mesh.attributes.new("foundry_color", 'FLOAT_VECTOR', 'FACE')
-
-        power_attribute = mesh.attributes.get("foundry_power")
-        if power_attribute is None:
-            power_attribute = mesh.attributes.new("foundry_power", 'FLOAT_VECTOR', 'FACE')
-        
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
-        layer = bm.faces.layers.float_vector.get("foundry_color")
-        layer_power = bm.faces.layers.float_vector.get("foundry_power")
-        for idx, face in enumerate(bm.faces):
-            face[layer] = color_data[idx]
-            face[layer_power] = power_data[idx]
-        bm.to_mesh(mesh)
-        bm.free()
-        
-        # Can't get this working with foreach_set... Had to use bmesh :(
-        # color_attribute.data.foreach_set("vector", color_data.ravel())
-        # power_attribute.data.foreach_set("value", power_data)
-        
-        return on_mask
-
-def setup_emissive_attributes(mesh: bpy.types.Mesh, game=None):
     was_edit_mode = mesh.is_editmode
     if was_edit_mode:
         bpy.ops.object.mode_set(mode='OBJECT')
     try:
-        _setup_emissive_attributes(mesh, game)
+        count = len(mesh.polygons)
+        values = {'foundry_two_sided': np.zeros(count, dtype=np.single),
+                  'foundry_invisible': np.zeros(count, dtype=np.single),
+                  'foundry_color': np.zeros((count, 3), dtype=np.single),
+                  'foundry_power': np.zeros((count, 3), dtype=np.single)}
+        emissive_mask = np.zeros(count, dtype=bool)
+        for prop in mesh.nwo.face_props:
+            attribute = mesh.attributes.get(prop.attribute_name)
+            if attribute is None:
+                continue
+            mask = np.empty(count, dtype=np.int32)
+            attribute.data.foreach_get('value', mask)
+            mask = mask.astype(bool)
+            if prop.type == 'face_sides':
+                values['foundry_two_sided'][mask] = float(prop.two_sided)
+            elif prop.type == 'face_mode':
+                values['foundry_invisible'][mask] = float(prop.face_mode in INVISIBLE_FACE_MODES)
+            elif prop.type == 'emissive':
+                emissive_mask[mask] = True
+                values['foundry_color'][mask] = prop.material_lighting_emissive_color[:3]
+                values['foundry_power'][mask] = (
+                    prop.material_lighting_emissive_power_scale if game == 'halo2' else prop.material_lighting_emissive_power,
+                    prop.material_lighting_attenuation_falloff,
+                    prop.material_lighting_attenuation_cutoff)
+        for name, data in values.items():
+            attribute = mesh.attributes.get(name)
+            needed = emissive_mask.any() if name in {'foundry_color', 'foundry_power'} else data.any()
+            data_type = 'FLOAT_VECTOR' if data.ndim == 2 else 'FLOAT'
+            if attribute is not None and (not needed or attribute.domain != 'FACE' or attribute.data_type != data_type):
+                mesh.attributes.remove(attribute)
+                attribute = None
+            if needed:
+                if attribute is None:
+                    attribute = mesh.attributes.new(name, data_type, 'FACE')
+                attribute.data.foreach_set('vector' if data.ndim == 2 else 'value', data.ravel())
+        mesh.update()
+        for material in {m for m in mesh.materials if m is not None}:
+            update_foundry_material(material, game)
     finally:
         if was_edit_mode:
             bpy.ops.object.mode_set(mode='EDIT')
 
 
-def _setup_emissive_attributes(mesh: bpy.types.Mesh, game=None):
-    on_mask = mesh_add_emissive_attributes(mesh, game)
-    if on_mask is None:
-        return
-    
-    material_indices = np.empty(len(mesh.polygons), dtype=np.int32)
-    mesh.polygons.foreach_get("material_index", material_indices)
-    if game is None:
-        project = get_project()
-        game = project.game if project else None
-    used_material_indices = np.unique(material_indices if game in {'halo1', 'halo2'} else material_indices[on_mask])
-    for idx in used_material_indices:
-        if mesh.materials[idx] is not None:
-            material_add_emissive(mesh.materials[idx], game)
-
-
-def update_classic_emissive_material(material, game):
-    """Refresh every mesh using this material, including face scale overrides."""
-    meshes = {ob.data for ob in bpy.data.objects if ob.type == 'MESH'
-              and any(slot.material == material for slot in ob.material_slots)}
-    for mesh in meshes:
-        setup_emissive_attributes(mesh, game)
-    material_add_emissive(material, game)
-        
 def can_export_check_parent(ob: bpy.types.Object):
     if ob.parent:
         return can_export_check_parent(ob.parent)

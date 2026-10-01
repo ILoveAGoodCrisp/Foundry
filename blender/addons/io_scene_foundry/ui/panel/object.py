@@ -762,7 +762,7 @@ class NWO_MT_FacePropOperatorsMenu(bpy.types.Menu):
         layout = self.layout
         layout.operator("nwo.face_prop_copy_to_selected", icon='COPYDOWN')
         layout.operator("nwo.face_props_copy_to_selected", icon='COPYDOWN')
-        layout.operator("nwo.add_emissive_node", icon='MATERIAL')
+        layout.operator("nwo.update_foundry_node", icon='MATERIAL')
         
 class NWO_OT_FacePropCopyToSelected(bpy.types.Operator):
     bl_idname = "nwo.face_prop_copy_to_selected"
@@ -812,6 +812,29 @@ class NWO_OT_FacePropsCopyToSelected(bpy.types.Operator):
         self.report({'INFO'}, f"Copied {len(nwo.face_props)} to {len(meshes)} meshes")
         return {"FINISHED"}
     
+class NWO_OT_UpdateFoundryNode(bpy.types.Operator):
+    bl_idname = 'nwo.update_foundry_node'
+    bl_label = 'Update Foundry Node'
+    bl_description = 'Add or update the Foundry Node and refresh preview properties'
+    bl_options = {'UNDO'}
+
+    for_material: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
+
+    @classmethod
+    def poll(cls, context):
+        return bool(getattr(context, 'material', None) or (context.object and context.object.type == 'MESH'))
+
+    def execute(self, context):
+        if self.for_material:
+            material = getattr(context, 'material', None) or (context.object.active_material if context.object else None)
+            if material is None:
+                return {'CANCELLED'}
+            utils.update_foundry_material(material)
+        else:
+            utils.update_foundry_mesh(context.object.data)
+        return {'FINISHED'}
+
+
 class NWO_OT_UpdateTwoSidedPreview(bpy.types.Operator):
     bl_idname = 'nwo.update_two_sided_preview'
     bl_label = 'Update Two-Sided Preview'
@@ -824,7 +847,7 @@ class NWO_OT_UpdateTwoSidedPreview(bpy.types.Operator):
                     and any(p.type == 'face_sides' for p in context.object.data.nwo.face_props))
 
     def execute(self, context):
-        utils.setup_two_sided_preview(context.object.data)
+        utils.update_foundry_mesh(context.object.data)
         return {'FINISHED'}
 
 
@@ -839,7 +862,7 @@ class NWO_OT_UpdateInvisiblePreview(bpy.types.Operator):
         return bool(context.object and context.object.type == 'MESH')
 
     def execute(self, context):
-        utils.setup_two_sided_preview(context.object.data)
+        utils.update_foundry_mesh(context.object.data)
         return {'FINISHED'}
 
 
@@ -854,7 +877,7 @@ class NWO_OT_AddEmissiveNode(bpy.types.Operator):
         return context.object and context.object.type == 'MESH' and context.object.data.nwo.face_props and context.object.data.materials
     
     def execute(self, context):
-        utils.setup_emissive_attributes(context.object.data)
+        utils.update_foundry_mesh(context.object.data)
         return {"FINISHED"}
         
 def face_attribute_shader():

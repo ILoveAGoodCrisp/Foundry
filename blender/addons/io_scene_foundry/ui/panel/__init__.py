@@ -3277,6 +3277,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row = box.row()
             row.operator(f"nwo.face_attribute_count_refresh", text="Refresh Face Counts", icon='FILE_REFRESH')
             row.operator(f"nwo.face_attribute_consolidate", icon='AREA_JOIN_UP')
+        box.operator('nwo.update_foundry_node', icon='MATERIAL').for_material = for_material
         
         row = box.row()
         
@@ -3350,8 +3351,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         col.prop(item, 'face_sides_type')
                 case 'face_mode':
                     col.prop(item, 'face_mode')
-                    if not for_material:
-                        col.operator('nwo.update_invisible_preview', text='Update Invisible Preview', icon='MATERIAL')
                 case 'region':
                     row = box.row()
                     row.label(text='Region')
@@ -3380,8 +3379,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     classic_material = bool(for_material and project and project.game in {'halo1', 'halo2'})
                     if classic_material:
                         box.operator('nwo.update_halo_material_emissive', icon='MATERIAL', text="Update Shader Emission")
-                    else:
-                        box.operator("nwo.add_emissive_node", icon='MATERIAL', text="Update Emissive Light")
                     row = box.row()
                     row.label(text="Emissive Settings")
                     if for_material or not halo2:

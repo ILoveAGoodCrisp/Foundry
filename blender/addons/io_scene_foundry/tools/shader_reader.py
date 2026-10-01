@@ -278,5 +278,8 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
                             mat.nwo.shader_type = '.' + family
                             break
         if mat.node_tree is not None:
+            utils.update_foundry_material(mat, target_game or shader.game)
             arrange(mat.node_tree)
         return shader.sequence_drivers
+    if mat.node_tree is not None:
+        utils.update_foundry_material(mat, target_game)
