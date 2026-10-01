@@ -6399,9 +6399,10 @@ def setup_two_sided_preview(mesh: bpy.types.Mesh):
             attribute = mesh.attributes.new('foundry_two_sided', 'FLOAT', 'FACE')
         attribute.data.foreach_set('value', values)
         mesh.update()
-        if has_two_sided:
-            for material in {m for m in mesh.materials if m is not None}:
-                material_add_backface(material)
+        # NOTE Commented out until foundry node is ready
+        # if has_two_sided:
+        #     for material in {m for m in mesh.materials if m is not None}:
+        #         material_add_backface(material)
     finally:
         if was_edit_mode:
             bpy.ops.object.mode_set(mode='EDIT')
@@ -6432,9 +6433,10 @@ def _setup_invisible_preview(mesh: bpy.types.Mesh):
         attribute = mesh.attributes.new('foundry_invisible', 'FLOAT', 'FACE')
     attribute.data.foreach_set('value', values)
     mesh.update()
-    if has_invisible:
-        for material in {m for m in mesh.materials if m is not None}:
-            material_add_backface(material, 'Halo Invisible')
+    # NOTE Commented out until foundry node is ready
+    # if has_invisible:
+    #     for material in {m for m in mesh.materials if m is not None}:
+    #         material_add_backface(material, 'Halo Invisible')
 
 
 def material_add_emissive(material: bpy.types.Material, game=None):
