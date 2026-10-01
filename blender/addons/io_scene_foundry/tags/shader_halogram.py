@@ -75,6 +75,34 @@ class ShaderHalogramTag(ShaderTag):
     )
     
     category_parameters = None
+
+    def _setup_warp(self, tree, group_node):
+        if 'warp_map' not in self.shader_parameters:
+            return
+        vector_node = self._add_group_node(tree, tree.nodes,
+                                          'foundry_h3.shader_halogram - warp')
+        if vector_node.node_tree is None:
+            tree.nodes.remove(vector_node)
+            return
+        self.populate_chiefster_node(tree, vector_node)
+        if not vector_node.inputs['warp_map'].is_linked:
+            tree.nodes.remove(vector_node)
+            return
+        self.add_texcoord_node(tree, vector_node.inputs['texcoords'])
+        targets = {'self_illum_map', 'self_illum_detail_map', 'overlay_map',
+                   'overlay_detail_map', 'overlay_multiply_map'}
+        textures = {link.from_node for socket in group_node.inputs
+                    if socket.name.partition('.')[0] in targets
+                    for link in socket.links if link.from_node.type == 'TEX_IMAGE'}
+        for texture in textures:
+            vector_input = texture.inputs['Vector']
+            # Keep each target's authored tiling, replacing its source UVs.
+            if vector_input.is_linked:
+                transform = vector_input.links[0].from_node
+                if transform.type == 'GROUP':
+                    tree.links.new(vector_node.outputs['Vector'], transform.inputs[-1])
+                    continue
+            tree.links.new(vector_node.outputs['Vector'], vector_input)
     
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         # Get options
@@ -105,6 +133,11 @@ class ShaderHalogramTag(ShaderTag):
         self.shader_parameters.update(self.category_parameters["blend_mode"][utils.game_str(e_blend_mode.name)])
         self.shader_parameters.update(self.category_parameters["overlay"][utils.game_str(e_overlay.name)])
         self.shader_parameters.update(self.category_parameters["edge_fade"][utils.game_str(e_edge_fade.name)])
+        if self.game in {'halo3', 'halo3odst'}:
+            warp_options = self.category_parameters.get('warp', {})
+            warp_index = self._option_value_from_index(4)
+            if 0 <= warp_index < len(warp_options):
+                self.shader_parameters.update(list(warp_options.values())[warp_index])
         self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
         
         tree = blender_material.node_tree
@@ -124,6 +157,8 @@ class ShaderHalogramTag(ShaderTag):
                                and self._self_illumination_uses_palette_vector(e_self_illumination))
         excluded_parameters = self.palette_vector_parameters if uses_palette_vector else frozenset()
         self.populate_chiefster_node(tree, group_node, 5, excluded_parameters)
+        if self.game in {'halo3', 'halo3odst'}:
+            self._setup_warp(tree, group_node)
         if uses_palette_vector:
             self._setup_palette_vector_node(tree, group_node)
         
