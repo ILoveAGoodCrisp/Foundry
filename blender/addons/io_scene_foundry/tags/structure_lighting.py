@@ -680,6 +680,10 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
             flags = self.required_field(element, 'flags')
             if 'invere squared falloff' in flags.options().names and flags.get_flag("invere squared falloff"):
                 self.inverse_squared_lights.add(blender_light)
+            elif 'invere squared falloff' not in flags.options().names:
+                # H3/ODST have no inverse-square mode. Initialize the definition
+                # as a Halo light before it is shared or copied by instances.
+                utils.make_halo_light(blender_light)
 
             definitions[element_index] = blender_light
 
