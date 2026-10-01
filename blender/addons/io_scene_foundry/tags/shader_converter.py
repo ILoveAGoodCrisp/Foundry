@@ -2463,6 +2463,28 @@ class ShaderTag(BlenderTag, TagDocument):
             elif element is not None and socket.type == 'VALUE':
                 socket.default_value = real(name)
 
+        self._setup_h2_cubemap_reflector(tree, group)
+
+    def _setup_h2_cubemap_reflector(self, tree, group):
+        cubemaps = [node for node in tree.nodes if node.type == 'TEX_ENVIRONMENT']
+        if not cubemaps:
+            return
+        reflector_tree = utils.add_node_from_resources(
+            'h2_nodes', 'Basic H2 environment_map reflector')
+        if reflector_tree is None:
+            utils.print_warning('Missing Basic H2 environment_map reflector in h2_nodes.blend')
+            return
+        reflector = tree.nodes.new('ShaderNodeGroup')
+        reflector.node_tree = reflector_tree
+        reflector.location = (cubemaps[0].location.x - 300, cubemaps[0].location.y)
+        bump = group.inputs.get('bump_map')
+        if bump is not None:
+            reflector.inputs['bump_map'].default_value = bump.default_value
+            if bump.is_linked:
+                tree.links.new(bump.links[0].from_socket, reflector.inputs['bump_map'])
+        for cubemap in cubemaps:
+            tree.links.new(reflector.outputs['environment_map.vector'], cubemap.inputs['Vector'])
+
     def _option_value_from_index(self, index):
         if index >= self.block_options.Elements.Count:
             if self.reference.Path:
