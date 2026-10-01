@@ -490,6 +490,9 @@ class ASSImporter(JMSImporter):
                               ('far_attenuation_start', light.far_start if light.far_enabled else 0),
                               ('far_attenuation_end', light.far_end if light.far_enabled else 0)):
             setattr(data.nwo, 'light_' + suffix, value * self.scale)
+        if self.owner.game in {'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'} and kind != 'SUN':
+            data.nwo.light_intensity = max(0, light.intensity)
+            utils.make_halo_light(data)
         ob['ass_light'] = json.dumps(asdict(light))
         return ob
 

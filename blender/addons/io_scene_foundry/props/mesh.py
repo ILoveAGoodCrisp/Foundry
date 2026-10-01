@@ -105,6 +105,9 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             case 'mesh_tessellation_density':
                 return f"{self.mesh_tessellation_density[1:]} Tessellation"
             case 'lightmap_resolution_scale':
+                project = utils.get_project()
+                if project and project.game in {'halo2', 'halo3', 'halo3odst'}:
+                    return f"Lightmap Resolution Scale: {round(self.lightmap_resolution_scale_legacy, 2)}"
                 return f"Lightmap Resolution: {LightmapResolution(int(self.lightmap_resolution_scale)).name.replace('_', ' ').title()}"
             case 'lightmap_ignore_default_resolution_scale':
                 return "Default Lightmap Rez Ignored" if  self.lightmap_ignore_default_resolution_scale else "Using Default Lightmap Rez"
