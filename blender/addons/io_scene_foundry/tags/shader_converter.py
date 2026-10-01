@@ -2406,10 +2406,16 @@ class ShaderTag(BlenderTag, TagDocument):
 
         texcoord = None
         row = 0
+        imported_maps = set()
         for socket in group.inputs:
-            name = socket.name
+            name, separator, channel = socket.name.rpartition('.')
+            if not separator or channel not in {'rgb', 'a', 'alpha'}:
+                name = socket.name
             element = parameters.get(name)
             if name.endswith('_map'):
+                if name in imported_maps:
+                    continue
+                imported_maps.add(name)
                 if element is None and name == 'environment_map':
                     element = parameters.get('specular_cube_map')
                 if element is None:
@@ -2429,7 +2435,12 @@ class ShaderTag(BlenderTag, TagDocument):
                 row += 1
                 if name in {'bump_map', 'active_camo_bump_map'}:
                     image.image.colorspace_settings.name = 'Non-Color'
-                tree.links.new(image.outputs['Color'], socket)
+                for suffix, output_name in (('', 'Color'), ('.rgb', 'Color'),
+                                            ('.a', 'Alpha'), ('.alpha', 'Alpha')):
+                    target = group.inputs.get(name + suffix)
+                    source = image.outputs.get(output_name)
+                    if target is not None and source is not None:
+                        tree.links.new(source, target)
                 reflection = name == 'environment_map'
                 prefix = name.removesuffix('_map')
                 scale_x = real(f'{prefix}_scale_x') or 1.0
