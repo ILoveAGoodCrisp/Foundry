@@ -5,6 +5,7 @@ from enum import Enum, IntEnum
 from math import degrees
 from pathlib import Path
 import math
+import json
 import struct
 from typing import cast
 import bpy
@@ -39,6 +40,7 @@ from ..tags.animation_resource import (
     append_final_frame,
 )
 from ..tags.source_tag_resource import read_model_animation_graph_resources
+from .animation_authoring import authoring_pose, read_authoring_resource, source_metadata
 from ..tags.render_model_blender import RenderModelTag
 from .. import import_transform
 from ..legacy.jma import Node
@@ -286,9 +288,11 @@ class Animation:
         self.world_relative = internal_flags.TestBit("world relative")
         
         parent_nodes = shared_element.SelectField("object-space parent nodes")
-        blend_screen = element.SelectField("blend screen") if game in {'halo3', 'halo3odst'} else None
+        offset_nodes = shared_element.SelectField("object space offset nodes")
+        blend_screen = element.SelectField("blend screen")
         self.is_pose_overlay = self.animation_type == AnimationType.OVERLAY and (
             parent_nodes is not None and parent_nodes.Elements.Count > 0
+            or offset_nodes is not None and offset_nodes.Elements.Count > 0
             or blend_screen is not None and blend_screen.Value >= 0)
         
         if corinth:
@@ -3681,15 +3685,69 @@ class AnimationTag(AnimationGraphTag):
                     rotation.invert()
                 rotations[node_index].append(rotation)
                 scales[node_index].append(scale)
+        flags = pose.get('animated_node_flags')
+        if flags is not None and (len(flags) != node_count or any(len(row) != 3 for row in flags)):
+            raise ValueError('Animation channel masks do not match the decoded nodes')
         return AnimationData(
             frame_count,
             translations,
             rotations,
             scales,
-            [True] * node_count,
-            [True] * node_count,
-            [True] * node_count,
+            [bool(row[1]) for row in flags] if flags is not None else [True] * node_count,
+            [bool(row[0]) for row in flags] if flags is not None else [True] * node_count,
+            [bool(row[2]) for row in flags] if flags is not None else [True] * node_count,
         )
+
+    def _authoring_decode_tag(self):
+        """Disable runtime parent correction on a detached decoding copy only.
+
+        The bundled native decoder applies full parent corrections to playback.
+        Tool needs authoring channels and a separate reference frame instead.
+        Clear every local shared record so aliases take the same decoding path.
+        """
+        cached = getattr(self, '_authoring_decode_source', None)
+        if cached is not None:
+            return cached
+        cloned = type(self.tag).read_from_bytes(self.tag.write_to_bytes())
+        root = cloned.root()
+        for prefix in ('definitions', 'resources'):
+            field = root.field_path(f'{prefix}/animations')
+            if field is None:
+                continue
+            for animation in field.as_block():
+                shared = animation.field('shared animation data')
+                records = shared.as_block() if shared is not None else (animation,)
+                for record in records:
+                    parents = record.field('object-space parent nodes')
+                    if parents is not None:
+                        parents.as_block().clear()
+        self._authoring_decode_source = cloned
+        return cloned
+
+    def _reconstruct_authoring_pose(self, tag_animation, native_pose, defaults, resource):
+        parents = [node.parent_index for node in defaults]
+        references = {}
+        parent_records = []
+        for node, translation, rotation, scale, use_t, use_r, use_s, motion_root in self._object_space_parent_transform_targets(tag_animation):
+            transform = (*[v / 100.0 for v in translation], rotation.x, rotation.y, rotation.z, rotation.w, scale)
+            references[node] = transform
+            parent_records.append({'node': node, 'orientation': transform,
+                                   'translation': use_t, 'rotation': use_r, 'scale': use_s,
+                                   'motion_root': motion_root})
+        pose, diagnostics = authoring_pose(native_pose, parents, resource, references,
+                                            tag_animation.animation_type == AnimationType.OVERLAY)
+        metadata = source_metadata(resource, diagnostics)
+        metadata['object_space_parents'] = parent_records
+        metadata['node_names'] = [node.name for node in defaults]
+        self._imported_authoring_metadata[tag_animation.index] = metadata
+        if (diagnostics.get('offset_translation_error', 0) > .001
+                or diagnostics.get('offset_rotation_error_degrees', 0) > .1):
+            utils.print_warning(
+                f'Animation [{tag_animation.name.tag_name}] authoring reference could not fully reproduce '
+                f'its object-space offsets (position error {diagnostics["offset_translation_error"]:.6f}, '
+                f'rotation error {diagnostics["offset_rotation_error_degrees"]:.3f} degrees). '
+                'The source channel masks and reconstruction diagnostics have been retained.')
+        return pose
 
     def _native_animation_movement(
         self, pose: dict[str, object],
@@ -3751,7 +3809,24 @@ class AnimationTag(AnimationGraphTag):
 
         # The native decoder prefers retained uncompressed authoring tracks,
         # while keeping runtime section offsets for node flags and movement.
-        native_pose = animation_pose(index, pose_defaults)
+        resource = None
+        if self.game in {'reach', 'halo4', 'halo2a'}:
+            resource = resource_cache.get(index)
+            if index not in resource_cache:
+                resource = read_authoring_resource(self.tag, tag_animation.resource_group,
+                                                   tag_animation.resource_group_member, len(defaults))
+                resource_cache[index] = resource
+        if not hasattr(self, '_imported_authoring_metadata'):
+            self._imported_authoring_metadata = {}
+        if resource is not None and tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
+            native_pose = self._authoring_decode_tag().animation_pose(index, pose_defaults)
+            native_pose = self._reconstruct_authoring_pose(tag_animation, native_pose, defaults, resource)
+        else:
+            native_pose = animation_pose(index, pose_defaults)
+            if resource is not None:
+                native_pose['animated_node_flags'] = resource.animated.tolist()
+                self._imported_authoring_metadata[index] = source_metadata(resource, {})
+                self._imported_authoring_metadata[index]['node_names'] = [node.name for node in defaults]
         if self.game == 'halo1' and tag_animation.animation_type == AnimationType.OVERLAY:
             from ..legacy.writers import halo1_overlay_pose
             native_pose = halo1_overlay_pose(native_pose)
@@ -3889,6 +3964,7 @@ class AnimationTag(AnimationGraphTag):
         if metadata is None:
             raise ValueError('Native animation graph metadata is required')
         self._native_node_usages = metadata.node_usages
+        self._imported_authoring_metadata = {}
         self.scale_animations_to_skeleton = scale_animations_to_skeleton
         self._reach_conversion = convert_to_reach
         self._legacy_conversion = convert_to_legacy
@@ -3985,6 +4061,8 @@ class AnimationTag(AnimationGraphTag):
                     blender_animation.blend_screen = blend_screen_choices.get(source_name.tag_name, '')
                 blender_animation.frame_start = 1
                 blender_animation.frame_end = imported_frame_count
+                if overlay:
+                    blender_animation.pose_overlay_source = 'pose' if tag_animation.is_pose_overlay else 'time'
                 animations.append(blender_animation.name)
                 
                 if tag_animation.composite_index > -1:
@@ -4076,6 +4154,9 @@ class AnimationTag(AnimationGraphTag):
                 track.object = armature
                 track.action = action
                 transforms = self._animation_transforms(tag_animation, defaults, overlay_defaults, native_nodes, graph, shared_static_codec, native_resource_cache,native_animation_cache, tag_animations)
+                source_authoring = self._imported_authoring_metadata.get(tag_animation.index)
+                if source_authoring is not None:
+                    blender_animation.source_authoring_data = json.dumps(source_authoring, separators=(',', ':'))
                 converted_screen = (self._legacy_converter is not None
                                     and tag_animation.index in self._legacy_converter.frame_maps)
                 if transforms:
@@ -4083,6 +4164,7 @@ class AnimationTag(AnimationGraphTag):
                                                    max(blender_animation.frame_end, max(transforms)))
                 if converted_screen:
                     blender_animation.pose_overlay = False
+                    blender_animation.pose_overlay_source = 'time'
                     self.legacy_frame_maps[animation_name] = self._legacy_converter.frame_maps[tag_animation.index]
 
                 scale_animations_to_skeleton = (

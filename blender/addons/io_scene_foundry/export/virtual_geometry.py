@@ -537,7 +537,10 @@ class VirtualAnimation:
             self.frame_count: int = utils.game_frame(animation.frame_end - animation.frame_start + 1)
             self.frame_range: tuple[int, int] = (animation.frame_start, animation.frame_end)
         
-        self.pose_overlay = False # Now calculating this rather than this being user defined
+        self._pose_overlay_source = getattr(animation, 'pose_overlay_source', 'auto')
+        self.pose_overlay = self.overlay and (
+            self._pose_overlay_source == 'pose' or
+            (self._pose_overlay_source == 'auto' and getattr(animation, 'pose_overlay', False)))
         self.anim = animation
         self.morph_target_data = []
         self.is_pca = False
@@ -746,7 +749,7 @@ class VirtualAnimation:
             return
         self.create_vector_track_groups(scene, vector_events)
         
-        if self.overlay and pose_overlay_frame_data:
+        if self.overlay and pose_overlay_frame_data and self._pose_overlay_source != 'time':
             frame_data = zip(*pose_overlay_frame_data.values())
             data_map = defaultdict(list)
             for idx, data in enumerate(frame_data):

@@ -324,6 +324,19 @@ Animation resource import now calls the Rust decoder through the typed
 graph-selected overlay/replacement base composition, object-space correction and
 movement decoding. The Blender importer converts those native tuples directly and
 no longer initializes ManagedBlam or calls its former Python resource decoder.
+Reach/H4/H2AMP authoring imports now decode overlays and replacements from a
+detached graph copy with runtime parent corrections disabled. Original animated
+component masks stay intact, replacement playback components stay absolute, and
+overlay local deltas stay relative to a separately reconstructed leading frame.
+Retained object-space tracks supply the original reference pose where available;
+otherwise stored offset samples constrain the missing overlay reference basis.
+Fitting changes reference channels only, so a static grip does not acquire new
+animation channels. Imported pose/time overlay classification survives export.
+Opaque FIK payloads and parent-reference flags are retained in per-animation
+source metadata; the runtime FIK solver is not reconstructed. Regression checks
+cover 5,100 real resource records, 34 actual Blender decode paths, 12 action/bone
+sampling cases, and standalone malformed-data/reference/channel tests. A complete
+GR2/Tool/in-game round trip remains unverified.
 Blender 5.1.2 checks decoded real H3, ODST, Reach, H4 and H2AMP graphs with a forced
 failure if ManagedBlam starts. The sampled H3 codec-slot-0 stream also decodes
 successfully through the Rust pipeline. Baboon's animation extractor uses the

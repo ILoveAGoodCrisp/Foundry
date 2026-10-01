@@ -491,7 +491,7 @@ class NWO_AnimationNodeData_ListItems(bpy.types.PropertyGroup):
         options=set(),
         items=[
             ('fik_anchor_node', "Forward IK Anchor Node", "If you figure out what this does please let me know"),
-            ('object_space_offset_node', "Object Space Offset Node", "Only valid for pose overlays. If you figure out what this does please let me know"),
+            ('object_space_offset_node', "Object Space Offset Node", "Requests object-space offset data for pose overlays. Imported flags are also preserved on replacement animations"),
             ('replacement_correction_node', "Replacement Correction Node", "Only valid for replacement animations. If you figure out what this does please let me know"),
         ]
     )
@@ -1214,6 +1214,21 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
         name="Pose Overlay",
         description="External animation is a pose overlay",
         options=set(),
+    )
+
+    pose_overlay_source: bpy.props.EnumProperty(
+        name="Imported Overlay Type",
+        items=[('auto', "Automatic", "Infer the overlay type from authored aim samples"),
+               ('pose', "Pose", "Preserve the imported pose overlay classification"),
+               ('time', "Time", "Preserve the imported time overlay classification")],
+        default='auto',
+        options={'HIDDEN'},
+    )
+
+    source_authoring_data: bpy.props.StringProperty(
+        name="Source Animation Authoring Data",
+        description="Original channel masks, parent references, opaque FIK data and reconstruction diagnostics",
+        options={'HIDDEN'},
     )
     
     has_pca: bpy.props.BoolProperty(
@@ -4205,7 +4220,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         default=False,
         options=set(),
     )
-    
+
     last_bsp_split_was_layer: bpy.props.BoolProperty(
         options={'HIDDEN'},
     )
