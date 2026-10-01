@@ -6374,10 +6374,12 @@ def material_add_backface(material: bpy.types.Material, group_name='Halo Backfac
 
 def setup_two_sided_preview(mesh: bpy.types.Mesh):
     """Resolve face masks into the attribute read by Halo Backface."""
+    return # NOTE Commented out until foundry node is ready
     was_edit_mode = mesh.is_editmode
     if was_edit_mode:
         bpy.ops.object.mode_set(mode='OBJECT')
     try:
+        
         _setup_invisible_preview(mesh)
         props = [p for p in mesh.nwo.face_props if p.type == 'face_sides']
         has_two_sided = any(p.two_sided for p in props)
