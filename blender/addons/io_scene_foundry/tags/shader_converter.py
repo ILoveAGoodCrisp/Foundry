@@ -2975,6 +2975,68 @@ class ShaderTag(BlenderTag, TagDocument):
             tree.links.new(input=vector_input, output=vector_output)
 
         return palette_vector_node
+
+    def _setup_h3_cubemap_reflector(self, tree, group_node):
+        cubemap_input = group_node.inputs.get("environment_map.rgb")
+        if cubemap_input is None or not cubemap_input.is_linked:
+            return
+        cubemap = cubemap_input.links[0].from_node
+        if cubemap.type != 'TEX_ENVIRONMENT':
+            return
+
+        reflector = self._add_group_node(tree, tree.nodes, 'foundry_h3 - cubemap reflector')
+        if reflector.node_tree is None:
+            tree.nodes.remove(reflector)
+            return
+        # Share the shader's textures, masks and selected bump mode, including
+        # detail bump inputs and their animated coefficients.
+        for socket in reflector.inputs:
+            source = group_node.inputs.get(socket.name)
+            if source is None:
+                continue
+            value = source.default_value
+            if socket.name == 'bump_mapping':
+                # The reflector resource uses Reach names for H3's masked
+                # detail modes; their menu positions and behavior match.
+                value = {'detail_blend': 'detail_masked',
+                         'three_detail_blend': 'detail_plus_detail_masked'}.get(value, value)
+            socket.default_value = value
+            if source.is_linked:
+                tree.links.new(source.links[0].from_socket, socket)
+        vector = reflector.outputs['Vector']
+        tree.links.new(vector, cubemap.inputs['Vector'])
+
+        alpha_input = group_node.inputs.get('environment_map.a')
+        if alpha_input is None or not alpha_input.is_linked:
+            return
+        alpha_texture = alpha_input.links[0].from_node
+        if alpha_texture.type != 'TEX_IMAGE' or alpha_texture.image != cubemap.image:
+            return
+        # Environment textures expose colour only. Store alpha as linear RGB
+        # so it can be sampled with exactly the same reflection vector.
+        from array import array
+        image = cubemap.image
+        alpha_name = f'{image.name} - cubemap alpha'
+        alpha_image = bpy.data.images.get(alpha_name)
+        if alpha_image is None:
+            pixels = array('f', [0.0]) * (image.size[0] * image.size[1] * 4)
+            image.pixels.foreach_get(pixels)
+            for index in range(0, len(pixels), 4):
+                alpha = pixels[index + 3]
+                pixels[index:index + 4] = array('f', (alpha, alpha, alpha, 1.0))
+            alpha_image = bpy.data.images.new(alpha_name, width=image.size[0], height=image.size[1], float_buffer=True)
+            alpha_image.colorspace_settings.name = 'Non-Color'
+            alpha_image.pixels.foreach_set(pixels)
+            alpha_image.pack()
+        alpha_environment = tree.nodes.new('ShaderNodeTexEnvironment')
+        alpha_environment.image = alpha_image
+        alpha_environment.label = 'cubemap alpha'
+        alpha_environment.interpolation = cubemap.interpolation
+        alpha_environment.projection = cubemap.projection
+        tree.links.new(vector, alpha_environment.inputs['Vector'])
+        tree.links.new(alpha_environment.outputs['Color'], alpha_input)
+        if not any(output.is_linked for output in alpha_texture.outputs):
+            tree.nodes.remove(alpha_texture)
     
     def get_model_material_spec(self, node_material_model, uses_spec_exponent_min_max: bool):
         for element in self.block_parameters.Elements:
@@ -3115,6 +3177,8 @@ class ShaderTag(BlenderTag, TagDocument):
                                and self._self_illumination_uses_palette_vector(e_self_illumination))
         excluded_parameters = self.palette_vector_parameters if uses_palette_vector else frozenset()
         self.populate_chiefster_node(tree, group_node, 8, excluded_parameters)
+        if self.game in {'halo3', 'halo3odst'}:
+            self._setup_h3_cubemap_reflector(tree, group_node)
         if uses_palette_vector:
             self._setup_palette_vector_node(tree, group_node)
         
