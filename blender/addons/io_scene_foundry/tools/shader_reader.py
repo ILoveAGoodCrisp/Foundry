@@ -119,7 +119,7 @@ class NWO_OT_BuildShaderTemplates(bpy.types.Operator):
 class NWO_OT_ShaderToNodesBulk(bpy.types.Operator):
     bl_idname = "nwo.shader_to_nodes_bulk"
     bl_label = "Convert all Shaders to Blender Material Nodes"
-    bl_description = "Builds blender materials for all shaders"
+    bl_description = "Builds blender materials for all shaders on local materials, skipping linked library materials"
     bl_options = {"UNDO"}
     
     always_extract_bitmaps: bpy.props.BoolProperty(
@@ -140,19 +140,26 @@ class NWO_OT_ShaderToNodesBulk(bpy.types.Operator):
         print(f"Building Blender Materials\n")
         
         built_count = 0
+        linked_count = 0
         for mat in bpy.data.materials:
+            if mat.library is not None:
+                linked_count += 1
+                continue
             if not mat.nwo.RenderMaterial:
                 continue
             
-            built_count += 1
             shader_path = utils.relative_path(mat.nwo.shader_path)
             full_path = Path(utils.get_tags_path(), shader_path)
             if not full_path.exists():
                 continue
             
             tag_to_nodes(corinth, mat, shader_path)
+            built_count += 1
             
-        self.report({'INFO'}, f"Built {built_count} blender materials")
+        message = f"Built {built_count} blender materials"
+        if linked_count:
+            message += f"; skipped {linked_count} linked library materials"
+        self.report({'INFO'}, message)
         return {"FINISHED"}
     
     def invoke(self, context: bpy.types.Context, _):
@@ -184,6 +191,9 @@ class NWO_ShaderToNodes(bpy.types.Operator):
         if not mat:
             self.report({'WARNING'}, "Material not supplied")
             return {"CANCELLED"}
+        if mat.library is not None:
+            self.report({'WARNING'}, "Linked library materials cannot be converted; edit the source blend file or make the material local")
+            return {"CANCELLED"}
         shader_path = utils.relative_path(mat.nwo.shader_path)
         full_path = Path(utils.get_tags_path(), shader_path)
         if not full_path.exists():
@@ -202,6 +212,11 @@ class NWO_ShaderToNodes(bpy.types.Operator):
 @read_only_tags()
 def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_extract_bitmaps=False, *, target_game=None) -> set | None:
     """Turns a shader/material tag into blender material nodes"""
+
+    # Linked materials belong to their source blend file. Even clearing their
+    # node trees can affect their appearance for the rest of this session.
+    if mat.library is not None:
+        return
     
     if not Path(utils.get_tags_path(), utils.relative_path(tag_path)).exists():
         return

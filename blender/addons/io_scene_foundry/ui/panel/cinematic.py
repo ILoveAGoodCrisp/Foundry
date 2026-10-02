@@ -931,7 +931,10 @@ class NWO_OT_OpenCinematicLightingTag(bpy.types.Operator):
             self.report({"WARNING"}, f"Tag was not created: {relative_tag_path}")
             return {"CANCELLED"}
 
-        utils.run_ek_cmd(["foundation", "/dontloadlastopenedwindows", full_tag_path], True)
+        from ...tools.halo_launcher import open_tag_in_editor
+
+        if not open_tag_in_editor(full_tag_path, context, self.report):
+            return {"CANCELLED"}
         action = "Opened" if tag_existed else "Created"
         self.report({"INFO"}, f"{action} {relative_tag_path}")
         return {"FINISHED"}

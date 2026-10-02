@@ -86,9 +86,18 @@ def _version_tuple(value: str) -> tuple[int, int, int, int]:
     return tuple((parts + [0] * 4)[:4])
 
 
+def _foundation_executable(project_path):
+    """Prefer Bonobo when available in the editing kit."""
+    if Path(project_path, "bonobo.exe").exists():
+        return "bonobo.exe"
+    return "Foundation.exe"
+
+
 def tag_editor_executable(context=None):
     """Return the tag editor used by the active project's generation."""
-    return "guerilla.exe" if project_game_for_mcc(context) in GUERILLA_GAMES else "Foundation.exe"
+    if project_game_for_mcc(context) in GUERILLA_GAMES:
+        return "guerilla.exe"
+    return _foundation_executable(get_project_path())
 
 
 def _run_tag_editor(launch_args, context, report, load_tags=True):
@@ -108,7 +117,7 @@ def open_tag_in_editor(tag_path, context, report):
     """Shared single-tag launch path for tag fields and material shaders."""
     executable = tag_editor_executable(context)
     launch_args = [executable]
-    if executable == "Foundation.exe":
+    if executable in {"bonobo.exe", "Foundation.exe"}:
         launch_args.append("/dontloadlastopenedwindows")
     launch_args.append(str(tag_path))
     return _run_tag_editor(launch_args, context, report)
@@ -116,7 +125,7 @@ def open_tag_in_editor(tag_path, context, report):
 
 def _install_foundation_plugin(project_path, plugin_path, plugins_xml):
     try:
-        foundation_path = Path(project_path, "Foundation.exe")
+        foundation_path = Path(project_path, _foundation_executable(project_path))
         foundation_version = _file_version(foundation_path)
         
         match project_game_for_mcc(bpy.context):
@@ -295,7 +304,7 @@ def launch_tag_editor(settings, context, report):
     # set the launch args
     load_tags = settings.foundation_default == "asset" and valid_nwo_asset(context)
     if load_tags:
-        if executable == "Foundation.exe":
+        if executable in {"bonobo.exe", "Foundation.exe"}:
             launch_args.append("/dontloadlastopenedwindows")
         asset_path = scene_nwo.asset_directory
         asset_path_full = Path(get_tags_path(), asset_path)
@@ -462,12 +471,12 @@ def launch_tag_editor(settings, context, report):
                     get_tag_if_exists(asset_path, asset_name, "cinematic")
                 )
 
-    if executable == "Foundation.exe":
+    if executable in {"bonobo.exe", "Foundation.exe"}:
         # Install the plugin before launch and start its companion tag watcher.
         foundation_plugin_update()
     if not _run_tag_editor(launch_args, context, report, load_tags):
         return {"CANCELLED"}
-    if executable == "Foundation.exe":
+    if executable in {"bonobo.exe", "Foundation.exe"}:
         run_ek_cmd([os.path.join("bin", "tools", "bonobo", "TagWatcher.exe")], True)
 
     return {"FINISHED"}
@@ -806,7 +815,8 @@ class NWO_MaterialGirl(bpy.types.Operator):
         return current_project_valid()
 
     def execute(self, context):
-        launch_args = [os.path.join(get_project_path(), "Foundation.exe")]
+        project_path = get_project_path()
+        launch_args = [os.path.join(project_path, _foundation_executable(project_path))]
         launch_args.append("/pluginset:matman")
         run_ek_cmd(launch_args, True)
         run_ek_cmd(["bin\\tools\\bonobo\\TagWatcher.exe"], True)
