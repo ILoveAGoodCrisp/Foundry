@@ -31,7 +31,7 @@ class NWO_Project_ListItems(bpy.types.PropertyGroup):
 
 class NWO_UL_Projects(bpy.types.UIList):
     def draw_item(
-        self, context, layout, data, item, icon, active_data, active_propname
+        self, context, layout, data, item, icon, active_daata, active_propname
     ):
         if item:
             layout.label(text=item.name, icon_value=project_game_icon(context, item))
@@ -386,6 +386,12 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
     col.operator("nwo.project_move", icon="TRIA_DOWN", text="").direction = 'down'
 
     box = _settings_box(layout, "Halo Tools")
+    row = box.row(align=True)
+    row.label(text="Tag Editor")
+    row.prop(prefs, "tag_editor", expand=True)
+    if prefs.tag_editor == "baboon":
+        row = box.row(align=True)
+        row.prop(prefs, "baboon_path")
     row = box.row(align=True, heading="Tool Version")
     row.prop(prefs, "tool_type", expand=True)
     row = box.row(align=True)
@@ -469,6 +475,22 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
 
 class FoundryPreferences(AddonPreferences):
     bl_idname = __package__
+
+    tag_editor: EnumProperty(
+        name="Tag Editor",
+        description="Choose the editor used to open tags",
+        default="default",
+        items=[
+            ("default", "Editing Kit Default", "Use the tag editor included with the current game's editing kit"),
+            ("baboon", "Baboon", "Use Baboon when its executable path is valid, otherwise use the editing kit's tag editor"),
+        ],
+    )
+
+    baboon_path: StringProperty(
+        name="Baboon Path",
+        description="Path to Baboon's executable. An invalid path falls back to the editing kit's tag editor",
+        subtype='FILE_PATH',
+    )
 
     tool_type: EnumProperty(
         name="Tool Type",

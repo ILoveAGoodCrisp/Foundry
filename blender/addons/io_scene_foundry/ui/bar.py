@@ -1557,7 +1557,7 @@ def foundry_toolbar(layout, context):
         sub2.operator(
             "nwo.launch_foundation",
             text="" if icons_only else "Tag Editor",
-            icon_value=get_icon_id("foundation"),
+            icon_value=get_icon_id("foundation") if utils.get_prefs().tag_editor == 'default' else get_icon_id("bonobo"),
         )
         sub2.popover(panel="NWO_PT_HaloLauncherFoundationSettings", text="")
         if utils.has_gr2_viewer():

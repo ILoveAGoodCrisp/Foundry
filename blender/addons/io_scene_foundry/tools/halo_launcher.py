@@ -45,6 +45,15 @@ MIDNIGHT_FOUNDATION_VERSION = "1.890.0.0"
 GROUNDHOG_FOUNDATION_VERSION = "1.41.0.0"
 
 GUERILLA_GAMES = {"Halo1", "Halo2", "Halo3", "Halo3ODST"}
+BABOON_EDITING_KITS = {
+    "Halo1": "HCEEK",
+    "Halo2": "H2EK",
+    "Halo3": "H3EK",
+    "Halo3ODST": "H3ODSTEK",
+    "HaloReach": "HREK",
+    "Halo4": "H4EK",
+    "Halo2A": "H2AMPEK",
+}
 LEGACY_SAPIEN_GAMES = {"halo1", "halo2", "halo3", "halo3odst"}
 
 
@@ -93,14 +102,46 @@ def _foundation_executable(project_path):
     return "Foundation.exe"
 
 
+def _baboon_executable(context=None):
+    prefs = get_prefs()
+    if getattr(prefs, "tag_editor", "default") != "baboon":
+        return None
+    if project_game_for_mcc(context) not in BABOON_EDITING_KITS:
+        return None
+    filepath = getattr(prefs, "baboon_path", "").strip().strip('"')
+    if not filepath:
+        return None
+    try:
+        path = Path(bpy.path.abspath(filepath)).expanduser().resolve()
+        if path.suffix.lower() == ".exe" and path.is_file():
+            return str(path)
+    except (OSError, ValueError):
+        pass
+    return None
+
+
 def tag_editor_executable(context=None):
-    """Return the tag editor used by the active project's generation."""
+    """Return the preferred editor, falling back to the active editing kit."""
+    baboon = _baboon_executable(context)
+    if baboon:
+        return baboon
     if project_game_for_mcc(context) in GUERILLA_GAMES:
         return "guerilla.exe"
     return _foundation_executable(get_project_path())
 
 
 def _run_tag_editor(launch_args, context, report, load_tags=True):
+    if launch_args[0] == _baboon_executable(context):
+        editing_kit = BABOON_EDITING_KITS[project_game_for_mcc(context)]
+        # Baboon accepts a single path per invocation and no EK editor switches.
+        tag_paths = [relative_path(path) for path in launch_args[1:] if path] if load_tags else []
+        try:
+            for path in tag_paths or [get_project_path()]:
+                run_ek_cmd([launch_args[0], f"-{editing_kit}", path], True)
+        except OSError as error:
+            report({"ERROR"}, f"Could not launch Baboon: {error}")
+            return False
+        return True
     if project_game_for_mcc(context) == "Halo1":
         if load_tags:
             try:
