@@ -22,6 +22,7 @@ from ..tags import connected_geometry
 from .. import import_transform
 
 from ..tags.cinematic_root import NativeCinematicTag
+from ..tags.cinematic_import import cinematic_animation_shots
 from ..tags.animation_graph import AnimationGraphTag
 
 from ..tags.decorator_set import DecoratorSetTag
@@ -2427,7 +2428,7 @@ class NWO_Import(bpy.types.Operator):
                     for file in cinematic_files:
                         scene_datas, scenario, zone_set = importer.import_cinematic(file, film_aperture)
                         
-                        if scenario and zone_set:
+                        if scenario:
                             importer.tag_zone_set = zone_set
                             importer.tag_bsp_import_geometry = True
                             importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
@@ -2438,7 +2439,7 @@ class NWO_Import(bpy.types.Operator):
                             importer.tag_scenario_import_decals = self.tag_scenario_import_decals
                             importer.tag_scenario_import_decorators = self.tag_scenario_import_decorators
                             importer.tag_sky = self.tag_sky
-                            imported_cinematic_scenario_objects, scenario_collection = importer.import_scenarios([scenario], self.build_blender_materials, self.always_extract_bitmaps, return_collection=True, merge_sky_to_scenario_collection=True)
+                            imported_cinematic_scenario_objects, scenario_collection = importer.import_scenarios([scenario], self.build_blender_materials, self.always_extract_bitmaps, return_collection=True, merge_sky_to_scenario_collection=True, bsp_mask=importer.cinematic_bsp_mask)
                             
                             imported_cinematic_objects.extend(imported_cinematic_scenario_objects)
                             
@@ -2503,6 +2504,9 @@ class NWO_Import(bpy.types.Operator):
                                     imported_cinematic_objects.extend(imported_cinematic_object_objects)
                                     scene_imported_objects.extend(imported_cinematic_object_objects)
                                     cin_object.armature = armature
+                                    if armature is None:
+                                        utils.print_warning(f'{cin_object.name}: object has no imported armature; skipping cinematic animation')
+                                        continue
                                     armature.name = cin_object.name
 
                                     for event_index in cin_object.events:
@@ -2510,19 +2514,34 @@ class NWO_Import(bpy.types.Operator):
 
                                     model_collection.name = cin_object.name
                                     animation_start = len(scene_nwo.animations)
-                                    cin_actions = importer.import_animation_graph(cin_object.graph_path, armature, render_path)
-                                    
-                                    # Scenes reuse names, and Blender can invalidate RNA
-                                    # references as this collection grows. Keep stable indices.
-                                    cin_object.animations = {
-                                        utils.action_shot_index(scene_nwo.animations[i].name): i
-                                        for i in range(animation_start, len(scene_nwo.animations))
-                                    }
+                                    cin_actions = []
+                                    if cin_object.graph_path:
+                                        previous_filter = importer.tag_animation_filter
+                                        importer.tag_animation_filter = f'{cin_object.identifier}_'
+                                        try:
+                                            cin_actions = importer.import_animation_graph(cin_object.graph_path, armature, render_path)
+                                        finally:
+                                            importer.tag_animation_filter = previous_filter
+                                    # Shared graphs contain clips for several actors. Keep stable
+                                    # collection indices and match this actor's identifier exactly.
+                                    cin_object.animations = cinematic_animation_shots(
+                                        ((i, scene_nwo.animations[i].name)
+                                         for i in range(animation_start, len(scene_nwo.animations))),
+                                        cin_object.identifier, cin_object.cameras)
+                                    if cin_object.graph_path and not cin_object.animations:
+                                        utils.print_warning(f'{cin_object.name}: no clips match identifier {cin_object.identifier!r}')
                                     imported_cinematic_actions.extend(cin_actions)
                                     scene_imported_actions.extend(cin_actions)
+                                    attached_objects = importer.import_cinematic_attachments(
+                                        cin_object, armature, imported_cinematic_object_objects, model_collection)
+                                    attachment_actors = {ob for ob in attached_objects if ob.type == 'ARMATURE'}
+                                    imported_cinematic_objects.extend(attached_objects)
+                                    scene_imported_objects.extend(attached_objects)
                                     all_actors.add(armature)
+                                    all_actors.update(attachment_actors)
                                     for cam in cin_object.cameras.values():
                                         camera_actor_mask[cam].add(armature)
+                                        camera_actor_mask[cam].update(attachment_actors)
                                         
                                     # Lighting
                                     if not self.tag_import_lights or cin_object.cinematic_lighting is None:
@@ -4529,6 +4548,33 @@ class NWOImporter:
             utils.print_warning(f"No matching {'stow' if secondary else 'hand'} marker on {biped.name}; attached at the biped origin")
         return attach
 
+    def import_cinematic_attachments(self, cin_object, armature, actor_objects, collection):
+        if not self.tag_import_attachments:
+            return []
+        imported = []
+        markers = {m: m.nwo.marker_model_group for m in actor_objects if m.type == 'EMPTY'}
+        for attachment in cin_object.attachments:
+            if attachment.invisible:
+                continue
+            if attachment.object_type is None or not Path(attachment.object_type.Filename).is_file():
+                utils.print_warning(f'{cin_object.name}: missing attachment {attachment.name}')
+                continue
+            child = ChildObject(child_object=attachment.object_type,
+                child_variant_name='', parent_marker=attachment.parent_marker,
+                child_marker=attachment.child_marker)
+            objects = self.import_child_object(child, armature, markers, collection, False,
+                defer_parenting=False)
+            attached_set = set(objects)
+            for ob in objects:
+                if ob.parent not in attached_set:
+                    world = ob.matrix_world.copy()
+                    ob.parent = armature
+                    ob.matrix_world = world
+                if ob.type == 'ARMATURE':
+                    ob.name = attachment.name
+            imported.extend(objects)
+        return imported
+
     def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str], child_collection, is_game_object, make_armature_non_export=True, export_attach_point=False, fallback_child_marker=None, defer_parenting=True):
         imported_objects = []
         armature = None
@@ -5228,7 +5274,7 @@ class NWOImporter:
             print(f"Finished creating {len(objects)} decorators in {elapsed:.3f}s total")
         return objects
     
-    def import_scenarios(self, paths, build_blender_materials, always_extract_bitmaps, return_collection=False, merge_sky_to_scenario_collection=False):
+    def import_scenarios(self, paths, build_blender_materials, always_extract_bitmaps, return_collection=False, merge_sky_to_scenario_collection=False, bsp_mask=None):
         imported_objects = []
         scene_nwo = utils.get_scene_props()
         scene_skies = scene_nwo.scenario_skies
@@ -5245,7 +5291,7 @@ class NWOImporter:
                     scene_nwo.skies_authored_from_blender = True
                     for sky_path in scenario.get_sky_references():
                         scene_skies.add().path = sky_path
-                    bsps = scenario.get_bsp_paths(self.tag_zone_set)
+                    bsps = scenario.get_bsp_paths(self.tag_zone_set, bsp_mask=bsp_mask)
                     if scenario.game in {'halo1', 'halo2'} and self.tag_bsp:
                         bsps = [bsp for bsp in bsps if Path(bsp).stem.casefold() == self.tag_bsp.casefold()]
                         if not bsps:
@@ -5669,6 +5715,7 @@ class NWOImporter:
         with utils.TagImportMover(self.tags_dir, file) as mover:
             with NativeCinematicTag(path=mover.tag_path) as cinematic:
                 scene_datas, scenario_path, zone_set = cinematic.to_blender(film_aperture, self.tag_cinematic_import_scenario, specific_scene=self.tag_cinematic_scene)
+                self.cinematic_bsp_mask = cinematic.scenario_bsp_mask
                 
         if self.setup_as_asset:
             set_asset(Path(file).suffix)

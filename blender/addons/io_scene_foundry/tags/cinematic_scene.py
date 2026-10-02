@@ -333,6 +333,8 @@ class CamFrame:
 class CinObject():
     def __init__(self):
         self.name = ""
+        self.identifier = ""
+        self.attachments = []
         self.variant = ""
         self.graph_path = ""
         self.object_path = ""
@@ -702,11 +704,15 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
             name, variant = scene_record.name, scene_record.variant
             graph, obj = data_record.graph, data_record.object_type
             
-            if self.path_exists(obj) and self.path_exists(graph):
+            if self.path_exists(obj):
                 cin_object = CinObject()
                 cin_object.name = name
+                cin_object.identifier = data_record.identifier or name
+                cin_object.attachments = scene_record.attachments
                 cin_object.variant = variant
-                cin_object.graph_path = graph.Filename
+                cin_object.graph_path = graph.Filename if self.path_exists(graph) else ''
+                if graph is not None and not cin_object.graph_path:
+                    utils.print_warning(f'{name}: missing cinematic animation graph {graph.RelativePathWithExtension}')
                 cin_object.object_path = obj.Filename
                 cin_object.cinematic_lighting = object_lighting.get(scene_record.index)
                 cin_object.events = object_events.get(name, [])
@@ -717,6 +723,10 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                     cin_object.cameras[idx] = camera_objects[idx]
                         
                 utils.print_step(f"{name} is present in shots {shots}")
+            elif scene_record.placed_manually:
+                utils.print_warning(f'{name}: cinematic actor is placed in the scenario; enable scenario object import to include it')
+            else:
+                utils.print_warning(f'{name}: missing cinematic object tag')
         
         light_tags = [path.Filename for path in scene_metadata.lights if self.path_exists(path)]
             

@@ -423,10 +423,10 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 return int(self.value(element, name))
         return None
 
-    def get_bsp_paths(self, zone_set=''):
+    def get_bsp_paths(self, zone_set='', *, bsp_mask=None):
         _, bsps, _ = self._blocks()
-        mask = self._zone_mask(zone_set, 'bsp zone flags')
-        active = self._active_indices(mask, len(bsps)) if mask else None
+        mask = self._zone_mask(zone_set, 'bsp zone flags') if bsp_mask is None else bsp_mask
+        active = self._active_indices(mask, len(bsps)) if mask is not None else None
         paths = []
         for index, element in enumerate(bsps):
             if active is not None and index not in active:

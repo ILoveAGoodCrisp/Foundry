@@ -342,7 +342,22 @@ class CinematicCameraDocument(TagDocument):
                     mask = self.value(chunk, 'shot flag data') & 0xffffffff
                     active_shots.extend(chunk_index * 32 + bit for bit in range(32)
                                         if chunk_index * 32 + bit < shot_count and mask & (1 << bit))
+            attachments = []
+            attachment_field = element.field('attachments')
+            for attachment in attachment_field.as_block() if attachment_field is not None else ():
+                attachment_flags = attachment.field('flags')
+                attachments.append(SimpleNamespace(
+                    name=self.value(attachment, 'attachment object name'),
+                    parent_marker=self.value(attachment, 'object marker name'),
+                    child_marker=self.value(attachment, 'attachment marker name'),
+                    object_type=self.reference(attachment, 'attachment type'),
+                    invisible=attachment_flags.get_flag('invisible') if attachment_flags is not None else False))
+            object_flags = element.field('flags')
             records.append(SimpleNamespace(index=index, name=self.value(element, 'name'),
+                identifier=self.value(element, 'identifier') if element.field('identifier') is not None else '',
+                attachments=attachments,
+                placed_manually=object_flags.get_flag('Placed Manually in Sapien')
+                    if object_flags is not None and 'Placed Manually in Sapien' in object_flags.options().names else False,
                 active_shots=active_shots,
                 variant=self.value(element, 'variant name') if element.field('variant name') is not None else '',
                 graph=self.reference(element, 'model animation graph') if element.field('model animation graph') is not None else None,

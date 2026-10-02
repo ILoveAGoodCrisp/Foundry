@@ -6,6 +6,7 @@ from .cinematic import CinematicSceneDataTag
 
 from .cinematic_scene import NativeCinematicSceneTag
 from .backend import TagDocument
+from .cinematic_import import CinematicImportDocument
 from .blender import BlenderTag
 
 from .. import utils
@@ -250,18 +251,23 @@ class NativeCinematicTag(CinematicTag):
         playback = self.required_field(self.tag.root(), 'cinematic playback').as_struct()
         if playback is None:
             raise ValueError(f'{self.path}: cinematic playback is not a structure')
-        return self.value(playback, 'bsp zone flags')
+        field = playback.field('bsp zone flags')
+        return field.value if field is not None else None
 
     def to_blender(self, film_aperture, import_scenario=False, specific_scene=''):
         scenario_path, zone_set = None, ''
+        self.scenario_bsp_mask = None
         if import_scenario:
             reference, index = self.scenario_reference()
-            if self.path_exists(reference):
-                scenario_path = reference.Filename
-                with TagDocument(scenario_path, tags_root=self.tags_root, game=self.game, must_exist=True) as scenario:
-                    zones = scenario.block(scenario.tag.root(), 'zone sets')
-                    if 0 <= index < len(zones):
-                        zone_set = scenario.value(zones[index], 'name')
+            with CinematicImportDocument(self.path, tags_root=self.tags_root,
+                    game=self.game, definitions=self.definitions, must_exist=True) as document:
+                environment = document.resolve_environment(reference, index)
+            scenario_path, zone_set = environment.scenario, environment.zone_set
+            self.scenario_bsp_mask = environment.bsp_mask
+            if environment.warning:
+                utils.print_warning(environment.warning)
+            if scenario_path and not self.path_exists(reference):
+                utils.print_step(f'Resolved cinematic scenario: {scenario_path}')
         scenes = []
         for scene, data in self.scene_references():
             if not self.path_exists(scene) or (self.corinth and not self.path_exists(data)):
