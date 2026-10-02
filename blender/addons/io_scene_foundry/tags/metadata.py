@@ -172,11 +172,51 @@ class MaterialShaderDocument(TagDocument):
 class GlobalsDocument(TagDocument):
     tag_ext = 'globals'
 
+    def fp_player_representation(self, index: int):
+        """Select the weapon's human/elite slot, including ODST's model choices."""
+        if index not in (0, 1):
+            return None
+        if self.game == 'halo1':
+            block = self.block(self.tag.root(), 'first person interface')
+            return block[0] if index == 0 and len(block) else None
+        block = self.block(self.tag.root(), '@player representation')
+        if self.game in {'halo3', 'halo3odst'}:
+            choice = ('spartan', 'elite')[index]
+            for element in block:
+                value = self.value(element, 'model choice')
+                if value in (index, choice) and self.reference(element, 'first person hands'):
+                    return element
+            return None
+        return block[index] if index < len(block) else None
+
+    def get_fp_arms_references(self, index: int):
+        """Return independent hands and optional third-person colour references."""
+        element = self.fp_player_representation(index)
+        if element is None:
+            return None
+        hands_field = 'first person hands model' if self.game in {'halo4', 'halo2a'} else 'first person hands'
+        hands = self.reference(element, hands_field)
+        if hands is None:
+            return None
+        if self.game == 'halo1':
+            # H1 references can name the abstract model group while the file
+            # on disk is the compiled gbxmodel.
+            if hands.Extension == 'model' and not Path(hands.Filename).is_file():
+                compiled = self.reference_from_path(Path(hands.Filename).with_suffix('.gbxmodel'))
+                if Path(compiled.Filename).is_file():
+                    hands = compiled
+            players = self.block(self.tag.root(), 'player information')
+            unit = self.reference(players[0], 'unit') if len(players) else None
+        else:
+            unit = self.reference(element, 'third person unit')
+        return hands, unit
+
     def get_global_materials(self):
         return [self.value(e, 'name') for e in self.block(self.tag.root(), 'materials')]
 
     def get_camera_fov(self):
-        block = self.block(self.tag.root(), 'camera')
+        field = self.tag.root().field('camera')
+        block = field.as_block() if field is not None else None
         # H3 stores a FOV scale, not an angle. Let the caller use its default.
-        field = block[0].field('field of view') if len(block) else None
+        field = block[0].field('field of view') if block is not None and len(block) else None
         return field.value if field is not None else None

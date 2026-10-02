@@ -196,7 +196,18 @@ class ObjectDocument(TagDocument):
         return self.weapon_value(read, find_weapon, False)
 
     def get_function_names(self):
+        if self.game == 'halo1':
+            return [self.value(e, 'usage') or f'{chr(97 + index)} out'
+                    for index, e in enumerate(self.block(self.object_struct(), 'functions'))]
         return [self.value(e, 'export name') for e in self.block(self.object_struct(), 'functions')]
+
+    def get_halo1_function_inputs(self):
+        """Unit/device inputs override the flattened base-object slots in H1."""
+        inputs = {f'{letter} in': 'none' for letter in 'abcd'}
+        for field in self.object_struct().fields():
+            if field.name in inputs and str(field.value) != 'none':
+                inputs[field.name] = str(field.value)
+        return inputs
 
     def get_attachments(self):
         """Detached records remain usable after the tag is closed."""
@@ -226,7 +237,19 @@ class ObjectDocument(TagDocument):
                 self.value(self.nested(unit, 'more damn nodes'), 'preferred_gun_node'))
 
     def first_person(self):
+        if self.game == 'halo1':
+            return (self.tag.root(),)
         return self.block(self.nested(self.tag.root(), 'player interface'), 'first person')
+
+    def get_fp_model(self, index):
+        block = self.first_person()
+        reference = self.reference(block[index], 'first person model') if 0 <= index < len(block) else None
+        if (reference is not None and self.game == 'halo1' and reference.Extension == 'model'
+                and not Path(reference.Filename).is_file()):
+            compiled = self.reference_from_path(Path(reference.Filename).with_suffix('.gbxmodel'))
+            if Path(compiled.Filename).is_file():
+                return compiled
+        return reference
 
     def get_fp_animation(self, index):
         block = self.first_person()
@@ -237,6 +260,9 @@ class ObjectDocument(TagDocument):
         if not self.path_exists(ref):
             return
         block = self.first_person()
+        if self.game == 'halo1':
+            self.set_reference(block[0], 'first person model', ref)
+            return
         while len(block) < 2:
             block.add()
             self.tag_has_changes = True

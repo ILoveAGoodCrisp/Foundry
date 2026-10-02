@@ -2,6 +2,9 @@
 
 See [migration status](MIGRATION_STATUS.md) for the remaining work and dependency audit.
 
+See [Halo Reach animation resources](ANIMATION_RESOURCES_REACH.md) for the
+resource section layout, codec streams, retained authoring poses, and IK data.
+
 ## Migrated workflows
 
 These wrappers now use native blam-tags documents and never initialize ManagedBlam:

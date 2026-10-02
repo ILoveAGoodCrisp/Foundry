@@ -361,7 +361,7 @@ functions_list = [
     GameFunction("var_obj_local_a", 0, GameFunctionType.OBJECT),
     GameFunction("var_obj_local_b", 0, GameFunctionType.OBJECT),
     GameFunction("var_obj_local_c", 0, GameFunctionType.OBJECT),
-    GameFunction("variant", 0, GameFunctionType.OBJECT), # set based on (variant_count - 1) / variant_index 
+    GameFunction("variant", 0, GameFunctionType.OBJECT), # variant_index / (variant_count - 1)
     GameFunction("zero", 0, GameFunctionType.CONSTANT),
     # UNIT
     GameFunction("acceleration_forward", 0, GameFunctionType.OBJECT),
@@ -965,6 +965,54 @@ class Function:
                 setattr(self, attribute, flags.get_flag(name))
             except KeyError:
                 setattr(self, attribute, False)
+
+    def driver_expression(self, variable, time='frame/30'):
+        """Scalar counterpart of the shader graph for non-socket properties."""
+        from .function_driver import linear_expression, periodic_expression
+
+        value = variable(self.input) if self.uses_input else '1.0'
+        graphs = []
+        for index in range(max(self.graph_count, 1)):
+            if self.master_type == FunctionEditorMasterType.Basic:
+                graph = repr(float(self.clamp_min))
+            elif self.master_type == FunctionEditorMasterType.Curve:
+                points = []
+                for segment in self.graph_segments[index]:
+                    points.extend((point.x, point.y) for point in segment.control_points)
+                    if segment.type != FunctionEditorSegmentType.Linear:
+                        points.extend((x, y) for x, y, _ in self.sample(
+                            segment.control_points[0].x, segment.control_points[-1].x, 16, index))
+                shape = linear_expression(points, value)
+                graph = f'({self.clamp_min:.9g}+{self.clamp_max-self.clamp_min:.9g}*{shape})'
+            elif self.master_type == FunctionEditorMasterType.Periodic:
+                periodic_input = time if self.is_object_function or self.time_period else value
+                frequency = self.frequencies[index] / (self.time_period or 1.0)
+                phase = f'({periodic_input})*{frequency:.9g}+{self.phases[index]:.9g}'
+                shape = periodic_expression(self.periodic_functions[index], phase)
+                graph = f'({self.mins[index]:.9g}+{self.maxes[index]-self.mins[index]:.9g}*{shape})'
+            elif self.editor is not None:
+                points = [(i/32, self.editor.evaluate_shape(i/32, float(index))) for i in range(33)]
+                shape = linear_expression(points, value)
+                graph = f'({self.clamp_min:.9g}+{self.clamp_max-self.clamp_min:.9g}*{shape})'
+            else:
+                raise ValueError(f'Cannot drive scalar property with {self.master_type.name}')
+            graphs.append(graph)
+        result = graphs[0]
+        if self.is_ranged and self.master_type == FunctionEditorMasterType.Basic:
+            result = f'({self.clamp_min:.9g}+{self.clamp_max-self.clamp_min:.9g}*{variable(self.range)})'
+        elif self.is_ranged and len(graphs) > 1:
+            factor = variable(self.range)
+            result = f'({result}+( {graphs[1]}-{result})*{factor})'
+        if self.is_object_function:
+            if self.invert:
+                result = f'(1-{result})'
+            if self.scale_by:
+                result = f'({result}*{variable(self.scale_by)})'
+            if self.min_value:
+                result = f'max({result},{self.min_value:.9g})'
+            if self.turn_off_with:
+                result = f'({result} if {variable(self.turn_off_with)} else 0)'
+        return result
 
     def _read_halo2_legacy_mapping(self, data: bytes) -> None:
         """Decode Halo 2's 20-byte mapping header and optional compact data."""

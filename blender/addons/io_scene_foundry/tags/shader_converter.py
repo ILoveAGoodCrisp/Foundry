@@ -8,7 +8,7 @@ import subprocess
 import time
 from mathutils import Vector
 
-from .connected_material import Function, AnimatedParameterType, FunctionEditorColorGraphType, FunctionEditorMasterType, RotateNodeInputs, TilingNodeInputs
+from .connected_material import Function, AnimatedParameterType, FunctionEditorColorGraphType, FunctionEditorMasterType, RotateNodeInputs, TilingNodeInputs, game_functions
 
 from .render_method_option import OptionParameter
 
@@ -1591,6 +1591,63 @@ class ShaderTag(BlenderTag, TagDocument):
         if not uses_h2_group and (self.game != 'halo1' or H1_WRITE_RADIOSITY_TO_NODES):
             utils.update_classic_emissive_material(blender_material, self.game)
 
+    def _setup_sequence_driver(self, tree, image_node, sequence_length, function=None):
+        from .function_driver import set_scalar_driver_expression
+        if sequence_length <= 1 or image_node.image is None or image_node.image.source != 'SEQUENCE':
+            return
+        user = image_node.image_user
+        user.frame_duration = sequence_length
+        user.frame_start = 1
+        user.use_auto_refresh = True
+        user.use_cyclic = False
+        curve = user.driver_add('frame_offset')
+        driver = curve.driver
+        driver.type = 'SCRIPTED'
+        while driver.variables:
+            driver.variables.remove(driver.variables[0])
+        variables = {}
+
+        def variable(name):
+            if name in {'one', 'zero', 'none', ''}:
+                return '1.0' if name == 'one' else '0.0'
+            if name not in variables:
+                var = driver.variables.new()
+                var.name = f'v{len(variables)}'
+                var.type = 'SINGLE_PROP'
+                var.targets[0].data_path = f'["{bpy.utils.escape_identifier(name)}"]'
+                self.game_functions.add(name)
+                if name not in game_functions:
+                    self.object_functions.add(name)
+                variables[name] = var.name
+                self.sequence_drivers.setdefault((name, tree), []).append((driver, sequence_length))
+            return variables[name]
+
+        scene = bpy.context.scene
+        fps = scene.render.fps / scene.render.fps_base
+        value = variable('variant') if function is None else function.driver_expression(variable, f'frame/{fps:.9g}')
+        # ImageUser applies the scene frame before its offset. Cancel that
+        # contribution so the 0..1 factor always selects the same bitmap.
+        expression = f'floor(min(max({value},0),1)*{sequence_length-1}+0.500001)+1-frame'
+        set_scalar_driver_expression(tree, curve, expression)
+
+    def _halo2_parameter_function(self, element, kind):
+        from .metadata import enum_index
+        types = ('bitmap scale uniform', 'bitmap scale x', 'bitmap scale y', 'bitmap scale z',
+                 'bitmap translation x', 'bitmap translation y', 'bitmap translation z', 'bitmap rotation angle',
+                 'bitmap rotation axis x', 'bitmap rotation axis y', 'bitmap rotation axis z',
+                 'value', 'color', 'bitmap index')
+        for animation in self.block(element, 'animation properties'):
+            if enum_index(self.value(animation, 'type'), types) != types.index(kind):
+                continue
+            function = Function()
+            function._read_native_mapping(self, animation, 'function')
+            function.input = self.value(animation, 'input name')
+            function.uses_input = bool(function.input)
+            function.input = function.input or 'one'
+            function.range = self.value(animation, 'range name')
+            function.time_period = float(self.value(animation, 'time period'))
+            return function
+
     def _to_nodes_halo1_group(self, blender_material: bpy.types.Material, shader_type: str):
         """Populate the Halo 1 resource groups from their classic tag layouts."""
         group_tree = utils.add_node_from_resources('h1_nodes', f'foundry_h1.{shader_type}')
@@ -1651,6 +1708,7 @@ class ShaderTag(BlenderTag, TagDocument):
             image_node.location = (-400, -240 * sum(
                 n.type in {'TEX_IMAGE', 'TEX_ENVIRONMENT'} for n in nodes))
             image_node.image = result.image
+            self._setup_sequence_driver(tree, image_node, result.sequence_length)
             if non_color:
                 image_node.image.colorspace_settings.name = 'Non-Color'
             socket_name = socket_name or name.title()
@@ -1864,6 +1922,7 @@ class ShaderTag(BlenderTag, TagDocument):
             image = nodes.new('ShaderNodeTexEnvironment' if result.cubemap else 'ShaderNodeTexImage')
             image.image = result.image
             image.label = f'map{index}'
+            self._setup_sequence_driver(tree, image, result.sequence_length)
             image.location = (-400, -240 * index)
             tree.links.new(image.outputs['Color'], inputs[(*path, 'map')])
             alpha = image.outputs.get('Alpha')
@@ -1992,6 +2051,7 @@ class ShaderTag(BlenderTag, TagDocument):
             image_node.name = name
             image_node.label = name
             image_node.image = result.image
+            self._setup_sequence_driver(tree, image_node, result.sequence_length)
             if non_color and image_node.image is not None:
                 image_node.image.colorspace_settings.name = 'Non-Color'
             return image_node
@@ -2469,6 +2529,8 @@ class ShaderTag(BlenderTag, TagDocument):
                 image.name = name
                 image.label = name
                 image.image = result.image
+                self._setup_sequence_driver(tree, image, result.sequence_length,
+                                            self._halo2_parameter_function(element, 'bitmap index'))
                 image.location = (-400, -row * 280)
                 row += 1
                 if name in {'bump_map', 'active_camo_bump_map'}:
@@ -2499,7 +2561,8 @@ class ShaderTag(BlenderTag, TagDocument):
                 value = self.value(element, 'const color')
                 socket.default_value = (value.red, value.green, value.blue, 1.0)
             elif element is not None and socket.type == 'VALUE':
-                socket.default_value = real(name)
+                function = self._halo2_parameter_function(element, 'value')
+                self._setup_input_with_function(socket, function if function is not None else real(name))
 
         self._setup_h2_cubemap_reflector(tree, group)
 
@@ -2939,29 +3002,11 @@ class ShaderTag(BlenderTag, TagDocument):
         
         if sequence_length > 1:
             value = self._value_from_parameter(parameter, AnimatedParameterType.FRAME_INDEX)
-            data_node.image_user.frame_duration = sequence_length
-            data_node.image_user.frame_start = -sequence_length
-            data_node.image_user.use_auto_refresh = True
-            if isinstance(value, Function):
-                text = value.input
-                if text in ("one", "zero"):
-                    text = "sequence_image"
-                self.game_functions.add(text)
-                result = tree.driver_add(f'nodes["{data_node.name}"].image_user.frame_offset')
-                driver = result.driver
-                driver.type = 'SCRIPTED'
-                var = driver.variables.new()
-                var.name = "var"
-                var.type = 'SINGLE_PROP'
-                var.targets[0].id = None
-                var.targets[0].data_path = f'["{text}"]'
-                driver.expression = f"{var.name} * {sequence_length} - {sequence_length - 0.9999}"
-                self.sequence_drivers[(text, tree)] = (driver, sequence_length)
-            else:
-                result = tree.driver_add(f'nodes["{data_node.name}"].image_user.frame_offset')
-                driver = result.driver
-                driver.type = 'SCRIPTED'
-                driver.expression = f"-{sequence_length - 1}"
+            if not isinstance(value, Function):
+                constant = Function()
+                constant.clamp_min = float(value) if isinstance(value, (float, int)) else 0.0
+                value = constant
+            self._setup_sequence_driver(tree, data_node, sequence_length, value)
         
         input_map = {i.name.lower(): i for i in node.inputs}
         

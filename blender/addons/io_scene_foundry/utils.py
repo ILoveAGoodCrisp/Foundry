@@ -7069,11 +7069,13 @@ def copy_material_nodes(existing_mat: bpy.types.Material, mat: bpy.types.Materia
     new_tree = mat.node_tree
 
     new_tree.nodes.clear()
+    new_tree.animation_data_clear()
 
     node_map = {}
 
     for node in existing_tree.nodes:
         new = new_tree.nodes.new(node.bl_idname)
+        new.name = node.name
 
         # Copy simple properties
         new.location = node.location
@@ -7097,6 +7099,11 @@ def copy_material_nodes(existing_mat: bpy.types.Material, mat: bpy.types.Materia
                     pass
 
         node_map[node] = new
+
+        if hasattr(node, 'image_user'):
+            for property_name in ('frame_duration', 'frame_start', 'frame_offset',
+                                  'use_cyclic', 'use_auto_refresh'):
+                setattr(new.image_user, property_name, getattr(node.image_user, property_name))
 
         # Group menus and unlinked parameter values are socket state, not node
         # RNA properties. Imported materials sharing a shader need these too.
@@ -7134,6 +7141,26 @@ def copy_material_nodes(existing_mat: bpy.types.Material, mat: bpy.types.Materia
             new_tree.links.new(from_node.outputs[out_i], to_node.inputs[in_i])
         except Exception:
             pass
+
+    if existing_tree.animation_data is not None:
+        for name in existing_tree.keys():
+            if name.startswith('_foundry_driver_'):
+                new_tree[name] = existing_tree[name]
+        for source in existing_tree.animation_data.drivers:
+            if not (source.data_path.endswith('.image_user.frame_offset')
+                    or source.data_path.startswith('["_foundry_driver_')):
+                continue
+            target = new_tree.driver_add(source.data_path)
+            target.driver.type = source.driver.type
+            target.driver.expression = source.driver.expression
+            for source_variable in source.driver.variables:
+                variable = target.driver.variables.new()
+                variable.name = source_variable.name
+                variable.type = source_variable.type
+                for source_target, variable_target in zip(source_variable.targets, variable.targets):
+                    variable_target.id_type = source_target.id_type
+                    variable_target.id = new_tree if source_target.id == existing_tree else source_target.id
+                    variable_target.data_path = source_target.data_path
         
 def mesh_to_cube(mesh: bpy.types.Mesh):
     verts = [

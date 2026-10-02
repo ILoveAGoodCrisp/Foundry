@@ -49,6 +49,13 @@ class ModelDocument(TagDocument):
         )
         return list(dict.fromkeys(name for name in names if name))
 
+    def get_variant_value(self, selection: str) -> float:
+        """Map the selected variant (or H1 permutation) to a 0..1 factor."""
+        names = self.get_model_permutations() if self.game == 'halo1' else self.get_model_variants()
+        if not selection or selection not in names or len(names) < 2:
+            return 0.0
+        return names.index(selection) / (len(names) - 1)
+
     def get_halo1_region_permutations(self, selected_permutation: str) -> set[tuple[str, str]]:
         """Resolve one H1 permutation for every region in the model.
 

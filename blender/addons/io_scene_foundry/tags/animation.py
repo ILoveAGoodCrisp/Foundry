@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
 from enum import Enum, IntEnum
 from math import degrees
 from pathlib import Path
@@ -65,6 +65,7 @@ POSE_OVERLAY_DEBUG_FORCE_AIM_TURN_WRAP = False
 DEBUG_PRINT_BASE_ANIMATION_CANDIDATES = False
 DEBUG_BASE_ANIMATION_CANDIDATE_LIMIT = 8
 DEBUG_PRINT_APPLIED_BASE_ANIMATION = False
+DEBUG_PRINT_ORIGINAL_REFERENCE_POSE_SOURCE = False
 FORCE_OVERLAY_STATIC_CHANNELS_TO_BASE_FRAME = True
 APPLY_POSITION_OFFSET_TO_OVERLAYS_AND_REPLACEMENTS = True
 APPLY_OBJECT_SPACE_PARENT_CORRECTION_TO_FULL_ANIMATION = False
@@ -413,13 +414,12 @@ class AnimationTag(AnimationGraphTag):
             armature_nwo = getattr(armature_object, "nwo", None)
             add_candidate(getattr(armature_nwo, "node_order_source", "") if armature_nwo is not None else "")
 
+        add_candidate(render_model)
         add_armature_node_order_source(bpy.data.objects.get("Armature"))
         if armature is not bpy.data.objects.get("Armature"):
             add_armature_node_order_source(armature)
 
         add_candidate(utils.get_asset_render_model(full=True))
-        add_candidate(render_model)
-
         for candidate in candidates:
             path = Path(candidate)
             if not path.is_absolute():
@@ -433,6 +433,7 @@ class AnimationTag(AnimationGraphTag):
         self,
         metadata: AnimationGraphImportMetadata,
         model: RenderModelTag | None = None,
+        additional_models=(),
     ):
         graph_node_names = [node.name for node in metadata.nodes]
         identity_translation = Vector((0.0, 0.0, 0.0))
@@ -508,8 +509,8 @@ class AnimationTag(AnimationGraphTag):
                     graph_nodes[name] = local_node
                     stripped_graph_nodes.setdefault(utils.remove_node_prefix(name), local_node)
                 
-        if model is not None:
-            for record in model.nodes():
+        for default_model in ([model] if model is not None else []) + list(additional_models):
+            for record in default_model.nodes():
                 name = record.name
                 translation = Vector(record.translation) * 100
                 quaternion = Quaternion((record.rotation[3], *record.rotation[:3]))
@@ -536,7 +537,8 @@ class AnimationTag(AnimationGraphTag):
             if node_data is None:
                 node_data = stripped_graph_nodes.get(utils.remove_node_prefix(name))
             if node_data is None:
-                missing_nodes.append(name)
+                if utils.remove_node_prefix(name) != 'camera_control':
+                    missing_nodes.append(name)
                 translation = identity_translation.copy()
                 quaternion = identity_rotation.copy()
                 scale = 1.0
@@ -2950,6 +2952,57 @@ class AnimationTag(AnimationGraphTag):
             f"reference targets={len(reference_object_space_parent_targets)}"
         )
 
+    def _debug_print_original_reference_pose_source(self, tag_animation, selected_base_animation, base_animation):
+        if not DEBUG_PRINT_ORIGINAL_REFERENCE_POSE_SOURCE:
+            return
+        if tag_animation.animation_type not in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
+            return
+
+        utils.print_step(
+            f"Original reference pose source for {tag_animation.animation_type.name.lower()} "
+            f"[{tag_animation.name.tag_name}]")
+        utils.print_info(
+            f"graph: {self.path}; animation={tag_animation.index}; "
+            f"resource={tag_animation.resource_group}/{tag_animation.resource_group_member}")
+        reconstruction = getattr(self, '_imported_authoring_metadata', {}).get(
+            tag_animation.index, {}).get('reconstruction', {})
+        sources = reconstruction.get('reference_component_sources')
+        labels = {
+            'retained_reference': 'retained original object-space reference',
+            'parent_reference': 'object-space parent reference',
+            'derived_original_reference': 'original reference derived from child anchors',
+            'static_or_model_default': 'static animation channels or model defaults',
+            'fallback_animation': 'fallback animation first frame',
+            'provisional_model_default': 'provisional model defaults',
+            'offset_fit': 'reference fitted to object-space offsets',
+            'unresolved': 'unresolved original reference',
+        }
+        if sources is not None:
+            counts = {}
+            for node_sources in sources:
+                for component, source in enumerate(node_sources):
+                    counts.setdefault(source, [0, 0, 0])[component] += 1
+            for source, (rotations, translations, scales) in sorted(counts.items()):
+                utils.print_info(
+                    f"{labels.get(source, source)}: "
+                    f"rotation={rotations}, translation={translations}, scale={scales} node components")
+            utils.print_info(
+                f"original reference fully identified before fitting: "
+                f"{reconstruction.get('original_reference_complete', False)}; "
+                f"unidentified components before fallback: "
+                f"{reconstruction.get('unresolved_reference_components', 0)}")
+        else:
+            utils.print_info(
+                "reference supplied by native leading-frame composition "
+                "(component provenance unavailable)")
+        if selected_base_animation is not None and getattr(base_animation, 'frame_count', 0):
+            utils.print_info(
+                f"fallback/default basis: first frame of [{selected_base_animation.name.tag_name}], "
+                f"animation={selected_base_animation.index}, "
+                f"resource={selected_base_animation.resource_group}/{selected_base_animation.resource_group_member}")
+        else:
+            utils.print_info("fallback/default basis: model default pose")
+
     def _normalized_int16_quaternion_component(self, value) -> float:
         return max(-1.0, min(1.0, float(int(value)) / INT16_NORMALIZED_MAX))
 
@@ -3890,6 +3943,8 @@ class AnimationTag(AnimationGraphTag):
                 )
         elif tag_animation.animation_type in (AnimationType.OVERLAY, AnimationType.REPLACEMENT):
             self._prepend_native_leading_frame(animation_data, native_pose)
+            self._debug_print_original_reference_pose_source(
+                tag_animation, selected_base_animation, base_animation)
             base_frame = animation_data.first_frame()
             self._debug_print_applied_base_animation(
                 tag_animation,
@@ -4003,6 +4058,7 @@ class AnimationTag(AnimationGraphTag):
         blend_screen_choices=None,
         convert_animation_names=False,
         target_game: str = '',
+        additional_render_models=(),
     ):
         if metadata is None:
             raise ValueError('Native animation graph metadata is required')
@@ -4039,9 +4095,12 @@ class AnimationTag(AnimationGraphTag):
         elif render_model:
             utils.print_warning(f"Render model [{render_model}] was not found. Falling back to animation graph additional node data for native defaults.")
 
-        with model_context as model:
+        with ExitStack() as stack:
+            model = stack.enter_context(model_context)
+            additional_models = [stack.enter_context(RenderModelTag(path=path))
+                                 for path in additional_render_models]
             defaults, native_nodes, overlay_defaults = self._build_default_animation_nodes(
-                metadata, model)
+                metadata, model, additional_models)
             shared_static_codec = None
             native_resource_cache = {}
             native_animation_cache = {}

@@ -122,7 +122,11 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     export_name: bpy.props.StringProperty(options={'HIDDEN'})
     
     def node_order_source_clean_tag_path(self, context):
-        self["node_order_source"] = utils.clean_tag_path(self["node_order_source"], ".render_model").strip('"')
+        project = utils.get_project()
+        extension = '.render_model'
+        if project is not None and project.game == 'halo1':
+            extension = '.model' if self["node_order_source"].lower().endswith('.model') else '.gbxmodel'
+        self["node_order_source"] = utils.clean_tag_path(self["node_order_source"], extension).strip('"')
     
     node_order_source: bpy.props.StringProperty(
         name="Original Render Model",

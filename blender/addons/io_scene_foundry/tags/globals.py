@@ -26,15 +26,15 @@ class GlobalsTag(BlenderTag, GlobalsDocument):
     def get_fp_arms_path(self, character_type: FPARMS):
         if character_type not in (FPARMS.SPARTAN, FPARMS.ELITE):
             return
-        block = self.block(self.tag.root(), '@player representation')
         index = character_type.value - 1
-        if index >= len(block):
+        references = self.get_fp_arms_references(index)
+        if references is None:
             return
-        element = block[index]
+        fp_path, tp_path = references
         allowed_fp_region_perms = "default"
-        fp_path = None
         if self.corinth:
-            model_path = self.reference(element, 'first person hands model')
+            element = self.fp_player_representation(index)
+            model_path = fp_path
             variant = self.value(element, 'first person multiplayer hands variant')
             if model_path is None or not Path(model_path.Filename).is_file():
                 return
@@ -42,8 +42,5 @@ class GlobalsTag(BlenderTag, GlobalsDocument):
                 fp_path = model.reference_render_model.Path
                 if fp_path is not None and variant:
                     allowed_fp_region_perms = model.get_variant_regions_and_permutations(variant, -1)
-        else:
-            fp_path = self.reference(element, 'first person hands')
-        tp_path = self.reference(element, 'third person unit')
-        if fp_path is not None and tp_path is not None:
-            return fp_path.Filename, tp_path.Filename, allowed_fp_region_perms
+        if fp_path is not None:
+            return fp_path.Filename, tp_path.Filename if tp_path else None, allowed_fp_region_perms

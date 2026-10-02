@@ -98,6 +98,7 @@ def needs_fp_hand_ik_shape_fix(tag_path: str) -> bool:
 # Bone that should be connected
 bone_links = (
     ("upperarm", "forearm", "hand"),
+    ("upperarm", "forearm", "wriste"),
     ("thigh", "calf", "foot"),
     ("thigh", "shin", "toe_hinge", "toe"),
     ("upper_leg", "lower_leg", "tarsus"),
@@ -167,7 +168,8 @@ finger_ik_chain_bone_suffixes = (
     "finger_tip",
 )
 finger_ik_endpoint_bone_suffixes = ("index3", "thumb3", "pinky3", "ring3", "middle3", "finger3", "index_tip", "thumb_tip", "pinky_tip", "ring_tip", "middle_tip", "finger_tip")
-ik_endpoint_bone_suffixes = ("foot", "tarsus", "hand", "toe_atr_u", *finger_ik_endpoint_bone_suffixes)
+hand_ik_source_bone_suffixes = ("hand", "wriste")
+ik_endpoint_bone_suffixes = ("foot", "tarsus", *hand_ik_source_bone_suffixes, "toe_atr_u", *finger_ik_endpoint_bone_suffixes)
 generate_new_finger_ik_controls = False
 generate_new_foot_roll_controls = False
 
@@ -2250,7 +2252,7 @@ def apply_fk_control_shapes(rig_pose: bpy.types.Pose, fk_bone_names: list[str], 
         pbone.custom_shape = shape
         pbone.custom_shape_wire_width = 2.0
         source_name = name[3:] if name.startswith("FK_") else name
-        shape_scale = 2.2 if bone_name_matches_suffix(source_name, "hand") else 1.0
+        shape_scale = 2.2 if is_hand_ik_source_name(source_name) else 1.0
         pbone.custom_shape_scale_xyz = Vector.Fill(3, shape_scale)
         pbone.custom_shape_translation = Vector((0.0, pbone.length * 0.5, 0.0))
         pbone.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
@@ -2363,7 +2365,7 @@ def is_hand_ik_source_name(name: str) -> bool:
     if name.startswith(("FK_", "IK_", "PT_")):
         name = name[3:]
 
-    return bone_name_matches_suffix(name, "hand")
+    return any(bone_name_matches_suffix(name, suffix) for suffix in hand_ik_source_bone_suffixes)
 
 def is_foot_roll_source_name(name: str) -> bool:
     if name.startswith(("FK_", "IK_", "PT_")):

@@ -1,6 +1,4 @@
 """Blender-facing object metadata wrapper."""
-from collections import defaultdict
-
 from .blender import BlenderTag
 from .object import ObjectDocument
 
@@ -11,21 +9,24 @@ class ObjectTag(BlenderTag, ObjectDocument):
 
     def functions_to_blender(self):
         from .connected_material import Function, game_functions
+        from .function_driver import Halo1Function, ObjectFunctions
         if self.game == 'halo1':
-            # Halo 1 stores four positional object functions rather than the
-            # named mapping functions introduced in Halo 2. Its current shader
-            # converter does not consume these mappings, but retain their
-            # authored input dependencies for Blender object properties.
             object_struct = self.object_struct()
-            result = {}
+            inputs = self.get_halo1_function_inputs()
+            inputs = {name: source.replace(' ', '_') if source.replace(' ', '_') in game_functions
+                      else source for name, source in inputs.items()}
+            result = ObjectFunctions()
             for index, element in enumerate(self.block(object_struct, 'functions')):
+                if index >= 4:
+                    break
+                name = f'{chr(97 + index)} out'
+                function = Halo1Function.read(self, element, inputs)
+                result.decoded[name] = function
+                result[name] = []
                 usage = str(self.value(element, 'usage')).strip()
-                if not usage:
-                    continue
-                input_field = object_struct.field(f'{chr(97 + index)} in') if index < 4 else None
-                input_name = '' if input_field is None else str(input_field.value).strip()
-                result[usage] = ([] if not input_name or input_name == 'none'
-                                 else [input_name])
+                if usage and usage != name:
+                    result.decoded[usage] = function
+                    result[usage] = []
             return result
         candidates = [e for e in self.block(self.object_struct(), 'functions')
                       if self.value(e, 'export name').strip()
@@ -44,16 +45,18 @@ class ObjectTag(BlenderTag, ObjectDocument):
                 f'Cannot decode native object functions in {self.system_path}: {exc}') from exc
         for name, function in decoded.items():
             function.make_node_group(name)
-        dependencies = defaultdict(list)
+        dependencies = ObjectFunctions(decoded=decoded)
         for name, function in decoded.items():
             function.to_blend_nodes(name=name)
+            dependencies[name] = []
             if function.input.strip():
                 dependencies[name].append(function.input)
             for dependency in (function.range, function.scale_by,
                                function.turn_off_with):
                 if dependency.strip():
                     dependencies[name].append(
-                        decoded[dependency].input if dependency in decoded else dependency)
+                        dependency if self.game == 'halo2' or dependency not in decoded
+                        else decoded[dependency].input)
         return dependencies
 
     def attachments_to_blender(self, armature, markers, parent_collection):

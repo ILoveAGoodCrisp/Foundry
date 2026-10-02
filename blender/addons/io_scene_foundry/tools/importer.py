@@ -817,6 +817,31 @@ def ensure_import_operator_enum_defaults(keywords):
         if keywords.get(prop_name) == "":
             keywords[prop_name] = default
 
+
+FP_ARMS_ITEMS = (
+    ('NONE', "None", "Don't import first person arms", 0),
+    ('SPARTAN', "Spartan", "Import Spartan first person arms", 1),
+    ('ELITE', "Elite", "Import Elite first person arms", 2),
+)
+H1_FP_ARMS_ITEMS = (
+    FP_ARMS_ITEMS[0], ('SPARTAN', "Cyborg", "Import Cyborg first person hands", 1),
+)
+ODST_FP_ARMS_ITEMS = (
+    FP_ARMS_ITEMS[0],
+    ('SPARTAN', "ODST", "Import ODST first person arms", 1),
+    ('ELITE', "Dare", "Import ONI operative first person arms", 2),
+)
+
+
+def fp_arms_items(operator, context):
+    project = render_lod_source_project(operator)
+    game = project.game if project is not None else None
+    if game == 'halo1':
+        return H1_FP_ARMS_ITEMS
+    if game == 'halo3odst':
+        return ODST_FP_ARMS_ITEMS
+    return FP_ARMS_ITEMS
+
 ### Steps for adding a new file type ###
 ########################################
 # 1. Add the name of the file extension to formats
@@ -994,7 +1019,7 @@ def add_function(scene: bpy.types.Scene, name: str, rename: str, ob: bpy.types.O
     if func is None:
         if has_armature:
             id = armature
-            needs_id_prop = armature.get(name) is None
+            needs_id_prop = armature.get(rename) is None
         if needs_id_prop:
             id[rename if id == armature else name] = 0.0
             id.id_properties_ui(rename if id == armature else name).update(min=0, max=1, subtype='FACTOR')
@@ -1010,7 +1035,7 @@ def add_function(scene: bpy.types.Scene, name: str, rename: str, ob: bpy.types.O
             needs_id_prop = scene.get(name) is None
         elif has_armature:
             id = armature
-            needs_id_prop = armature.get(name) is None
+            needs_id_prop = armature.get(rename) is None
         
         if value_is_bool:
             if needs_id_prop:
@@ -1039,6 +1064,105 @@ def add_function(scene: bpy.types.Scene, name: str, rename: str, ob: bpy.types.O
         driver.expression = var.name
         
     return value_is_bool
+
+
+def set_variant_property(armature, model, selection):
+    if armature is None:
+        return
+    armature['variant'] = model.get_variant_value(selection)
+    armature.id_properties_ui('variant').update(min=0, max=1, subtype='FACTOR')
+
+
+def add_object_functions(scene, ob, armature, functions):
+    """Evaluate imported mappings on the armature, then expose them on meshes."""
+    from ..tags.function_driver import set_scalar_driver_expression
+    decoded = getattr(functions, 'decoded', {})
+    owner = armature if armature is not None else ob
+    for name, function in decoded.items():
+        if name not in owner:
+            owner[name] = 0.0
+            owner.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
+        curve = owner.driver_add(f'["{bpy.utils.escape_identifier(name)}"]')
+        driver = curve.driver
+        driver.type = 'SCRIPTED'
+        while driver.variables:
+            driver.variables.remove(driver.variables[0])
+        variables = {}
+
+        def variable(source):
+            if source in {'one', 'zero', 'none', ''}:
+                return '1.0' if source == 'one' else '0.0'
+            if source not in variables:
+                if source not in decoded:
+                    add_function(scene, source, source, ob, armature)
+                var = driver.variables.new()
+                var.name = f'v{len(variables)}'
+                var.type = 'SINGLE_PROP'
+                func = game_functions.get(source)
+                from_scene = func is not None and func.attribute_type == 'VIEW_LAYER'
+                var.targets[0].id_type = 'SCENE' if from_scene else 'OBJECT'
+                var.targets[0].id = scene if from_scene else owner
+                var.targets[0].data_path = f'["{bpy.utils.escape_identifier(source)}"]'
+                variables[source] = var.name
+            return variables[source]
+
+        fps = scene.render.fps / scene.render.fps_base
+        expression = function.driver_expression(variable, f'frame/{fps:.9g}')
+        set_scalar_driver_expression(owner, curve, expression)
+        if ob != owner:
+            add_function(scene, name, name, ob, armature)
+    owner.update_tag(refresh={'DATA'})
+
+
+def bind_sequence_drivers(scene, ob, slot_index):
+    """Bind every sequence texture, including copied and reused materials."""
+    import ast
+    material = ob.material_slots[slot_index].material
+    tree = material.node_tree
+    if tree is None or tree.animation_data is None:
+        return material
+    curves = [curve for curve in tree.animation_data.drivers
+              if curve.data_path.endswith('.image_user.frame_offset')
+              or curve.data_path.startswith('["_foundry_driver_')]
+    owner = ob.parent if ob.parent is not None else ob
+    if any(var.targets[0].id_type != 'NODETREE' and var.targets[0].id is not None
+           and var.targets[0].id not in {owner, ob, scene}
+           for curve in curves for var in curve.driver.variables):
+        material = material.copy()
+        if ob.data.users > 1:
+            ob.data = ob.data.copy()
+        ob.material_slots[slot_index].material = material
+        curves = [curve for curve in material.node_tree.animation_data.drivers
+                  if curve.data_path.endswith('.image_user.frame_offset')
+                  or curve.data_path.startswith('["_foundry_driver_')]
+    for curve in curves:
+        for var in curve.driver.variables:
+            if var.targets[0].id_type == 'NODETREE':
+                var.targets[0].id = material.node_tree
+                continue
+            name = ast.literal_eval(var.targets[0].data_path[1:-1])
+            add_function(scene, name, name, ob, ob.parent)
+            func = game_functions.get(name)
+            from_scene = func is not None and func.attribute_type == 'VIEW_LAYER'
+            var.targets[0].id_type = 'SCENE' if from_scene else 'OBJECT'
+            var.targets[0].id = scene if from_scene else owner
+            ammo = name.startswith(ammo_names)
+            tether = name.startswith(tether_name)
+            if ammo or tether:
+                var.targets[0].id = ob
+                digit_driver = ob.driver_add(f'["{name}"]').driver
+                digit_driver.type = 'SCRIPTED'
+                while digit_driver.variables:
+                    digit_driver.variables.remove(digit_driver.variables[0])
+                digit = digit_driver.variables.new()
+                digit.name = 'var'
+                digit.type = 'SINGLE_PROP'
+                digit.targets[0].id = owner
+                digit.targets[0].data_path = '["Tether Distance"]' if tether else '["Ammo"]'
+                place = {'ones': 1, 'tens': 10, 'hundreds': 100}.get(name.rpartition('_')[2], 1)
+                length = material.node_tree.path_resolve(curve.data_path.removesuffix('.frame_offset')).frame_duration
+                digit_driver.expression = f'(floor(var/{place})%10)/{max(length-1, 1)}'
+    return material
         
 
 class State(Enum):
@@ -1516,11 +1640,8 @@ class NWO_Import(bpy.types.Operator):
     import_fp_arms: bpy.props.EnumProperty(
         name="FP Arms",
         description="Imports the First person arms along with the weapon and joins the skeletons",
-        items=[
-            ('NONE', "None", "Don't import first person arms"),
-            ('SPARTAN', "Spartan", "Imports the Spartan first person arms"),
-            ('ELITE', "Elite", "Imports the ELITE first person arms")
-        ]
+        items=fp_arms_items,
+        default=0,
     )
     
     legacy_type: bpy.props.EnumProperty(
@@ -3586,6 +3707,7 @@ class NWOImporter:
                     self.scene_collection.children.link(model_collection)
                     if render:
                         render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations)
+                        set_variant_property(armature, model, selection)
                         imported_objects.extend(render_objects)
                     if collision and self.tag_collision:
                         imported_objects.extend(self.import_collision_model(collision, armature, model_collection, allowed_region_permutations))
@@ -3663,10 +3785,111 @@ class NWOImporter:
         rig.build_fk_ik_rig(reverse_controls=False, reach_fp_ik_fix=reach_fp_fix)
         rig.generate_bone_collections()
     
+    def _merge_fp_armatures(self, armature, fp_armature, fp_objects, graph_nodes):
+        # Shared roots (for example pedestal) must remain a single bone so the
+        # animation graph and mesh vertex groups agree after Blender's join.
+        utils.deselect_all_objects()
+        armature.select_set(True)
+        utils.set_active_object(armature)
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        shared_names = {utils.remove_node_prefix(bone.name) for bone in fp_armature.data.bones}
+        for bone in list(armature.data.edit_bones):
+            if utils.remove_node_prefix(bone.name) in shared_names:
+                armature.data.edit_bones.remove(bone)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        fp_armature.select_set(True)
+        bpy.ops.object.join()
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bones = {utils.remove_node_prefix(bone.name): bone for bone in armature.data.edit_bones}
+        # Tool adds camera_control to FP graphs without adding it to either
+        # render model. Its default local transform is identity.
+        for node in graph_nodes:
+            name = utils.remove_node_prefix(node.name)
+            if name == 'camera_control' and name not in bones:
+                bone = armature.data.edit_bones.new(node.name)
+                bone.tail = (0, import_transform.scale_factor(self.scene_nwo), 0)
+                if 0 <= node.parent_index < len(graph_nodes):
+                    parent = bones.get(utils.remove_node_prefix(graph_nodes[node.parent_index].name))
+                    if parent is not None:
+                        bone.matrix = parent.matrix.copy()
+                bones[name] = bone
+        for index, node in enumerate(graph_nodes):
+            bone = bones.get(utils.remove_node_prefix(node.name))
+            if bone is None:
+                continue
+            if 0 <= node.parent_index < len(graph_nodes) and node.parent_index != index:
+                parent = bones.get(utils.remove_node_prefix(graph_nodes[node.parent_index].name))
+                if parent is not None and parent != bone:
+                    bone.parent = parent
+            else:
+                bone.parent = None
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        for ob in fp_objects:
+            world = ob.matrix_world.copy()
+            ob.parent = armature
+            ob.matrix_world = world
+            if ob.type == 'MESH':
+                for modifier in ob.modifiers:
+                    if modifier.type == 'ARMATURE':
+                        modifier.object = armature
+
+    def _import_fp_arms(self, armature, animation, scene_collection, source_tag_root):
+        globals_path = Path(source_tag_root) / "globals" / "globals.globals"
+        if not globals_path.is_file():
+            utils.print_warning(f"Couldn't find globals tag [{globals_path}], cannot import FP arms")
+            return [], None, None
+        with utils.TagImportMover(self.tags_dir, globals_path) as mover:
+            with GlobalsTag(path=mover.tag_path) as globals:
+                fp_camera_fov = globals.get_camera_fov()
+                result = globals.get_fp_arms_path(self.import_fp_arms)
+        if result is None:
+            utils.print_warning("Failed to get FP arms reference for the selected character")
+            return [], None, None
+        fp_arms_path, tp_unit_path, allowed_fp_region_permutations = result
+        if not Path(fp_arms_path).is_file():
+            utils.print_warning(f"FP arms tag does not exist: {fp_arms_path}")
+            return [], None, None
+        fp_collection = bpy.data.collections.new(f"FP Arms - {self.import_fp_arms.name.title()}")
+        scene_collection.children.link(fp_collection)
+        # Compiled arms preserve the globals representation's permutations.
+        # Embedded JMS sources can use different region/permutation names.
+        with utils.TagImportMover(self.tags_dir, fp_arms_path) as mover:
+            with RenderModelTag(path=mover.tag_path) as render_model:
+                fp_objects, fp_armature = render_model.to_blend_objects(
+                    fp_collection, True, self.tag_markers, scene_collection, None,
+                    allowed_fp_region_permutations, no_io=True,
+                    build_control_rig=False, selected_lod=self.render_lod)
+        if fp_armature is None:
+            utils.print_warning("FP arms tag has no skeleton")
+            return fp_objects, None, None
+        fp_objects.remove(fp_armature)
+        fp_arm_name = fp_armature.name
+        fp_arm_props = {name: getattr(fp_armature.nwo, name) for name in (
+            "control_aim", "invert_control_aim", "invert_control_rig", "node_order_source")}
+        graph_nodes = []
+        if animation:
+            with utils.TagImportMover(self.tags_dir, animation) as mover:
+                with AnimationGraphTag(path=mover.tag_path) as graph:
+                    graph_nodes = graph.nodes()
+        self._merge_fp_armatures(armature, fp_armature, fp_objects, graph_nodes)
+        armature.name = fp_arm_name
+        utils.unlink(armature)
+        fp_collection.objects.link(armature)
+        for name, value in fp_arm_props.items():
+            setattr(armature.nwo, name, value)
+        change_colors = None
+        if tp_unit_path and Path(tp_unit_path).is_file():
+            with ObjectTag(path=tp_unit_path) as unit:
+                change_colors = unit.get_change_colors()
+        self.build_imported_control_rig(armature)
+        self._create_fp_game_camera(fp_collection, armature, utils.get_pose_bone(armature, "camera_control"), fp_camera_fov)
+        return fp_objects, fp_arms_path, change_colors
+
     def import_object(self, paths, existing_armature, pose=None, make_non_export=False, for_instance_conversion=False, return_cin_stuff=False, blender_scene=None, parent_collection=None) -> tuple[list[bpy.types.Object], list] | bpy.types.Collection:
         imported_objects = []
         imported_animations = []
-        use_fp_graph = False
         armature = None
         model_collection = None
         if parent_collection is not None:
@@ -3693,6 +3916,7 @@ class NWOImporter:
             
         for file in paths:
             imported_file_objects = []
+            fp_default_models = ()
             if is_game_object:
                 game_object = file
                 file = str(Path(utils.get_tags_path(), game_object.nwo.marker_game_instance_tag_name))
@@ -3793,11 +4017,27 @@ class NWOImporter:
                             if make_non_export:
                                 model_collection.nwo.type = 'exclude'
                                 
-                            uses_fp_arms = not (is_game_object or for_instance_conversion) and self.import_fp_arms.value and not self.fp_arms_imported and obj.tag_path.Extension == "weapon"
+                            uses_fp_arms = not (is_game_object or for_instance_conversion) and self.import_fp_arms.value and obj.tag_path.Extension == "weapon"
+                            if uses_fp_arms:
+                                fp_index = self.import_fp_arms.value - 1
+                                fp_model = obj.get_fp_model(fp_index)
+                                fp_graph = obj.get_fp_animation(fp_index)
+                                if fp_model is not None and Path(fp_model.Filename).is_file():
+                                    render = fp_model.Filename
+                                    animation = fp_graph.Filename if fp_graph is not None and Path(fp_graph.Filename).is_file() else ''
+                                    allowed_region_permutations = set()
+                                    # Third-person collision and physics use another skeleton.
+                                    collision = physics = ''
+                                    if not animation:
+                                        utils.print_warning("Weapon has no first-person animation graph for the selected character")
+                                else:
+                                    utils.print_warning("Weapon has no first-person model for the selected character")
+                                    uses_fp_arms = False
                                 
                             # possible compass driver = abs(var/pi / (2*pi))
                             if render:
                                 render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations, allow_control_rig=(not uses_fp_arms))
+                                set_variant_property(armature, model, selection)
                                 
                                 if pose:
                                     print(f"--- Posing {obj.tag_path.ShortName}")
@@ -3811,92 +4051,18 @@ class NWOImporter:
                                     self.attachments.extend(attachments)
                                     imported_file_objects.extend([ao for a in attachments for ao in a.objects])
                                 
-                                # FP Stuff
-                                if not (is_game_object or for_instance_conversion) and self.import_fp_arms.value and not self.fp_arms_imported and obj.tag_path.Extension == "weapon":
-                                    # get fp arms path from globals
-                                    globals_path = self.tags_path / "globals" / "globals.globals"
-                                    if globals_path.exists():
-                                        with GlobalsTag(path=globals_path) as globals:
-                                            fp_camera_fov = globals.get_camera_fov()
-                                            result = globals.get_fp_arms_path(self.import_fp_arms)
-                                            if result is None:
-                                                print("Failed to get FP arms reference")
-                                            else:
-                                                fp_arms_path, tp_unit_path, allowed_fp_region_permutations = result
-                                                if Path(tp_unit_path).exists():
-                                                    with ObjectTag(path=tp_unit_path) as unit:
-                                                        fp_change_colors = unit.get_change_colors()
-                                                        if fp_change_colors is not None:
-                                                            change_colors = fp_change_colors
-                                            
-                                                if Path(fp_arms_path).exists():
-                                                    fp_collection = bpy.data.collections.new(f"FP Arms - {self.import_fp_arms.name.title()}")
-                                                    scene_collection.children.link(fp_collection)
-                                                    with RenderModelTag(path=fp_arms_path) as render_model:
-                                                        fp_objects, fp_armature = render_model.to_blend_objects(fp_collection, True, self.tag_markers, scene_collection, None, allowed_fp_region_permutations, no_io=True, build_control_rig=False, selected_lod=self.render_lod)
-                                                        fp_objects.remove(fp_armature)
-                                                        render_objects.extend(fp_objects)
-                                                        
-                                                        fp_arm_name = fp_armature.name
-                                                        root_gun_bone = armature.pose.bones[0].name
-                                                        
-                                                        fp_arm_props = {
-                                                            "control_aim": fp_armature.nwo.control_aim,
-                                                            "invert_control_aim": fp_armature.nwo.invert_control_aim,
-                                                            "invert_control_rig": fp_armature.nwo.invert_control_rig,
-                                                            "node_order_source": fp_armature.nwo.node_order_source,
-                                                        }
-                                                        
-                                                        utils.deselect_all_objects()
-                                                        armature.select_set(True)
-                                                        fp_armature.select_set(True)
-                                                        utils.set_active_object(armature)
-                                                        bpy.ops.object.join()
-                                                        armature.name = fp_arm_name
-                                                        utils.unlink(armature)
-                                                        fp_collection.objects.link(armature)
-                                                        # Load fp graph to work out skeleton
-                                                        fp_index = 0 if self.import_fp_arms == FPARMS.SPARTAN else 1
-                                                        fp_reference = obj.get_fp_animation(fp_index)
-                                                        fp_anim_tag = fp_reference.Filename if fp_reference else None
-                                                                
-                                                        if fp_anim_tag is not None and Path(fp_anim_tag).exists():
-                                                            with AnimationGraphTag(path=fp_anim_tag) as fp_graph:
-                                                                use_fp_graph = True
-                                                                graph_nodes = fp_graph.nodes()
-                                                                node_names = [node.name for node in graph_nodes]
-                                                                for node in graph_nodes:
-                                                                    if utils.remove_node_prefix(node.name) == utils.remove_node_prefix(root_gun_bone):
-                                                                        if 0 <= node.parent_index < len(node_names):
-                                                                            parent_node = node_names[node.parent_index]
-                                                                        break
-                                                        
-                                                        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-                                                        root_gun_edit_bone = armature.data.edit_bones.get(root_gun_bone)
-                                                        if root_gun_edit_bone is not None:
-                                                            for bone in armature.data.edit_bones:
-                                                                if utils.remove_node_prefix(bone.name) == utils.remove_node_prefix(parent_node):
-                                                                    root_gun_edit_bone.parent = bone
-                                                                    break
-                                                                
-                                                        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-                                                        
-                                                        for ob in fp_objects:
-                                                            if ob.type == 'MESH':
-                                                                for mod in ob.modifiers:
-                                                                    if mod.type == 'ARMATURE':
-                                                                        mod.object = armature
-                                                                        
-                                                        for k, v in fp_arm_props.items():
-                                                            setattr(armature.nwo, k, v)
-
-                                                        self.build_imported_control_rig(armature)
-                                                        self._create_fp_game_camera(fp_collection, armature, utils.get_pose_bone(armature, "camera_control"), fp_camera_fov)
+                                if uses_fp_arms and armature is not None:
+                                    fp_objects, fp_arms_path, fp_change_colors = self._import_fp_arms(
+                                        armature, animation, scene_collection, source_tag_root)
+                                    render_objects.extend(fp_objects)
+                                    if fp_change_colors is not None:
+                                        change_colors = fp_change_colors
+                                    if fp_arms_path:
+                                        fp_default_models = (fp_arms_path,)
+                                        self.fp_arms_imported = True
                                     else:
-                                        print(f"Couldn't find globals tag [{globals_path}], cannot import fp arms")
-                                    
-                                    self.fp_arms_imported = True
-                                
+                                        self.build_imported_control_rig(armature)
+
                                 imported_file_objects.extend(render_objects)
                                 
                                 has_change_colors = change_colors is not None
@@ -3911,6 +4077,8 @@ class NWOImporter:
 
                                         if ob.type == 'MESH':
                                             self.obs_for_props[ob] = functions
+                                            if obj.game in {'halo1', 'halo2'}:
+                                                add_object_functions(self.context.scene, ob, armature, functions)
                                     
                                     if not is_game_object:    
                                         if ob.type == 'ARMATURE':
@@ -3936,7 +4104,7 @@ class NWOImporter:
                                 imported_file_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
                             if not is_game_object and animation and self.tag_animation:
                                 print("Importing Animation Graph")
-                                imported_animations.extend(self.import_animation_graph(fp_anim_tag if use_fp_graph else animation, armature, render))
+                                imported_animations.extend(self.import_animation_graph(animation, armature, render, additional_render_models=fp_default_models))
                                 
                             if self.tag_import_lights and self.corinth:
                                 path = model.get_lighting_info()
@@ -4088,6 +4256,7 @@ class NWOImporter:
                 
                 if render:
                     render_objects, armature = self.import_render_model(render, model_collection, None, allowed_region_permutations)
+                    set_variant_property(armature, model, temp_variant)
                     imported_objects.extend(render_objects)
                     for ob in render_objects:
                         if ob.type != 'EMPTY':
@@ -4096,6 +4265,8 @@ class NWOImporter:
 
                             if ob.type == 'MESH':
                                 self.obs_for_props[ob] = functions
+                                if obj.game in {'halo1', 'halo2'}:
+                                    add_object_functions(self.context.scene, ob, armature, functions)
                                 
                         if ob.type == 'ARMATURE':
                             if make_armature_non_export:
@@ -4297,7 +4468,7 @@ class NWOImporter:
             
         return physics_model_objects
     
-    def import_animation_graph(self, file, armature, render, return_animations=False):
+    def import_animation_graph(self, file, armature, render, return_animations=False, additional_render_models=()):
         source_files = [
             path for path in self.import_info_sources_for_tag(file)
             if Path(path).suffix.lower() in legacy_animation_formats
@@ -4378,6 +4549,7 @@ class NWOImporter:
                             import_pca=True,
                             scale_animations_to_skeleton=self.graph_scale_animations_to_skeleton,
                             metadata=graph_metadata,
+                            additional_render_models=additional_render_models,
                             convert_to_reach=convert_to_reach,
                             convert_to_legacy=convert_to_legacy,
                             legacy_blend_screens=legacy_blend_screens,
@@ -4402,6 +4574,7 @@ class NWOImporter:
                             import_pca=False,
                             scale_animations_to_skeleton=self.graph_scale_animations_to_skeleton,
                             metadata=graph_metadata,
+                            additional_render_models=additional_render_models,
                             convert_to_reach=convert_to_reach,
                             convert_to_legacy=convert_to_legacy,
                             legacy_blend_screens=legacy_blend_screens,
@@ -5766,11 +5939,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     import_fp_arms: bpy.props.EnumProperty(
         name="FP Arms",
         description="Imports the First person arms along with the weapon and joins the skeletons",
-        items=[
-            ('NONE', "None", "Don't import first person arms"),
-            ('SPARTAN', "Spartan", "Imports the Spartan first person arms"),
-            ('ELITE', "Elite", "Imports the ELITE first person arms")
-        ]
+        items=fp_arms_items,
+        default=0,
     )
     
     legacy_type: bpy.props.EnumProperty(
@@ -6327,9 +6497,8 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
         if imported_meshes:
             find_shaders(new_materials)
                 
-    if build_materials and new_materials:
+    if build_materials:
         validated_funcs = set()
-        sequence_drivers = {}
         if utils.is_corinth(context):
             print('Building Blender materials from material tags')
         else:
@@ -6349,10 +6518,10 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                         importer.corinth, mat, shader_path, always_extract_bitmaps,
                         target_game=importer.target_game if importer.build_materials_for_project else None)
                     processed_shader_paths[shader_path] = mat
-                    if result is not None:
-                        sequence_drivers.update(result)
                 else:
                     utils.copy_material_nodes(existing_mat, mat)
+                    mat.nwo.game_functions = existing_mat.nwo.game_functions
+                    mat.nwo.object_functions = existing_mat.nwo.object_functions
                     if existing_mat.get('foundry_material_target_game'):
                         for key in ('foundry_material_source_game', 'foundry_material_target_game',
                                     'foundry_material_source_shader', 'foundry_material_conversion_notes'):
@@ -6386,41 +6555,20 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                     arrange(mat.node_tree)
         
         for ob in imported_objects:
-            for slot in ob.material_slots:
+            for slot_index, slot in enumerate(ob.material_slots):
                 if slot.material:
+                    bind_sequence_drivers(context.scene, ob, slot_index)
                     functions = slot.material.nwo.game_functions.split(",") if slot.material.nwo.game_functions.strip(" ,") else []
                     if slot.material.nwo.object_functions.strip(" ,"):
                         validated_funcs.update(slot.material.nwo.object_functions.split(","))
                     if functions:
                         for func in functions:
-                            bool_prop = add_function(context.scene, func, func, ob, ob.parent)
-                            key = sequence_drivers.get((func, slot.material.node_tree))
-                            if key is not None:
-                                driver, sequence_length = key
-                                driver: bpy.types.Driver
-                                driver.variables[0].targets[0].id = ob
-                                if not bool_prop:
-                                    ob.id_properties_ui(func).update(min=0, max=sequence_length - 1)
-                                ammo = func.startswith(ammo_names)
-                                tether = func.startswith(tether_name)
-                                if ammo or tether:
-                                    result = ob.driver_add(f'["{func}"]')
-                                    driver = result.driver
-                                    driver.type = 'SCRIPTED'
-                                    var = driver.variables.new()
-                                    var.name = "var"
-                                    var.type = 'SINGLE_PROP'
-                                    var.targets[0].id = ob.parent
-                                    var.targets[0].data_path = '["Tether Distance"]' if tether else '["Ammo"]'
-                                    match func.rpartition("_")[2]:
-                                        case "ones":
-                                            driver.expression = f"({var.name} - floor({var.name} / 10) * 10) / {sequence_length}"
-                                        case "tens":
-                                            driver.expression = f"(floor({var.name} / 10) - floor({var.name} / 100) * 10) / {sequence_length}"
-                                        case "hundreds":
-                                            driver.expression = f"(floor({var.name} / 100) - floor({var.name} / 1000) * 10) / {sequence_length}"
+                            if not func.startswith(ammo_names) and not func.startswith(tether_name):
+                                add_function(context.scene, func, func, ob, ob.parent)
         
         for ob, func_dict in importer.obs_for_props.items():
+            if importer.game in {'halo1', 'halo2'}:
+                continue
             for export_name, funcs in func_dict.items():
                 if export_name in validated_funcs:
                     for idx, func in enumerate(funcs):
