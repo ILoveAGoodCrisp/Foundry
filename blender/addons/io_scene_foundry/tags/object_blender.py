@@ -78,6 +78,14 @@ class ObjectTag(BlenderTag, ObjectDocument):
         parent_collection.children.link(collection)
         attachments = []
         for record in records:
+            matching_markers = [marker for marker in markers
+                                if marker.nwo.marker_model_group.strip().casefold()
+                                == record.marker.strip().casefold()]
+            if not matching_markers:
+                utils.print_warning(
+                    f'{self.tag_path.ShortName}: skipped {record.reference.RelativePathWithExtension}: '
+                    f'no imported marker matched attachment group {record.marker!r}')
+                continue
             attachment = SimpleNamespace(
                 function_names={name for name in
                                 (record.primary_scale, record.secondary_scale) if name},
@@ -88,17 +96,20 @@ class ObjectTag(BlenderTag, ObjectDocument):
                     record.primary_scale, record.secondary_scale, attachment)
             if data is None:
                 continue
-            for marker in markers:
-                if marker.nwo.marker_model_group != record.marker:
-                    continue
+            for marker in matching_markers:
                 ob = bpy.data.objects.new(data.name, data)
                 collection.objects.link(ob)
-                if ob.type == 'LIGHT':
-                    ob.matrix_world = (utils.halo_transforms(ob)
-                                       @ Matrix.Rotation(radians(-90.0), 4, 'X'))
-                    ob.scale *= (1 / 0.03048) * import_transform.scale_factor()
                 ob.parent = marker
                 ob.parent_type = 'OBJECT'
+                if ob.type == 'LIGHT':
+                    # Halo lights emit along marker +X; Blender lights emit
+                    # along local -Z. This is a marker-local transform, so do
+                    # not apply the Blender-to-Halo world rotation again.
+                    local_rotation = Matrix.Rotation(radians(-90.0), 4, 'Y')
+                    if utils.get_scene_props().maintain_marker_axis:
+                        local_rotation = import_transform.rotation_matrix() @ local_rotation
+                    ob.matrix_basis = utils.halo_transforms_matrix(local_rotation, rotation=0)
+                    ob.scale *= (1 / 0.03048) * import_transform.scale_factor()
                 attachment.objects.append(ob)
             attachments.append(attachment)
         if not attachments:

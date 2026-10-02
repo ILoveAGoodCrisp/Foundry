@@ -4178,30 +4178,39 @@ class NWOImporter:
         return imported_objects
             
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False, allow_control_rig=True):
+        # Attachments need their model markers even when standalone marker
+        # import is disabled. Otherwise light tags convert but produce no objects.
+        import_markers = self.tag_markers or self.tag_import_attachments
         if not skip_print:
             utils.print_tag("Importing Render Model")
         source_files = [
             path for path in self.import_info_sources_for_tag(file)
             if Path(path).suffix.lower() in legacy_model_formats
         ]
-        use_tag_skeleton = source_files and (
-            (self.game == 'halo2' and all(Path(path).suffix.lower() == '.jms' for path in source_files))
-            or (self.game in {'halo3', 'halo3odst'} and all(Path(path).suffix.lower() == '.ass' for path in source_files)))
+        use_tag_skeleton = source_files and self.game in {'halo2', 'halo3', 'halo3odst'}
         if use_tag_skeleton:
             collection = bpy.data.collections.new(Path(file).stem + '_render')
             model_collection.children.link(collection)
             with utils.TagImportMover(self.tags_dir, file) as mover:
                 with RenderModelTag(path=mover.tag_path) as render_model:
                     tag_objects, armature = render_model.to_blend_objects(
-                        collection, False, self.tag_markers, model_collection,
+                        collection, False, import_markers, model_collection,
                         existing_armature, allowed_region_permutations,
                         build_control_rig=self.build_control_rig and allow_control_rig)
                     tag_objects.extend(render_model.skylights_to_blender(collection))
+                    shader_paths = {}
+                    for record in render_model.render_materials():
+                        reference = record.render_method
+                        name = reference.ShortName.lower()
+                        path = reference.RelativePathWithExtension
+                        # A basename shared inside this tag is ambiguous; leave
+                        # it unresolved rather than assigning an arbitrary shader.
+                        shader_paths[name] = path if shader_paths.get(name, path) == path else ''
                     source_objects = self.import_jms_files(
                         source_files, 'model', tag_armature=armature,
                         parent_collection=collection, geometry_only=True,
                         allowed_region_permutations=render_model._resolve_region_permutations(
-                            allowed_region_permutations))
+                            allowed_region_permutations), shader_paths=shader_paths)
                     if self.build_control_rig and allow_control_rig:
                         render_model._apply_control_rig_deform_shapes_after_geometry()
                     sky_data = render_model.sky_data()
@@ -4227,7 +4236,7 @@ class NWOImporter:
         model_collection.children.link(collection)
         with utils.TagImportMover(self.tags_dir, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
-                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals, build_control_rig=self.build_control_rig and allow_control_rig, selected_lod=self.render_lod)
+                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, import_markers, model_collection, existing_armature, allowed_region_permutations, self.from_vert_normals, build_control_rig=self.build_control_rig and allow_control_rig, selected_lod=self.render_lod)
                 render_model_objects.extend(render_model.skylights_to_blender(collection))
                 sky_data = render_model.sky_data()
                 if sky_data.is_sky or sky_data.lights:
@@ -5181,7 +5190,7 @@ class NWOImporter:
             import_errors(Path(path), self.context.scene, rotation, scale)
 
     def import_jms_files(self, jms_files, legacy_type, *, tag_armature=None,
-                         parent_collection=None, geometry_only=False, allowed_region_permutations=()):
+                         parent_collection=None, geometry_only=False, allowed_region_permutations=(), shader_paths=None):
         """Import JMS and ASS natively, with conversion inside each adapter."""
         from ..legacy.jms_importer import import_jms
         from ..legacy.ass_importer import import_ass
@@ -5193,10 +5202,10 @@ class NWOImporter:
                                       tag_armature=tag_armature,
                                       parent_collection=parent_collection,
                                       geometry_only=geometry_only,
-                                      allowed_region_permutations=allowed_region_permutations))
+                                      allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths))
             else:
                 objects.extend(reader(self, path, legacy_type, parent_collection=parent_collection,
-                                      allowed_region_permutations=allowed_region_permutations))
+                                      allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths))
         return objects
 
 

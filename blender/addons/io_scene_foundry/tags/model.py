@@ -181,18 +181,28 @@ class ModelDocument(TagDocument):
                     name_in_render = self.value(permutation, 'permutation name')
                     if not name_in_render:
                         continue
-                    options.append(name_in_render)
                     if state == 0:
+                        options.append(name_in_render)
                         continue
+                    state_options = []
                     for state_element in self.block(permutation, 'states'):
                         kind = enum_index(self.value(state_element, 'state'),
                                           ('default', 'minor damage', 'medium damage', 'major damage', 'destroyed'))
                         if state == -1 or kind == state:
-                            options.append(self.value(state_element, 'permutation name'))
+                            state_name = self.value(state_element, 'permutation name')
+                            if state_name:
+                                state_options.append(state_name)
+                    # Damage states replace the base permutation. Only the
+                    # all-states selection includes both base and damaged meshes.
+                    if state == -1:
+                        options.append(name_in_render)
+                    options.extend(state_options or [name_in_render])
                 # Preserve "default" as a sentinel even when no such render permutation exists.
                 result[name] = list(dict.fromkeys(p for p in options if p))
             for name, permutations in render_regions.items():
-                result.setdefault(name, list(permutations))
+                # Unspecified regions use their default, not a random damage mesh.
+                default = 'default' if 'default' in permutations else next(iter(permutations), 'default')
+                result.setdefault(name, list(permutations) if state == -1 else [default])
             return result
         return {}
 
@@ -201,5 +211,9 @@ class ModelDocument(TagDocument):
             return set()
         if not self.path_exists(self.reference_render_model.Path):
             return set()
+        region_options = self.variant_region_options(variant, state)
+        if state == -1:
+            return {(region, permutation) for region, options in region_options.items()
+                    for permutation in options}
         return {(region, random.choice(options)) for region, options in
-                self.variant_region_options(variant, state).items() if options}
+                region_options.items() if options}

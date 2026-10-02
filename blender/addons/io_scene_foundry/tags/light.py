@@ -102,6 +102,104 @@ class LightTag(BlenderTag, TagDocument):
         utils.arrange(tree)
         return data
 
+    def _to_blender_halo2(self, primary_scale, secondary_scale, attachment):
+        """Convert H2's bounds and legacy animation blocks, not Reach mappings."""
+        from .connected_material import Function
+
+        root = self.tag.root()
+        kind = enum_index(self.value(root, 'type'), ('sphere', 'orthogonal', 'projective'))
+        brightness = self.value(root, 'brightness bounds')
+        lower = self.value(root, 'diffuse lower bound')
+        upper = self.value(root, 'diffuse upper bound')
+        rgb = lambda color: tuple(utils.srgb_to_linear(c) for c in (color.red, color.green, color.blue))
+        flags = self.required_field(root, 'flags')
+        size = self.value(root, 'size modifer')
+        size_bounds = tuple(v if v else 1.0 for v in (size.lower, size.upper))
+        maximum_size = max(0.0, *size_bounds)
+        radius = max(0.0, self.value(root, 'radius'))
+        start = max(0.0, self.value(root, 'falloff distance'))
+        end = max(start, self.value(root, 'cutoff distance'))
+        # Sphere lights use radius instead of the projection's cutoff distance.
+        if kind == 0:
+            end = radius
+            start = min(start, end)
+        animations = {}
+        for name in ('brightness animation', 'color animation'):
+            block = self.block(root, name)
+            if not len(block):
+                continue
+            function = Function()
+            try:
+                function._read_native_mapping(self, block[0], 'function')
+            except ValueError as exc:
+                utils.print_warning(f'{self.tag_path.ShortName}: cannot preview {name}: {exc}; using upper bounds')
+                continue
+            # H2 light animation functions run over time, with no named input.
+            function.input = 'one'
+            animations[name] = function
+
+        gobo_path = self.reference(root, 'gel map')
+        gobo_image = bitmap_to_image(gobo_path.Filename).image if self.path_exists(gobo_path) else None
+        data = bpy.data.lights.new(self.tag_path.ShortName, type=('POINT', 'AREA', 'SPOT')[kind])
+        data.color = rgb(upper)
+        data.nwo.light_intensity = max(0.0, brightness.lower, brightness.upper)
+        data.nwo.light_far_attenuation_start = import_transform.distance(start * maximum_size)
+        data.nwo.light_far_attenuation_end = import_transform.distance(end * maximum_size)
+        data.nwo.light_shadows = not flags.get_flag('no shadow')
+        data.use_shadow = data.nwo.light_shadows
+        data.nwo.light_specular_contribution = not flags.get_flag('no specular')
+        data.specular_factor = float(data.nwo.light_specular_contribution)
+        data.shadow_soft_size = 0.0
+        if kind == 2:
+            # H2 stores the full projection FOV in degrees.
+            data.spot_size = radians(self.value(root, 'field of view'))
+            data.spot_blend = 0.0
+        elif kind == 1:
+            # Blender cannot reproduce a finite orthogonal light volume;
+            # approximate its rectangular emitter and preserve the source size.
+            data.shape = 'RECTANGLE'
+            data.size = import_transform.distance(max(0.0, self.value(root, 'near width')) * maximum_size)
+            data.size_y = data.size * max(0.0, self.value(root, 'height stretch'))
+        light_node = utils.make_halo_light(data, primary_scale, secondary_scale, gobo_image=gobo_image)
+        tree = data.node_tree
+        light_node.inputs[0].default_value = (*data.color, 1.0)
+        light_node.inputs[1].default_value = 1.0
+        color_function = animations.get('color animation')
+        if color_function is not None:
+            output = color_function.to_blend_nodes(tree=tree, force_time_period=True)
+            if not color_function.is_color:
+                ramp = tree.nodes.new('ShaderNodeValToRGB')
+                ramp.color_ramp.color_mode = 'HSV' if self.required_field(root, 'interpolation flags').get_flag('blend in hsv') else 'RGB'
+                ramp.color_ramp.elements[0].color = (*rgb(lower), 1.0)
+                ramp.color_ramp.elements[1].color = (*rgb(upper), 1.0)
+                tree.links.new(output, ramp.inputs[0])
+                output = ramp.outputs['Color']
+            tree.links.new(output, light_node.inputs[0])
+        intensity_function = animations.get('brightness animation')
+        if intensity_function is not None and not intensity_function.is_color:
+            output = intensity_function.to_blend_nodes(tree=tree, force_time_period=True)
+            mapping = tree.nodes.new('ShaderNodeMapRange')
+            peak = data.nwo.light_intensity
+            mapping.inputs['To Min'].default_value = brightness.lower / peak if peak else 0.0
+            mapping.inputs['To Max'].default_value = brightness.upper / peak if peak else 0.0
+            tree.links.new(output, mapping.inputs['Value'])
+            tree.links.new(mapping.outputs[0], light_node.inputs[1])
+        data['halo2_type'] = self.value(root, 'type')
+        data['halo2_size_modifier'] = size_bounds
+        data['halo2_near_width'] = self.value(root, 'near width')
+        data['halo2_height_stretch'] = self.value(root, 'height stretch')
+        data['halo2_diffuse_lower_bound'] = rgb(lower)
+        data['halo2_diffuse_upper_bound'] = rgb(upper)
+        data['halo2_specular_lower_bound'] = rgb(self.value(root, 'specular lower bound'))
+        data['halo2_specular_upper_bound'] = rgb(self.value(root, 'specular upper bound'))
+        data['halo2_brightness_bounds'] = (brightness.lower, brightness.upper)
+        if len(self.block(root, 'gel animation')):
+            utils.print_warning(f'{self.tag_path.ShortName}: animated H2 gels are not previewed; using the static gel')
+        if attachment is not None:
+            attachment.function_names.update(name for name in (primary_scale, secondary_scale) if name)
+        utils.arrange(tree)
+        return data
+
     def _convert(self, primary_scale, secondary_scale, attachment, color_function, intensity_function):
         root = self.tag.root()
         is_spot_light = enum_index(self.value(root, 'type'), ('sphere', 'frustum')) == 1
@@ -112,6 +210,15 @@ class LightTag(BlenderTag, TagDocument):
                 self.value(root, 'distance diffusion'),
                 self.value(root, 'angular smoothness'))
         data = bpy.data.lights.new(self.tag_path.ShortName, type='SPOT' if is_spot_light else 'POINT')
+        if h3_falloff_values is not None:
+            shadows = self.required_field(root, 'flags').get_flag('shadow casting')
+            data.nwo.light_shadows = shadows
+            data.use_shadow = shadows
+            # Blender's spot cone cannot express the rectangular near plane or
+            # spherical component of an H3 frustum. Retain them for refinement.
+            data['halo3_frustum_near_width'] = self.value(root, 'frustum near width')
+            data['halo3_frustum_height_scale'] = self.value(root, 'frustum height scale')
+            data['halo3_percent_spherical'] = self.value(root, 'percent spherical')
         # intensity_scale = 1
         if is_spot_light:
             # intensity_scale = 100
@@ -281,6 +388,8 @@ class LightTag(BlenderTag, TagDocument):
     def to_blender(self, primary_scale="", secondary_scale="", attachment=None):
         if self.game == 'halo1':
             return self._to_blender_halo1(primary_scale, secondary_scale, attachment)
+        elif self.game == 'halo2':
+            return self._to_blender_halo2(primary_scale, secondary_scale, attachment)
         elif self.corinth:
             return self._to_blender_corinth(primary_scale, secondary_scale, attachment)
         else:

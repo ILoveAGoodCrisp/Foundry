@@ -28,7 +28,7 @@ def canonical_bone_name(name):
 
 class JMSImporter:
     def __init__(self, owner, path, legacy_type, *, tag_armature=None,
-                 parent_collection=None, geometry_only=False, allowed_region_permutations=()):
+                 parent_collection=None, geometry_only=False, allowed_region_permutations=(), shader_paths=None):
         self.owner = owner
         self.path = Path(path)
         self.jms = JMS.from_file(path)
@@ -47,6 +47,7 @@ class JMSImporter:
         self.tag_bone_names = {}
         self.geometry_only = geometry_only
         self.allowed_region_permutations = set(allowed_region_permutations)
+        self.shader_paths = shader_paths or {}
 
     def model_import(self, legacy_type, tag_armature):
         if legacy_type != 'auto':
@@ -239,9 +240,17 @@ class JMSImporter:
             # Keep property variants in the source table, never in Blender materials.
             shader = re.sub(r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+', '', material.name).strip()
             name = utils.base_material_name(shader, True).lower() or 'default'
-            self.materials[index] = self.material(name)
+            self.materials[index] = self.material(name, self.shader_paths.get(name, ''))
 
-    def material(self, name):
+    def material(self, name, shader_path=''):
+        if shader_path:
+            material = next((mat for mat in bpy.data.materials
+                             if mat.nwo.shader_path == shader_path), None)
+            if material is None:
+                material = bpy.data.materials.new(name)
+                material.nwo.shader_path = shader_path
+                self.created_materials.append(material)
+            return material
         material = bpy.data.materials.get(name)
         if material is None:
             material = bpy.data.materials.new(name)
@@ -411,7 +420,9 @@ class JMSImporter:
         for marker in self.jms.markers:
             name = marker.name.lstrip('#')
             match = re.match(r'^\((\S+)\s+(\S+)\)(.*)$', name)
-            ob = self.object(match[3] if match else name)
+            # The optional (permutation region) prefix is commonly followed
+            # by a separator space; it is not part of the marker group name.
+            ob = self.object((match[3] if match else name).strip())
             ob.empty_display_type = 'ARROWS'
             radius = marker.radius if marker.radius >= 0 else 1.0
             ob.empty_display_size = max(radius * self.scale, 0.001)
@@ -532,8 +543,8 @@ class JMSImporter:
 
 
 def import_jms(owner, path, legacy_type, *, tag_armature=None,
-               parent_collection=None, geometry_only=False, allowed_region_permutations=()):
+               parent_collection=None, geometry_only=False, allowed_region_permutations=(), shader_paths=None):
     return JMSImporter(owner, path, legacy_type, tag_armature=tag_armature,
                        parent_collection=parent_collection,
                        geometry_only=geometry_only,
-                       allowed_region_permutations=allowed_region_permutations).build()
+                       allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths).build()

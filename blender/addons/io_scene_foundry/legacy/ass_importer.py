@@ -18,7 +18,7 @@ from ..constants import face_prop_game_supported
 
 class ASSImporter(JMSImporter):
     def __init__(self, owner, path, legacy_type, *, parent_collection=None,
-                 tag_armature=None, geometry_only=False, allowed_region_permutations=()):
+                 tag_armature=None, geometry_only=False, allowed_region_permutations=(), shader_paths=None):
         self.owner, self.path = owner, Path(path)
         self.ass = ASS.from_file(path)
         self.scale = owner.scale_factor
@@ -28,6 +28,7 @@ class ASSImporter(JMSImporter):
         self.tag_armature, self.parent_collection = tag_armature, parent_collection
         self.tag_bone_names, self.geometry_only = {}, geometry_only
         self.allowed_region_permutations = set(allowed_region_permutations)
+        self.shader_paths = shader_paths or {}
         self.source_indices, self.templates, self.anchors = {}, {}, {}
         self.frame_instances = set()
         self.instance_objects = {}
@@ -360,7 +361,7 @@ class ASSImporter(JMSImporter):
             elif instance.name.startswith('#') or geometry is None:
                 name = instance.name.lstrip('#')
                 match = re.match(r'^\((\S+)\s+(\S+)\)(.*)$', name)
-                ob = self.object(match[3] if match else name)
+                ob = self.object((match[3] if match else name).strip())
                 ob.empty_display_type = 'ARROWS'
                 ob.empty_display_size = self.scale * (geometry.dimensions[0] if geometry and geometry.kind == 'SPHERE' else 1)
                 ob.nwo.is_frame = not instance.name.startswith('#')
@@ -498,7 +499,7 @@ class ASSImporter(JMSImporter):
 
 
 def import_ass(owner, path, legacy_type, *, parent_collection=None, tag_armature=None,
-               geometry_only=False, allowed_region_permutations=()):
+               geometry_only=False, allowed_region_permutations=(), shader_paths=None):
     return ASSImporter(owner, path, legacy_type, parent_collection=parent_collection,
                        tag_armature=tag_armature, geometry_only=geometry_only,
-                       allowed_region_permutations=allowed_region_permutations).build()
+                       allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths).build()

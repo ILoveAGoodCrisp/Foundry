@@ -74,26 +74,30 @@ class NWO_StompMaterials(bpy.types.Operator):
 
 def clear_duplicate_materials(strip_legacy_halo_naming: bool, materials_scope=None):
     materials = bpy.data.materials
-    # Collect base names
-    basenames = set()
+    # A shared basename does not imply a shared shader (for example Warthog
+    # tire blur and chaingun blur). Keep the tag path in the material identity.
+    canonical = {}
+    replacements = {}
     to_remove = set()
-    for mat in materials:
+    for mat in sorted(materials, key=lambda mat: mat.name != base_material_name(mat.name, strip_legacy_halo_naming)):
+        base = base_material_name(mat.name, strip_legacy_halo_naming)
+        path = mat.nwo.shader_path.replace('/', '\\').casefold()
+        key = (base, path)
+        original = canonical.setdefault(key, mat)
         if materials_scope is None or mat in materials_scope:
-            base = base_material_name(mat.name, strip_legacy_halo_naming)
-            basenames.add(base)
-            if base != mat.name:
+            if original != mat:
+                replacements[mat] = original
                 to_remove.add(mat)
-            if not materials.get(base, 0):
-                new_mat = mat.copy()
-                new_mat.name = base
-                if materials_scope is not None:
-                    materials_scope.append(new_mat)
+                if materials_scope is not None and original not in materials_scope:
+                    materials_scope.append(original)
+            elif base != mat.name and not materials.get(base):
+                mat.name = base
         
     # Loop all objects and replace duplicate materials
     for ob in bpy.data.objects:
         for slot in ob.material_slots:
-            if slot.material and (materials_scope is None or slot.material in materials_scope) and slot.material.name not in basenames:
-                slot.material = materials.get(base_material_name(slot.material.name, strip_legacy_halo_naming))
+            if slot.material in replacements:
+                slot.material = replacements[slot.material]
     
     [materials.remove(mat) for mat in to_remove]
     if materials_scope is None:
