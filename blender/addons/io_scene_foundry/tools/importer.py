@@ -45,6 +45,7 @@ from .animation.generate_frames import FrameGenerator
 from ..legacy.jma import JMA
 from ..ui.panel.cinematic import bake_vis_to_keyframes
 
+from ..tags.object import ObjectDocument
 from ..tags.object_blender import ObjectTag
 from ..tags.particle_model import ParticleModelTag
 from ..tags.scenario_structure_bsp import ScenarioStructureBspTag
@@ -85,6 +86,55 @@ from functools import partial
 def _matching_marker_name(preferred, fallback, marker_names):
     """Use a tag's preferred attachment marker only when the model has it."""
     return preferred if preferred and preferred in marker_names else fallback
+
+
+def _selected_weapon_parent(context):
+    selected = [ob for ob in context.selected_objects if ob.type == 'ARMATURE']
+    return context.object if context.object in selected else next(iter(selected), None)
+
+
+def _armature_attachment_markers(armature):
+    markers = {}
+    for ob in armature.children_recursive:
+        if ob.type != 'EMPTY' or not ob.nwo.marker_model_group:
+            continue
+        parent = ob.parent
+        while parent is not None and parent.type != 'ARMATURE':
+            parent = parent.parent
+        if parent == armature:
+            markers.setdefault(ob.nwo.marker_model_group, ob)
+    return markers
+
+
+def _weapon_attachment_markers(game, parent_names, gun_names, hand='', gun='', stow='', secondary=False):
+    """Resolve tag names first, then try the marker conventions of every game."""
+    legacy = game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
+    if secondary and game != 'halo1':
+        parent_candidates = (stow, 'weapon_back', 'weapon_thigh', 'weapon_hip', 'weapon_stow')
+        gun_candidates = ('weapon_stow',)
+    else:
+        defaults = ('right hand', 'right_hand', 'primary_weapon') if game == 'halo1' else (
+            ('right_hand', 'primary_weapon', 'right hand') if legacy else
+            ('primary_weapon', 'right_hand', 'right hand'))
+        parent_candidates = (hand, *defaults)
+        gun_candidates = () if game == 'halo1' else (gun, 'right_hand', 'right hand', 'primary_weapon')
+    parent = next((name for name in parent_candidates if name and name in parent_names), '')
+    child = next((name for name in gun_candidates if name and name in gun_names), '')
+    return parent, child
+
+
+def draw_weapon_attachment_options(operator, layout, context=None):
+    context = context or bpy.context
+    if _selected_weapon_parent(context) is None:
+        return
+    box = layout.box()
+    box.label(text="Weapon Attachment")
+    box.prop(operator, "attach_weapon_to_selected_armature")
+    row = box.row()
+    row.enabled = operator.attach_weapon_to_selected_armature
+    project = render_lod_source_project(operator)
+    if project is not None and project.game != 'halo1':
+        row.prop(operator, "weapon_secondary")
 
 
 legacy_model_formats = '.jms', '.ass'
@@ -356,13 +406,16 @@ def draw_material_project_option(operator, layout):
     row.prop(operator, "build_materials_for_project")
 
 
-def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, has_permutations=False, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True):
+def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, has_permutations=False, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True, show_weapon_attachment=True):
     if show_template:
         draw_import_template(operator, layout)
 
     if show_source:
         draw_model_source_options(operator, layout, corinth, has_variants, has_variants,
                                   show_permutation=has_permutations)
+
+    if show_weapon_attachment:
+        draw_weapon_attachment_options(operator, layout)
 
     rig_box = layout.box()
     rig_box.label(text="Rigging")
@@ -1451,6 +1504,18 @@ class NWO_Import(bpy.types.Operator):
         description="Imports all the biped's weapons if it has any",
     )
 
+    attach_weapon_to_selected_armature: bpy.props.BoolProperty(
+        name="Attach to Selected Biped",
+        description="Attach imported weapons to the selected armature using its original object tag",
+        default=True,
+    )
+
+    weapon_secondary: bpy.props.BoolProperty(
+        name="Secondary Weapon",
+        description="Stow the weapon on the biped using the weapon tag's unit stow anchor (unsupported in Halo 1)",
+        default=False,
+    )
+
     biped_weapon_source: bpy.props.EnumProperty(
         name="Biped Weapon",
         description="Weapon source to import when importing biped weapons",
@@ -1727,6 +1792,7 @@ class NWO_Import(bpy.types.Operator):
         imported_objects = []
         imported_actions = []
         armature = None
+        selected_weapon_parent = _selected_weapon_parent(context) if self.attach_weapon_to_selected_armature else None
         starting_materials = set(bpy.data.materials)
         for_cinematic = scene_nwo.asset_type == 'cinematic'
         self.anchor = None
@@ -1925,6 +1991,8 @@ class NWO_Import(bpy.types.Operator):
                         importer.graph_scale_animations_to_skeleton = self.graph_scale_animations_to_skeleton
                         importer.graph_import_ik_chains = self.graph_import_ik_chains
                         importer.import_variant_children = self.import_variant_children
+                        importer.weapon_parent_armature = selected_weapon_parent
+                        importer.weapon_secondary = self.weapon_secondary
                         importer.import_biped_weapon = self.import_biped_weapon
                         importer.biped_weapon_source = self.biped_weapon_source
                         importer.setup_as_asset = self.setup_as_asset
@@ -3103,6 +3171,8 @@ class NWOImporter:
         self.decorator_lod = 0
         self.tag_animation_filter = ""
         self.import_variant_children = False
+        self.weapon_parent_armature = None
+        self.weapon_secondary = False
         self.import_biped_weapon = False
         self.biped_weapon_source = BIPED_WEAPON_SOURCE_BIPED_TAG
         self.import_biped_weapon_non_export = True
@@ -3978,6 +4048,8 @@ class NWOImporter:
                         if is_game_object:
                             utils.print_warning(f"No model tag for game object {obj.tag_path.RelativePathWithExtension}")
                         continue
+                    weapon_parent = (self.weapon_parent_armature if obj.tag_path.Extension == 'weapon'
+                                     and not is_game_object and not for_instance_conversion and not return_cin_stuff else None)
                     change_colors = obj.get_change_colors(self.tag_variant)
                     magazine_size = obj.get_magazine_size(find_weapon=True)
                     has_ammo = magazine_size > 0
@@ -4048,7 +4120,7 @@ class NWOImporter:
                                 
                             # possible compass driver = abs(var/pi / (2*pi))
                             if render:
-                                render_objects, armature = self.import_render_model(render, model_collection, existing_armature, allowed_region_permutations, allow_control_rig=(not uses_fp_arms))
+                                render_objects, armature = self.import_render_model(render, model_collection, None if weapon_parent is not None else existing_armature, allowed_region_permutations, allow_control_rig=(not uses_fp_arms))
                                 set_variant_property(armature, model, selection)
                                 
                                 if pose:
@@ -4096,6 +4168,8 @@ class NWOImporter:
                                         if ob.type == 'ARMATURE':
                                             # self.to_cursor_objects.add(ob)
                                             ob.nwo.cinematic_object = obj.tag_path.RelativePathWithExtension
+                                            if obj.tag_path.Extension == "biped":
+                                                ob["foundry_source_object_tag"] = str(Path(file).resolve())
                                             if temp_variant == self.tag_variant:
                                                 ob.nwo.cinematic_variant = temp_variant
                                                 
@@ -4179,6 +4253,10 @@ class NWOImporter:
                                         ))
                                     self.context.view_layer.update()
                                     
+                            if weapon_parent is not None and armature is not None:
+                                attach = self.attach_weapon_to_biped(obj, armature, weapon_parent, render_objects, model_collection)
+                                imported_file_objects.append(attach)
+
                             if not is_game_object and self.setup_as_asset:
                                 paths = asset_tag_paths(source_tag_root, render, collision, animation, physics)
                                 paths['.model'] = model.tag_path.RelativePathWithExtension
@@ -4205,6 +4283,66 @@ class NWOImporter:
         else:
             return imported_objects, imported_animations
     
+    def selected_biped_weapon_markers(self, armature):
+        """Read the biped in its own source kit, independently of the weapon kit."""
+        saved_path = armature.get("foundry_source_object_tag", "")
+        tag_path = saved_path or armature.nwo.cinematic_object
+        if not tag_path:
+            return '', '', ''
+        projects = list(utils.get_prefs().projects)
+        scene_project = utils.get_project(self.scene_nwo.scene_project, use_external=False)
+        if scene_project in projects:
+            projects.remove(scene_project)
+            projects.insert(0, scene_project)
+        for project in projects:
+            root = Path(project.tags_directory).resolve()
+            path = (root / tag_path).resolve()
+            try:
+                path.relative_to(root)
+            except ValueError:
+                continue
+            if not path.is_file():
+                continue
+            try:
+                with ObjectDocument(path, tags_root=root, game=project.game, must_exist=True) as biped:
+                    hand, gun = biped.get_weapon_markers()
+                    return biped.game, hand, gun
+            except (ValueError, TypeError, RuntimeError, OSError):
+                continue
+        return '', '', ''
+
+    def attach_weapon_to_biped(self, weapon, armature, biped, render_objects, collection):
+        game, hand, gun = self.selected_biped_weapon_markers(biped)
+        if not game:
+            project = utils.get_project(self.scene_nwo.scene_project, use_external=False)
+            game = project.game if project is not None else weapon.game
+        # H1 has no backpack support, including when a newer weapon is imported.
+        secondary = self.weapon_secondary and game != 'halo1' and weapon.game != 'halo1'
+        parent_markers = _armature_attachment_markers(biped)
+        gun_markers = {ob.nwo.marker_model_group: ob for ob in render_objects
+                       if ob.type == 'EMPTY' and ob.nwo.marker_model_group}
+        parent_name, gun_name = _weapon_attachment_markers(
+            game, parent_markers, gun_markers, hand, gun,
+            weapon.get_weapon_stow_anchor() if secondary else '', secondary)
+        self.context.view_layer.update()
+        attach = bpy.data.objects.new(f"{armature.name}_attach", None)
+        collection.objects.link(attach)
+        attach.nwo.export_this = False
+        attach.parent = biped
+        # The grip/stow marker defines the weapon's offset from the biped marker.
+        attach.matrix_world = (gun_markers[gun_name].matrix_world.copy() if gun_name
+                               else armature.matrix_world.copy())
+        world = armature.matrix_world.copy()
+        armature.parent = attach
+        armature.matrix_world = world
+        if parent_name:
+            constraint = attach.constraints.new(type='COPY_TRANSFORMS')
+            constraint.target = parent_markers[parent_name]
+        else:
+            attach.matrix_world = biped.matrix_world.copy()
+            utils.print_warning(f"No matching {'stow' if secondary else 'hand'} marker on {biped.name}; attached at the biped origin")
+        return attach
+
     def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str], child_collection, is_game_object, make_armature_non_export=True, export_attach_point=False, fallback_child_marker=None):
         imported_objects = []
         armature = None
@@ -4373,7 +4511,7 @@ class NWOImporter:
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False, allow_control_rig=True):
         # Attachments and biped weapons need model markers even when
         # standalone marker import is disabled.
-        import_markers = self.tag_markers or self.tag_import_attachments or self.import_biped_weapon
+        import_markers = self.tag_markers or self.tag_import_attachments or self.import_biped_weapon or self.weapon_parent_armature is not None
         if not skip_print:
             utils.print_tag("Importing Render Model")
         source_files = [
@@ -4676,7 +4814,7 @@ class NWOImporter:
         if (convert_to_reach or convert_locomotes) and self.graph_import_animations:
             from .animation.legacy_import import generate_reach_aim_look_overlays
             from .animation.legacy_turns import convert_reach_turn_poses
-            converted_turns = []
+            converted_turns = None
             if convert_to_reach:
                 utils.print_bullet("Converting Turn Poses")
                 converted_turns = convert_reach_turn_poses(
@@ -6018,6 +6156,18 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="Imports all the biped's weapons if it has any",
     )
 
+    attach_weapon_to_selected_armature: bpy.props.BoolProperty(
+        name="Attach to Selected Biped",
+        description="Attach imported weapons to the selected armature using its original object tag",
+        default=True,
+    )
+
+    weapon_secondary: bpy.props.BoolProperty(
+        name="Secondary Weapon",
+        description="Stow the weapon on the biped using the weapon tag's unit stow anchor (unsupported in Halo 1)",
+        default=False,
+    )
+
     biped_weapon_source: bpy.props.EnumProperty(
         name="Biped Weapon",
         description="Weapon source to import when importing biped weapons",
@@ -6106,6 +6256,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         self.mouse_y = event.mouse_region_y
         suffix = Path(self.filepath).suffix.lower()
         self.place_at_mouse = scene_nwo.asset_type == 'scenario' and (suffix == '.prefab' or suffix == '.decorator_set' or suffix in OBJECT_TAG_EXTS)
+        if suffix == '.weapon' and self.attach_weapon_to_selected_armature and _selected_weapon_parent(context) is not None:
+            self.place_at_mouse = False
         self.has_variants = False
         self.has_permutations = False
         self.has_zone_sets = False
@@ -6221,6 +6373,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         has_permutations=self.has_permutations,
                         show_fp_arms=self.import_type == "weapon",
                         show_biped_weapon=self.import_type == "biped",
+                        show_weapon_attachment=self.import_type == "weapon",
                     )
             case 'decorator_set':
                 layout.prop(self, "decorator_type")

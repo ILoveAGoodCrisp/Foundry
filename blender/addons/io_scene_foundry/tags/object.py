@@ -239,6 +239,13 @@ class ObjectDocument(TagDocument):
         return (hand.value if hand is not None else '',
                 gun.value if gun is not None else '')
 
+    def get_weapon_stow_anchor(self):
+        """The unit marker used when this weapon is carried on the body."""
+        if self.game == 'halo1':
+            return ''
+        field = self.tag.root().field('unit stow anchor name')
+        return field.value if field is not None else ''
+
     def first_person(self):
         if self.game == 'halo1':
             return (self.tag.root(),)
