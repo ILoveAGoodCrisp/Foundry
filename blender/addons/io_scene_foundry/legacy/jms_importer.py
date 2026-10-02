@@ -273,7 +273,7 @@ class JMSImporter:
         if kind == 'seam':
             ob.nwo.seam_back_manual = True
         if kind in {'soft_ceiling', 'soft_kill', 'slip_surface'}:
-            # Avoid the UI callback replacing the source shader with a display material.
+            # Apply the display material after reading the source face properties.
             ob.data.nwo['boundary_surface_type'] = ('soft_ceiling', 'soft_kill', 'slip_surface').index(kind)
 
     def apply_materials(self, ob, faces_by_material):
@@ -303,9 +303,14 @@ class JMSImporter:
                     ob.nwo.global_material = self.collision_material_name(index, material)
                 elif mask.any():
                     utils.add_face_prop(ob.data, 'global_material', mask).global_material = self.collision_material_name(index, material)
-        if collision or physics:
+        source_props = next((self.props.get(index) for index in faces_by_material), None)
+        _, display_material = self.owner.mesh_and_material(self.mesh_kind(source_props), self.is_model)
+        if collision:
+            display_material = 'Collision'
+        elif physics:
+            display_material = 'Physics'
+        if display_material:
             from ..tools.property_apply import apply_props_material
-            display_material = 'Collision' if collision else 'Physics'
             existed = bpy.data.materials.get(display_material) is not None
             apply_props_material(ob, display_material)
             ob.data.polygons.foreach_set('material_index', [0] * len(ob.data.polygons))
