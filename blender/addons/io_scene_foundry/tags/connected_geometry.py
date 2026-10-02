@@ -1321,6 +1321,7 @@ class RigidBody:
                 bsdf.inputs[4].default_value = special_materials.Physics.color[3]
                 render_mat.surface_render_method = 'BLENDED'
                 
+            utils.material_add_visibility(render_mat)
             shape.ob.data.materials.append(render_mat)
             shape.ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_physics"
             if shape.material is not None:

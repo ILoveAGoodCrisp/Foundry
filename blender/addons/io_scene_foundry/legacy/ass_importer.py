@@ -320,8 +320,9 @@ class ASSImporter(JMSImporter):
                 continue
             anchor = self.object(instance.name + ':frame')
             anchor.nwo.is_frame = True
-            # Foundry excludes frame empties themselves. Keep export_this enabled:
-            # disabling a root object also excludes all its descendants.
+            # Foundry excludes frame empties themselves. Keep anchors enabled
+            # while building; select_export_root disables competing roots once
+            # collapse_frames has produced the final hierarchy.
             self.anchors[index] = anchor
             if instance.parent in self.bone_map:
                 anchor.parent = self.armature

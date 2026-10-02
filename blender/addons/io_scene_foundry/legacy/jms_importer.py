@@ -113,6 +113,7 @@ class JMSImporter:
             self.store_metadata()
             self.build_contents()
             if not self.is_model:
+                self.select_export_root()
                 # JMS regions describe model parts, not separate BSPs. ASS
                 # instances share this path, including copied mesh instances.
                 bsp = self.owner._ensure_region_entry(self.path.stem, utils.SetType.SCENARIO)
@@ -151,6 +152,18 @@ class JMSImporter:
         self.collection['jms_version'] = self.jms.version
         self.collection['jms_materials'] = json.dumps([asdict(m) for m in self.jms.materials])
         self.collection['jms_checksum'] = str(self.jms.checksum)
+
+    def select_export_root(self):
+        """Keep one authoring root enabled for non-model geometry export."""
+        roots = [ob for ob in self.objects
+                 if ob.parent is None and ob.type == 'EMPTY' and ob.nwo.is_frame]
+        if not roots:
+            return
+        root = next((ob for ob in roots if ob.name.casefold().startswith('frame')), roots[0])
+        for ob in roots:
+            # Export exclusion propagates through the hierarchy, so leave the
+            # selected root's children enabled and disable only competing roots.
+            ob.nwo.export_this = ob is root
 
     def build_contents(self):
         self.node_matrices()
@@ -250,11 +263,15 @@ class JMSImporter:
                 material = bpy.data.materials.new(name)
                 material.nwo.shader_path = shader_path
                 self.created_materials.append(material)
+            if getattr(material.nwo, 'SpecialMaterial', False):
+                utils.material_add_visibility(material)
             return material
         material = bpy.data.materials.get(name)
         if material is None:
             material = bpy.data.materials.new(name)
             self.created_materials.append(material)
+        if getattr(material.nwo, 'SpecialMaterial', False):
+            utils.material_add_visibility(material)
         return material
 
     def mesh_kind(self, props):

@@ -6363,8 +6363,52 @@ def update_classic_emissive_material(material, game):
     update_foundry_material(material, game)
 
 
+def material_add_visibility(material):
+    """Force a helper material invisible through the shared visibility group."""
+    material.use_nodes = True
+    tree = material.node_tree
+    outputs = [n for n in tree.nodes if n.type == 'OUTPUT_MATERIAL']
+    output = next((n for n in outputs if n.is_active_output), None)
+    if output is None:
+        output = outputs[0] if outputs else tree.nodes.new('ShaderNodeOutputMaterial')
+    node = next((n for n in tree.nodes if n.type == 'GROUP' and n.node_tree
+                 and n.node_tree.name in {'Foundry Visibility', 'Foundry Visibiliity'}), None)
+    if node is None:
+        group = add_node_from_resources('shared_nodes', 'Foundry Visibility')
+        if group is None:
+            # The bundled library currently spells the group with an extra i.
+            group = add_node_from_resources('shared_nodes', 'Foundry Visibiliity')
+        if group is None:
+            raise ValueError('Foundry Visibility is missing from shared_nodes.blend')
+        node = tree.nodes.new('ShaderNodeGroup')
+        node.node_tree = group
+        node.label = 'Foundry Visibility'
+    surface = output.inputs['Surface']
+    if not surface.is_linked or surface.links[0].from_node != node:
+        upstream = node.inputs['Shader'].links[0].from_socket if node.inputs['Shader'].is_linked else None
+        for link in tuple(node.outputs['Shader'].links):
+            target = link.to_socket
+            tree.links.remove(link)
+            if upstream is not None:
+                tree.links.new(upstream, target)
+        for link in tuple(node.inputs['Shader'].links):
+            tree.links.remove(link)
+        if surface.is_linked:
+            tree.links.new(surface.links[0].from_socket, node.inputs['Shader'])
+        tree.links.new(node.outputs['Shader'], surface)
+    invisible = node.inputs['Force Invisible']
+    for link in tuple(invisible.links):
+        tree.links.remove(link)
+    invisible.default_value = True
+    arrange(tree)
+    return node
+
+
 def update_foundry_material(material, game=None):
     """Insert the shared Foundry Node and reset all material overrides."""
+    if (getattr(material.nwo, 'SpecialMaterial', False)
+            or getattr(material.nwo, 'ConventionMaterial', False)):
+        return material_add_visibility(material)
     if game is None:
         project = get_project()
         game = project.game if project else None

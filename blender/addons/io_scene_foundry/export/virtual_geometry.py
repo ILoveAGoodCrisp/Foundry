@@ -3193,6 +3193,7 @@ class VirtualScene:
                 sky = bpy.data.materials.get("+sky")
                 if sky is None:
                     sky = bpy.data.materials.new("+sky")
+                utils.material_add_visibility(sky)
                     
                 invisible = bpy.data.materials.get("Invisible")
                 if invisible is None:

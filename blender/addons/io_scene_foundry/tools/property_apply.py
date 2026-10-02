@@ -48,7 +48,7 @@ all_prefixes = set(all_prefixes)
 import bpy
 
 from ..constants import VALID_FRAMES, VALID_MESHES
-from ..utils import is_corinth, get_prefs, is_frame
+from ..utils import is_corinth, get_prefs, is_frame, material_add_visibility
 from ..tools.materials import convention_materials
 
 special_materials = (
@@ -87,7 +87,9 @@ def halo_material(mat_name):
     """Adds a halo material to the blend if it doesn't exist and applies settings, then returning the material"""
     # first check if the material already exists
     mat = bpy.data.materials.get(mat_name)
-    if mat: return mat
+    if mat:
+        material_add_visibility(mat)
+        return mat
     # if not, make it, apply settings, and return it
     for m in convention_materials:
         if m.name == mat_name:
@@ -102,6 +104,7 @@ def halo_material(mat_name):
     bsdf.inputs[0].default_value = convention.color
     bsdf.inputs[4].default_value = convention.color[3]
     new_material.blend_method = 'BLEND'
+    material_add_visibility(new_material)
 
     return new_material
 

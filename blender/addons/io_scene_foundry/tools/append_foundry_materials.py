@@ -27,9 +27,10 @@ class NWO_AppendFoundryMaterials(bpy.types.Operator):
         return {"FINISHED"}
     
 def ensure_special_material(definition):
-    """Create a Foundry special material without changing an existing one."""
+    """Ensure a Foundry special material uses the invisible preview."""
     mat = bpy.data.materials.get(definition.name)
     if mat is not None:
+        utils.material_add_visibility(mat)
         return mat
     mat = bpy.data.materials.new(definition.name)
     mat.use_fake_user = True
@@ -38,6 +39,7 @@ def ensure_special_material(definition):
     bsdf.inputs['Base Color'].default_value = definition.color
     bsdf.inputs['Alpha'].default_value = definition.color[3]
     mat.blend_method = 'BLEND'
+    utils.material_add_visibility(mat)
     return mat
 
 
@@ -45,8 +47,9 @@ def add_special_materials(game, asset_type):
     blender_materials = bpy.data.materials
     count = 0
     for m in special_materials:
-        if game in m.games and asset_type in m.asset_types and not blender_materials.get(m.name):
+        if game in m.games and asset_type in m.asset_types:
+            existed = blender_materials.get(m.name) is not None
             ensure_special_material(m)
-            count += 1
+            count += int(not existed)
             
     return count
