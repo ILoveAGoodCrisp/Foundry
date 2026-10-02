@@ -81,7 +81,6 @@ from ..constants import (
 )
 from ..tags.connected_material import GameFunctionType, game_functions
 from .. import utils
-from ..project import GAME_INFO
 from .model_to_instance import ModelInstance
 from functools import partial
 
@@ -404,25 +403,18 @@ def draw_import_template(operator, layout):
     row = layout.row()
     row.prop(operator, "import_template", text="Template")
 
-def draw_import_projects(operator, layout):
+def draw_import_summary(operator, layout):
     source_project = utils.get_project()
     if source_project is not None and not Path(operator.filepath).resolve().is_relative_to(
             Path(source_project.tags_directory).resolve()):
         source_project = None
-    box = layout.box()
-    box.label(text="Projects")
-    for label, project in (
-        ("Source Tag Project", source_project),
-        ("Currently Loaded Project", utils.get_project(use_external=False)),
-    ):
-        if project is None:
-            box.label(text=f"{label}: Unknown", icon='ERROR')
-            continue
-        game_name = GAME_INFO.get(project.game, (project.game, project.game))[1]
-        box.label(text=f"{label}: {project.name} ({game_name})", translate=False)
-    box.separator()
-    box.label(text="Conversion options adapt imported animations and shaders")
-    box.label(text="to the loaded project. Uncheck them to keep the source format.")
+    loaded_project = utils.get_project(use_external=False)
+    source_name = source_project.name if source_project is not None else "Unknown"
+    loaded_name = loaded_project.name if loaded_project is not None else "Unknown"
+    layout.label(
+        text=f"Importing: {Path(operator.filepath).name} from {source_name} into {loaded_name}",
+        translate=False,
+    )
 
 
 def draw_animation_conversions(operator, layout, enabled=None):
@@ -431,13 +423,6 @@ def draw_animation_conversions(operator, layout, enabled=None):
     row = layout.row()
     row.enabled = enabled
     row.prop(operator, "convert_animations")
-    if not enabled:
-        text = "Animation conversion requires importing animations."
-    elif operator.convert_animations:
-        text = "Animations will be adapted to the loaded project's game."
-    else:
-        text = "Animations will keep the source game's format."
-    layout.label(text=text, icon='INFO')
 
 
 def draw_animation_graph_import_options(operator, layout, corinth, include_generate_frames=False):
@@ -526,21 +511,11 @@ def draw_material_project_option(operator, layout):
     if not hasattr(operator, "build_materials_for_project"):
         return
     project = utils.get_project(use_external=False)
-    if project is None:
-        return
-    if project.game == 'halo2':
-        layout.label(text="Shader conversion to Halo 2 is unavailable.", icon='INFO')
+    if project is None or project.game == 'halo2':
         return
     row = layout.row()
     row.enabled = operator.build_blender_materials
     row.prop(operator, "build_materials_for_project")
-    if not operator.build_blender_materials:
-        text = "Enable Generate Materials to convert shaders/materials."
-    elif operator.build_materials_for_project:
-        text = "Shaders/materials will be adapted to the loaded project's game."
-    else:
-        text = "Shaders/materials will keep the source game's format."
-    layout.label(text=text, icon='INFO')
 
 
 def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, has_permutations=False, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True, show_weapon_attachment=True, show_vehicle_seat=True):
@@ -6641,8 +6616,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
-        layout.label(text=f"Importing: {Path(self.filepath).name}")
-        draw_import_projects(self, layout)
+        draw_import_summary(self, layout)
         corinth = utils.is_corinth(context)
         if self.import_type not in {"cinematic", "jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"} and utils.get_scene_props().asset_type != 'cinematic':
             layout.prop(self, "use_import_info")

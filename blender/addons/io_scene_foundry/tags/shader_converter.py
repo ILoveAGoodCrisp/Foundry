@@ -2724,22 +2724,19 @@ class ShaderTag(BlenderTag, TagDocument):
             if not return_none_if_default:
                 bitmap_path = parameter.default_bitmap
                 element = None
-        elif element is not None and element.SelectField("bitmap flags").Data > 1:
-            match element.SelectField("bitmap address mode x").Data:
-                case 1 | 3: # clamp | black border
-                    wrap_mode = 'CLIP'
-                case 2 | 4 | 5: # Mirror
-                    wrap_mode = 'MIRROR'
-            match element.SelectField("bitmap address mode y").Data:
-                case 1 | 3: # clamp | black border
-                    wrap_mode = 'CLIP'
-                case 2 | 4 | 5: # Mirror
-                    wrap_mode = 'MIRROR'
-            match element.SelectField("bitmap address mode").Data:
-                case 1 | 3: # clamp | black border
-                    wrap_mode = 'CLIP'
-                case 2 | 4 | 5: # Mirror
-                    wrap_mode = 'MIRROR'
+        elif element is not None:
+            bitmap_flags = element.SelectField("bitmap flags")
+            if bitmap_flags is not None and bitmap_flags.Data > 1:
+                # Address fields vary by game; H3 tags lack the per-axis fields.
+                for field_name in ("bitmap address mode x", "bitmap address mode y", "bitmap address mode"):
+                    address_mode = element.SelectField(field_name)
+                    if address_mode is None:
+                        continue
+                    match address_mode.Data:
+                        case 1 | 3: # clamp | black border
+                            wrap_mode = 'CLIP'
+                        case 2 | 4 | 5: # Mirror
+                            wrap_mode = 'MIRROR'
                     
                 
         if bitmap_path is None:
