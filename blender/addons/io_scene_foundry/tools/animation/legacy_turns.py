@@ -1,12 +1,11 @@
 """Rebase legacy turn poses onto their own aim screen without changing movement."""
-from math import atan2, radians
-
 from ... import utils
 from .generate_aim_look_overlays import (
-    _armature_track, _base_candidate_score, _compose_overlay_transform,
+    _apply_turn_aim_delta, _armature_track, _base_candidate_score,
+    _evaluated_action_poses, _lower_body_bone_names, _sample_turn_aim_reference,
+    _TURN_AIM_YAW_OFFSETS,
     _fcurve_map, _has_bone_transform, _is_eligible_animation_mode, _pose_bone_from_usage,
-    _rest_local_matrix, _sample_local_matrices, _world_matrices,
-    _write_generated_transforms, _WRAP_EVENT_NAMES, _WRAP_EVENT_TYPE,
+    _rest_local_matrix, _sample_local_matrices, _write_generated_transforms,
 )
 
 
@@ -36,41 +35,24 @@ def _matching_aim_overlay(animations, armature, turn_name):
     return max(candidates, key=lambda item: item[0])[1] if candidates else None
 
 
-def _turn_aim_reference(overlay, armature, pedestal, yaw_bone, pitch_bone, direction, rest):
-    curves, _ = _fcurve_map(_armature_track(overlay, armature).action, armature)
-    if not curves:
-        return None
-    wrapped_frames = {event.frame_frame for event in overlay.animation_events
-                      if event.event_type == _WRAP_EVENT_TYPE and event.import_name in _WRAP_EVENT_NAMES}
-    samples = []
-    # The first frame is the additive reference, not an aim-screen sample.
-    for frame in range(overlay.frame_start + 1, overlay.frame_end + 1):
-        if frame in wrapped_frames:
-            continue
-        pose = _sample_local_matrices(armature, curves, frame, rest)
-        world = _world_matrices(armature, pose)
-        pedestal_inverse = world[pedestal.name].inverted_safe()
-        yaw_matrix = pedestal_inverse @ world[yaw_bone.name]
-        pitch_matrix = pedestal_inverse @ world[pitch_bone.name]
-        yaw = atan2(yaw_matrix[1][0], yaw_matrix[0][0])
-        pitch = abs(pitch_matrix.to_euler('XYZ').y)
-        if (yaw > radians(0.1) if direction == 'left' else yaw < -radians(0.1)):
-            samples.append((pitch, yaw, pose))
-    if not samples:
-        return None
-    neutral_pitch = min(pitch for pitch, _, _ in samples)
-    if neutral_pitch > radians(5):
-        return None
-    samples = [sample for sample in samples if sample[0] <= neutral_pitch + radians(0.1)]
-    return (max if direction == 'left' else min)(samples, key=lambda sample: sample[1])[2]
+def _turn_aim_reference(overlay, armature, pedestal, yaw_bone, pitch_bone, direction):
+    poses = _evaluated_action_poses(
+        _armature_track(overlay, armature).action, armature,
+        range(overlay.frame_start, overlay.frame_end + 1),
+    )
+    return _sample_turn_aim_reference(
+        armature, overlay, poses, pedestal.name, yaw_bone.name, pitch_bone.name,
+        _TURN_AIM_YAW_OFFSETS[f'turn_{direction}'],
+    )
 
 
 def convert_reach_turn_poses(scene_nwo, armature, imported_animations):
     """Match each imported turn's starting body pose to its directional aim pose.
 
-    Keep the original pedestal/ancestor curves, duration, events and action
-    identity. Apply the turn's local skeletal motion relative to its first frame
-    on top of the selected aim reference. Return successfully converted names.
+    Keep pedestal, pelvis and leg curves, duration, events and action identity.
+    Transfer upper-body rotations relative to the pedestal onto a sampled
+    +/-45 degree aim pose, and smoothly remove their terminal rotation drift.
+    Return successfully converted names.
     """
     animations = tuple(imported_animations)
     pedestal = _pose_bone_from_usage(armature, scene_nwo.node_usage_pedestal, ('pedestal',))
@@ -78,7 +60,8 @@ def convert_reach_turn_poses(scene_nwo, armature, imported_animations):
     pitch = _pose_bone_from_usage(armature, scene_nwo.node_usage_pose_blend_pitch, ('aim_pitch',))
     if any(bone is None for bone in (pedestal, yaw, pitch)):
         return []
-    preserved = {pedestal.name, *(bone.name for bone in pedestal.parent_recursive)}
+    preserved = _lower_body_bone_names(armature, scene_nwo, pedestal)
+    preserved.difference_update((yaw.name, pitch.name))
     rest = {bone.name: _rest_local_matrix(bone) for bone in armature.pose.bones}
     converted = []
     reference_cache = {}
@@ -100,10 +83,10 @@ def convert_reach_turn_poses(scene_nwo, armature, imported_animations):
             continue
         key = (overlay.as_pointer(), direction)
         if key not in reference_cache:
-            reference_cache[key] = _turn_aim_reference(overlay, armature, pedestal, yaw, pitch, direction, rest)
+            reference_cache[key] = _turn_aim_reference(overlay, armature, pedestal, yaw, pitch, direction)
         aim_reference = reference_cache[key]
         if aim_reference is None:
-            utils.print_warning(f"Skipping turn pose conversion for [{animation.name}]: no level {direction} aim sample")
+            utils.print_warning(f"Skipping turn pose conversion for [{animation.name}]: no level {direction} aim coverage at 45 degrees")
             continue
         curves, slot = _fcurve_map(track.action, armature)
         if not curves:
@@ -112,15 +95,25 @@ def convert_reach_turn_poses(scene_nwo, armature, imported_animations):
         body_names = {bone.name for bone in armature.pose.bones
                       if bone.name not in preserved
                       and (_has_bone_transform(curves, bone) or _has_bone_transform(aim_curves, bone))}
+        body_names.update((yaw.name, pitch.name))
         source_reference = _sample_local_matrices(armature, curves, animation.frame_start, rest)
+        source_end = _sample_local_matrices(armature, curves, animation.frame_end, rest)
         frames = {}
         for frame in range(animation.frame_start, animation.frame_end + 1):
             pose = _sample_local_matrices(armature, curves, frame, rest)
-            frames[frame] = {
-                bone: _compose_overlay_transform(source_reference[bone], pose[bone], aim_reference[bone])
-                for bone in body_names
-            }
+            # Only rotations are rebased. Local translations/scales and all
+            # lower-body curves retain the source turn's placement and motion.
+            output = {bone: matrix.copy() for bone, matrix in pose.items()}
+            progress = (frame - animation.frame_start) / (animation.frame_end - animation.frame_start)
+            tail = max(0.0, (progress - .75) / .25)
+            _apply_turn_aim_delta(
+                armature, source_reference, pose, aim_reference, output,
+                pedestal.name, body_names, source_end=source_end,
+                endpoint_weight=tail * tail * (3.0 - 2.0 * tail),
+            )
+            frames[frame] = output
         _write_generated_transforms(track.action, armature, slot, frames, body_names, rest,
                                     preserve_other_transforms=True)
+        animation.source_authoring_data = ''
         converted.append(animation.name)
     return converted

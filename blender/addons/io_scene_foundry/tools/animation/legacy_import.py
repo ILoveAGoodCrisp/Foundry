@@ -135,12 +135,16 @@ def convert_blend_screen(armature, animation, action, slot, record, names):
     return blend_screen_duplicate_frames(screen, animation.frame_start)
 
 
-def generate_reach_aim_look_overlays(scene_nwo, armature, imported_animations, *, turns_with_aim_pose=(),
+def generate_reach_aim_look_overlays(scene_nwo, armature, imported_animations, *, turns_with_aim_pose=None,
                                    prefer_move=False):
-    """Fill missing movement overlays using only sources/bases from this import."""
+    """Fill missing movement overlays using only sources/bases from this import.
+
+    When turn conversion results are supplied, only use successfully converted
+    turns. A missing directional aim sample must not produce a shifted screen.
+    """
     from .generate_aim_look_overlays import (
         _is_eligible_animation_mode, _retarget_overlay_state,
-        _target_base_animations, generate_aim_look_overlays,
+        _target_base_animations, generate_aim_look_overlays, _TURN_AIM_YAW_OFFSETS,
     )
 
     imported_pointers = {animation.as_pointer() for animation in imported_animations}
@@ -161,8 +165,12 @@ def generate_reach_aim_look_overlays(scene_nwo, armature, imported_animations, *
                 or not _is_eligible_animation_mode(name.mode)
                 or _retarget_overlay_state(name.state, 'move_front') is None):
             continue
-        target_bases = _target_base_animations(
-            [scene_nwo.animations[index] for index in imported_indices], armature, name)
+        base_animations = [scene_nwo.animations[index] for index in imported_indices]
+        if turns_with_aim_pose is not None:
+            base_animations = [base for base in base_animations
+                               if utils.AnimationName(base.name).state not in _TURN_AIM_YAW_OFFSETS
+                               or base.name in turns_with_aim_pose]
+        target_bases = _target_base_animations(base_animations, armature, name)
         if name.state.startswith(('aim_move', 'look_move')):
             if not prefer_move:
                 continue
@@ -173,7 +181,7 @@ def generate_reach_aim_look_overlays(scene_nwo, armature, imported_animations, *
         try:
             overlays, _skipped, _failed = generate_aim_look_overlays(
                 scene_nwo, source, armature, target_bases,
-                turns_with_aim_pose=turns_with_aim_pose)
+                turns_with_aim_pose=turns_with_aim_pose or ())
             generated.extend(overlays)
         except ValueError as error:
             utils.print_warning(f"Failed to generate overlays for [{source.name}]: {error}")

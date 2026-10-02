@@ -1,6 +1,6 @@
 import random
 import re
-from math import degrees, radians
+from math import atan2, degrees, radians
 
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
@@ -14,6 +14,8 @@ _VALID_BASE_STATES = tuple(
     + [f"move_{direction}" for direction in _DIRECTIONS]
     + ["airborne"]
     + [f"turn_{direction}" for direction in _DIRECTIONS]
+    + [f"turn_{direction}{suffix}" for direction in ("left", "right")
+       for suffix in ("_fast", "_slow")]
 )
 _BONE_TRANSFORM_PROPERTIES = (
     "location",
@@ -27,7 +29,11 @@ _LOWER_BODY_NAME_TOKENS = (
 )
 _WRAP_EVENT_TYPE = "_connected_geometry_animation_event_type_import"
 _WRAP_EVENT_NAMES = {"Wrapped Left", "Wrapped Right"}
-_TURN_AIM_YAW_OFFSETS = {"turn_left": 45.0, "turn_right": -45.0}
+_TURN_AIM_YAW_OFFSETS = {
+    f"turn_{direction}{suffix}": yaw
+    for direction, yaw in (("left", 45.0), ("right", -45.0))
+    for suffix in ("", "_fast", "_slow")
+}
 _SOURCE_STATE_PATTERN = re.compile(r"^(aim|look)_still(?P<suffix>(?:_.*)?)$")
 _MOVE_SOURCE_STATE_PATTERN = re.compile(r"^(aim|look)_move(?P<suffix>(?:_(?:up|down))?)$")
 
@@ -52,6 +58,9 @@ def _retarget_overlay_state(state: str, base_state: str) -> str | None:
              or _MOVE_SOURCE_STATE_PATTERN.fullmatch((state or "").lower()))
     if match is None:
         return None
+    if base_state in _TURN_AIM_YAW_OFFSETS:
+        # Reach shares each directional screen between normal/fast/slow turns.
+        base_state = base_state.removesuffix('_fast').removesuffix('_slow')
     return f"{match.group(1)}_{base_state}{match.group('suffix')}"
 
 
@@ -295,6 +304,63 @@ def _bone_depth(bone: bpy.types.PoseBone) -> int:
     return depth
 
 
+def _interpolate_screen_pose(first: dict, second: dict, weight: float) -> dict:
+    result = {}
+    for name, matrix in first.items():
+        a_location, a_rotation, a_scale = matrix.decompose()
+        b_location, b_rotation, b_scale = second[name].decompose()
+        result[name] = Matrix.LocRotScale(
+            a_location.lerp(b_location, weight),
+            a_rotation.slerp(b_rotation, weight),
+            a_scale.lerp(b_scale, weight),
+        )
+    return result
+
+
+def _sample_screen_axis(samples, coordinate):
+    samples = sorted(samples, key=lambda item: item[0])
+    if coordinate <= samples[0][0]:
+        return samples[0][1]
+    for (low, first), (high, second) in zip(samples, samples[1:]):
+        if coordinate <= high:
+            return _interpolate_screen_pose(first, second, (coordinate - low) / (high - low))
+    return samples[-1][1]
+
+
+def _sample_turn_aim_reference(armature, animation, poses, pedestal_name,
+                               yaw_name, pitch_name, yaw_degrees):
+    """Sample a directional level pose, excluding the reference and wraps.
+
+    Use the authored control coordinates and retain the source pitch limits.
+    A narrow or incomplete screen must not invent a +/-45 degree reference.
+    """
+    if not yaw_name or not pitch_name:
+        return None
+    wrapped = {event.frame_frame for event in animation.animation_events
+               if event.event_type == _WRAP_EVENT_TYPE and event.import_name in _WRAP_EVENT_NAMES}
+    columns = {}
+    for frame in range(animation.frame_start + 1, animation.frame_end + 1):
+        if frame in wrapped:
+            continue
+        pose = poses[frame]
+        world = _world_matrices(armature, pose)
+        inverse = world[pedestal_name].inverted_safe()
+        yaw_matrix = inverse @ world[yaw_name]
+        pitch_matrix = inverse @ world[pitch_name]
+        yaw = round(degrees(atan2(yaw_matrix[1][0], yaw_matrix[0][0])), 3)
+        pitch = round(degrees(pitch_matrix.to_euler('XYZ').y), 3)
+        columns.setdefault(yaw, {})[pitch] = pose
+    # Interpolate only between columns which actually cover level pitch.
+    columns = {yaw: column for yaw, column in columns.items()
+               if min(column) <= .001 and max(column) >= -.001}
+    if not columns or not min(columns) - .001 <= yaw_degrees <= max(columns) + .001:
+        return None
+    return _sample_screen_axis([
+        (yaw, _sample_screen_axis(list(column.items()), 0.0))
+        for yaw, column in columns.items()
+    ], yaw_degrees)
+
+
 def _apply_turn_aim_delta(
     armature: bpy.types.Object,
     source_reference: dict,
@@ -302,12 +368,17 @@ def _apply_turn_aim_delta(
     target_reference: dict,
     target_pose: dict,
     pedestal_name: str,
-    aim_bone_names: set[str],
+    rotation_bone_names: set[str],
+    *,
+    source_end: dict | None = None,
+    endpoint_weight: float = 0.0,
 ) -> None:
+    """Transfer rotations in pedestal space, solving locals under the turn stance."""
     source_reference_world = _world_matrices(armature, source_reference)
     source_pose_world = _world_matrices(armature, source_pose)
     target_reference_world = _world_matrices(armature, target_reference)
     target_world = _world_matrices(armature, target_pose)
+    end_world = _world_matrices(armature, source_end) if source_end is not None else None
 
     _location, source_reference_pedestal, _scale = source_reference_world[
         pedestal_name
@@ -327,12 +398,13 @@ def _apply_turn_aim_delta(
     ):
         rotation.normalize()
 
-    aim_bones = [armature.pose.bones.get(name) for name in aim_bone_names]
-    aim_bones = sorted(
-        (bone for bone in aim_bones if bone is not None),
+    rotation_bones = [armature.pose.bones.get(name) for name in rotation_bone_names]
+    rotation_bones = sorted(
+        (bone for bone in rotation_bones if bone is not None),
         key=_bone_depth,
     )
-    for bone in aim_bones:
+    end_pedestal = end_world[pedestal_name].to_quaternion().normalized() if end_world is not None else None
+    for bone in rotation_bones:
         _location, source_reference_rotation, _scale = source_reference_world[
             bone.name
         ].decompose()
@@ -359,6 +431,11 @@ def _apply_turn_aim_delta(
         source_delta = (
             source_reference_relative.inverted() @ source_pose_relative
         )
+        if end_world is not None and endpoint_weight:
+            end_relative = end_pedestal.inverted() @ end_world[bone.name].to_quaternion().normalized()
+            end_delta = source_reference_relative.inverted() @ end_relative
+            # Ease away source endpoint drift; never introduce a final-frame jump.
+            source_delta @= Quaternion().slerp(end_delta.inverted(), endpoint_weight)
         target_reference_relative = (
             target_reference_pedestal.inverted()
             @ target_reference_rotation
@@ -677,6 +754,8 @@ def _generated_action(
     pedestal_name: str,
     *,
     apply_turn_aim_offset=True,
+    aim_yaw_name=None,
+    aim_pitch_name=None,
 ) -> bpy.types.Action:
     source_curves, source_slot_identifier = _fcurve_map(source_track.action, armature)
     target_curves, _target_slot_identifier = _fcurve_map(target_base_track.action, armature)
@@ -699,7 +778,23 @@ def _generated_action(
     target_reference = _sample_local_matrices(
         armature, target_curves, target_base_animation.frame_start, rest_matrices
     )
-    if is_turn and apply_turn_aim_offset:
+    reanchor_turn = is_turn and not apply_turn_aim_offset
+    reference_yaw = turn_yaw_offset
+    if is_turn and aim_yaw_name:
+        world = _world_matrices(armature, target_reference)
+        relative = world[pedestal_name].inverted_safe() @ world[aim_yaw_name]
+        reference_yaw = degrees(atan2(relative[1][0], relative[0][0]))
+        # Also recognize converted/native turns when the generation operator is
+        # invoked later, without the importer's converted-name list.
+        reanchor_turn |= abs(reference_yaw - turn_yaw_offset) < .1
+    if reanchor_turn:
+        source_reference = _sample_turn_aim_reference(
+            armature, source_animation, source_poses, pedestal_name,
+            aim_yaw_name, aim_pitch_name, reference_yaw,
+        )
+        if source_reference is None:
+            raise ValueError(f"Source screen has no level aim coverage at {reference_yaw:g} degrees")
+    elif is_turn and apply_turn_aim_offset:
         _offset_turn_aim_yaw(
             armature,
             target_reference,
@@ -737,7 +832,9 @@ def _generated_action(
                     )
 
         if is_turn and frame != source_animation.frame_start:
-            # Aim changes are relative to the turn's offset aim-bone reference.
+            # Converted turns reanchor all upper-body rotations, including the
+            # controls. Their sample coordinates stay absolute: screen zero
+            # cancels the directional reference instead of moving with it.
             _apply_turn_aim_delta(
                 armature,
                 source_reference,
@@ -745,7 +842,7 @@ def _generated_action(
                 generated_reference,
                 target_pose,
                 pedestal_name,
-                aim_bone_names,
+                (animated_bone_names - lower_body_names) if reanchor_turn else aim_bone_names,
             )
         output_frames[frame] = target_pose
 
@@ -886,6 +983,7 @@ def _populate_target_animation(
     target.state = target_state
     target.state_type = 'action'
     target.animation_type = 'overlay'
+    target.source_authoring_data = ''
     target.external = False
     target.gr2_path = ""
     target.blend_path = ""
@@ -920,6 +1018,9 @@ def generate_aim_look_overlays(scene_nwo, source, armature, target_bases, *, ove
     aim_yaw = _pose_bone_from_usage(
         armature, scene_nwo.node_usage_pose_blend_yaw, ("aim_yaw",)
     )
+    aim_pitch = _pose_bone_from_usage(
+        armature, scene_nwo.node_usage_pose_blend_pitch, ("aim_pitch",)
+    )
     aim_bone_names = _aim_bone_names(armature, scene_nwo)
     if pedestal is None:
         raise ValueError("The armature has no valid pedestal bone usage")
@@ -938,6 +1039,7 @@ def generate_aim_look_overlays(scene_nwo, source, armature, target_bases, *, ove
         for index, animation in enumerate(scene_nwo.animations)
     }
     generated = []
+    generated_names = set()
     skipped_count = 0
     failed = []
 
@@ -948,6 +1050,11 @@ def generate_aim_look_overlays(scene_nwo, source, armature, target_bases, *, ove
         target_state = _retarget_overlay_state(source_name.state, base_state)
         target_name = _replace_action_state(source.name, target_state)
         normalized_target_name = _normalized_name(target_name)
+        # Speed variants share a screen. Generate it once even when replacing
+        # existing overlays; the normal turn is ordered before its variants.
+        if normalized_target_name in generated_names:
+            skipped_count += 1
+            continue
         existing = existing_by_name.get(normalized_target_name)
         if existing is not None and not override_existing:
             skipped_count += 1
@@ -969,6 +1076,8 @@ def generate_aim_look_overlays(scene_nwo, source, armature, target_bases, *, ove
                 aim_bone_names,
                 pedestal.name,
                 apply_turn_aim_offset=base_animation.name not in turns_with_aim_pose,
+                aim_yaw_name=aim_yaw.name if aim_yaw is not None else None,
+                aim_pitch_name=aim_pitch.name if aim_pitch is not None else None,
             )
             if existing is None:
                 target = scene_nwo.animations.add()
@@ -997,6 +1106,7 @@ def generate_aim_look_overlays(scene_nwo, source, armature, target_bases, *, ove
             )
             existing_by_name[normalized_target_name] = target_index
             generated.append(target_name)
+            generated_names.add(normalized_target_name)
         except Exception as error:
             utils.print_warning(f"Failed to generate [{target_name}]: {error}")
             failed.append(target_name)

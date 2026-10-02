@@ -215,8 +215,16 @@ class ObjectDocument(TagDocument):
                                  self.value(e, 'primary scale'), self.value(e, 'secondary scale'))
                 for e in self.block(self.object_struct(), 'attachments')]
 
+    def get_vehicle_seats(self):
+        """Detached seat labels and attachment markers, in tag order."""
+        unit = self.tag.root() if self.game == 'halo1' else self.nested(self.tag.root(), 'unit')
+        if unit.field('seats') is None:
+            return []
+        return [(self.value(seat, 'label'), self.value(seat, 'marker name'))
+                for seat in self.block(unit, 'seats')]
+
     def get_seat_names(self):
-        return [self.value(e, 'label') for e in self.block(self.nested(self.tag.root(), 'unit'), 'seats')]
+        return [label for label, marker in self.get_vehicle_seats()]
 
     def get_weapon_names(self):
         return self.value(self.tag.root(), 'weapon class'), self.value(self.tag.root(), 'weapon name')

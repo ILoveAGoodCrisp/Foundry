@@ -54,7 +54,7 @@ from ..tags.animation_names import convert_animation_name_for_project, LEGACY_GA
 from ..tags.pca_blender import PCAAnimationTag
 from ..tags.render_model_blender import RenderModelTag
 from ..tags.physics_blender import PhysicsTag
-from ..tags.model import ChildObject, RenderModelOverrideType
+from ..tags.model import ChildObject, ModelDocument, RenderModelOverrideType
 from ..tags.model_blender import ModelTag
 from ..tools.mesh_to_marker import convert_to_marker
 from ..tags.bitmap import bitmap_to_image, clear_path_cache
@@ -121,6 +121,101 @@ def _weapon_attachment_markers(game, parent_names, gun_names, hand='', gun='', s
     parent = next((name for name in parent_candidates if name and name in parent_names), '')
     child = next((name for name in gun_candidates if name and name in gun_names), '')
     return parent, child
+
+
+_vehicle_seat_enum_cache = {}
+
+
+def _vehicle_import_path(operator):
+    path = Path(operator.filepath) if operator.filepath else None
+    if path is not None and path.suffix.lower() == '.vehicle':
+        return path
+    for file in operator.files:
+        path = Path(operator.directory) / file.name
+        if path.suffix.lower() == '.vehicle':
+            return path
+    return None
+
+
+def _vehicle_seat_variant(vehicle, model, variant):
+    variant = variant.lower() if variant and variant != 'all_variants' else ''
+    if variant:
+        return variant
+    return vehicle.get_default_variant() or next(iter(model.get_model_variants()), '')
+
+
+def _vehicle_child_seats(vehicle, child):
+    if child.child_object is None:
+        return []
+    try:
+        with ObjectDocument(child.child_object.Filename, tags_root=vehicle.tags_root,
+                            game=vehicle.game, must_exist=True) as document:
+            return document.get_vehicle_seats()
+    except (ValueError, TypeError, RuntimeError, OSError):
+        return []
+
+
+def _vehicle_seat_choices(vehicle, variant, include_children):
+    choices = [(str(index), label or f'Seat {index + 1}', marker)
+               for index, (label, marker) in enumerate(vehicle.get_vehicle_seats())]
+    if not include_children or vehicle.game == 'halo1':
+        return choices
+    model_path = vehicle.get_model_tag_path_full()
+    if not model_path:
+        return choices
+    try:
+        with ModelDocument(model_path, tags_root=vehicle.tags_root, game=vehicle.game, must_exist=True) as model:
+            variant = _vehicle_seat_variant(vehicle, model, variant)
+            for child_index, child in enumerate(model.get_variant_children(variant)):
+                for seat_index, (label, marker) in enumerate(_vehicle_child_seats(vehicle, child)):
+                    name = child.child_object.ShortName
+                    choices.append((f'child:{child_index}:{seat_index}',
+                                    f"{label or f'Seat {seat_index + 1}'} ({name})", marker))
+    except (ValueError, TypeError, RuntimeError, OSError):
+        pass
+    return choices
+
+
+def vehicle_seat_items(operator, context):
+    path = _vehicle_import_path(operator)
+    empty = [('none', 'No Seats', 'The vehicle tag has no available seats', 0)]
+    if path is None or not path.is_file():
+        return empty
+    variant = getattr(operator, 'tag_variant', '')
+    include_children = getattr(operator, 'import_variant_children', False)
+    key = (str(path.resolve()), path.stat().st_mtime_ns, variant, include_children)
+    if key not in _vehicle_seat_enum_cache:
+        items = empty
+        for project in utils.get_prefs().projects:
+            root = Path(project.tags_directory).resolve()
+            try:
+                path.resolve().relative_to(root)
+            except ValueError:
+                continue
+            try:
+                with ObjectDocument(path.resolve(), tags_root=root, game=project.game, must_exist=True) as vehicle:
+                    choices = _vehicle_seat_choices(vehicle, variant, include_children)
+                    items = [(identifier, label,
+                              f'Marker: {marker}' if marker else 'This seat has no attachment marker', index)
+                             for index, (identifier, label, marker) in enumerate(choices)] or empty
+            except (ValueError, TypeError, RuntimeError, OSError):
+                pass
+            break
+        # Keep enum strings alive for Blender's dynamic enum properties.
+        _vehicle_seat_enum_cache[key] = items
+    return _vehicle_seat_enum_cache[key]
+
+
+def draw_vehicle_seat_options(operator, layout, context=None):
+    context = context or bpy.context
+    if _selected_weapon_parent(context) is None or _vehicle_import_path(operator) is None:
+        return
+    box = layout.box()
+    box.label(text="Vehicle Seat")
+    box.prop(operator, "attach_selected_biped_to_vehicle")
+    row = box.row()
+    row.enabled = operator.attach_selected_biped_to_vehicle
+    row.prop(operator, "vehicle_seat")
 
 
 def draw_weapon_attachment_options(operator, layout, context=None):
@@ -406,7 +501,7 @@ def draw_material_project_option(operator, layout):
     row.prop(operator, "build_materials_for_project")
 
 
-def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, has_permutations=False, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True, show_weapon_attachment=True):
+def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, has_permutations=False, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True, show_weapon_attachment=True, show_vehicle_seat=True):
     if show_template:
         draw_import_template(operator, layout)
 
@@ -416,6 +511,8 @@ def draw_model_tag_import_sections(operator, layout, corinth, show_template=True
 
     if show_weapon_attachment:
         draw_weapon_attachment_options(operator, layout)
+    if show_vehicle_seat:
+        draw_vehicle_seat_options(operator, layout)
 
     rig_box = layout.box()
     rig_box.label(text="Rigging")
@@ -1504,6 +1601,18 @@ class NWO_Import(bpy.types.Operator):
         description="Imports all the biped's weapons if it has any",
     )
 
+    attach_selected_biped_to_vehicle: bpy.props.BoolProperty(
+        name="Attach Selected Biped",
+        description="Constrain the selected armature to a vehicle seat and position the vehicle to preserve the biped's current transform",
+        default=True,
+    )
+
+    vehicle_seat: bpy.props.EnumProperty(
+        name="Seat",
+        description="Vehicle seat whose marker the selected biped follows",
+        items=vehicle_seat_items,
+    )
+
     attach_weapon_to_selected_armature: bpy.props.BoolProperty(
         name="Attach to Selected Biped",
         description="Attach imported weapons to the selected armature using its original object tag",
@@ -1793,6 +1902,9 @@ class NWO_Import(bpy.types.Operator):
         imported_actions = []
         armature = None
         selected_weapon_parent = _selected_weapon_parent(context) if self.attach_weapon_to_selected_armature else None
+        selected_vehicle_biped = _selected_weapon_parent(context) if self.attach_selected_biped_to_vehicle else None
+        context.view_layer.update()
+        selected_vehicle_biped_matrix = selected_vehicle_biped.matrix_world.copy() if selected_vehicle_biped is not None else None
         starting_materials = set(bpy.data.materials)
         for_cinematic = scene_nwo.asset_type == 'cinematic'
         self.anchor = None
@@ -1991,6 +2103,9 @@ class NWO_Import(bpy.types.Operator):
                         importer.graph_scale_animations_to_skeleton = self.graph_scale_animations_to_skeleton
                         importer.graph_import_ik_chains = self.graph_import_ik_chains
                         importer.import_variant_children = self.import_variant_children
+                        importer.vehicle_biped_armature = selected_vehicle_biped
+                        importer.vehicle_biped_matrix = selected_vehicle_biped_matrix
+                        importer.vehicle_seat = self.vehicle_seat
                         importer.weapon_parent_armature = selected_weapon_parent
                         importer.weapon_secondary = self.weapon_secondary
                         importer.import_biped_weapon = self.import_biped_weapon
@@ -3171,6 +3286,9 @@ class NWOImporter:
         self.decorator_lod = 0
         self.tag_animation_filter = ""
         self.import_variant_children = False
+        self.vehicle_biped_armature = None
+        self.vehicle_biped_matrix = None
+        self.vehicle_seat = '0'
         self.weapon_parent_armature = None
         self.weapon_secondary = False
         self.import_biped_weapon = False
@@ -4050,6 +4168,8 @@ class NWOImporter:
                         continue
                     weapon_parent = (self.weapon_parent_armature if obj.tag_path.Extension == 'weapon'
                                      and not is_game_object and not for_instance_conversion and not return_cin_stuff else None)
+                    vehicle_biped = (self.vehicle_biped_armature if obj.tag_path.Extension == 'vehicle'
+                                     and not is_game_object and not for_instance_conversion and not return_cin_stuff else None)
                     change_colors = obj.get_change_colors(self.tag_variant)
                     magazine_size = obj.get_magazine_size(find_weapon=True)
                     has_ammo = magazine_size > 0
@@ -4075,6 +4195,8 @@ class NWOImporter:
                                 render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
                             
                             temp_variant = self.tag_variant
+                            if vehicle_biped is not None and self.import_variant_children:
+                                temp_variant = _vehicle_seat_variant(obj, model, temp_variant)
 
                             if not temp_variant and (for_instance_conversion or is_game_object or self.scene_nwo.asset_type == 'cinematic'):
                                 if model.get_model_variants():
@@ -4120,7 +4242,7 @@ class NWOImporter:
                                 
                             # possible compass driver = abs(var/pi / (2*pi))
                             if render:
-                                render_objects, armature = self.import_render_model(render, model_collection, None if weapon_parent is not None else existing_armature, allowed_region_permutations, allow_control_rig=(not uses_fp_arms))
+                                render_objects, armature = self.import_render_model(render, model_collection, None if weapon_parent is not None or vehicle_biped is not None else existing_armature, allowed_region_permutations, allow_control_rig=(not uses_fp_arms))
                                 set_variant_property(armature, model, selection)
                                 
                                 if pose:
@@ -4205,17 +4327,23 @@ class NWOImporter:
                                                 for ob in light_objects:
                                                     ob.parent = armature
                                 
+                            vehicle_child_objects = {}
                             if self.import_variant_children and temp_variant:
                                 child_collection = bpy.data.collections.new(name=f"{model.tag_path.ShortName}_child_objects")
                                 model_collection.children.link(child_collection)
                                 child_objects = model.get_variant_children(temp_variant)
                                 if child_objects:
                                     utils.print_bullet("Importing Child Objects")
-                                    for child in child_objects:
+                                    for child_index, child in enumerate(child_objects):
                                         if child.child_object is None:
                                             continue
                                         utils.print_step(f"--- {child.child_object.ShortNameWithExtension}")
-                                        imported_file_objects.extend(self.import_child_object(child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}, child_collection, is_game_object))
+                                        imported_child = self.import_child_object(
+                                            child, armature, {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'},
+                                            child_collection, is_game_object, defer_parenting=vehicle_biped is None)
+                                        imported_file_objects.extend(imported_child)
+                                        if vehicle_biped is not None:
+                                            vehicle_child_objects[child_index] = (_vehicle_child_seats(obj, child), imported_child)
                                     self.context.view_layer.update()
                                     
                             if self.import_biped_weapon and obj.tag_path.Extension == "biped":
@@ -4253,6 +4381,11 @@ class NWOImporter:
                                         ))
                                     self.context.view_layer.update()
                                     
+                            if vehicle_biped is not None and render and armature is not None:
+                                placement = self.attach_biped_to_vehicle_seat(obj, armature, vehicle_biped, render_objects, vehicle_child_objects)
+                                if placement:
+                                    imported_file_objects.append(placement)
+
                             if weapon_parent is not None and armature is not None:
                                 attach = self.attach_weapon_to_biped(obj, armature, weapon_parent, render_objects, model_collection)
                                 imported_file_objects.append(attach)
@@ -4283,6 +4416,59 @@ class NWOImporter:
         else:
             return imported_objects, imported_animations
     
+    def attach_biped_to_vehicle_seat(self, vehicle, armature, biped, render_objects, child_objects=None):
+        seats = vehicle.get_vehicle_seats()
+        try:
+            if self.vehicle_seat.startswith('child:'):
+                _, child_index, seat_id = self.vehicle_seat.split(':')
+                if not self.import_variant_children or int(child_index) not in (child_objects or {}):
+                    utils.print_warning("Selected child seat is not imported; biped attachment skipped")
+                    return False
+                seats, render_objects = child_objects[int(child_index)]
+                seat_index = int(seat_id)
+            else:
+                seat_index = int(self.vehicle_seat)
+        except (TypeError, ValueError):
+            utils.print_warning("No vehicle seat selected; biped attachment skipped")
+            return False
+        if not 0 <= seat_index < len(seats):
+            utils.print_warning("Selected vehicle seat is unavailable; biped attachment skipped")
+            return False
+        label, marker_name = seats[seat_index]
+        marker = next((ob for ob in render_objects if ob.type == 'EMPTY'
+                       and marker_name and ob.nwo.marker_model_group == marker_name), None)
+        if marker is None:
+            utils.print_warning(f"Vehicle seat [{label}] has no matching marker [{marker_name}]; biped attachment skipped")
+            return False
+        self.context.view_layer.update()
+        biped_world = self.vehicle_biped_matrix if self.vehicle_biped_matrix is not None else biped.matrix_world.copy()
+        # Move the vehicle by the inverse seat transform; the biped stays put.
+        try:
+            seat_inverse = marker.matrix_world.inverted()
+        except ValueError:
+            utils.print_warning(f"Vehicle seat [{label}] has a singular transform; biped attachment skipped")
+            return False
+        vehicle_world = biped_world @ seat_inverse @ armature.matrix_world
+        # An inverse parent matrix retains shear from rotated, scaled seats.
+        # Assigning matrix_world directly would decompose it and move the biped.
+        placement = bpy.data.objects.new(f"{armature.name}_seat_offset", None)
+        armature.users_collection[0].objects.link(placement)
+        placement.nwo.export_this = False
+        armature.parent = placement
+        armature.matrix_parent_inverse = vehicle_world
+        armature.matrix_basis = Matrix.Identity(4)
+        self.context.view_layer.update()
+        previous = biped.constraints.get("Foundry Vehicle Seat")
+        if previous is not None:
+            biped.constraints.remove(previous)
+        constraint = biped.constraints.new(type='COPY_TRANSFORMS')
+        constraint.name = "Foundry Vehicle Seat"
+        constraint.target = marker
+        constraint.owner_space = 'WORLD'
+        constraint.target_space = 'WORLD'
+        self.context.view_layer.update()
+        return placement
+
     def selected_biped_weapon_markers(self, armature):
         """Read the biped in its own source kit, independently of the weapon kit."""
         saved_path = armature.get("foundry_source_object_tag", "")
@@ -4343,7 +4529,7 @@ class NWOImporter:
             utils.print_warning(f"No matching {'stow' if secondary else 'hand'} marker on {biped.name}; attached at the biped origin")
         return attach
 
-    def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str], child_collection, is_game_object, make_armature_non_export=True, export_attach_point=False, fallback_child_marker=None):
+    def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str], child_collection, is_game_object, make_armature_non_export=True, export_attach_point=False, fallback_child_marker=None, defer_parenting=True):
         imported_objects = []
         armature = None
         if child_object.child_object is None:
@@ -4494,8 +4680,10 @@ class NWOImporter:
                     if marker_parents:
                         if marker_children:
                             _copy_marker_transform(attach_point, marker_parents[0])
-                        else:
+                        elif defer_parenting:
                             defer_copy_marker_transform(armature, marker_parents[0])
+                        else:
+                            _copy_marker_transform(armature, marker_parents[0])
                     else:
                         if marker_children:
                             attach_point.parent = parent_armature
@@ -4511,7 +4699,7 @@ class NWOImporter:
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False, allow_control_rig=True):
         # Attachments and biped weapons need model markers even when
         # standalone marker import is disabled.
-        import_markers = self.tag_markers or self.tag_import_attachments or self.import_biped_weapon or self.weapon_parent_armature is not None
+        import_markers = self.tag_markers or self.tag_import_attachments or self.import_biped_weapon or self.weapon_parent_armature is not None or self.vehicle_biped_armature is not None
         if not skip_print:
             utils.print_tag("Importing Render Model")
         source_files = [
@@ -6156,6 +6344,18 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="Imports all the biped's weapons if it has any",
     )
 
+    attach_selected_biped_to_vehicle: bpy.props.BoolProperty(
+        name="Attach Selected Biped",
+        description="Constrain the selected armature to a vehicle seat and position the vehicle to preserve the biped's current transform",
+        default=True,
+    )
+
+    vehicle_seat: bpy.props.EnumProperty(
+        name="Seat",
+        description="Vehicle seat whose marker the selected biped follows",
+        items=vehicle_seat_items,
+    )
+
     attach_weapon_to_selected_armature: bpy.props.BoolProperty(
         name="Attach to Selected Biped",
         description="Attach imported weapons to the selected armature using its original object tag",
@@ -6257,6 +6457,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         suffix = Path(self.filepath).suffix.lower()
         self.place_at_mouse = scene_nwo.asset_type == 'scenario' and (suffix == '.prefab' or suffix == '.decorator_set' or suffix in OBJECT_TAG_EXTS)
         if suffix == '.weapon' and self.attach_weapon_to_selected_armature and _selected_weapon_parent(context) is not None:
+            self.place_at_mouse = False
+        if suffix == '.vehicle' and self.attach_selected_biped_to_vehicle and _selected_weapon_parent(context) is not None:
             self.place_at_mouse = False
         self.has_variants = False
         self.has_permutations = False
@@ -6374,6 +6576,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         show_fp_arms=self.import_type == "weapon",
                         show_biped_weapon=self.import_type == "biped",
                         show_weapon_attachment=self.import_type == "weapon",
+                        show_vehicle_seat=self.import_type == "vehicle",
                     )
             case 'decorator_set':
                 layout.prop(self, "decorator_type")
