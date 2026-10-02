@@ -16,11 +16,9 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
         super().__init__(path, **kwargs)
 
     def to_blend_objects(self, collection, armature=None, variant=''):
-        if armature is None:
-            armature = utils.get_rig()
         constraints = [Constraint.from_native(record) for record in self.constraints()]
         for constraint in constraints:
-            if armature is None or any(bone not in armature.pose.bones for bone in
+            if armature is not None and any(bone not in armature.pose.bones for bone in
                                       (constraint.bone_parent, constraint.bone_child)):
                 raise ValueError(f'Physics constraint {constraint.name!r} requires both armature bones')
         objects = []
@@ -48,7 +46,7 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
             raise PhysicsShapesUnsupported(f'Cannot import native physics in {self.system_path}: {exc}') from exc
         else:
             for record in records:
-                if record.bone is not None and (armature is None or record.bone not in armature.pose.bones):
+                if armature is not None and record.bone is not None and record.bone not in armature.pose.bones:
                     raise ValueError(f'Physics primitive requires armature bone {record.bone!r}')
             for record, shape in zip(records, shapes):
                 body = RigidBody.__new__(RigidBody)
@@ -58,13 +56,13 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
                 body.to_objects()
                 ob = shape.ob
                 local_matrix = import_transform.object_matrix(
-                    shape.matrix, rotate=getattr(record, 'model_space', False))
-                if record.bone is None:
+                    shape.matrix, rotate=armature is None or getattr(record, 'model_space', False))
+                if armature is None or record.bone is None:
                     ob.parent = armature
-                    ob.matrix_world = local_matrix
+                    ob.matrix_world = armature.matrix_world @ local_matrix if armature is not None else local_matrix
                 else:
                     ob.parent, ob.parent_type, ob.parent_bone = armature, 'BONE', record.bone
-                    ob.matrix_world = (local_matrix if getattr(record, 'model_space', False)
+                    ob.matrix_world = armature.matrix_world @ (local_matrix if getattr(record, 'model_space', False)
                                        else armature.pose.bones[record.bone].matrix @ local_matrix)
                 utils.set_region(ob, record.region, utils.SetType.MODEL)
                 utils.set_permutation(ob, record.permutation, utils.SetType.MODEL)
@@ -79,9 +77,12 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
 
     def _parent_constraint(self, constraint, ob, armature):
         bone = constraint.bone_parent
+        ob.empty_display_size *= import_transform.scale_factor()
+        local_matrix = import_transform.object_matrix(constraint.matrix_a, rotate=armature is None)
+        if armature is None:
+            ob.matrix_world = import_transform.keep_marker_axis(local_matrix)
+            return
         ob.parent = armature
         ob.parent_type = 'BONE'
         ob.parent_bone = bone
-        ob.empty_display_size *= import_transform.scale_factor()
-        local_matrix = import_transform.object_matrix(constraint.matrix_a, rotate=False)
-        ob.matrix_world = import_transform.keep_marker_axis(armature.pose.bones[bone].matrix @ local_matrix)
+        ob.matrix_world = import_transform.keep_marker_axis(armature.matrix_world @ armature.pose.bones[bone].matrix @ local_matrix)

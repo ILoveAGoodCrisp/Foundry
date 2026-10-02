@@ -4374,7 +4374,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.operator('nwo.foundry_import', text="Import Cinematic Objects", icon='IMPORT').scope = 'object'
             col.operator('nwo.foundry_import', text="Import Cinematic Scenarios", icon='IMPORT').scope = 'scenario'
         else:
-            col.operator('nwo.foundry_import', text="Import Models & Animations", icon='IMPORT').scope = 'jma,jms,model,render_model,physics_model,sky,scenario,scenario_structure_bsp,scenario_structure_lighting_info,particle_model,animation,prefab,structure_design,polyart_asset,decorator_set,cinematic'
+            col.operator('nwo.foundry_import', text="Import Models & Animations", icon='IMPORT').scope = 'jma,jms,model,render_model,collision_model,physics_model,sky,scenario,scenario_structure_bsp,scenario_structure_lighting_info,particle_model,animation,prefab,structure_design,polyart_asset,decorator_set,cinematic'
                 
             col.operator('nwo.foundry_import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
             col.operator('nwo.rename_import', text="Import Animation Renames & Copies", icon_value=get_icon_id("animation_rename"))

@@ -852,7 +852,7 @@ def fp_arms_items(operator, context):
 # 6. Add an if with conditions for handling this import under NWO_Import.execute
 # 7. Update scope variable to importer calls in other python files where appropriate
 
-formats = "jms", "jma", "wrl", "bitmap", "camera_track", "model", "render_model", "physics_model", "sky", "scenario", "scenario_structure_bsp", "scenario_structure_lighting_info", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
+formats = "jms", "jma", "wrl", "bitmap", "camera_track", "model", "render_model", "collision_model", "physics_model", "sky", "scenario", "scenario_structure_bsp", "scenario_structure_lighting_info", "particle_model", "object", "animation", "prefab", "structure_design", "polyart_asset", "decorator_set", "cinematic"
 
 xref_tag_types = (
     ".crate",
@@ -886,6 +886,7 @@ filetype_suffixes = (
     ("bitmap", (".bitmap",)),
     ("camera_track", (".camera_track",)),
     ("render_model", (".render_model", ".gbxmodel")),
+    ("collision_model", (".collision_model", ".model_collision_geometry")),
     ("physics_model", (".physics_model", ".physics")),
     ("model", (".model",)),
     ("sky", (".sky",)),
@@ -1964,14 +1965,18 @@ class NWO_Import(bpy.types.Operator):
                         
                     imported_objects.extend(imported_render_objects)
 
-                elif 'physics_model' in importer.extensions:
-                    existing_armature = utils.get_rig_prioritize_active(context) if self.reuse_armature else None
-                    for file in importer.sorted_filepaths["physics_model"]:
-                        utils.print_section(f'Importing Physics Tag: {Path(file).name}')
-                        model_collection = bpy.data.collections.new(Path(file).stem)
-                        importer.scene_collection.children.link(model_collection)
-                        imported_objects.extend(importer.import_physics_model(
-                            file, existing_armature, model_collection, set()))
+                elif {'collision_model', 'physics_model'}.intersection(importer.extensions):
+                    # Capture the selection before importing a fallback skeleton.
+                    selected_armature = next((ob for ob in context.selected_objects
+                                              if ob == context.object and ob.type == 'ARMATURE'), None)
+                    if selected_armature is None:
+                        selected_armature = next((ob for ob in context.selected_objects
+                                                  if ob.type == 'ARMATURE'), None)
+                    for kind in ('collision_model', 'physics_model'):
+                        for file in importer.sorted_filepaths.get(kind, ()):
+                            utils.print_section(f'Importing {kind.replace("_", " ").title()} Tag: {Path(file).name}')
+                            imported_objects.extend(importer.import_standalone_model_geometry(
+                                file, kind, selected_armature))
 
                 elif 'sky' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -2656,6 +2661,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += '*.render_model;*.gbxmodel;'
             if 'physics_model' in self.scope:
                 self.filter_glob += '*.physics_model;*.physics;'
+            if 'collision_model' in self.scope:
+                self.filter_glob += '*.collision_model;*.model_collision_geometry;'
             if 'sky' in self.scope:
                 self.filter_glob += '*.sky;'
             if 'scenario' in self.scope:
@@ -2709,7 +2716,7 @@ class NWO_Import(bpy.types.Operator):
             box = layout.box()
             box.label(text="Tag Source Data")
             box.prop(self, "use_import_info")
-        if not self.scope or ('jms' in self.scope or 'model' in self.scope or 'object' in self.scope or 'render_model' in self.scope or 'physics_model' in self.scope or 'sky' in self.scope):
+        if not self.scope or ('jms' in self.scope or 'model' in self.scope or 'object' in self.scope or 'render_model' in self.scope or 'collision_model' in self.scope or 'physics_model' in self.scope or 'sky' in self.scope):
             box = layout.box()
             box.label(text="Model Settings")
             tag_type = 'material' if utils.is_corinth(context) else 'shader'
@@ -2744,10 +2751,10 @@ class NWO_Import(bpy.types.Operator):
                 box.prop(self, 'tag_animation')
                 box.prop(self, 'setup_as_asset')
 
-        if 'physics_model' in scope_items and 'model' not in scope_items and 'object' not in scope_items:
+        if {'collision_model', 'physics_model'}.intersection(scope_items) and 'model' not in scope_items and 'object' not in scope_items:
             box = layout.box()
-            box.label(text='Physics Settings')
-            box.prop(self, 'reuse_armature')
+            box.label(text='Collision & Physics Settings')
+            box.label(text='Uses selected armature or a skeleton from this tag folder')
             
         if not self.scope or ('scenario' in scope_items) or ('scenario_structure_bsp' in scope_items):
             layout.label(text='Scenario Tag Settings')
@@ -4416,22 +4423,49 @@ class NWOImporter:
             
         return render_model_objects, armature
     
+    def import_standalone_model_geometry(self, file, kind, armature=None):
+        model_collection = bpy.data.collections.new(Path(file).stem)
+        self.scene_collection.children.link(model_collection)
+        objects = []
+        if armature is None:
+            path = Path(file)
+            extensions = ('.gbxmodel', '.model') if self.game == 'halo1' else ('.render_model',)
+            candidates = sorted((candidate for candidate in path.parent.iterdir()
+                                 if candidate.is_file() and candidate.suffix.lower() in extensions),
+                                key=lambda candidate: (candidate.stem.casefold() != path.stem.casefold(),
+                                                       extensions.index(candidate.suffix.lower()),
+                                                       candidate.name.casefold()))
+            if candidates:
+                if not hasattr(self, '_standalone_model_armatures'):
+                    self._standalone_model_armatures = {}
+                render_path = candidates[0].resolve()
+                armature = self._standalone_model_armatures.get(render_path)
+                if armature is None:
+                    with utils.TagImportMover(self.tags_dir, render_path) as mover:
+                        with RenderModelTag(path=mover.tag_path) as render_model:
+                            skeleton_objects, armature = render_model.to_blend_objects(
+                                model_collection, False, False, model_collection,
+                                build_control_rig=False)
+                            objects.extend(skeleton_objects)
+                    self._standalone_model_armatures[render_path] = armature
+        import_geometry = self.import_collision_model if kind == 'collision_model' else self.import_physics_model
+        objects.extend(import_geometry(file, armature, model_collection, set()))
+        return objects
+
     def import_collision_model(self, file, armature, model_collection,allowed_region_permutations):
         print("Importing Collision Model")
         source_files = [
             path for path in self.import_info_sources_for_tag(file)
             if Path(path).suffix.lower() in legacy_model_formats
         ]
-        if source_files:
-            if self.game == 'halo2' and armature is not None and all(
-                    Path(path).suffix.lower() == '.jms' for path in source_files):
-                collection = bpy.data.collections.new(Path(file).stem + '_collision')
-                collection.hide_render = True
-                model_collection.children.link(collection)
-                return self.import_jms_files(source_files, 'model',
-                                             tag_armature=armature,
-                                             parent_collection=collection)
-            return self.import_jms_files(source_files, 'model')
+        if source_files and armature is not None:
+            collection = bpy.data.collections.new(Path(file).stem + '_collision')
+            collection.hide_render = True
+            model_collection.children.link(collection)
+            return self.import_jms_files(source_files, 'model',
+                                         tag_armature=armature,
+                                         parent_collection=collection,
+                                         allowed_region_permutations=allowed_region_permutations)
         collision_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
         collection.hide_render = True
@@ -4448,16 +4482,14 @@ class NWOImporter:
             path for path in self.import_info_sources_for_tag(file)
             if Path(path).suffix.lower() in legacy_model_formats
         ]
-        if source_files:
-            if self.game == 'halo2' and armature is not None and all(
-                    Path(path).suffix.lower() == '.jms' for path in source_files):
-                collection = bpy.data.collections.new(Path(file).stem + '_physics')
-                collection.hide_render = True
-                model_collection.children.link(collection)
-                return self.import_jms_files(source_files, 'model',
-                                             tag_armature=armature,
-                                             parent_collection=collection)
-            return self.import_jms_files(source_files, 'model')
+        if source_files and armature is not None:
+            collection = bpy.data.collections.new(Path(file).stem + '_physics')
+            collection.hide_render = True
+            model_collection.children.link(collection)
+            return self.import_jms_files(source_files, 'model',
+                                         tag_armature=armature,
+                                         parent_collection=collection,
+                                         allowed_region_permutations=allowed_region_permutations)
         physics_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
         collection.hide_render = True
@@ -6076,7 +6108,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         if self.import_type in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
             self.legacy_okay = True
 
-        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "gbxmodel", "physics_model", "physics", "sky", "scenario", "scenario_structure_bsp", "model_animation_graph", "model_animations", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "gbxmodel", "collision_model", "model_collision_geometry", "physics_model", "physics", "sky", "scenario", "scenario_structure_bsp", "model_animation_graph", "model_animations", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 global bsp_items
@@ -6201,8 +6233,8 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "build_blender_materials")
                 draw_material_project_option(self, layout)
                 layout.prop(self, "always_extract_bitmaps")
-            case "physics_model" | "physics":
-                layout.prop(self, "reuse_armature")
+            case "collision_model" | "model_collision_geometry" | "physics_model" | "physics":
+                layout.label(text="Uses selected armature or a skeleton from this tag folder")
             case "scenario":
                 draw_scenario_import_sections(
                     self,
@@ -6263,6 +6295,17 @@ class NWO_FH_Import(bpy.types.FileHandler):
     @classmethod
     def poll_drop(cls, context):
         return (context.area and context.area.type == 'VIEW_3D')
+
+class NWO_FH_ImportCollision(bpy.types.FileHandler):
+    # Keep the general handler below Blender's 512-byte extension limit.
+    bl_idname = "NWO_FH_ImportCollision"
+    bl_label = "File handler Foundry Collision Importer"
+    bl_import_operator = "nwo.import_from_drop"
+    bl_file_extensions = ".collision_model;.model_collision_geometry"
+
+    @classmethod
+    def poll_drop(cls, context):
+        return NWO_FH_Import.poll_drop(context)
 
 class NWO_FH_ImportCinematic(bpy.types.FileHandler):
     # Blender stores each extension list in a 512-byte buffer, including the

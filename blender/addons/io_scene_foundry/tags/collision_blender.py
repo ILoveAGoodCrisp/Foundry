@@ -17,25 +17,24 @@ class CollisionTag(BlenderTag, CollisionDocument):
         super().__init__(path, **kwargs)
 
     def to_blend_objects(self, collection: bpy.types.Collection, armature=None, variant=''):
-        if armature is None:
-            armature = utils.get_rig()
         meshes, spheres = self.read_collision()
         meshes = select_model_records(meshes, variant)
         if not meshes and not spheres:
             return []
-        if armature is None:
-            raise ValueError('Collision import requires an armature')
         for record in (*meshes, *spheres):
-            if record.bone not in armature.pose.bones:
+            if armature is not None and record.bone not in armature.pose.bones:
                 raise ValueError(f'Collision bone {record.bone!r} is missing from the armature')
         objects = []
         for record in meshes:
             bsp = ModelCollision.from_native(record)
             ob = bsp.to_object()
-            ob.parent = armature
-            ob.parent_type = 'BONE'
-            ob.parent_bone = bsp.bone
-            ob.matrix_world = armature.pose.bones[bsp.bone].matrix
+            if armature is not None:
+                ob.parent = armature
+                ob.parent_type = 'BONE'
+                ob.parent_bone = bsp.bone
+                ob.matrix_world = armature.matrix_world @ armature.pose.bones[bsp.bone].matrix
+            else:
+                ob.matrix_world = import_transform.rotation_matrix()
             utils.set_region(ob, record.region, utils.SetType.MODEL)
             utils.set_permutation(ob, record.permutation, utils.SetType.MODEL)
             collection.objects.link(ob)
@@ -43,13 +42,16 @@ class CollisionTag(BlenderTag, CollisionDocument):
         for record in spheres:
             sphere = PathfindingSphere.from_native(record)
             ob = sphere.to_object()
-            ob.parent = armature
-            ob.parent_type = 'BONE'
-            ob.parent_bone = sphere.bone
+            if armature is not None:
+                ob.parent = armature
+                ob.parent_type = 'BONE'
+                ob.parent_bone = sphere.bone
             local_matrix = import_transform.object_matrix(
                 Matrix.LocRotScale(Vector(sphere.center) * 100, Euler((0, 0, 0)), Vector.Fill(3, 1)),
-                rotate=False)
-            ob.matrix_world = import_transform.keep_marker_axis(armature.pose.bones[sphere.bone].matrix @ local_matrix)
+                rotate=armature is None)
+            ob.matrix_world = import_transform.keep_marker_axis(
+                armature.matrix_world @ armature.pose.bones[sphere.bone].matrix @ local_matrix
+                if armature is not None else local_matrix)
             collection.objects.link(ob)
             objects.append(ob)
         return objects
