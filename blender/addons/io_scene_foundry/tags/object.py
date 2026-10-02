@@ -233,8 +233,11 @@ class ObjectDocument(TagDocument):
             # H1 attaches the weapon origin to the unit's right-hand marker.
             return 'right hand', ''
         unit = self.nested(self.tag.root(), 'unit')
-        return (self.value(unit, 'right_hand_node'),
-                self.value(self.nested(unit, 'more damn nodes'), 'preferred_gun_node'))
+        hand = unit.field('right_hand_node')
+        nodes = unit.field('more damn nodes')
+        gun = nodes.as_struct().field('preferred_gun_node') if nodes is not None else None
+        return (hand.value if hand is not None else '',
+                gun.value if gun is not None else '')
 
     def first_person(self):
         if self.game == 'halo1':

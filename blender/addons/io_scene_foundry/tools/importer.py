@@ -82,6 +82,11 @@ from .. import utils
 from .model_to_instance import ModelInstance
 from functools import partial
 
+def _matching_marker_name(preferred, fallback, marker_names):
+    """Use a tag's preferred attachment marker only when the model has it."""
+    return preferred if preferred and preferred in marker_names else fallback
+
+
 legacy_model_formats = '.jms', '.ass'
 IMPORT_SHADER_EXTENSIONS = utils.shader_exts + (
     '.shader_model', '.shader_environment', '.shader_transparent_chicago',
@@ -4154,17 +4159,23 @@ class NWOImporter:
                                         utils.print_section(f"Importing Weapon: {weapon_name}")
                                         child = ChildObject(child_variant_name="")
                                         parent_marker, child_marker = obj.get_weapon_markers()
-                                        child.parent_marker = parent_marker if parent_marker else "primary_weapon"
-                                        child.child_marker = child_marker if obj.game == 'halo1' else (child_marker or "right_hand")
+                                        markers = {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}
+                                        default_parent_marker = ('right hand' if obj.game == 'halo1' else
+                                                                 'right_hand' if obj.game in {'halo2', 'halo3', 'halo3odst'} else
+                                                                 'primary_weapon')
+                                        child.parent_marker = _matching_marker_name(parent_marker, default_parent_marker, markers.values())
+                                        child.child_marker = child_marker
+                                        default_child_marker = '' if obj.game == 'halo1' else 'right_hand'
                                         child.child_object = weapon
                                         imported_file_objects.extend(self.import_child_object(
                                             child,
                                             armature,
-                                            {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'},
+                                            markers,
                                             weapon_collection,
                                             is_game_object,
                                             make_armature_non_export=self.import_biped_weapon_non_export and self.scene_nwo.asset_type != 'cinematic',
                                             export_attach_point=not (self.import_biped_weapon_non_export and self.scene_nwo.asset_type != 'cinematic'),
+                                            fallback_child_marker=default_child_marker,
                                         ))
                                     self.context.view_layer.update()
                                     
@@ -4194,7 +4205,7 @@ class NWOImporter:
         else:
             return imported_objects, imported_animations
     
-    def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str], child_collection, is_game_object, make_armature_non_export=True, export_attach_point=False):
+    def import_child_object(self, child_object: ChildObject, parent_armature: bpy.types.Object, markers: dict[bpy.types.Object: str], child_collection, is_game_object, make_armature_non_export=True, export_attach_point=False, fallback_child_marker=None):
         imported_objects = []
         armature = None
         if child_object.child_object is None:
@@ -4313,9 +4324,13 @@ class NWOImporter:
                         
                     marker_children = []
                         
-                    if child_object.child_marker:
-                        for marker_ob, group_name in {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}.items():
-                            if group_name == child_object.child_marker:
+                    child_markers = {ob: ob.nwo.marker_model_group for ob in render_objects if ob.type == 'EMPTY'}
+                    child_marker = child_object.child_marker
+                    if fallback_child_marker is not None:
+                        child_marker = _matching_marker_name(child_marker, fallback_child_marker, child_markers.values())
+                    if child_marker:
+                        for marker_ob, group_name in child_markers.items():
+                            if group_name == child_marker:
                                 marker_children.append(marker_ob)
                                 
                     if marker_children:
@@ -4356,9 +4371,9 @@ class NWOImporter:
         return imported_objects
             
     def import_render_model(self, file, model_collection, existing_armature, allowed_region_permutations, skip_print=False, allow_control_rig=True):
-        # Attachments need their model markers even when standalone marker
-        # import is disabled. Otherwise light tags convert but produce no objects.
-        import_markers = self.tag_markers or self.tag_import_attachments
+        # Attachments and biped weapons need model markers even when
+        # standalone marker import is disabled.
+        import_markers = self.tag_markers or self.tag_import_attachments or self.import_biped_weapon
         if not skip_print:
             utils.print_tag("Importing Render Model")
         source_files = [
