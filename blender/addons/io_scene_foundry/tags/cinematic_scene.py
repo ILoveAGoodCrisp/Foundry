@@ -696,7 +696,7 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
             frame += frame_counts[shot_index]
             
         blender_scene.frame_start = 1
-        blender_scene.frame_end = frame
+        blender_scene.frame_end = max(1, frame - 1)
         
         utils.print_tag("Cinematic Objects")
         

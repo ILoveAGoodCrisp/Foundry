@@ -7239,7 +7239,7 @@ def find_or_create_free_track(ad, start, end):
     for track in ad.nla_tracks:
         conflict = False
         for st in track.strips:
-            if not (end <= st.frame_start or start >= st.frame_end):
+            if not (end < st.frame_start or start > st.frame_end):
                 conflict = True
                 break
         if not conflict:
@@ -7252,7 +7252,11 @@ def find_or_create_free_track(ad, start, end):
 def add_scene_data_to_nla(sdata, scene_nwo):
     for idx, shot_frame in enumerate(sdata.shot_frames):
         shot_idx = idx + 1
-        
+        if idx + 1 < len(sdata.shot_frames):
+            shot_end = sdata.shot_frames[idx + 1]
+        else:
+            shot_end = sdata.blender_scene.frame_end + 1
+
         for cin_object in sdata.object_animations:
             if not cin_object.animations:
                 continue
@@ -7260,56 +7264,53 @@ def add_scene_data_to_nla(sdata, scene_nwo):
             if animation_index is None:
                 continue
             animation = scene_nwo.animations[animation_index]
-            
-            animation_start, animation_end = animation.frame_start, animation.frame_end
-            start = shot_frame
-            end = shot_frame + (animation_end - animation_start)
-            
-            for track in animation.action_tracks:
-                if track.is_shape_key_action:
-                    ob = track.object
-                    shape_keys = ob.data.shape_keys
-                    action = track.action
-                    track = find_or_create_free_track(shape_keys.animation_data, start, end)
-                    base_name = f"{ob.name}_shot{shot_idx}"
-                    strip_name = base_name
-                    existing = {s.name for s in track.strips}
-                    if strip_name in existing:
-                        i = 1
-                        while f"{base_name}_{i}" in existing:
-                            i += 1
-                        strip_name = f"{base_name}_{i}"
+            animation_start = animation.frame_start
+            # Tags can retain extra terminal samples beyond the camera cut.
+            # Trim the source range as well as the strip so playback stays 1:1.
+            # NLA strip endpoints are inclusive, including across different
+            # tracks. Stop just before the cut so the previous clip cannot win
+            # over the new shot on its first frame.
+            duration = min(max(1, animation.frame_end - animation_start), shot_end - shot_frame - 0.001)
+            if duration <= 0:
+                continue
+            end = shot_frame + duration
 
-                    strip = track.strips.new(strip_name, start, action)
+            for action_track in animation.action_tracks:
+                ob = action_track.object
+                owner = ob.data.shape_keys if action_track.is_shape_key_action else ob
+                action = action_track.action
+                ad = owner.animation_data_create()
+                track = find_or_create_free_track(ad, shot_frame, end)
+                base_name = f"{ob.name}_shot{shot_idx}"
+                strip_name = base_name
+                existing = {strip.name for strip in track.strips}
+                if strip_name in existing:
+                    suffix = 1
+                    while f"{base_name}_{suffix}" in existing:
+                        suffix += 1
+                    strip_name = f"{base_name}_{suffix}"
 
-                    strip.frame_start = start
-                    strip.frame_end = end
-                    strip.action_frame_start = animation_start
-                    strip.action_frame_end = animation_end
-                    shape_keys.animation_data.action = None
-                else:
-                    arm = track.object
-                    action = track.action
-                    track = find_or_create_free_track(arm.animation_data, start, end)
-                    base_name = f"{arm.name}_shot{shot_idx}"
-                    strip_name = base_name
-                    existing = {s.name for s in track.strips}
-                    if strip_name in existing:
-                        i = 1
-                        while f"{base_name}_{i}" in existing:
-                            i += 1
-                        strip_name = f"{base_name}_{i}"
-
-                    strip = track.strips.new(strip_name, start, action)
-
-                    strip.frame_start = start
-                    strip.frame_end = end
-                    strip.action_frame_start = animation_start
-                    strip.action_frame_end = animation_end
-
-                    arm.animation_data.action = None
-
-            # print(f"Added {action.name} to {arm.name} at frame {shot_frame}")
+                strip = track.strips.new(strip_name, shot_frame, action)
+                slots = action.slots
+                if slots:
+                    slot = slots.get(ad.last_slot_identifier)
+                    if slot is None and len(slots) == 1:
+                        slot = slots[0]
+                    if slot is None:
+                        raise ValueError(f'{ob.name}: no matching action slot in {action.name}')
+                    if strip.action_slot != slot:
+                        strip.action_slot = slot
+                strip.action_frame_start = animation_start
+                strip.action_frame_end = animation_start + duration
+                strip.frame_start = shot_frame
+                strip.frame_end = end
+                strip.scale = 1.0
+                strip.extrapolation = 'NOTHING'
+                strip.blend_type = 'REPLACE'
+                strip.use_auto_blend = False
+                strip.blend_in = 0.0
+                strip.blend_out = 0.0
+                ad.action = None
 
 def _remap_driver_targets(id_block, object_map):
     animation_data = getattr(id_block, "animation_data", None)
