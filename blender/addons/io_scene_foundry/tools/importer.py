@@ -81,6 +81,7 @@ from ..constants import (
 )
 from ..tags.connected_material import GameFunctionType, game_functions
 from .. import utils
+from ..project import GAME_INFO
 from .model_to_instance import ModelInstance
 from functools import partial
 
@@ -403,10 +404,40 @@ def draw_import_template(operator, layout):
     row = layout.row()
     row.prop(operator, "import_template", text="Template")
 
-def draw_animation_conversions(operator, layout):
+def draw_import_projects(operator, layout):
+    source_project = utils.get_project()
+    if source_project is not None and not Path(operator.filepath).resolve().is_relative_to(
+            Path(source_project.tags_directory).resolve()):
+        source_project = None
+    box = layout.box()
+    box.label(text="Projects")
+    for label, project in (
+        ("Source Tag Project", source_project),
+        ("Currently Loaded Project", utils.get_project(use_external=False)),
+    ):
+        if project is None:
+            box.label(text=f"{label}: Unknown", icon='ERROR')
+            continue
+        game_name = GAME_INFO.get(project.game, (project.game, project.game))[1]
+        box.label(text=f"{label}: {project.name} ({game_name})", translate=False)
+    box.separator()
+    box.label(text="Conversion options adapt imported animations and shaders")
+    box.label(text="to the loaded project. Uncheck them to keep the source format.")
+
+
+def draw_animation_conversions(operator, layout, enabled=None):
+    if enabled is None:
+        enabled = operator.graph_import_animations
     row = layout.row()
-    row.enabled = operator.graph_import_animations
+    row.enabled = enabled
     row.prop(operator, "convert_animations")
+    if not enabled:
+        text = "Animation conversion requires importing animations."
+    elif operator.convert_animations:
+        text = "Animations will be adapted to the loaded project's game."
+    else:
+        text = "Animations will keep the source game's format."
+    layout.label(text=text, icon='INFO')
 
 
 def draw_animation_graph_import_options(operator, layout, corinth, include_generate_frames=False):
@@ -416,7 +447,7 @@ def draw_animation_graph_import_options(operator, layout, corinth, include_gener
     col.enabled = operator.tag_animation
     col.prop(operator, "tag_animation_filter")
     col.prop(operator, "graph_import_animations")
-    draw_animation_conversions(operator, col)
+    draw_animation_conversions(operator, col, operator.tag_animation and operator.graph_import_animations)
     row = col.row()
     row.enabled = operator.tag_animation and operator.graph_import_animations
     row.prop(operator, "graph_bake_to_control_rig")
@@ -495,11 +526,21 @@ def draw_material_project_option(operator, layout):
     if not hasattr(operator, "build_materials_for_project"):
         return
     project = utils.get_project(use_external=False)
-    if project is None or project.game == 'halo2':
+    if project is None:
+        return
+    if project.game == 'halo2':
+        layout.label(text="Shader conversion to Halo 2 is unavailable.", icon='INFO')
         return
     row = layout.row()
     row.enabled = operator.build_blender_materials
     row.prop(operator, "build_materials_for_project")
+    if not operator.build_blender_materials:
+        text = "Enable Generate Materials to convert shaders/materials."
+    elif operator.build_materials_for_project:
+        text = "Shaders/materials will be adapted to the loaded project's game."
+    else:
+        text = "Shaders/materials will keep the source game's format."
+    layout.label(text=text, icon='INFO')
 
 
 def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, has_permutations=False, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True, show_weapon_attachment=True, show_vehicle_seat=True):
@@ -2985,7 +3026,7 @@ class NWO_Import(bpy.types.Operator):
             box = layout.box()
             box.label(text="Animation Settings")
             box.prop(self, "generate_frames")
-            box.prop(self, "convert_animations")
+            draw_animation_conversions(self, box, enabled=True)
         
         if not self.scope or ('bitmap' in self.scope):
             box = layout.box()
@@ -3019,6 +3060,7 @@ class NWO_Import(bpy.types.Operator):
             box.label(text='Cinematic Settings')
             box.prop(self, "tag_cinematic_import_scenario")
             box.prop(self, "tag_cinematic_import_actors")
+            draw_animation_conversions(self, box, self.tag_cinematic_import_actors)
             if corinth:
                 box.prop(self, "graph_import_pca_data")
             box.prop(self, "tag_cinematic_scene")
@@ -6589,7 +6631,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             if self.place_at_mouse:
                 return self.execute(context)
             else:
-                return context.window_manager.invoke_props_dialog(self, width=500)
+                return context.window_manager.invoke_props_dialog(self, width=600)
         else:
             return self.execute(context)
 
@@ -6600,6 +6642,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         layout = self.layout
         layout.use_property_split = True
         layout.label(text=f"Importing: {Path(self.filepath).name}")
+        draw_import_projects(self, layout)
         corinth = utils.is_corinth(context)
         if self.import_type not in {"cinematic", "jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"} and utils.get_scene_props().asset_type != 'cinematic':
             layout.prop(self, "use_import_info")
@@ -6683,6 +6726,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             case 'cinematic':
                 layout.prop(self, "tag_cinematic_import_scenario")
                 layout.prop(self, "tag_cinematic_import_actors")
+                draw_animation_conversions(self, layout, self.tag_cinematic_import_actors)
                 if corinth:
                     layout.prop(self, "graph_import_pca_data")
                 layout.prop(self, "tag_cinematic_scene")
@@ -6701,7 +6745,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "legacy_type", expand=True)
             case "jmm" | "jma" | "jmt" | "jmz" | "jmv" | "jmw" | "jmo" | "jmr" | "jmrx":
                 layout.prop(self, "generate_frames")
-                layout.prop(self, "convert_animations")
+                draw_animation_conversions(self, layout, enabled=True)
             
 
 class NWO_FH_Import(bpy.types.FileHandler):
@@ -7045,25 +7089,16 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                     add_function(context.scene, func, func, ao, attach_arm)
                         
     if build_materials:
-        # Apply emissives even when an import reuses existing materials.
-        emissive_meshes = set(emissive_meshes or ())
-        if importer.game in {'halo1', 'halo2'}:
-            emissive_meshes.update(ob.data for ob in imported_objects
-                                   if ob.type == 'MESH' and (
-                                       any(p.type == 'emissive' for p in ob.data.nwo.face_props) or
-                                       any(mat and any(p.type == 'emissive' for p in mat.nwo.material_props)
-                                           for mat in ob.data.materials)))
-        if emissive_meshes:
-            print("Setting up emissive materials")
-            for mesh in emissive_meshes:
-                utils.setup_emissive_attributes(mesh, importer.game)
-
-        # NOTE Commented out until foundry node is ready
-        # for mesh in {ob.data for ob in imported_objects if ob.type == 'MESH'}:
-        #     if any((p.type == 'face_sides' and p.two_sided) or
-        #            (p.type == 'face_mode' and p.face_mode in utils.INVISIBLE_FACE_MODES)
-        #            for p in mesh.nwo.face_props):
-        #         utils.setup_two_sided_preview(mesh)
+        # Shader building only updates materials. Resolve mesh face properties
+        # after all geometry/material changes, including cached cinematic actors
+        # and imports that reuse existing materials.
+        meshes = {ob.data for ob in imported_objects if ob.type == 'MESH'}
+        meshes.update(emissive_meshes or ())
+        preview_game = importer.target_game if importer.build_materials_for_project else importer.game
+        if meshes:
+            print("Updating Foundry mesh previews")
+            for mesh in meshes:
+                utils.update_foundry_mesh(mesh, preview_game)
 
 
 class NWO_ImportGameInstanceTag(bpy.types.Operator):
