@@ -1,13 +1,13 @@
 
 
 
-from math import radians, isfinite
+from math import radians, isfinite, pi
 
 from .bitmap import bitmap_to_image
 from .. import utils
 from .blender import BlenderTag
 from .backend import TagDocument
-from .metadata import enum_index
+from .metadata import enum_index, rgba
 from .light_functions import light_functions, constant_light_value
 from .. import import_transform
 import bpy
@@ -38,6 +38,69 @@ class LightTag(BlenderTag, TagDocument):
     def _to_blender_reach(self, primary_scale, secondary_scale, attachment):
         with light_functions(self, ('color', 'intensity')) as functions:
             return self._convert(primary_scale, secondary_scale, attachment, *functions)
+
+    def _to_blender_halo1(self, primary_scale, secondary_scale, attachment):
+        """Import an H1 light without interpreting its colors as Reach mappings.
+
+        H1's radiosity intensity/color are lightmap settings, not the dynamic
+        light's power. ARGB bounds supply the dynamic color and brightness.
+        Radius modulation and cube-map gels need a dedicated H1 light shader;
+        retain the radius settings and use the maximum radius for the preview.
+        """
+        root = self.tag.root()
+        shape = self.required_field(root, 'shape').as_struct()
+        color = self.required_field(root, 'color').as_struct()
+        radius = max(0.0, self.value(shape, 'radius'))
+        cutoff = self.value(shape, 'cutoff angle')
+        falloff = self.value(shape, 'falloff angle')
+        lower = rgba(self.value(color, 'color lower bound'))
+        upper = rgba(self.value(color, 'color upper bound'))
+        # The native H1 schema retains Guerilla's misspelling.
+        modifiers = self.value(shape, 'radius modifer')
+        # Zero bounds are commonly authored (including the hunter fuelrod
+        # flare); H1 treats these as the default multiplier of one.
+        radius_bounds = tuple(v if v else 1.0 for v in (modifiers.lower, modifiers.upper))
+        flags = self.required_field(color, 'interpolation flags')
+        hsv = flags.get_flag('blend in hsv')
+        # Native H1 angles are radians (unlike the later light layouts).
+        is_spot = 0.0 < cutoff < pi
+        data = bpy.data.lights.new(self.tag_path.ShortName, type='SPOT' if is_spot else 'POINT')
+        data.color = [utils.srgb_to_linear(c) for c in upper[:3]]
+        data.nwo.light_intensity = max(0.0, upper[3])
+        data.nwo.light_far_attenuation_start = 0.0
+        data.nwo.light_far_attenuation_end = import_transform.distance(radius * max(radius_bounds))
+        data.shadow_soft_size = 0.0
+        if is_spot:
+            # H1 stores the angle from the axis; Blender stores the full cone.
+            data.spot_size = min(2.0 * cutoff, pi)
+            data.spot_blend = max(0.0, min(1.0, 1.0 - falloff / cutoff))
+        light_node = utils.make_halo_light(data)
+        tree = data.node_tree
+        if primary_scale:
+            attribute = tree.nodes.new('ShaderNodeAttribute')
+            attribute.attribute_type = 'INSTANCER'
+            attribute.attribute_name = primary_scale
+            ramp = tree.nodes.new('ShaderNodeValToRGB')
+            ramp.label = 'H1 color and brightness bounds'
+            ramp.color_ramp.color_mode = 'HSV' if hsv else 'RGB'
+            ramp.color_ramp.elements[0].color = (*[utils.srgb_to_linear(c) for c in lower[:3]], lower[3])
+            ramp.color_ramp.elements[1].color = (*data.color, upper[3])
+            tree.links.new(attribute.outputs['Fac'], ramp.inputs['Fac'])
+            tree.links.new(ramp.outputs['Color'], light_node.inputs[0])
+            tree.links.new(ramp.outputs['Alpha'], light_node.inputs[1])
+        else:
+            light_node.inputs[0].default_value = (*data.color, 1.0)
+            light_node.inputs[1].default_value = max(0.0, upper[3])
+        data['halo1_radius'] = radius
+        data['halo1_radius_modifier'] = radius_bounds
+        data['halo1_color_lower_bound'] = lower
+        data['halo1_color_upper_bound'] = upper
+        data['halo1_secondary_scale'] = secondary_scale
+        data.nwo.light_specular_contribution = not self.required_field(root, 'flags').get_flag('no specular')
+        if attachment is not None:
+            attachment.function_names.update(name for name in (primary_scale, secondary_scale) if name)
+        utils.arrange(tree)
+        return data
 
     def _convert(self, primary_scale, secondary_scale, attachment, color_function, intensity_function):
         root = self.tag.root()
@@ -216,7 +279,9 @@ class LightTag(BlenderTag, TagDocument):
         return data
         
     def to_blender(self, primary_scale="", secondary_scale="", attachment=None):
-        if self.corinth:
+        if self.game == 'halo1':
+            return self._to_blender_halo1(primary_scale, secondary_scale, attachment)
+        elif self.corinth:
             return self._to_blender_corinth(primary_scale, secondary_scale, attachment)
         else:
             return self._to_blender_reach(primary_scale, secondary_scale, attachment)
