@@ -100,10 +100,14 @@ def halo_material(mat_name):
     
     new_material = bpy.data.materials.new(mat_name)
     new_material.diffuse_color = convention.color
-    bsdf = new_material.node_tree.nodes[0]
-    bsdf.inputs[0].default_value = convention.color
-    bsdf.inputs[4].default_value = convention.color[3]
-    new_material.blend_method = 'BLEND'
+    new_material.use_nodes = True
+    bsdf = next(node for node in new_material.node_tree.nodes if node.type == 'BSDF_PRINCIPLED')
+    bsdf.inputs['Base Color'].default_value = convention.color
+    bsdf.inputs['Alpha'].default_value = convention.color[3]
+    if hasattr(new_material, 'surface_render_method'):
+        new_material.surface_render_method = 'BLENDED'
+    else:
+        new_material.blend_method = 'BLEND'
     material_add_visibility(new_material)
 
     return new_material

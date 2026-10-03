@@ -2730,8 +2730,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         row.prop(nwo, "havok_angular_damping")
 
             elif nwo.mesh_type == "_connected_geometry_mesh_type_portal":
-                if game == 'halo1':
-                    col.prop(nwo, "portal_exact")
                 row = col.row()
                 row.prop(
                     nwo,
@@ -3591,7 +3589,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                             row.prop(nwo, "material_shader", text="Default Shader")
                             row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="").batch_panel = False
                         else:
-                            col.prop(nwo, "shader_type", text="Shader Type")
+                            col.prop(nwo, nwo.shader_type_property(), text="Shader Type")
 
                 else:
                     if nwo.shader_path:
@@ -3610,7 +3608,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                             row.prop(nwo, "material_shader", text="Default Shader")
                             row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="")
                         else:
-                            col_props.prop(nwo, "shader_type", text="Shader Type")
+                            col_props.prop(nwo, nwo.shader_type_property(), text="Shader Type")
 
             # TEXTURE PROPS
             # First validate if Material has images

@@ -46,9 +46,10 @@ resolved face properties and region/permutation/LOD, not Blender slot indices.
 Unit/axis conversion is reversed at the adapter boundary. Import remains
 independent of virtual geometry and tag/export initialization.
 
-For Halo 1, exact and ordinary portals are partitioned separately. Exact Portal
-is stored on the object and survives replacing its display material. An explicit
-setting takes precedence over the legacy +exactportal material-name fallback.
+For Halo 1, exact and ordinary portals are partitioned separately on import.
+The source Exact Portal setting is retained on the object. All Halo 1 portals
+export as +exactportal, regardless of that setting or the display material, to
+avoid Tool's unearthed portal warning.
 Real shaders beginning with + (such as +ladder stair) retain their collision and
 ladder properties even without a resolved shader path. H1 helper-face flags are
 also preserved during import and export cleanup.

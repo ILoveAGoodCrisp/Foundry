@@ -551,9 +551,9 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 blocks_sounds=blocks_sounds,
                 is_door=is_door,
                 vertices=vertices,
-                plane_index=int(self.value(element, 'plane index')) if self.game in {'halo1', 'reach'} else -1,
-                back_cluster=int(self.value(element, 'back cluster')) if self.game in {'halo1', 'reach'} else -1,
-                front_cluster=int(self.value(element, 'front cluster')) if self.game in {'halo1', 'reach'} else -1,
+                plane_index=int(element.field('plane index').value) if element.field('plane index') is not None else -1,
+                back_cluster=int(element.field('back cluster').value) if element.field('back cluster') is not None else -1,
+                front_cluster=int(element.field('front cluster').value) if element.field('front cluster') is not None else -1,
             ))
         return records
 
@@ -682,9 +682,14 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
         return StructureBspCollision(vertices, tuple(surfaces), tuple(polygons))
 
     def portal_collision_tree(self):
-        """Read Reach's visibility classification without assuming node zero is its root."""
+        """Read portal collision data, including packed nodes and supernode roots.
+
+        Classic tags keep collision inline; later games keep it in resources.
+        Keep leaf labels only when the collision and visibility counts match.
+        """
         from .reach_portals import unpack_collision_node
-        for raw in self._raw_resource_items():
+        raw_items = [self.tag.root()] if self.game in {'halo1', 'halo2'} else self._raw_resource_items()
+        for raw in raw_items:
             for name in ('collision bsp', 'large collision bsp'):
                 field = raw.field(name)
                 if field is None or field.as_block() is None or not len(field.as_block()):
@@ -692,15 +697,23 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 bsp = field.as_block()[0]
                 planes = [(p.i, p.j, p.k, p.d) for element in self.block(bsp, 'planes')
                           for p in (self.value(element, 'plane'),)]
-                if name == 'large collision bsp':
-                    nodes = [tuple(int(self.value(node, field))
-                                   for field in ('plane', 'back child', 'front child'))
-                             for node in self.block(bsp, 'bsp3d nodes')]
-                else:
-                    nodes = [unpack_collision_node(int(self.value(node, 'node data designator')))
-                             for node in self.block(bsp, 'bsp3d nodes')]
+                nodes = []
+                for node in self.block(bsp, 'bsp3d nodes'):
+                    if node.field('plane') is not None:
+                        nodes.append(tuple(int(self.value(node, field))
+                                           for field in ('plane', 'back child', 'front child')))
+                    elif node.field('node data designator') is not None:
+                        nodes.append(unpack_collision_node(int(self.value(node, 'node data designator'))))
+                    elif self.game == 'halo2' and node.size == 8:
+                        # H2's schema exposes its packed 16/24/24-bit node as
+                        # skipped bytes. Use the tag's actual byte order.
+                        order = 'little' if self.tag.endian == self.api.Endian.Le else 'big'
+                        nodes.append(unpack_collision_node(int.from_bytes(node.raw_bytes, order)))
+                    else:
+                        return None
                 supernodes = []
-                for node in self.block(bsp, 'bsp3d supernodes'):
+                super_field = bsp.field('bsp3d supernodes')
+                for node in super_field.as_block() if super_field is not None else ():
                     # Wire order: 15 plane values, 16 children, packed axes.
                     # Reach's editor labels put "plane dimensions" on the first
                     # child and "child index15" on the axes word. Read by layout
@@ -710,11 +723,23 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                         return None
                     supernodes.append((tuple(values[:15]), tuple(map(int, values[15:31])),
                                        int(values[31])))
+                leaf_field = self.tag.root().field('leaves')
                 clusters = [int(self.value(leaf, 'cluster'))
-                            for leaf in self.block(self.tag.root(), 'leaves')]
+                            for leaf in leaf_field.as_block()] if leaf_field is not None else []
                 vertices = [tuple(self.value(vertex, 'point').to_array())
                             for vertex in self.block(bsp, 'vertices')]
-                if not vertices or not clusters or len(clusters) != len(self.block(bsp, 'leaves')):
+                leaf_count = len(self.block(bsp, 'leaves'))
+                if not vertices or not planes or not (nodes or supernodes):
+                    continue
+                if len(clusters) != leaf_count:
+                    clusters = []
+                # Reject unrecognised packing or corrupt child indices before
+                # any outline expansion can use this tree as a solid proof.
+                if any(not 0 <= plane < len(planes) or any(
+                        (child & 0xffffffff) != 0xffffffff and
+                        ((child & 0x7fffffff) >= leaf_count if child & 0x80000000
+                         else (child & 0x3fffffff) >= len(nodes))
+                        for child in (back, front)) for plane, back, front in nodes):
                     return None
                 bounds = [(min(p[i] for p in vertices) - 1, max(p[i] for p in vertices) + 1)
                           for i in range(3)]

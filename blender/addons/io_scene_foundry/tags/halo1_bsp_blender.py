@@ -169,6 +169,7 @@ def weather_vertices(planes):
 
 def collision_point_is_solid(tag):
     """Classify tag-space points without confusing unknown leaves with solid."""
+    from .collision_solid import CollisionSolidQuery
     bsps = list(tag.block(tag.tag.root(), 'collision bsp'))
     if not bsps:
         return lambda point: False
@@ -177,21 +178,12 @@ def collision_point_is_solid(tag):
     nodes = [tuple(int(tag.value(n, field)) for field in ('plane', 'back child', 'front child'))
              for n in tag.block(bsp, 'bsp3d nodes')]
 
-    def is_solid(point):
-        index = 0
-        for _ in range(len(nodes) + 1):
-            index &= 0xffffffff
-            if index == 0xffffffff:
-                return True
-            if index & 0x80000000 or index >= len(nodes):
-                return False
-            plane, back, front = nodes[index]
-            if not 0 <= plane < len(planes):
-                return False
-            x, y, z, distance = planes[plane]
-            index = front if x*point.x + y*point.y + z*point.z >= distance else back
-        return False
-    return is_solid
+    # H1 render leaves reference the collision tree's empty leaves. Do not use
+    # this correspondence for a malformed or mismatched block.
+    leaves = [int(tag.value(leaf, 'cluster')) for leaf in tag.block(tag.tag.root(), 'leaves')]
+    if len(leaves) != len(list(tag.block(bsp, 'leaves'))):
+        leaves = ()
+    return CollisionSolidQuery(planes, nodes, leaves)
 
 
 def cluster_sky_lookup(tag):

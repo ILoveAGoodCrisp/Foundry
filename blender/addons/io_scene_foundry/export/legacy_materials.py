@@ -22,10 +22,9 @@ def material_variant(shader, props, global_material='default', ass_version=None,
     if target_game == 'halo1':
         # H1 has its own hard-coded BSP material names. Water uses a real
         # shader, while standalone fog is the unused material with a $ flag.
-        special = {13: '+portal', 14: '+seamsealer', 15: '+unused',
+        # Always use exact portals to avoid Tool's unearthed portal warning.
+        special = {13: '+exactportal', 14: '+seamsealer', 15: '+unused',
                    8: '+weatherpoly'}
-        if get('mesh_type') == 13 and props.get('foundry_portal_exact', shader.startswith('+exactportal')):
-            special[13] = '+exactportal'
     name = special.get(get('mesh_type'), name)
     if target_game == 'halo1' and props.get('foundry_weather_polyhedron'):
         name = '+weatherpoly'

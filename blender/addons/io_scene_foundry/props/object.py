@@ -1149,7 +1149,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     # portal PROPERTIES
     portal_exact: bpy.props.BoolProperty(
         name="Exact Portal",
-        description="Export this Halo 1 portal as +exactportal",
+        description="Imported Halo 1 exact portal metadata; all Halo 1 portals export as +exactportal",
         default=False,
         options=set(),
         override={'LIBRARY_OVERRIDABLE'},

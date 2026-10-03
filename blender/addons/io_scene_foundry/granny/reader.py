@@ -47,6 +47,11 @@ class GrannyReader:
             'GrannyComputeBasisConversion': ([POINTER(GrannyFileInfo), c_float] + [POINTER(c_float)] * 7, c_bool),
             'GrannyTransformFile': ([POINTER(GrannyFileInfo)] + [POINTER(c_float)] * 3 + [c_float, c_float, c_int], None),
             'GrannyEvaluateCurveAtT': ([c_int, c_bool, c_bool, POINTER(GrannyCurve2), c_bool, c_float, c_float, POINTER(c_float), POINTER(c_float)], None),
+            'GrannyCurveIsKeyframed': ([POINTER(GrannyCurve2)], c_bool),
+            'GrannyCurveIsIdentity': ([POINTER(GrannyCurve2)], c_bool),
+            'GrannyCurveGetDimension': ([POINTER(GrannyCurve2)], c_int),
+            'GrannyCurveGetKnotCount': ([POINTER(GrannyCurve2)], c_int),
+            'GrannyCurveExtractKnotValue': ([POINTER(GrannyCurve2), c_int, POINTER(c_float), POINTER(c_float)], c_float),
         }
         for name, (args, result) in signatures.items():
             function = getattr(self.dll, name)
@@ -183,8 +188,16 @@ class GrannyReader:
 
     def mesh(self, mesh_ptr):
         mesh = mesh_ptr.contents
+        result = dict(name=decode_string(mesh.name), props=self.variant(mesh.extended_data),
+                      materials=[pointer_address(mesh.material_bindings[i].material) for i in range(checked_count(mesh.material_binding_count, 100_000))],
+                      bones=[decode_string(mesh.bone_bindings[i].bone_name) for i in range(checked_count(mesh.bone_bindings_count, 100_000))])
         if not mesh.primary_vertex_data or not mesh.primary_topology:
-            raise ValueError('GR2 mesh has no geometry')
+            # Max can include line/helper nodes in the mesh table with no
+            # geometry. Keep their bindings and properties for reconstruction.
+            result.update(vertices={}, component_names={}, triangles=np.empty((0, 3), dtype=np.int32),
+                          groups=[], annotations={}, geometry_missing=[name for name in
+                          ('primary_vertex_data', 'primary_topology') if not getattr(mesh, name)])
+            return result
         vertices = self.vertices(mesh_ptr)
         vertex_data = mesh.primary_vertex_data.contents
         component_names = {
@@ -220,18 +233,39 @@ class GrannyReader:
             annotations[decode_string(annotation.name)] = records
         groups = [(topology.groups[i].material_index, topology.groups[i].tri_first, topology.groups[i].tri_count)
                   for i in range(checked_count(topology.group_count, 100_000))]
-        return dict(name=decode_string(mesh.name), vertices=vertices, component_names=component_names, triangles=indices,
-                    groups=groups, annotations=annotations, props=self.variant(mesh.extended_data),
-                    materials=[pointer_address(mesh.material_bindings[i].material) for i in range(checked_count(mesh.material_binding_count, 100_000))],
-                    bones=[decode_string(mesh.bone_bindings[i].bone_name) for i in range(checked_count(mesh.bone_bindings_count, 100_000))])
+        result.update(vertices=vertices, component_names=component_names, triangles=indices,
+                      groups=groups, annotations=annotations)
+        return result
 
     def curve_samples(self, curve, dimension, duration, times, identity, normalize=False):
         identity = (c_float * dimension)(*identity)
+        pointer = byref(curve)
+        if self.dll.GrannyCurveIsIdentity(pointer):
+            return [tuple(identity)] * len(times)
+        if self.dll.GrannyCurveGetDimension(pointer) != dimension:
+            raise ValueError('Invalid GR2 animation curve dimension')
+        keyframed = self.dll.GrannyCurveIsKeyframed(pointer)
+        knots = checked_count(self.dll.GrannyCurveGetKnotCount(pointer), 100_000)
+        if keyframed and knots < len(times):
+            raise ValueError('GR2 keyframe curve has fewer samples than the animation')
         result = (c_float * dimension)()
         samples = []
-        for time in times:
-            self.dll.GrannyEvaluateCurveAtT(dimension, normalize, False, byref(curve), False, duration, time, result, identity)
-            samples.append(tuple(result))
+        for index, time in enumerate(times):
+            if keyframed:
+                # DaKeyframes32f has one control per animation sample and no
+                # spline knots. EvaluateCurveAtT does not evaluate this format.
+                self.dll.GrannyCurveExtractKnotValue(pointer, index, result, identity)
+            else:
+                self.dll.GrannyEvaluateCurveAtT(dimension, normalize, False, pointer, False, duration, time, result, identity)
+            if not all(isfinite(value) for value in result):
+                raise ValueError('Non-finite GR2 animation sample')
+            sample = tuple(result)
+            if normalize:
+                length = sum(value * value for value in sample) ** .5
+                if length < 1e-10:
+                    raise ValueError('Invalid GR2 animation orientation')
+                sample = tuple(value / length for value in sample)
+            samples.append(sample)
         return samples
 
     def read(self, path, animations=True):
@@ -287,7 +321,10 @@ class GrannyReader:
                                                positions=self.curve_samples(track.position_curve, 3, duration, times, (0, 0, 0)),
                                                orientations=self.curve_samples(track.orientation_curve, 4, duration, times, (0, 0, 0, 1), True),
                                                scales=self.curve_samples(track.scale_shear_curve, 9, duration, times, (1, 0, 0, 0, 1, 0, 0, 0, 1))))
-                        groups.append(dict(name=decode_string(group.name), tracks=tracks))
+                        name = decode_string(group.name)
+                        source_skeleton = next((s for s in result['skeletons'].values() if s['name'].casefold() == name.casefold()), None)
+                        root = next((b for b in source_skeleton['bones'] if b['parent'] == -1 and b['name'].casefold() == name.casefold()), None) if source_skeleton else None
+                        groups.append(dict(name=name, tracks=tracks, root_rest=root['matrix'] if root else None))
                     result['animations'].append(dict(name=decode_string(animation.name), dt=dt, duration=duration, groups=groups))
             return result
         finally:

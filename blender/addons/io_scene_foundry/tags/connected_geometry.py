@@ -1511,13 +1511,24 @@ class BSP:
         if tris:
             return bvhtree.BVHTree.FromPolygons(verts, tris)
         
+    def _blender_geometry(self):
+        """Use render geometry's combined scale for native collision positions."""
+        transform = import_transform.mesh_matrix()
+        if hasattr(self, 'native_vertices'):
+            # Scaling a float32 position by 100 and then by the scene scale
+            # rounds differently from render's single combined transform.
+            # Large Reach sky boundaries expose those offsets as BSP slivers.
+            return self.native_vertices, transform @ Matrix.Scale(100, 4)
+        return [v.position for v in self.vertices], transform
+
     def to_object(self, mesh_only=False, surface_indices=[], cookie_cutter=False) -> bpy.types.Object:
                 
         indices = self.yield_indices()
         # Create the bpy mesh
         mesh = bpy.data.meshes.new(self.name)
-        mesh.from_pydata(vertices=[v.position for v in self.vertices], edges=[], faces=list(indices))
-        mesh.transform(import_transform.mesh_matrix())
+        vertices, transform = self._blender_geometry()
+        mesh.from_pydata(vertices=vertices, edges=[], faces=list(indices))
+        mesh.transform(transform)
         any_ladder = any_breakable = any_slip = any_invisible = False
         # Check if we need to set any per face properties
         map_material, map_two_sided, map_ladder, map_breakable, map_slip, map_negated, map_invalid, map_invisible = [], [], [], [], [], [], [], []
@@ -1697,6 +1708,7 @@ class InstanceCollision(BSP):
                     collision_materials: list[CollisionMaterial]):
         result = cls.__new__(cls)
         result.name = name
+        result.native_vertices = record.vertices
         result.vertices = [SimpleNamespace(position=Vector(vertex) * 100)
                            for vertex in record.vertices]
         result.surfaces = []
@@ -1749,6 +1761,7 @@ class StructureCollision(BSP):
         from types import SimpleNamespace
         result = cls.__new__(cls)
         result.name = 'structure_collision'
+        result.native_vertices = record.vertices
         result.vertices = [SimpleNamespace(position=Vector(vertex) * 100)
                            for vertex in record.vertices]
         result.surfaces = []
@@ -3347,7 +3360,7 @@ class Mesh:
         if not render_faces:
             return
 
-        mesh_matrix = import_transform.mesh_matrix()
+        collision_vertices, mesh_matrix = collision_info._blender_geometry()
         for mapping in collision_only_mappings:
             surface = mapping.surface
             if surface.invisible or surface.breakable or surface.ladder or surface.slip_surface:
@@ -3357,7 +3370,7 @@ class Mesh:
             if len(vertex_indices) < 3:
                 continue
 
-            collision_coords = [mesh_matrix @ collision_info.vertices[index].position for index in vertex_indices]
+            collision_coords = [mesh_matrix @ Vector(collision_vertices[index]) for index in vertex_indices]
             matching_faces = self._find_matching_render_faces(collision_coords, render_faces)
             if matching_faces:
                 mapping.triangle_indices = [DirectTriangleMapping(face_index, section_index) for face_index in matching_faces]

@@ -400,24 +400,27 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             prop.material_lighting_attenuation_falloff = 0.0
             prop.material_lighting_attenuation_cutoff = 0.0
 
-    def _create_classic_portals(self, collection: bpy.types.Collection) -> list[bpy.types.Object]:
-        records = self.portals()
+    def _create_tag_portals(self, collection: bpy.types.Collection, records=None) -> list[bpy.types.Object]:
+        """Recover editable cutting surfaces for portals imported from tags."""
+        records = self.portals() if records is None else records
         if not records:
             return []
+        from .portal_reconstruction import (
+            prepare_portal_import, dissolve_portal_seams, rectangularize_portal,
+            stabilize_portal_tessellation,
+        )
         if self.game == 'halo1':
-            from .portal_reconstruction import (
-                reconstruct_portals, stabilize_halo1_portals, group_halo1_portals,
-                dissolve_halo1_portal_seams,
-            )
             from .halo1_bsp_blender import collision_point_is_solid
-            source_records = records
             is_solid = collision_point_is_solid(self)
-            records, _ = reconstruct_portals(records, is_solid=is_solid)
-            records = stabilize_halo1_portals(records, is_solid, source_records)
-            groups = group_halo1_portals(records, source_records)
-            utils.print_step(f'Imported portals')
         else:
-            groups = [(record,) for record in records]
+            from .collision_solid import collision_query_from_tree
+            try:
+                is_solid = collision_query_from_tree(self.portal_collision_tree())
+            except (ValueError, TypeError, RecursionError) as error:
+                utils.print_warning(f'Could not certify portal wall volumes: {error}')
+                is_solid = None
+        groups, source_records = prepare_portal_import(records, self.game, is_solid)
+        utils.print_step('Imported portals')
         # utils.print_step("Creating Portals")
         layer = utils.add_permutation("portals", utils.SetType.SCENARIO)
         portals_collection = bpy.data.collections.new(
@@ -430,18 +433,22 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         for group in groups:
             record = group[0]
             ob = Portal(record, group[1:]).create()
-            if self.game == 'halo1':
-                dissolve_halo1_portal_seams(ob.data, group, source_records, is_solid,
-                                           100 * import_transform.scale_factor())
-                # These outlines come from compiled portal fragments. Exact
-                # portals retain the reconstructed boundary during rebuild.
-                ob.nwo.portal_exact = True
-                ob['halo1_source_portal_index'] = record.index
-                ob['halo1_source_portal_indices'] = [piece.index for piece in group]
-                ob['halo1_source_bsp'] = self.path
+            scale = 100 * import_transform.scale_factor()
+            dissolve_portal_seams(ob.data, group, source_records, is_solid, scale)
+            prefix = 'halo1_' if self.game == 'halo1' else 'tag_'
+            ob[prefix+'portal_rectangularized'] = rectangularize_portal(
+                ob.data, group, source_records, is_solid, scale)
+            stabilize_portal_tessellation(ob, scale)
+            # The compiled tag does not retain the authored exact flag.
+            # Import ordinary portals rather than inventing that setting.
+            ob[prefix+'source_portal_index'] = record.index
+            ob[prefix+'source_portal_indices'] = [piece.index for piece in group]
+            ob[prefix+'source_bsp'] = self.path
             portals_collection.objects.link(ob)
             objects.append(ob)
         return objects
+
+    _create_classic_portals = _create_tag_portals
     
     def scenario_import_bvh(self, sky_index=-1):
         """Read placement filtering collision independently of displayed geometry."""
@@ -497,7 +504,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     if not for_cinematic:
                         objects.extend(create_helpers(self, collection))
                 if not for_cinematic:
-                    objects.extend(self._create_classic_portals(collection))
+                    objects.extend(self._create_tag_portals(collection))
             if always_get_structure_collision:
                 bvh = self.scenario_import_bvh(sky_index)
             return objects, game_objects, bvh
@@ -923,18 +930,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                         from .portal_reconstruction import reconstruct_portals
                         utils.print_warning(f'Could not recover Reach portal volumes: {error}')
                         native_portals, _ = reconstruct_portals(native_portals)
-                # utils.print_step("Creating Portals")
-                layer = utils.add_permutation("portals", utils.SetType.SCENARIO)
-                portals_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_portals")
-                portals_collection.hide_render = True
-                portals_collection.nwo.type = "permutation"
-                portals_collection.nwo.permutation = layer
-                self.collection.children.link(portals_collection)
-                for record in native_portals:
-                    portal = Portal(record)
-                    ob = portal.create()
-                    objects.append(ob)
-                    portals_collection.objects.link(ob)
+                objects.extend(self._create_tag_portals(self.collection, native_portals))
             
             if native_cookie_cutters:
                 utils.print_step("Creating Cookie Cutters")

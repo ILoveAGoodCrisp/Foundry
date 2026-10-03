@@ -16,6 +16,26 @@ material attributes are supported too. Meshes with topology material groups
 but no material bindings import without material assignments; their original
 groups are retained in custom properties. Generic Granny skeletons without Halo
 object metadata retain their bones, hierarchy, and skin bindings.
+Empty or whitespace-only enum attributes use the relevant import default.
+Halo export headers keep untyped static mesh transforms from becoming armatures;
+empty string properties such as instance proxy paths remain empty.
+Mesh records without vertex data or triangle topology (such as Max line nodes)
+import as non-exporting empties. Their placements, Foundry grouping, source
+properties and binding names are retained; the importer reports each helper.
+Meshes with geometry still undergo vertex and triangle-index validation.
+Name tables honor explicit IDs, including sparse tables, and supplied sidecar
+names fill missing entries. When the source omits a region or global-material
+name, the importer preserves the face group using `gr2_region_<id>` or
+`gr2_global_material_<id>` and reports the missing name once. Original IDs remain
+in `gr2_original_bungie_*` face attributes for recovery; those attributes do not
+override the reconstructed names on export. Default tessellation and compression
+values create no Foundry override, and empty Max attribute containers do not
+overwrite scalar defaults.
+Raw keyframe arrays are read by sample index; compressed spline curves use the
+runtime evaluator. Identity rotation and scale curves keep their identity values.
+The skeleton's armature wrapper root becomes the Blender armature object rather
+than an extra pose bone. Its placement and animated motion are preserved on that
+object, with child bones, markers, and skin influences retained.
 
 GR2 files can be selected through Foundry's model/animation importer or dropped
 into Blender. Embedded GR2 sources are used for Reach, Halo 4, and Halo 2A tags
@@ -68,3 +88,12 @@ rig sharing, and animation settings. Appending the local Foundry scenario
 `foundry.sidecar.xml` also checks its native structure source and BSP assignments.
 The original Reach `skiff.sidecar.xml` checks its three component meshes, shared skeleton,
 component types, and idle animation, including its render mesh with no materials.
+The original Reach `warthog.sidecar.xml` checks all nine animations and the
+27-bone skeleton without its wrapper root. Synthetic checks cover raw scale
+keyframes, armature root motion, marker parenting, and mixed wrapper/bone weights.
+The original Reach `scarab_test_render.gr2` checks all 220 meshes and 15,519
+triangles, its eleven unnamed region IDs, and preservation of the original face IDs.
+The original Reach `40_boat.gr2` checks all 159 meshes and 49,998 triangles,
+including empty object-type metadata and untyped static mesh transforms.
+The original Reach Powerhouse `room01.gr2` checks its 165 drawable meshes and
+86,771 triangles, plus its three geometryless line nodes retained as empties.
