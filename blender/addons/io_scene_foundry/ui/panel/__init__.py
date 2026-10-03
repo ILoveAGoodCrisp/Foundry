@@ -3878,7 +3878,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = row.column(align=True)
         col.operator("nwo.new_animation", icon="ADD", text="")
         col.operator("nwo.delete_animation", icon="REMOVE", text="")
-        col.operator("nwo.set_animation_name", icon_value=get_icon_id("animation_rename"), text="")
+        col.operator("nwo.set_animation_name", icon='GREASEPENCIL', text="")
         col.separator()
         col.operator("nwo.unlink_animation", icon="X", text="")
         col.separator()
@@ -3957,12 +3957,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row = col.row()
             row.use_property_split = True
             if animation.animation_type == 'overlay':
-                col.operator('nwo.generate_poses', text='Generate Poses', icon='ANIM')
+                row.prop(animation, "pose_overlay")
+                if animation.pose_overlay and not animation.external:
+                    col.prop(animation, 'pose_overlay_wrap_mode')
+                    col.operator('nwo.generate_poses', text='Generate Poses', icon='ANIM')
                 
         col.separator()
         if animation.external:
             col.prop(animation, "external")
-            col.prop(animation, "pose_overlay")
             row = col.row(align=True)
             row.prop(animation, "gr2_path")
             row.operator("nwo.select_external_animation_path", text="", icon='FILEBROWSER').path_type = 'GR2'
@@ -4343,6 +4345,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.operator('nwo.cubemap', text='Cubemap Farm', icon_value=get_icon_id("cubemap"))
         col.operator('nwo.instance_imposter_generate', text='Imposter Farm', icon_value=get_icon_id('imposter'))
         col.operator('nwo.generate_wetness_data', text='Generate Wetness Data', icon='MOD_FLUIDSIM')
+        project = utils.get_project(self.scene_nwo.scene_project)
+        if project is not None and project.game == 'halo1':
+            col.operator('nwo.export_halo1_decal_placements', icon='EXPORT')
         
     def draw_cache_tools(self, box, nwo):
         col = box.column()

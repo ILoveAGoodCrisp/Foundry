@@ -1529,13 +1529,16 @@ class ShaderTag(BlenderTag, TagDocument):
             
             
     # READING
-    def to_nodes(self, blender_material, always_extract_bitmaps=False, generated_uvs=False):
+    def to_nodes(self, blender_material, always_extract_bitmaps=False, generated_uvs=False,
+                 decal_bitmap_index=None):
         self.always_extract_bitmaps = always_extract_bitmaps
         self.game_functions = set()
         self.object_functions = set()
         self.sequence_drivers = {}
         self.has_rotating_bitmaps = False
         self.generated_uvs = generated_uvs
+        self.decal_bitmap_index = (blender_material.get('halo1_decal_bitmap_index', 0)
+                                   if decal_bitmap_index is None else decal_bitmap_index)
         if self.game == 'halo1':
             self._to_nodes_halo1(blender_material)
             self._import_classic_emission(blender_material)
@@ -2026,16 +2029,18 @@ class ShaderTag(BlenderTag, TagDocument):
         alpha_tested = False
         if transparent:
             properties = child(root, 'properties')
+            if shader_type == 'decal':
+                alpha_tested = enum_name(properties, 'layer') == 'alpha tested'
             for field_name in ('flags', 'shader transparent glass flags'):
                 flags = None if properties is None else properties.field(field_name)
                 if flags is None:
                     continue
                 try:
-                    alpha_tested = flags.get_flag('alpha tested')
+                    alpha_tested |= flags.get_flag('alpha tested')
                 except KeyError:
                     pass
                 break
-            blender_material.surface_render_method = ('DITHERED' if alpha_tested
+            blender_material.surface_render_method = ('DITHERED' if alpha_tested and shader_type != 'decal'
                                                        else 'BLENDED')
 
         def bitmap(struct, name: str, *, non_color=False):
@@ -2044,13 +2049,19 @@ class ShaderTag(BlenderTag, TagDocument):
             reference = TagDocument.reference(self, struct, name)
             if reference is None or not reference.RelativePath:
                 return None
-            result = bitmap_to_image(reference.Filename, self.always_extract_bitmaps)
+            if shader_type == 'decal':
+                result = bitmap_to_image(reference.Filename, self.always_extract_bitmaps,
+                                         frame_index=getattr(self, 'decal_bitmap_index', 0))
+            else:
+                result = bitmap_to_image(reference.Filename, self.always_extract_bitmaps)
             node_type = ('ShaderNodeTexEnvironment' if getattr(result, 'cubemap', False)
                          else 'ShaderNodeTexImage')
             image_node = nodes.new(type=node_type)
             image_node.name = name
             image_node.label = name
             image_node.image = result.image
+            if shader_type == 'decal':
+                image_node.extension = 'CLIP'
             self._setup_sequence_driver(tree, image_node, result.sequence_length)
             if non_color and image_node.image is not None:
                 image_node.image.colorspace_settings.name = 'Non-Color'
@@ -2145,6 +2156,12 @@ class ShaderTag(BlenderTag, TagDocument):
             appearance = child(root, 'appearance')
             shader = child(root, 'shader')
             base = bitmap(shader, 'map')
+            if (base is not None and base.image is not None
+                    and enum_name(shader, 'framebuffer blend function') == 'double multiply'):
+                # 0.5 is the neutral multiplier in this blend. Treat the map
+                # as numeric factors so sRGB decoding does not darken it.
+                base.image = base.image.copy()
+                base.image.colorspace_settings.name = 'Non-Color'
             if base is not None and self.generated_uvs:
                 coordinates = nodes.new(type='ShaderNodeTexCoord')
                 coordinates.location = (-760, 160)
@@ -2363,7 +2380,7 @@ class ShaderTag(BlenderTag, TagDocument):
                 self._halo1_decal_surface(
                     tree, output, bsdf, base, base_color,
                     enum_name(shader, 'framebuffer blend function', 'alpha blend'),
-                    intensity)
+                    intensity, alpha_tested)
                 return
             elif transparent:
                 alpha_output = base.outputs.get('Alpha')
@@ -2383,7 +2400,7 @@ class ShaderTag(BlenderTag, TagDocument):
             tree.links.new(emission.outputs['Color'], emission_input)
 
     @staticmethod
-    def _halo1_decal_surface(tree, output, bsdf, bitmap, color, blend, intensity):
+    def _halo1_decal_surface(tree, output, bsdf, bitmap, color, blend, intensity, alpha_tested=False):
         """Preview H1 framebuffer blends without turning neutral texels opaque.
 
         Coloured transparency implements destination * source in BLENDED Eevee
@@ -2391,6 +2408,14 @@ class ShaderTag(BlenderTag, TagDocument):
         closure's energy range; subtract/min/max require framebuffer access.
         """
         nodes, links = tree.nodes, tree.links
+        coverage = None
+        if alpha_tested:
+            coverage = nodes.new('ShaderNodeMath')
+            coverage.operation = 'GREATER_THAN'
+            coverage.label = 'Decal alpha test'
+            coverage.location = (-300, -180)
+            coverage.inputs[1].default_value = .5
+            links.new(bitmap.outputs['Alpha'], coverage.inputs[0])
         if blend in {'multiply', 'double multiply'}:
             if blend == 'double multiply':
                 scale = nodes.new('ShaderNodeVectorMath')
@@ -2398,13 +2423,24 @@ class ShaderTag(BlenderTag, TagDocument):
                 scale.inputs['Scale'].default_value = 2.0
                 scale.location = (-60, 220)
                 links.new(color, scale.inputs['Vector'])
-                color = scale.outputs['Vector']
+                bounded = nodes.new('ShaderNodeVectorMath')
+                bounded.operation = 'MINIMUM'
+                bounded.inputs[1].default_value = (1., 1., 1.)
+                links.new(scale.outputs['Vector'], bounded.inputs[0])
+                color = bounded.outputs['Vector']
                 utils.print_warning('H1 double multiply decal preview cannot reproduce '
                                     'framebuffer brightening exactly')
             fade = nodes.new('ShaderNodeMixRGB')
             fade.label = 'Decal intensity (white is neutral)'
             fade.location = (140, 220)
             fade.inputs[0].default_value = intensity
+            if coverage is not None or blend == 'multiply':
+                factor = nodes.new('ShaderNodeMath')
+                factor.operation = 'MULTIPLY'
+                factor.label = 'Decal opacity * intensity'
+                factor.inputs[1].default_value = intensity
+                links.new(coverage.outputs[0] if coverage is not None else bitmap.outputs['Alpha'], factor.inputs[0])
+                links.new(factor.outputs[0], fade.inputs[0])
             fade.inputs[1].default_value = (1.0, 1.0, 1.0, 1.0)
             links.new(color, fade.inputs[2])
             transparent = nodes.new('ShaderNodeBsdfTransparent')
@@ -2423,6 +2459,14 @@ class ShaderTag(BlenderTag, TagDocument):
                 alpha.inputs[1].default_value = intensity
                 links.new(bitmap.outputs['Alpha'], alpha.inputs[0])
                 links.new(alpha.outputs[0], emission.inputs['Strength'])
+            if coverage is not None:
+                mask = nodes.new('ShaderNodeMath')
+                mask.operation = 'MULTIPLY'
+                mask.inputs[0].default_value = intensity
+                if blend == 'alpha multiply add':
+                    links.new(alpha.outputs[0], mask.inputs[0])
+                links.new(coverage.outputs[0], mask.inputs[1])
+                links.new(mask.outputs[0], emission.inputs['Strength'])
             transparent = nodes.new('ShaderNodeBsdfTransparent')
             transparent.location = (140, -40)
             add = nodes.new('ShaderNodeAddShader')
@@ -2440,8 +2484,19 @@ class ShaderTag(BlenderTag, TagDocument):
             alpha.label = 'Decal alpha * intensity'
             alpha.location = (-100, -180)
             alpha.inputs[1].default_value = intensity
-            links.new(bitmap.outputs['Alpha'], alpha.inputs[0])
-            links.new(alpha.outputs[0], bsdf.inputs['Alpha'])
+            links.new(coverage.outputs[0] if coverage is not None else bitmap.outputs['Alpha'], alpha.inputs[0])
+            emission = nodes.new('ShaderNodeEmission')
+            emission.location = (140, 220)
+            links.new(color, emission.inputs['Color'])
+            transparent = nodes.new('ShaderNodeBsdfTransparent')
+            transparent.location = (140, -40)
+            mix = nodes.new('ShaderNodeMixShader')
+            mix.location = (360, 100)
+            links.new(alpha.outputs[0], mix.inputs[0])
+            links.new(transparent.outputs[0], mix.inputs[1])
+            links.new(emission.outputs[0], mix.inputs[2])
+            links.new(mix.outputs[0], output.inputs['Surface'])
+            nodes.remove(bsdf)
         output.location = (600, 100)
 
     def _to_nodes_halo2(self, blender_material: bpy.types.Material):

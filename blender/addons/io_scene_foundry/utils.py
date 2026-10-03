@@ -1208,6 +1208,8 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
                     fix_tag_copy_fail(project_dir, tags_dir, line)
                 elif "animation:import: processing composite" in line:
                     print(line)
+                elif _is_tool_import_status(line):
+                    print(line)
                 else:
                     # need to handle animation stuff. Most animation output is written to stderr...
                     if line.startswith("animation:import:"):
@@ -1240,6 +1242,23 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
         os.startfile(tmp_log)
 
     return failed, error
+
+
+def _is_tool_import_status(line):
+    """Recognize routine Tool import output without hiding unknown diagnostics."""
+    text = line.strip()
+    if re.fullmatch(
+        r"(?:Finalizing tag .+ after import|Got import information|Done with tag import end|"
+        r"Optimizing error state|Writing errors to vrml file|Writing errors to tag|"
+        r"Done processing errors|Saving tag|--- updated tag .+|Finished)"
+        r" at \d{2}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2}\.\d{3}",
+        text,
+    ):
+        return True
+    return bool(re.fullmatch(
+        r"(?:set '[^']+'|set output level for \d+ categories|\d+(?:\.\d+)? seconds)",
+        text,
+    ))
 
 
 def _tool_structured_output_text(line):

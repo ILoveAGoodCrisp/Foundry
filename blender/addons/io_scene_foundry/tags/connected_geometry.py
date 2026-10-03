@@ -3022,7 +3022,7 @@ class Mesh:
     def from_native(cls, record: 'StructureBspRenderMesh',
                     materials: list['Material'], corinth: bool,
                     geometry_record: 'StructureBspRenderMesh | None' = None,
-                    reverse_winding: bool = False):
+                    reverse_winding: bool = False, preserve_source: bool = False):
         geometry = record if geometry_record is None else geometry_record
         mesh = cls.__new__(cls)
         mesh.tag_path = None
@@ -3053,6 +3053,9 @@ class Mesh:
         mesh.raw_node_weights = list(geometry.node_weights)
         mesh.raw_lightmap_texcoords = list(geometry.lightmap_texcoords)
         mesh.raw_vertex_colors = list(geometry.vertex_colors)
+        mesh.source_geometry = geometry if preserve_source else None
+        mesh.has_lightmap_uvs = getattr(geometry, 'has_lightmap_uvs', False)
+        mesh.is_halo1_bsp = getattr(geometry, 'halo1_source', None) is not None
         mesh.raw_texcoords1 = []
         mesh.raw_water_texcoords = []
         if geometry.water is not None:
@@ -3669,6 +3672,10 @@ class Mesh:
 
         vertex_indices = sorted({idx for tri in indices for idx in tri})
         idx_start, idx_end = vertex_indices[0], vertex_indices[-1]
+        source_geometry = getattr(self, 'source_geometry', None)
+        if source_geometry is not None and subpart is None:
+            # Keep unreferenced compiled vertices as well as visible triangles.
+            idx_start, idx_end = 0, len(self.raw_positions) - 1
 
         mesh = bpy.data.meshes.new(name)
         ob = bpy.data.objects.new(name, mesh)
@@ -3693,7 +3700,8 @@ class Mesh:
         mesh.transform(transform_matrix)
 
         has_vertex_colors = any(any(v) for v in vertex_colors)
-        has_lighting_texcoords = any(any(v) for v in lighting_texcoords)
+        has_lighting_texcoords = (getattr(self, 'has_lightmap_uvs', False)
+                                 or any(any(v) for v in lighting_texcoords))
         has_texcoords1 = bool(texcoords1) and any(any(v) for v in texcoords1)
         has_water_texcoords = bool(water_texcoords) and any(any(v) for v in water_texcoords)
         uvs = self._true_uvs(texcoords) if self.bounds else [Vector((u, 1-v)) for (u, v) in texcoords]
@@ -3719,10 +3727,15 @@ class Mesh:
         if has_water_texcoords:
             self._set_uv_layer_data(water_uvs_layer, water_uvs, loop_vertex_indices)
         if lighting_uv_layer:
+            if getattr(self, 'is_halo1_bsp', False):
+                lighting_texcoords = [(u, 1 - v) for u, v in lighting_texcoords]
             self._set_uv_layer_data(lighting_uv_layer, lighting_texcoords, loop_vertex_indices)
 
         # normalised_normals = [Vector(n).normalized() for n in normals]
         mesh.normals_split_custom_set_from_vertices(normals)
+        if source_geometry is not None:
+            from .halo1_bsp_blender import attach_source_attributes
+            attach_source_attributes(mesh, source_geometry)
         if self.is_pca or self.from_vert_normals: # ensures mesh reimports as closely to the original as possible, necessary for re-using PCA animation
             mesh.nwo.from_vert_normals = True
 
@@ -3869,7 +3882,7 @@ class Mesh:
         # for subpart in water_subparts:
         #     subpart.remove(ob, self.tris)
 
-        if not mesh.nwo.from_vert_normals:
+        if source_geometry is None and not mesh.nwo.from_vert_normals:
             utils.save_loop_normals_mesh(mesh)
             utils.set_two_sided(mesh, is_io)
             utils.apply_loop_normals(mesh)

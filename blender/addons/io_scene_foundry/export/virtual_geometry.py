@@ -537,10 +537,7 @@ class VirtualAnimation:
             self.frame_count: int = utils.game_frame(animation.frame_end - animation.frame_start + 1)
             self.frame_range: tuple[int, int] = (animation.frame_start, animation.frame_end)
         
-        self._pose_overlay_source = getattr(animation, 'pose_overlay_source', 'auto')
-        self.pose_overlay = self.overlay and (
-            self._pose_overlay_source == 'pose' or
-            (self._pose_overlay_source == 'auto' and getattr(animation, 'pose_overlay', False)))
+        self.pose_overlay = self.overlay and getattr(animation, 'pose_overlay', False)
         self.anim = animation
         self.morph_target_data = []
         self.is_pca = False
@@ -592,9 +589,6 @@ class VirtualAnimation:
             if scene.granny is not None:
                 self.to_granny_animation(scene)
             
-        if not is_scene_anim:
-            animation.pose_overlay = self.pose_overlay
-            
     def create_vector_track_groups(self, scene: 'VirtualScene', vector_events: list[VectorEvent]):
         for event in vector_events:
             granny_vector_track = GrannyVectorTrack()
@@ -616,6 +610,36 @@ class VirtualAnimation:
             
             self.vector_tracks.append(VectorTrack(granny_vector_track, event.name.encode(), granny_track_group))
         
+    def validate_pose_overlay(self, scene: 'VirtualScene', pose_overlay_frame_data):
+        if not self.pose_overlay:
+            return
+
+        # The first frame is the reference pose. Wrap events distinguish poses
+        # for Tool, but do not count as animation of the pitch/yaw bones.
+        frame_data = list(zip(*pose_overlay_frame_data.values()))
+        rotations = {
+            tuple(tuple(round(value, 6) for value in bone[:3]) for bone in frame)
+            for frame in frame_data
+        }
+        if len(rotations) < 2:
+            scene.warnings.append(
+                f"Pose overlay animation [{self.name}] has no animated pose bones. "
+                "Animate the pitch/yaw pose bones or use Generate Poses before exporting, "
+                "or disable Pose Overlay if this is a time overlay."
+            )
+            return
+
+        data_map = defaultdict(list)
+        for idx, data in enumerate(frame_data):
+            data_map[data].append(idx)
+        duplicate_data = {key: indexes for key, indexes in data_map.items() if len(indexes) > 1}
+        if duplicate_data:
+            scene.warnings.append(f"Pose overlay animation [{self.name}] has duplicate frames and may fail pose computation. Details below:")
+            for rotation, indexes in duplicate_data.items():
+                frames = [self.anim.frame_start + i + 1 for i in indexes]
+                rotation_with_names = {tuple(pose_overlay_frame_data)[idx]: tuple(degrees(r) for r in rot[:3]) for (idx, rot) in enumerate(rotation)}
+                scene.warnings.append(f"--- XYZ rotation {rotation_with_names} occurs at frames {frames}")
+
     def create_track_group(self, bones: list['AnimatedBone'], scene: 'VirtualScene', shape_key_objects, vector_events: list[VectorEvent]):
         positions = defaultdict(list)
         orientations = defaultdict(list)
@@ -717,7 +741,7 @@ class VirtualAnimation:
                     root_translations.append(loc.copy())
                     root_rotations.append(rot.copy())
 
-                if self.overlay and bone.is_aim_bone and not first_frame:
+                if self.pose_overlay and bone.is_aim_bone and not first_frame:
                     frame_data = tuple((rot.x, rot.y, rot.z, wrap_events.get(frame)))
                     pose_overlay_frame_data[bone.name].append(frame_data)
 
@@ -742,6 +766,8 @@ class VirtualAnimation:
         if self.composite_blend_axis_values:
             scene.add_composite_blend_axis_values(self.name, self.composite_blend_axis_values)
 
+        self.validate_pose_overlay(scene, pose_overlay_frame_data)
+
         if scene.granny is None:
             if shape_key_data or vector_events:
                 raise ExportCancelled('JMA export does not support PCA or vector animation events')
@@ -749,25 +775,6 @@ class VirtualAnimation:
             return
         self.create_vector_track_groups(scene, vector_events)
         
-        if self.overlay and pose_overlay_frame_data and self._pose_overlay_source != 'time':
-            frame_data = zip(*pose_overlay_frame_data.values())
-            data_map = defaultdict(list)
-            for idx, data in enumerate(frame_data):
-                data_map[data].append(idx)
-            
-            duplicate_data = {key: indexes for key, indexes in data_map.items() if len(indexes) > 1}
-            if len(duplicate_data) != len(data_map):
-                # This must be a pose overlay if aim bones don't have same rotation on every frame
-                # Even if duplicate frame data is found, keep this as pose overlay so the user is also warned of the issue by Tool
-                # NOTE wrap events allow duplicate frames along as the duplicate frames have different wrap events
-                self.pose_overlay = True
-                if duplicate_data:
-                    scene.warnings.append(f"Pose overlay animation [{self.name}] has duplicate frames and may fail pose computation. Details below:")
-                    for rotation, indexes in duplicate_data.items():
-                        frames = [self.anim.frame_start + i + 1 for i in indexes]
-                        rotation_with_names = {tuple(pose_overlay_frame_data)[idx]: tuple(degrees(r) for r in rot[:3]) for (idx, rot) in enumerate(rotation)}
-                        scene.warnings.append(f"--- XYZ rotation {rotation_with_names} occurs at frames {frames}")
-
         for bone in bones:
             tracks.append((c_float * (self.frame_count * 3))(*positions[bone]))
             tracks.append((c_float * (self.frame_count * 4))(*orientations[bone]))

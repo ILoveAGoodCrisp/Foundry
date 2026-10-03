@@ -2,6 +2,7 @@
 import bmesh
 import bpy
 import numpy as np
+import json
 from itertools import combinations
 from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
@@ -11,6 +12,37 @@ from ..tools.append_foundry_materials import ensure_special_material
 from ..tools.materials import sky as sky_material_definition, seamsealer
 from .connected_geometry import StructureMarker
 from .backend import TagDocument
+
+
+def attach_source_attributes(mesh, record):
+    """Keep compiled provenance in preservation imports without altering it."""
+    source = record.halo1_source
+    if not source:
+        return
+    point_keys = ('vertex_index', 'vertex_lightmap', 'vertex_material')
+    face_keys = ('surface', 'lightmap', 'material', 'bitmap', 'collision_surface', 'collision_bsp')
+    for domain, keys in (('POINT', point_keys), ('FACE', face_keys)):
+        for key in keys:
+            if key not in source:
+                continue
+            attribute = mesh.attributes.new(f'halo1_source_{key}', 'INT', domain)
+            if len(attribute.data) != len(source[key]):
+                raise ValueError(f'{mesh.name}: compiled {key} count changed during import')
+            attribute.data.foreach_set('value', source[key])
+    loop_indices = np.empty(len(mesh.loops), dtype=np.int32)
+    mesh.loops.foreach_get('vertex_index', loop_indices)
+    for key in ('tangents', 'binormals', 'lightmap_normals'):
+        values = getattr(record, key)
+        if not values:
+            continue
+        attribute = mesh.attributes.new(f'halo1_source_{key}', 'FLOAT_VECTOR', 'CORNER')
+        attribute.data.foreach_set('vector', np.asarray(values, dtype=np.float32)[loop_indices].ravel())
+    for key in ('spans', 'cluster_memberships', 'rings'):
+        if key in source:
+            mesh[f'halo1_source_{key}'] = json.dumps(source[key], separators=(',', ':'))
+    mesh['halo1_source_tag'] = source['tag_path']
+    mesh['halo1_source_lightmap_bitmap'] = source.get('lightmap_bitmap', '')
+    mesh['halo1_preserved'] = True
 
 
 def material(name):

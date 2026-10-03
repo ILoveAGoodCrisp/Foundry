@@ -279,6 +279,20 @@ class LegacyExportScene(ExportScene):
         animations = [animation for animation in self.virtual_scene.animations
                       if hasattr(animation, 'legacy_tracks')]
         geometry_count = 0 if single_animation else len(grouped)
+        if self.target_game == 'halo1' and geometry_count:
+            paths = [slot.material.nwo.shader_path
+                     for ob in self.ob_halo_data
+                     for slot in getattr(ob, 'material_slots', ())
+                     if slot.material is not None]
+            for nodes in grouped.values():
+                for node in nodes:
+                    for material, _, _ in node.mesh.groups:
+                        path = material.shader_path
+                        shader_type = getattr(material, 'shader_type', '')
+                        if shader_type.startswith('shader'):
+                            paths.append(f'{path}.{shader_type}')
+            self.shader_collections.reserve_halo1_paths(paths)
+            self.shader_name_cache.clear()
         preparation_count = geometry_count + len(animations)
         process = '--- Preparing Intermediary Files'
         with utils.Spinner():
@@ -788,6 +802,10 @@ class LegacyExportScene(ExportScene):
         if self.target_game != 'halo1':
             return
         shader_root = Path(self.tags_dir, self.asset_path_relative)
+        if not self.shader_collections.halo1_names_reserved:
+            self.shader_collections.reserve_halo1_paths(
+                slot.material.nwo.shader_path for ob in self.ob_halo_data
+                for slot in getattr(ob, 'material_slots', ()) if slot.material is not None)
         materials = {}
         for ob in self.ob_halo_data:
             for slot in getattr(ob, 'material_slots', ()):
@@ -796,7 +814,7 @@ class LegacyExportScene(ExportScene):
                     continue
                 path = Path(self.tags_dir, utils.relative_path(mat.nwo.shader_path))
                 try:
-                    key = filename(path.stem).casefold()
+                    key = filename(self.shader_collections.material_name(mat.nwo.shader_path)).casefold()
                 except ValueError:
                     self.warnings.append(f'{mat.name}: invalid Halo 1 shader path {mat.nwo.shader_path}. Using a default shader')
                     continue

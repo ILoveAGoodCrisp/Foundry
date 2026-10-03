@@ -126,7 +126,7 @@ def apply_bitmap_info_color_space(image: bpy.types.Image, info: BitmapInfo):
     if not info.for_normal:
         image.alpha_mode = 'CHANNEL_PACKED'
     
-def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInfo:
+def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_index=None) -> BitmapInfo:
     
     image = None
     
@@ -161,7 +161,7 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
         info.curve = bitmap.curve_index()
         info.for_normal = bitmap.used_as_normal_map()
         info.shader_type = bitmap.get_shader_type()
-        if always_extract_bitmaps:
+        if always_extract_bitmaps or (frame_index is not None and len(bitmap.block_bitmaps) > 1):
             info.image_path = bitmap.save_to_tiff(info.for_normal)
         elif system_tiff_path.exists():
             info.image_path = str(system_tiff_path)
@@ -186,7 +186,14 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
     
     image_path = Path(info.image_path)
     sequence_paths = _bitmap_sequence_paths(image_path)
-    if sequence_paths and (len(sequence_paths) > info.sequence_length or image_path.is_dir()):
+    if frame_index is not None:
+        if sequence_paths:
+            if not 0 <= frame_index < len(sequence_paths):
+                raise BitmapExtractionError(f'Bitmap frame {frame_index} is unavailable for {rel_path}')
+            info.image_path = str(sequence_paths[frame_index])
+        elif frame_index != 0:
+            raise BitmapExtractionError(f'Bitmap frame {frame_index} is unavailable for {rel_path}')
+    elif sequence_paths and (len(sequence_paths) > info.sequence_length or image_path.is_dir()):
         info.sequence_length = max(info.sequence_length, len(sequence_paths))
         for sequence_path in sequence_paths:
             if sequence_path in used_plate_paths:
@@ -198,6 +205,9 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False) -> BitmapInf
             info.image_path = str(sequence_paths[0])
             
     image = bpy.data.images.load(filepath=info.image_path, check_existing=True)
+    if frame_index is not None and image.source == 'SEQUENCE':
+        image = image.copy()
+        image.source = 'FILE'
     image.nwo.filepath = utils.relative_path(info.image_path)
     image['foundry_source_bitmap_path'] = utils.relative_path(path)
     image.nwo.shader_type = info.shader_type

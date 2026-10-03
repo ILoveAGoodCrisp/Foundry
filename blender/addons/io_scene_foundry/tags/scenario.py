@@ -3,9 +3,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from math import cos, pi, sin, sqrt
+from math import cos, isfinite, pi, sin, sqrt
 from pathlib import Path
 import shutil
+import struct
 from typing import TYPE_CHECKING
 
 from .backend import TagDocument, TagPathInput, TagReference
@@ -50,6 +51,23 @@ class ScenarioDecalPlacement:
     rotation: tuple[float, float, float, float]
     scale: tuple[float, float]
     bsps: frozenset[int]
+    source_index: int = -1
+    palette_index: int = -1
+    yaw: int = 0
+    pitch: int = 0
+
+
+@dataclass(frozen=True)
+class ScenarioDecalUpdate:
+    source_index: int
+    palette_index: int
+    definition: str
+    expected_position: tuple[float, float, float]
+    expected_yaw: int
+    expected_pitch: int
+    position: tuple[float, float, float]
+    yaw: int
+    pitch: int
 
 
 @dataclass(frozen=True)
@@ -76,6 +94,65 @@ class ScenarioDocument(TagDocument):
     def _set_value(self, struct, name: str, value: object) -> None:
         self.required_field(struct, name).set(value)
         self.tag_has_changes = True
+
+    def update_halo1_decal_placements(self, updates: Iterable[ScenarioDecalUpdate]) -> int:
+        """Update existing placements, rejecting stale rows before any mutation.
+
+        Preview meshes, sizes and palette changes do not participate in this
+        operation. Position and the two signed angle bytes are the only edits.
+        """
+        if self.game != 'halo1':
+            raise ValueError('Decal placement export requires a Halo 1 scenario')
+        root = self.tag.root()
+        rows = self.block(root, 'decals')
+        palette = self.block(root, 'decal palette')
+        seen, plans = set(), []
+        for update in updates:
+            index = update.source_index
+            if index in seen:
+                raise ValueError(f'Duplicate decal placement {index}; duplicated controls cannot create new rows')
+            seen.add(index)
+            if not 0 <= index < len(rows) or not 0 <= update.palette_index < len(palette):
+                raise ValueError(f'Decal placement {index} is missing from the target scenario')
+            row = rows[index]
+            reference = self.reference(palette[update.palette_index], 'reference')
+            definition = reference.RelativePathWithExtension if reference is not None else ''
+            normalize = lambda path: path.replace('\\', '/').casefold()
+            if (self.value(row, 'decal type') != update.palette_index or
+                    normalize(definition) != normalize(update.definition)):
+                raise ValueError(f'Decal placement {index} has a different palette entry; re-import the scenario')
+            position_field = self.required_field(row, 'position')
+            yaw_field = row.field('yaw[-127,127]')
+            if yaw_field is None:
+                yaw_field = self.required_field(row, 'yaw')
+            pitch_field = row.field('pitch[-127,127]')
+            if pitch_field is None:
+                pitch_field = self.required_field(row, 'pitch')
+            current = position_field.value
+            current_position = tuple(current.to_array())
+            if (current_position != tuple(update.expected_position) or
+                    yaw_field.value != update.expected_yaw or pitch_field.value != update.expected_pitch):
+                raise ValueError(f'Decal placement {index} changed since import or export; re-import the scenario')
+            if len(update.position) != 3 or not all(isfinite(v) for v in update.position):
+                raise ValueError(f'Decal placement {index} has an invalid position')
+            try:
+                position = struct.unpack('<3f', struct.pack('<3f', *update.position))
+            except (OverflowError, struct.error) as exc:
+                raise ValueError(f'Decal placement {index} is outside the supported position range') from exc
+            if not all(isfinite(v) for v in position):
+                raise ValueError(f'Decal placement {index} is outside the supported position range')
+            if not all(isinstance(v, int) and -128 <= v <= 127 for v in (update.yaw, update.pitch)):
+                raise ValueError(f'Decal placement {index} has invalid angle bytes')
+            if (position, update.yaw, update.pitch) != (current_position, yaw_field.value, pitch_field.value):
+                plans.append((position_field, type(current)(*position), yaw_field, update.yaw,
+                              pitch_field, update.pitch))
+        for position_field, position, yaw_field, yaw, pitch_field, pitch in plans:
+            position_field.set(position)
+            yaw_field.set(yaw)
+            pitch_field.set(pitch)
+        if plans:
+            self.tag_has_changes = True
+        return len(plans)
 
     def ensure_environment_object_palettes(self) -> int:
         """Preload Reach BSP objects before Sapien starts switching BSPs.
@@ -742,7 +819,7 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
             return (-sy * sp, cy * sp, sy * cp, cy * cp)
 
         placements = []
-        for element in decal_block:
+        for source_index, element in enumerate(decal_block):
             classic = self.game in {'halo1', 'halo2'}
             palette_index = self.value(
                 element, 'decal type' if classic else 'decal palette index')
@@ -756,9 +833,13 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 pitch_field = element.field('pitch[-127,127]')
                 if pitch_field is None:
                     pitch_field = element.field('pitch')
-                rotation_values = classic_rotation(
-                    0 if yaw_field is None else yaw_field.value,
-                    0 if pitch_field is None else pitch_field.value)
+                yaw = 0 if yaw_field is None else int(yaw_field.value)
+                pitch = 0 if pitch_field is None else int(pitch_field.value)
+                if self.game == 'halo1':
+                    from .halo1_decals import placement_rotation
+                    rotation_values = placement_rotation(yaw, pitch)
+                else:
+                    rotation_values = classic_rotation(yaw, pitch)
                 size = classic_size(reference)
                 scale = (size, size)
             else:
@@ -785,6 +866,10 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 rotation=rotation_values,
                 scale=scale,
                 bsps=frozenset(bsps),
+                source_index=source_index,
+                palette_index=int(palette_index),
+                yaw=yaw if classic else 0,
+                pitch=pitch if classic else 0,
             ))
         return placements
 

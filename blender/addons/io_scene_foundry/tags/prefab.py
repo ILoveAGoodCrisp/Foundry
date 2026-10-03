@@ -231,6 +231,11 @@ class StructureBspRenderMesh:
     rigid_node_index: int
     parts: tuple[StructureBspRenderPart, ...]
     water: StructureBspRenderWater | None
+    tangents: tuple[tuple[float, float, float], ...] = ()
+    binormals: tuple[tuple[float, float, float], ...] = ()
+    lightmap_normals: tuple[tuple[float, float, float], ...] = ()
+    has_lightmap_uvs: bool = False
+    halo1_source: dict | None = None
 
 
 class ClassicBspInstance(TypedDict):
@@ -285,6 +290,11 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 part_type=int(part['part_type']),
             ) for part in cast(list[dict[str, object]], mesh['parts'])),
             water=None,
+            tangents=tuple(map(tuple, mesh.get('tangents', ()))),
+            binormals=tuple(map(tuple, mesh.get('binormals', ()))),
+            lightmap_normals=tuple(map(tuple, mesh.get('lightmap_normals', ()))),
+            has_lightmap_uvs=bool(mesh.get('has_lightmap_uvs', False)),
+            halo1_source=mesh.get('halo1_source'),
         )
 
     @staticmethod
@@ -346,11 +356,15 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
         self,
     ) -> tuple[list[str], list[str], list[StructureBspRenderMesh | None], list[ClassicBspInstance]]:
         """Decode a complete H1/H2 BSP scene through the native classic extractor."""
-        decoder = getattr(self.tag, 'classic_sbsp_scene', None)
-        if decoder is None:
-            raise RuntimeError(
-                'The bundled blam-tags binding predates classic BSP geometry decoding')
-        scene = cast(ClassicBspScene, decoder())
+        if self.game == 'halo1':
+            from .halo1_geometry import render_scene
+            scene = cast(ClassicBspScene, render_scene(self))
+        else:
+            decoder = getattr(self.tag, 'classic_sbsp_scene', None)
+            if decoder is None:
+                raise RuntimeError(
+                    'The bundled blam-tags binding predates classic BSP geometry decoding')
+            scene = cast(ClassicBspScene, decoder())
         meshes = [
             None if mesh is None else self._render_mesh_record(index, mesh)
             for index, mesh in enumerate(scene['objects'])

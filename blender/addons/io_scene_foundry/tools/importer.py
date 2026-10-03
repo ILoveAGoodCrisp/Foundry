@@ -46,7 +46,8 @@ from .animation.generate_frames import FrameGenerator
 from ..legacy.jma import JMA
 from ..ui.panel.cinematic import bake_vis_to_keyframes
 
-from ..tags.object import ObjectDocument
+from ..tags.object import ObjectDocument, circular_aiming_for_graph
+from ..animation_aiming import LEGACY_AIMING_MODE_ITEMS
 from ..tags.object_blender import ObjectTag
 from ..tags.particle_model import ParticleModelTag
 from ..tags.scenario_structure_bsp import ScenarioStructureBspTag
@@ -423,6 +424,10 @@ def draw_animation_conversions(operator, layout, enabled=None):
     row = layout.row()
     row.enabled = enabled
     row.prop(operator, "convert_animations")
+    if operator.convert_animations:
+        row = layout.row()
+        row.enabled = enabled
+        row.prop(operator, 'legacy_aiming_mode')
 
 
 def draw_animation_graph_import_options(operator, layout, corinth, include_generate_frames=False):
@@ -1715,7 +1720,7 @@ class NWO_Import(bpy.types.Operator):
 
     tag_bsp_merge_render_collision: bpy.props.BoolProperty(
         name="Merge Render and Collision",
-        description="Reconstructs shared render and collision surfaces for Halo 1 BSPs. Disable to import the original render and collision meshes separately",
+        description="Reconstructs shared render and collision surfaces for Halo 1 BSPs. Disable to keep the original geometry separate, with its lighting and surface data",
         default=True,
     )
     
@@ -1894,6 +1899,10 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
 
+    legacy_aiming_mode: bpy.props.EnumProperty(
+        name='Legacy Aiming', items=LEGACY_AIMING_MODE_ITEMS, default='AUTO',
+    )
+
     use_import_info: bpy.props.BoolProperty(
         name="Use Import Info",
         description="Imports embedded JMS, ASS, and JMA source data instead of compiled tag data when available. GR2 source data is currently ignored",
@@ -1976,6 +1985,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.add_import_info_sources(filepaths)
                 importer.graph_bake_to_control_rig = self.graph_bake_to_control_rig
                 importer.convert_animations = self.convert_animations
+                importer.legacy_aiming_mode = self.legacy_aiming_mode
                 switch_blender_scene = None
                 
                 mouse_matrix = utils.matrix_from_mouse(self.mouse_x, self.mouse_y)
@@ -3296,6 +3306,7 @@ class NWOImporter:
         self.graph_scale_animations_to_skeleton = False
         self.tag_animation = False
         self.convert_animations = True
+        self.legacy_aiming_mode = 'AUTO'
         self.graph_import_animations = False
         self.graph_bake_to_control_rig = True
         self.graph_import_pca_data = False
@@ -4326,7 +4337,7 @@ class NWOImporter:
                                         if ob.type == 'ARMATURE':
                                             # self.to_cursor_objects.add(ob)
                                             ob.nwo.cinematic_object = obj.tag_path.RelativePathWithExtension
-                                            if obj.tag_path.Extension == "biped":
+                                            if obj.tag_path.Extension in {"biped", "vehicle"}:
                                                 ob["foundry_source_object_tag"] = str(Path(file).resolve())
                                             if temp_variant == self.tag_variant:
                                                 ob.nwo.cinematic_variant = temp_variant
@@ -4348,7 +4359,9 @@ class NWOImporter:
                                 imported_file_objects.extend(self.import_physics_model(physics, armature, model_collection, allowed_region_permutations))
                             if not is_game_object and animation and self.tag_animation:
                                 print("Importing Animation Graph")
-                                imported_animations.extend(self.import_animation_graph(animation, armature, render, additional_render_models=fp_default_models))
+                                imported_animations.extend(self.import_animation_graph(
+                                    animation, armature, render, additional_render_models=fp_default_models,
+                                    source_object=file))
                                 
                             if self.tag_import_lights and self.corinth:
                                 path = model.get_lighting_info()
@@ -4904,7 +4917,8 @@ class NWOImporter:
             
         return physics_model_objects
     
-    def import_animation_graph(self, file, armature, render, return_animations=False, additional_render_models=()):
+    def import_animation_graph(self, file, armature, render, return_animations=False, additional_render_models=(),
+                               source_object=None):
         source_files = [
             path for path in self.import_info_sources_for_tag(file)
             if Path(path).suffix.lower() in legacy_animation_formats
@@ -4955,6 +4969,15 @@ class NWOImporter:
                 convert_to_legacy = (self.convert_animations and graph.game in REACH_PLUS_GAMES
                                      and self.target_game in LEGACY_GAMES)
                 legacy_blend_screens = graph.blend_screens() if convert_to_reach else {}
+                circular_aiming = None
+                owner = source_object or (armature.get('foundry_source_object_tag') if armature else None)
+                if convert_to_reach and owner:
+                    source_tag_root = mover.potential_source_tag_dir if mover.needs_to_move else self.tags_dir
+                    try:
+                        circular_aiming = circular_aiming_for_graph(
+                            owner, file, tags_root=source_tag_root, game=graph.game)
+                    except Exception as error:
+                        utils.print_warning(f'Could not read source aiming metadata: {error}')
                 if graph.game in LEGACY_GAMES:
                     blend_screen_choices = graph.blend_screens_to_blender()
                 if self.graph_import_ik_chains:
@@ -4989,6 +5012,8 @@ class NWOImporter:
                             convert_to_reach=convert_to_reach,
                             convert_to_legacy=convert_to_legacy,
                             legacy_blend_screens=legacy_blend_screens,
+                            legacy_circular_aiming=circular_aiming,
+                            legacy_aiming_mode=self.legacy_aiming_mode,
                             blend_screen_choices=blend_screen_choices,
                             convert_animation_names=self.convert_animations,
                             target_game=self.target_game,
@@ -5014,6 +5039,8 @@ class NWOImporter:
                             convert_to_reach=convert_to_reach,
                             convert_to_legacy=convert_to_legacy,
                             legacy_blend_screens=legacy_blend_screens,
+                            legacy_circular_aiming=circular_aiming,
+                            legacy_aiming_mode=self.legacy_aiming_mode,
                             blend_screen_choices=blend_screen_choices,
                             convert_animation_names=self.convert_animations,
                             target_game=self.target_game,
@@ -5190,7 +5217,8 @@ class NWOImporter:
 
         return objects, skeleton_poses
 
-    def _scenario_decals_to_blender(self, scenario, parent_collection=None, bvh=None, bsp_indices=None):
+    def _scenario_decals_to_blender(self, scenario, parent_collection=None, bvh=None, bsp_indices=None,
+                                   projection_bvh=None, partial_bsp_import=False):
         placements = scenario.decal_placements()
         if not placements:
             return []
@@ -5203,6 +5231,7 @@ class NWOImporter:
             parent_collection.children.link(collection)
 
         material_cache = {}
+        preview_cache = {}
         objects = []
         for placement in placements:
             if placement.definition is None:
@@ -5212,7 +5241,39 @@ class NWOImporter:
                 if not placement.bsps.intersection(bsp_indices):
                     continue
             position = Vector(tuple(value * 100 for value in placement.position))
-            if not has_bsp_filter and bvh and not utils.test_point_bvh(bvh, position):
+            if scenario.game != 'halo1' and not has_bsp_filter and bvh and not utils.test_point_bvh(bvh, position):
+                continue
+
+            if scenario.game == 'halo1':
+                from ..tags.shader_converter import ShaderTag
+                from ..tags.halo1_decals import read_preview, create_preview
+                key = placement.definition.replace('/', '\\').casefold()
+                if key not in preview_cache:
+                    with ShaderTag(path=placement.definition) as decal:
+                        preview = read_preview(decal)
+                        material = next((mat for mat in bpy.data.materials
+                                         if mat.get('halo1_decal_preview_material')
+                                         and mat.nwo.shader_path.replace('/', '\\').casefold() == key
+                                         and mat.get('halo1_decal_bitmap_index') == preview.bitmap_index), None)
+                        if material is None:
+                            material = bpy.data.materials.new(placement.name)
+                            material.nwo.shader_path = placement.definition
+                            material['halo1_decal_preview_material'] = True
+                            material['halo1_decal_bitmap_index'] = preview.bitmap_index
+                            decal.to_nodes(material, decal_bitmap_index=preview.bitmap_index)
+                    preview_cache[key] = preview
+                    material_cache[key] = material
+                control, ob = create_preview(placement, preview_cache[key], material_cache[key],
+                                             collection, scenario.path, projection_bvh, tags_root=scenario.tags_root)
+                # Partial BSP imports should not accumulate decals from other
+                # areas. Preserve unfitted controls for complete scenario imports.
+                if partial_bsp_import and projection_bvh is not None and not ob['halo1_decal_surface_fitted']:
+                    mesh = ob.data
+                    bpy.data.objects.remove(ob, do_unlink=True)
+                    bpy.data.objects.remove(control, do_unlink=True)
+                    bpy.data.meshes.remove(mesh)
+                    continue
+                objects.extend((control, ob))
                 continue
 
             material = material_cache.get(placement.definition)
@@ -5338,11 +5399,17 @@ class NWOImporter:
                     if scenario_collection is None:
                         scenario_collection = bpy.data.collections.new(scenario_name)
                         self.scene_collection.children.link(scenario_collection)
+                    decal_projection_objects = []
                     for bsp, sky_index in zip(bsps, sky_indices):
                         bsp_objects, bvh = self.import_bsp(bsp, scenario_collection, None if self.corinth else scenario.get_info(all_bsps.index(bsp)), do_raycasting, sky_index)
                         imported_objects.extend(bsp_objects)
+                        decal_projection_objects.extend(bsp_objects)
                         if bvh:
                             structure_collision.append(bvh)
+                    decal_projection = None
+                    if scenario.game == 'halo1' and self.tag_scenario_import_decals:
+                        from ..tags.halo1_decals import projection_bvh
+                        decal_projection = projection_bvh(decal_projection_objects)
                     
                     if self.tag_import_design and not self.tag_bsp_render_only:
                         designs = scenario.get_design_paths(self.tag_zone_set)
@@ -5419,7 +5486,8 @@ class NWOImporter:
                         if self.tag_scenario_import_decals:
                             imported_objects.extend(self._scenario_decals_to_blender(
                                 child_scenario,
-                                child_collection, structure_collision, bsp_indices))
+                                child_collection, structure_collision, bsp_indices,
+                                decal_projection, partial_bsp_import=do_raycasting))
                             
                         if self.tag_scenario_import_decorators:
                             decorator_objects = self._scenario_decorators_to_blender(
@@ -6228,7 +6296,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
 
     tag_bsp_merge_render_collision: bpy.props.BoolProperty(
         name="Merge Render and Collision",
-        description="Reconstructs shared render and collision surfaces for Halo 1 BSPs. Disable to import the original render and collision meshes separately",
+        description="Reconstructs shared render and collision surfaces for Halo 1 BSPs. Disable to keep the original geometry separate, with its lighting and surface data",
         default=True,
     )
     
@@ -6476,6 +6544,10 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         name="Convert Animations for Project",
         description="Convert animation names, turn poses, aim/look overlays, and Halo 4 / H2AMP locomote composites to the current project game",
         default=True,
+    )
+
+    legacy_aiming_mode: bpy.props.EnumProperty(
+        name='Legacy Aiming', items=LEGACY_AIMING_MODE_ITEMS, default='AUTO',
     )
 
     use_import_info: bpy.props.BoolProperty(
@@ -6991,12 +7063,13 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                 continue
             shader_path = mat.nwo.shader_path
             if shader_path:
-                existing_mat = processed_shader_paths.get(shader_path)
+                shader_key = (shader_path, mat.get('halo1_decal_bitmap_index'))
+                existing_mat = processed_shader_paths.get(shader_key)
                 if existing_mat is None:
                     result = tag_to_nodes(
                         importer.corinth, mat, shader_path, always_extract_bitmaps,
                         target_game=importer.target_game if importer.build_materials_for_project else None)
-                    processed_shader_paths[shader_path] = mat
+                    processed_shader_paths[shader_key] = mat
                 else:
                     utils.copy_material_nodes(existing_mat, mat)
                     mat.nwo.game_functions = existing_mat.nwo.game_functions

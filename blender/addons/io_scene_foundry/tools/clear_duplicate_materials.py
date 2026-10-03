@@ -82,7 +82,9 @@ def clear_duplicate_materials(strip_legacy_halo_naming: bool, materials_scope=No
     for mat in sorted(materials, key=lambda mat: mat.name != base_material_name(mat.name, strip_legacy_halo_naming)):
         base = base_material_name(mat.name, strip_legacy_halo_naming)
         path = mat.nwo.shader_path.replace('/', '\\').casefold()
-        key = (base, path)
+        key = (base, path,
+               mat.get('foundry_source_game', mat.get('foundry_material_source_game')),
+               mat.get('halo1_decal_bitmap_index'))
         original = canonical.setdefault(key, mat)
         if materials_scope is None or mat in materials_scope:
             if original != mat:

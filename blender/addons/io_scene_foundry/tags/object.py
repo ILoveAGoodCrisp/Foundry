@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from pathlib import Path
 
-from .backend import TagDocument, TagPathInput
+from .backend import TagDocument, TagPathInput, read_only_tags
 from .model import ModelDocument
 from dataclasses import dataclass
 from .backend import TagReference
@@ -236,6 +236,20 @@ class ObjectDocument(TagDocument):
             return []
         return [ref for e in self.block(unit, 'weapons') if (ref := self.reference(e, 'weapon'))]
 
+    def get_circular_aiming(self) -> bool | None:
+        """None means the source does not expose a unit circular-aiming flag."""
+        if self.system_path.suffix.lower() not in {'.biped', '.vehicle'}:
+            return None
+        unit = self.tag.root() if self.game == 'halo1' else self.nested(self.tag.root(), 'unit')
+        # H1 flattens several unrelated fields named 'flags' into this root.
+        # Identify the unit flags by their options rather than the first name.
+        for field in unit.fields():
+            options = field.options()
+            if options is not None and options.is_flags:
+                if any(name == 'circular aiming' for _, name, _ in options.flags):
+                    return bool(field.get_flag('circular aiming'))
+        return None
+
     def get_weapon_markers(self):
         if self.game == 'halo1':
             # H1 attaches the weapon origin to the unit's right-hand marker.
@@ -399,3 +413,30 @@ class ObjectDocument(TagDocument):
                 for field in self._h3_color_function_fields(function):
                     self.required_field(converted, field.clean_name).copy_value_from(field)
         return True
+
+
+def circular_aiming_for_graph(source_object, graph_path, *, tags_root, game) -> bool | None:
+    """Follow the owner's references; an unrelated rig owner supplies no policy."""
+    if not source_object or Path(source_object).suffix.lower() not in {'.biped', '.vehicle'}:
+        return None
+    root = Path(tags_root).resolve()
+    source_object = (root / source_object).resolve()
+    if not source_object.is_relative_to(root):
+        return None
+    graph_path = (root / graph_path).resolve()
+    with read_only_tags():
+        with ObjectDocument(source_object, tags_root=root, game=game, must_exist=True) as unit:
+            circular = unit.get_circular_aiming()
+            if circular is None:
+                return None
+            if game == 'halo1':
+                graph = unit.reference(unit.object_struct(), 'animation graph')
+            else:
+                model_path = unit.get_model_tag_path_full()
+                if not model_path:
+                    return None
+                with ModelDocument(model_path, tags_root=root, game=game, must_exist=True) as model:
+                    graph = model.reference_animation.Path
+            if graph is None or Path(graph.Filename).resolve() != graph_path:
+                return None
+            return circular

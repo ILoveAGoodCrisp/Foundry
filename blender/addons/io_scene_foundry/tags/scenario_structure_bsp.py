@@ -157,9 +157,14 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         materials = {}
         emissives = {}
         for index, (name, shader_path) in enumerate(zip(material_names, material_paths, strict=True)):
-            material = bpy.data.materials.get(name)
+            shader_key = shader_path.replace('/', '\\').casefold()
+            material = next((mat for mat in bpy.data.materials
+                             if mat.nwo.shader_path.replace('/', '\\').casefold() == shader_key
+                             and mat.get('foundry_source_game') == self.game
+                             and (shader_key or mat.name == name)), None)
             if material is None:
                 material = bpy.data.materials.new(name)
+            material['foundry_source_game'] = self.game
             if shader_path:
                 material.nwo.shader_path = shader_path
                 emissive = self._classic_shader_emissive(shader_path)
@@ -191,6 +196,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             source_objects[index] = Mesh.from_native(
                 record, materials, False,
                 reverse_winding=self.game == 'halo1' and index not in native_collision_indices,
+                preserve_source=self.game == 'halo1' and not merge_render_collision,
             ).create(
                 None, None, name=f'classic_bsp_mesh:{index}',
                 surface_triangle_mapping=mappings, section_index=section)
@@ -436,8 +442,9 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     replace_collision_only(classic_objects, self)
                     for ob in classic_objects:
                         if ob.type == 'MESH':
-                            utils.set_two_sided(ob.data, match_collision_patches=True)
-                            weld_classic_vertices(ob.data)
+                            if merge_render_collision:
+                                utils.set_two_sided(ob.data, match_collision_patches=True)
+                                weld_classic_vertices(ob.data)
                             utils.calc_face_prop_counts(ob.data)
                     apply_shader_transparency(self, classic_objects)
                     if not for_cinematic:

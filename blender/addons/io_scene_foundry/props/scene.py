@@ -5,6 +5,7 @@ from bpy.types import PropertyGroup
 from mathutils import Matrix
 
 from ..animation_events import frame_event_items_for_game
+from ..animation_aiming import LEGACY_AIMING_MODE_ITEMS
 from ..constants import get_named_color
 
 from ..tools.asset_types import asset_type_items
@@ -520,8 +521,6 @@ class NWO_AnimationEventData_ListItems(bpy.types.PropertyGroup):
             ('SOUND', "Sound", ""),
             ('EFFECT', "Effect", ""),
             ('DIALOGUE', "Dialogue", ""),
-            ('MUSIC', "Music / Foley", ""),
-            ('FUNCTION', "Function", ""),
         ]
     )
     
@@ -1214,7 +1213,7 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
     
     pose_overlay: bpy.props.BoolProperty(
         name="Pose Overlay",
-        description="External animation is a pose overlay",
+        description="Compute aim node directions for this overlay. Animate the pitch and yaw pose bones, or use Generate Poses",
         options=set(),
     )
 
@@ -1225,6 +1224,25 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
                ('time', "Time", "Preserve the imported time overlay classification")],
         default='auto',
         options={'HIDDEN'},
+    )
+
+    pose_overlay_wrap_mode: bpy.props.EnumProperty(
+        name='Legacy Aiming',
+        description='Aiming behavior when converting legacy pose overlays; rerun conversion after changing this',
+        items=LEGACY_AIMING_MODE_ITEMS, default='AUTO', options=set(),
+    )
+
+    pose_overlay_aiming_source: bpy.props.EnumProperty(
+        name='Source Unit Aiming',
+        items=[('UNKNOWN', 'Unknown', 'The source unit circular aiming flag is unavailable'),
+               ('PLANAR', 'Planar', 'The source unit has circular aiming disabled'),
+               ('CIRCULAR', 'Circular', 'The source unit has circular aiming enabled')],
+        default='UNKNOWN', options={'HIDDEN'},
+    )
+
+    pose_overlay_yaw_span: bpy.props.FloatProperty(
+        name='Source Yaw Coverage', description='Authored legacy screen yaw coverage in degrees',
+        default=0.0, options={'HIDDEN'},
     )
 
     source_authoring_data: bpy.props.StringProperty(

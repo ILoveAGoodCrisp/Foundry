@@ -6,6 +6,7 @@ import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 
 from ... import utils
+from ...animation_aiming import animation_aiming_is_planar
 
 
 _DIRECTIONS = ("front", "right", "left", "back")
@@ -882,7 +883,7 @@ def _rebuild_wrap_events(
         ):
             animation.animation_events.remove(index)
 
-    if not yaw_name:
+    if not yaw_name or not animation_aiming_is_planar(animation):
         return 0
 
     pedestal = armature.pose.bones.get(pedestal_name)
@@ -971,12 +972,18 @@ def _populate_target_animation(
 
 
     source_state = utils.AnimationName(source.name).state
+    rename_names = {_normalized_name(target_name)}
     for source_rename in source.animation_renames:
-        target_rename = target.animation_renames.add()
-        _copy_property_group(source_rename, target_rename)
-        target_rename.name = _retarget_rename(
+        rename_name = _retarget_rename(
             source_rename.name, source_state, target_state, base_state
         )
+        key = _normalized_name(rename_name)
+        if not key or key in rename_names:
+            continue
+        rename_names.add(key)
+        target_rename = target.animation_renames.add()
+        _copy_property_group(source_rename, target_rename)
+        target_rename.name = rename_name
 
     target.name = target_name
     target.name_old = target_name

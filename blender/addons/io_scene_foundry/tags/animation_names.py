@@ -54,6 +54,71 @@ H1_REGION_CONVERSIONS = {
 LEGACY_GAMES = {'halo1', 'halo2', 'halo3', 'halo3odst'}
 REACH_PLUS_GAMES = {'reach', 'halo4', 'halo2a'}
 
+BUNKER_MODE_CONVERSIONS = {
+    'bunker_cover': 'center_crouch_closed',
+    'bunker_open': 'center_crouch_open',
+    'corner_cover_left': 'left_stand_closed',
+    'corner_open_left': 'left_stand_open',
+    'corner_cover_right': 'right_stand_closed',
+    'corner_open_right': 'right_stand_open',
+}
+
+
+def _convert_bunker_name(name: str, *, to_reach: bool) -> str:
+    tokens = re.split(r'[ :]+', name.strip(' :'))
+    keys = [token.casefold() for token in tokens]
+    converted = None
+    if to_reach and len(tokens) >= 2 and keys[0] in BUNKER_MODE_CONVERSIONS:
+        bunker_set = BUNKER_MODE_CONVERSIONS[keys[0]]
+        tail = tokens[2:]
+        # H2+ switches modes with idle transitions; Reach uses set actions.
+        if keys == ['bunker_cover', keys[1], 'idle', '2', 'bunker_open', 'idle']:
+            tail = ['open']
+        elif keys == ['bunker_open', keys[1], 'idle', '2', 'bunker_cover', 'idle']:
+            tail = ['close']
+        elif '2' in tail:
+            return name
+        converted = ['bunker', tokens[1], 'any', bunker_set] + tail
+    elif (not to_reach and len(tokens) >= 4 and keys[0] == 'bunker'
+          and keys[2] == 'any'):
+        legacy_mode = {value: key for key, value in BUNKER_MODE_CONVERSIONS.items()}.get(keys[3])
+        if legacy_mode is not None:
+            tail = tokens[4:]
+            if keys[3:] == ['center_crouch_closed', 'open']:
+                tail = ['idle', '2', 'bunker_open', 'idle']
+            elif keys[3:] == ['center_crouch_open', 'close']:
+                tail = ['idle', '2', 'bunker_cover', 'idle']
+            converted = [legacy_mode, tokens[1]] + tail
+    if converted is None:
+        return name
+    separator = ':' if ':' in name and ' ' not in name else ' '
+    trailing = name[len(name.rstrip(' :')):]
+    return separator.join(converted) + trailing
+
+
+def _convert_h1_mode(token: str, *, to_h1: bool = False) -> str:
+    if to_h1:
+        key = token.casefold()
+        converted = {value: name for name, value in H1_MODE_CONVERSIONS.items()}.get(key)
+        if converted is not None:
+            return converted
+        seat = re.fullmatch(r'fork_p_([lr])([0-9]+)', key)
+        if seat is not None:
+            return f'cd-passenger{seat[1]}{int(seat[2]):02d}'
+        return token.replace('_', '-')
+
+    # Graph seat labels can use underscores even when animation names use
+    # hyphens. Apply the same mapping to both spellings, including aliases for
+    # numbered passenger seats beyond the first one.
+    key = token.casefold().replace('_', '-')
+    converted = H1_MODE_CONVERSIONS.get(key)
+    if converted is not None:
+        return converted
+    seat = re.fullmatch(r'cd-passenger([lr]?)([0-9]+)', key)
+    if seat is not None:
+        return f'fork_p_{seat[1] or "r"}{int(seat[2])}'
+    return token
+
 
 def convert_animation_name_for_project(
         name: str, source_game: str, target_game: str) -> str:
@@ -104,10 +169,10 @@ def convert_animation_name_for_project(
         key = token.casefold()
         if h1_to_h2:
             if token_index in mode_indices:
-                token = H1_MODE_CONVERSIONS.get(key, token)
+                token = _convert_h1_mode(token)
             if token_index in state_indices:
-                token = H1_STATE_CONVERSIONS.get(key, token)
-            token = H1_REGION_CONVERSIONS.get(key, token)
+                token = H1_STATE_CONVERSIONS.get(key.replace('_', '-'), token)
+            token = H1_REGION_CONVERSIONS.get(key.replace('_', '-'), token)
             token = token.replace('-', '_')
             key = token.casefold()
         if legacy_to_reach and key == 'berserk' and token_index in state_indices:
@@ -116,8 +181,7 @@ def convert_animation_name_for_project(
             token = 'berserk'
         if to_h1:
             if token_index in mode_indices:
-                token = {value: key for key, value in H1_MODE_CONVERSIONS.items()}.get(key, token)
-                token = token.replace('_', '-')
+                token = _convert_h1_mode(token, to_h1=True)
             if token_index in state_indices:
                 token = {value: key for key, value in H1_STATE_CONVERSIONS.items()}.get(key, token)
                 token = token.replace('_', '-')
@@ -127,6 +191,10 @@ def convert_animation_name_for_project(
         parts[part_index] = token
 
     converted = ''.join(parts)
+    if legacy_to_reach and source_game != 'halo1':
+        converted = _convert_bunker_name(converted, to_reach=True)
+    elif reach_to_legacy and target_game != 'halo1':
+        converted = _convert_bunker_name(converted, to_reach=False)
     if variant is not None:
         if to_h1:
             converted = f'{converted}%{variant}'
@@ -170,21 +238,24 @@ def normalized_animation_graph_path(path: str) -> str:
     return ':'.join(minimal_animation_path(tokens))
 
 
+def animation_name_key(name: str) -> str:
+    """Compare names across UI/tag separators, whitespace and letter casing."""
+    return ':'.join((name or '').replace(':', ' ').split()).casefold()
+
+
 def renames_from_paths(
         name_to_paths: Mapping[str, Iterable[str]]) -> list[tuple[str, str]]:
-    """Return noncanonical paths for animations used by multiple graph states."""
+    """Return distinct noncanonical graph paths for each animation."""
     renames: list[tuple[str, str]] = []
     for animation_name, paths in name_to_paths.items():
-        paths = list(paths)
-        if len(paths) < 2:
-            continue
-        canonical_source = normalized_animation_graph_path(animation_name)
+        canonical_source = animation_name_key(normalized_animation_graph_path(animation_name))
         seen: set[str] = set()
         for path in paths:
             rename = normalized_animation_graph_path(path)
-            if rename and rename != canonical_source and rename not in seen:
+            key = animation_name_key(rename)
+            if key and key != canonical_source and key not in seen:
                 renames.append((animation_name, rename))
-                seen.add(rename)
+                seen.add(key)
     return renames
 
 

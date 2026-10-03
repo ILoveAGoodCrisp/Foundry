@@ -4,7 +4,8 @@ from math import radians
 from mathutils import Matrix
 
 from ... import import_transform, utils
-from .automate_pose_overlay import BlendScreen, PoseBuilder
+from ...animation_aiming import blend_screen_yaw_span
+from .automate_pose_overlay import BlendScreen, PoseBuilder, legacy_blend_screen_wrap_events
 
 
 def prepare_reach_skeleton(armature):
@@ -60,20 +61,21 @@ def blend_screen_duplicate_frames(screen, frame_start=1):
     """Map repeated yaw/pitch samples to their first authored pose.
 
     Compare the two aim rotations separately: yaw remains meaningful at the
-    pitch poles. The additive reference is not a blend-screen sample.
+    pitch poles. Wraps distinguish otherwise identical screen coordinates.
+    The additive reference is not a blend-screen sample.
     """
     unique = []
     duplicates = {}
-    for index, (yaw, pitch, _wrap) in enumerate(screen.transforms):
+    for index, (yaw, pitch, wrap) in enumerate(screen.transforms):
         frame = frame_start + index + 1
-        for first_frame, first_yaw, first_pitch in unique:
-            if all(abs(a[row][column] - b[row][column]) <= 1e-6
+        for first_frame, first_yaw, first_pitch, first_wrap in unique:
+            if wrap == first_wrap and all(abs(a[row][column] - b[row][column]) <= 1e-6
                    for a, b in ((yaw, first_yaw), (pitch, first_pitch))
                    for row in range(3) for column in range(3)):
                 duplicates[frame] = first_frame
                 break
         else:
-            unique.append((frame, yaw, pitch))
+            unique.append((frame, yaw, pitch, wrap))
     return duplicates
 
 
@@ -113,10 +115,15 @@ def strip_reach_blend_screen_duplicates(armature, animations, duplicate_frames):
         animation.source_authoring_data = ''
 
 
-def convert_blend_screen(armature, animation, action, slot, record, names):
+def convert_blend_screen(armature, animation, action, slot, record, names, *, circular_aiming=None):
     screen = BlendScreen()
     screen.from_record(record)
-    screen.compute_transforms()
+    if circular_aiming is not None:
+        animation.pose_overlay_aiming_source = 'CIRCULAR' if circular_aiming else 'PLANAR'
+    animation.pose_overlay_yaw_span = blend_screen_yaw_span(screen)
+    wrap_events = legacy_blend_screen_wrap_events(animation.name, animation, screen,
+                                                 circular_aiming=circular_aiming)
+    screen.compute_transforms(wrap_yaw_limit=90.0 if wrap_events else None)
     armature.animation_data.action = action
     armature.animation_data.action_slot = slot
     for bone in armature.pose.bones:
@@ -127,7 +134,6 @@ def convert_blend_screen(armature, animation, action, slot, record, names):
         armature.pose.bones[names['aim_yaw']],
     )
     animation.pose_overlay = True
-    wrap_events = not ('vehicle' in animation.name or 'pain' in animation.name)
     with utils.ArmatureDeformMute():
         animation.frame_end = builder.build_from_blend_screen(
             bpy.context.scene, animation, action, wrap_events, screen, slot)

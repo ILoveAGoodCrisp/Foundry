@@ -13,8 +13,10 @@ from .blender import BlenderTag
 from .animation_names import (
     DIRECTIONS,
     REGIONS,
+    animation_name_key,
     convert_animation_name_for_project,
     copies_from_paths,
+    normalized_animation_graph_path,
     renames_from_paths,
 )
 
@@ -389,7 +391,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             target_game: str = '') -> tuple[int, int]:
         """Add graph aliases as hierarchy copies or individual renames."""
         blender_animations = {
-            animation.name.replace(' ', ':'): animation
+            animation_name_key(animation.name): animation
             for animation in self.scene_nwo.animations
         }
         paths = self.animation_state_paths()
@@ -398,7 +400,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
         copies = copies_from_paths(paths) if self.game != 'halo1' else []
         covered_renames: set[tuple[str, str]] = set()
         existing_copies = {
-            (item.source_name.casefold(), item.name.casefold())
+            (animation_name_key(item.source_name), animation_name_key(item.name))
             for item in self.scene_nwo.animation_copies
         }
         applied_copies = 0
@@ -411,7 +413,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                     name, self.game, target_game) if convert_names else name)
                 if ((contains and contains not in name and
                      contains not in converted_name) or
-                        converted_name.replace(' ', ':') not in blender_animations):
+                        animation_name_key(converted_name) not in blender_animations):
                     eligible = False
                     break
             if not eligible:
@@ -420,9 +422,9 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 source, self.game, target_game) if convert_names else source)
             converted_destination = (convert_animation_name_for_project(
                 destination, self.game, target_game) if convert_names else destination)
-            if converted_source.casefold() == converted_destination.casefold():
+            if animation_name_key(converted_source) == animation_name_key(converted_destination):
                 continue
-            key = (converted_source.casefold(), converted_destination.casefold())
+            key = (animation_name_key(converted_source), animation_name_key(converted_destination))
             if key not in existing_copies:
                 item = self.scene_nwo.animation_copies.add()
                 item.source_name = converted_source
@@ -431,6 +433,42 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 applied_copies += 1
                 print(f'copied "{converted_source}" ==> "{converted_destination}"')
             covered_renames.update(covered)
+
+        # Copies are established before reconciling either existing or new
+        # renames, so re-importing also removes aliases now supplied by a copy.
+        covered_by_source: dict[str, set[str]] = {}
+        for source_name, rename in covered_renames:
+            source = (convert_animation_name_for_project(
+                source_name, self.game, target_game) if convert_names else source_name)
+            destination = (convert_animation_name_for_project(
+                rename, self.game, target_game) if convert_names else rename)
+            covered_by_source.setdefault(animation_name_key(source), set()).add(
+                animation_name_key(destination))
+        existing_by_source: dict[str, set[str]] = {}
+        for source_name in paths:
+            source = (convert_animation_name_for_project(
+                source_name, self.game, target_game) if convert_names else source_name)
+            if contains and contains not in source_name and contains not in source:
+                continue
+            source_key = animation_name_key(source)
+            animation = blender_animations.get(source_key)
+            if animation is None or source_key in existing_by_source:
+                continue
+            seen = {source_key, animation_name_key(normalized_animation_graph_path(source))}
+            covered = covered_by_source.get(source_key, set())
+            remove_indices = []
+            for index, entry in enumerate(animation.animation_renames):
+                key = animation_name_key(entry.name)
+                if not key or key in seen or key in covered:
+                    remove_indices.append(index)
+                else:
+                    seen.add(key)
+            for index in reversed(remove_indices):
+                animation.animation_renames.remove(index)
+            animation.active_animation_rename_index = max(0, min(
+                getattr(animation, 'active_animation_rename_index', 0),
+                len(animation.animation_renames) - 1))
+            existing_by_source[source_key] = seen | covered
         applied = 0
         for source_name, rename in renames:
             if (source_name, rename) in covered_renames:
@@ -442,14 +480,17 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             if (contains and contains not in source_name and
                     contains not in converted_source):
                 continue
-            animation = blender_animations.get(converted_source.replace(' ', ':'))
+            source_key = animation_name_key(converted_source)
+            animation = blender_animations.get(source_key)
             if animation is None:
                 continue
-            existing = {entry.name.replace(' ', ':')
-                        for entry in animation.animation_renames}
+            existing = existing_by_source[source_key]
             converted_rename = converted_rename.replace(' ', ':')
-            if converted_rename not in existing:
-                animation.animation_renames.add().name = converted_rename.replace(':', ' ')
+            key = animation_name_key(converted_rename)
+            if not key or key in existing:
+                continue
+            animation.animation_renames.add().name = converted_rename.replace(':', ' ')
+            existing.add(key)
             applied += 1
             print(f'renamed "{converted_source}" ==> "{converted_rename}"')
         print(f'Generated {len(renames)} graph aliases: applied {applied} renames '

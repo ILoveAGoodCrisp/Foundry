@@ -4055,6 +4055,8 @@ class AnimationTag(AnimationGraphTag):
         convert_to_reach=False,
         convert_to_legacy=False,
         legacy_blend_screens=None,
+        legacy_circular_aiming=None,
+        legacy_aiming_mode='AUTO',
         blend_screen_choices=None,
         convert_animation_names=False,
         target_game: str = '',
@@ -4339,8 +4341,10 @@ class AnimationTag(AnimationGraphTag):
                     record = legacy_blend_screens.get(source_name.tag_name)
                     if record is not None:
                         from ..tools.animation.legacy_import import convert_blend_screen
+                        blender_animation.pose_overlay_wrap_mode = legacy_aiming_mode
                         self.reach_duplicate_frames[blender_animation.name] = convert_blend_screen(
-                            armature, blender_animation, action, slot, record, reach_bones)
+                            armature, blender_animation, action, slot, record, reach_bones,
+                            circular_aiming=legacy_circular_aiming)
 
         if self.corinth and import_pca:
             pca_groups = {}

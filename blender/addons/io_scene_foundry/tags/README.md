@@ -112,6 +112,19 @@ when refreshing other dependencies. Install/reinstall the packaged extension
 so Blender installs the wheel. Source installations must make the wheel
 available to their Blender Python environment separately.
 
+BC7 bitmap extraction requires blam-tags 0.1.10 or later. The native Halo
+bitmap path uses the same `bcdec_rs` BC7 decoder as Baboon's Unreal texture
+viewer, including alpha and partial 4x4 blocks. TIFF extraction retains the
+existing mip, array, cubemap and Foundry color-conversion paths. Rebuild the
+wheel after updating the shared blam-tags checkout and restart Blender after
+installing it.
+
+The real-bitmap regression can be run with Blender's Python using
+`blender/tests/test_bitmap_bc7.py`. Set `FOUNDRY_BC7_BITMAP` to a BC7 Halo CE
+bitmap and, when testing a staged wheel, `FOUNDRY_NATIVE_ROOT` to its extracted
+package directory. It checks native TIFF output and Foundry's material bitmap
+save method without modifying the source tag.
+
 ## Validation
 
 With the wheel installed, these suites run without Blender:
