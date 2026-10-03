@@ -5,6 +5,7 @@ from pathlib import Path
 import bpy
 from ... import utils
 from ...tags.object_blender import ObjectTag
+from ...tags.animation_names import convert_animation_name_for_project
 
 # Add (identifier, display name, description) entries to these lists as needed.
 HARD_CODED_MODE_OPTIONS = [
@@ -111,6 +112,11 @@ def _is_first_person_animation_graph(context) -> bool:
         and scene_nwo.asset_type == "animation"
         and scene_nwo.asset_animation_type == "first_person"
     )
+
+
+def _animation_game() -> str:
+    project = utils.get_project(use_external=False)
+    return getattr(project, "game", "")
 
 
 def _animation_name_type_items(_self, context):
@@ -408,6 +414,7 @@ def _shortest_graph_prefix(mode: str, weapon_class: str, weapon_type: str, set_n
 def build_shortest_animation_name(
     name_type: str,
     *,
+    game: str = "",
     is_stance: bool = False,
     is_first_person_dual: bool = False,
     mode: str = "any",
@@ -452,7 +459,9 @@ def build_shortest_animation_name(
         tokens.append(_clean_graph_value(damage_region, "gut"))
     else:
         if name_type == "first_person":
-            special_mode = "first_person dual" if is_first_person_dual else "first_person"
+            special_mode = ("first_person dual"
+                            if is_first_person_dual and game != "halo1"
+                            else "first_person")
         else:
             special_mode = {
                 "vehicle": "vehicle",
@@ -469,12 +478,16 @@ def build_shortest_animation_name(
     if variant > 0:
         tokens.append(f"var{variant}")
 
-    return " ".join(tokens)
+    name = " ".join(tokens)
+    if name_type == "first_person" and game == "halo1":
+        return convert_animation_name_for_project(name, "reach", "halo1")
+    return name
 
 
 def build_animation_name_from_editor(operator) -> str:
     return build_shortest_animation_name(
         operator.name_type,
+        game=_animation_game(),
         is_stance=operator.is_stance,
         is_first_person_dual=operator.is_first_person_dual,
         mode=operator.mode,
@@ -527,7 +540,7 @@ def draw_animation_name_fields(operator, layout, context):
     layout.prop(operator, "name_type")
     if operator.name_type in {"action", "transition", "damage"}:
         layout.prop(operator, "is_stance")
-    elif operator.name_type == "first_person":
+    elif operator.name_type == "first_person" and _animation_game() != "halo1":
         layout.prop(operator, "is_first_person_dual")
 
     if operator.name_type == "custom":
@@ -1075,9 +1088,14 @@ class NWO_OT_SetAnimationName(bpy.types.Operator):
         self.state = parsed.state or "idle"
 
     def _load_name(self, context, name: str):
+        original_name = name
+        # Parse H1 first-person names with the editor's canonical tokens so
+        # edits retain the mode and %variant instead of becoming unit actions.
+        if _animation_game() == "halo1" and utils.tokenise(name)[:1] == ("first-person",):
+            name = convert_animation_name_for_project(name, "halo1", "reach")
         parsed = utils.AnimationName(name)
         tokens = utils.tokenise(name)
-        self.custom = name
+        self.custom = original_name
         self.is_stance = parsed.stance
         self.is_first_person_dual = False
         variant = parsed.variant.removeprefix("var")
@@ -1119,24 +1137,7 @@ class NWO_OT_SetAnimationName(bpy.types.Operator):
         self.name_type = name_type if name_type in available_types else "custom"
 
     def build_name(self) -> str:
-        return build_shortest_animation_name(
-            self.name_type,
-            is_stance=self.is_stance,
-            is_first_person_dual=self.is_first_person_dual,
-            mode=self.mode,
-            weapon_class=self.weapon_class,
-            weapon_type=self.weapon_type,
-            set_name=self.set_name,
-            state=self.state,
-            destination_mode=self.destination_mode,
-            destination_state=self.destination_state,
-            damage_power=self.damage_power,
-            damage_type=self.damage_type,
-            damage_direction=self.damage_direction,
-            damage_region=self.damage_region,
-            variant=self.variant,
-            custom=self.custom,
-        )
+        return build_animation_name_from_editor(self)
 
     def _draw_graph_value(self, layout, value_property: str, picker_property: str, text: str | None = None):
         row = layout.row(align=True)
@@ -1153,7 +1154,7 @@ class NWO_OT_SetAnimationName(bpy.types.Operator):
         layout.prop(self, "name_type")
         if self.name_type in {"action", "transition", "damage"}:
             layout.prop(self, "is_stance")
-        elif self.name_type == "first_person":
+        elif self.name_type == "first_person" and _animation_game() != "halo1":
             layout.prop(self, "is_first_person_dual")
 
         if self.name_type == "custom":
