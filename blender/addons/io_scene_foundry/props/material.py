@@ -8,6 +8,45 @@ from .. import utils
 from ..tools.materials import special_materials, convention_materials
 
 
+MODERN_SHADER_TYPES = (
+    'shader', 'shader_cortana', 'shader_custom', 'shader_decal', 'shader_foliage',
+    'shader_fur', 'shader_fur_stencil', 'shader_glass', 'shader_halogram',
+    'shader_mux', 'shader_mux_material', 'shader_screen', 'shader_skin',
+    'shader_terrain', 'shader_water',
+)
+SHADER_TYPES_BY_GAME = {
+    'halo1': ('auto', 'shader_model', 'shader_environment',
+              'shader_transparent_generic', 'shader_transparent_chicago',
+              'shader_transparent_chicago_extended', 'shader_transparent_glass',
+              'shader_transparent_meter', 'shader_transparent_plasma', 'shader_transparent_water'),
+    'halo2': ('shader',),
+    'halo3': tuple(kind for kind in MODERN_SHADER_TYPES if kind not in {
+        'shader_fur', 'shader_fur_stencil', 'shader_glass', 'shader_mux',
+        'shader_mux_material', 'shader_screen'}),
+    'halo3odst': tuple(kind for kind in MODERN_SHADER_TYPES if kind not in {
+        'shader_fur', 'shader_fur_stencil', 'shader_glass', 'shader_mux', 'shader_mux_material'}),
+    'reach': MODERN_SHADER_TYPES,
+    'halo4': ('material',),
+    'halo2a': ('material',),
+}
+
+
+def _shader_type_getter(property_name, identifiers):
+    def get(self):
+        if property_name in self:
+            return self[property_name]
+        # Preserve the old shared enum's saved selection when valid for this game.
+        legacy = self.shader_type
+        return identifiers.index(legacy) if legacy in identifiers else 0
+    return get
+
+
+def _shader_type_setter(property_name):
+    def set(self, value):
+        self[property_name] = value
+    return set
+
+
 class NWO_MaterialPropertiesGroup(PropertyGroup):
     def update_shader(self, context):
         self["shader_path"] = utils.clean_tag_path(self["shader_path"])
@@ -96,8 +135,37 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         name="Shader Type",
         description="Type of shader to generate",
         items=shader_type_items,
-        options=set(),
+        options={'HIDDEN'},
     )
+
+    for game, types in SHADER_TYPES_BY_GAME.items():
+        property_name = 'shader_type_' + game
+        identifiers = tuple(kind if kind == 'auto' else '.' + kind for kind in types)
+        __annotations__[property_name] = bpy.props.EnumProperty(
+            name="Shader Type",
+            description="Type of shader to generate for this game",
+            items=[(identifier, 'Default' if kind in {'auto', 'shader'} else
+                    kind.removeprefix('shader_').replace('_', ' ').title(),
+                    'Environment for scenarios, model for other assets' if kind == 'auto' else '')
+                   for identifier, kind in zip(identifiers, types)],
+            get=_shader_type_getter(property_name, identifiers),
+            set=_shader_type_setter(property_name),
+            options=set(),
+        )
+
+    def shader_type_property(self, game=None):
+        if game is None:
+            project = utils.get_project(utils.get_scene_props().scene_project)
+            game = project.game if project else 'reach'
+        return 'shader_type_' + game
+
+    def get_shader_type(self, game=None):
+        return getattr(self, self.shader_type_property(game))
+
+    def set_shader_type(self, value, game=None):
+        property_name = self.shader_type_property(game)
+        if value in self.bl_rna.properties[property_name].enum_items.keys():
+            setattr(self, property_name, value)
 
     uses_blender_nodes : BoolProperty(
         name="Uses Blender Nodes",

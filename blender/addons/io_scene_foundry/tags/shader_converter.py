@@ -449,6 +449,11 @@ class ShaderTag(BlenderTag, TagDocument):
         return self.tag_path.RelativePathWithExtension
         
     def _edit_tag(self):
+        if self.game == 'halo1':
+            from .halo1_shader_export import write_shader
+            write_shader(self)
+            self.tag_has_changes = True
+            return
         self.alpha_type = self._alpha_type_from_blender_material()
         used_group_export = bool(self.custom and self._from_nodes_group())
         if not used_group_export:

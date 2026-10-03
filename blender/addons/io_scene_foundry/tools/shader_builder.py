@@ -101,6 +101,9 @@ def build_shader(material, corinth, folder="", report=None):
         print(f"{material.name} is linked, skipping")
         return {"FINISHED"}
     nwo = material.nwo
+    project = utils.get_project(utils.get_scene_props().scene_project)
+    game = project.game if project else 'reach'
+    shader_type = nwo.get_shader_type(game)
     if utils.material_read_only(nwo.shader_path):
         print(f"{material.name} is read only, skipping")
         return {'FINISHED'}
@@ -121,19 +124,44 @@ def build_shader(material, corinth, folder="", report=None):
     if not shader_path.suffix:
         shader_path = shader_path.with_suffix("")
         
-    if corinth:
+    if game == 'halo1':
+        suffix = shader_type
+        if suffix == 'auto':
+            suffix = '.shader_environment' if utils.get_scene_props().asset_type == 'scenario' else '.shader_model'
+            if nwo.uses_blender_nodes:
+                group = _material_output_group(material)
+                if group is not None:
+                    group_name = _normalize_group_name(group.node_tree.name)
+                    if group_name in {'foundry_h1.shader_model', 'foundry_h1.shader_environment'}:
+                        suffix = '.' + group_name.partition('.')[2]
+                if shader_path.suffix.lower() in {'.shader_model', '.shader_environment'}:
+                    suffix = shader_path.suffix.lower()
+        tag_class = ShaderTag if nwo.uses_blender_nodes else EmptyShaderTag
+        try:
+            with tag_class(path=shader_path.with_suffix(suffix), tag_must_exist=False) as tag:
+                path = (tag.write_tag(material, True) if nwo.uses_blender_nodes
+                        else tag.tag_path.RelativePathWithExtension)
+            nwo.shader_path = path
+        except ValueError as exc:
+            if report is None:
+                raise
+            report({'ERROR'}, str(exc))
+            return {'CANCELLED'}
+        if report is not None:
+            report({'INFO'}, f"Created Shader Tag for {material.name}")
+    elif corinth:
         with MaterialTag(path=shader_path.with_suffix(".material"), tag_must_exist=False) as tag:
             nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes, material_shader=nwo.material_shader)
     else:
         if nwo.uses_blender_nodes:
-            tag_class, suffix = _resolve_reach_shader_class(material, shader_path, nwo.shader_type)
+            tag_class, suffix = _resolve_reach_shader_class(material, shader_path, shader_type)
             with tag_class(path=shader_path.with_suffix(suffix), tag_must_exist=False) as tag:
                 nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes)
         else:
             # Initialize modern shaders with their default definition/options so
             # their template can be generated even without Blender node export.
-            tag_class = REACH_SUFFIX_TO_CLASS.get(nwo.shader_type, (EmptyShaderTag,))[0]
-            with tag_class(path=shader_path.with_suffix(nwo.shader_type),
+            tag_class = REACH_SUFFIX_TO_CLASS.get(shader_type, (EmptyShaderTag,))[0]
+            with tag_class(path=shader_path.with_suffix(shader_type),
                            tag_must_exist=False) as tag:
                 nwo.shader_path = tag.tag_path.RelativePathWithExtension
                 
@@ -224,9 +252,11 @@ class NWO_Shader_BuildSingle(bpy.types.Operator):
     def description(cls, context, properties) -> str:
         h4 = utils.is_corinth(context)
         tag_type = 'material' if h4 else 'shader'
-        added_bit = "" if h4 else ". Ignores the set shader type, instead using blender shader nodes to determine the type"
+        project = utils.get_project(utils.get_scene_props().scene_project)
+        added_bit = ("" if h4 or (project and project.game == 'halo1') else
+                     ". Ignores the set shader type, instead using blender shader nodes to determine the type")
         if properties.linked_to_blender:
-            return f"Creates an linked {tag_type} tag for this material. The tag will populate using Blender Material Nodes{added_bit}"
+            return f"Creates a linked {tag_type} tag for this material. The tag will populate using Blender Material Nodes{added_bit}"
         else:
             return f"Creates an empty {tag_type} tag for this material"
 

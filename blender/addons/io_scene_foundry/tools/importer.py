@@ -7468,6 +7468,8 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                         mat.nwo.prev_shader_path = existing_mat.nwo.prev_shader_path
                         mat.nwo.material_shader = existing_mat.nwo.material_shader
                         mat.nwo.shader_type = existing_mat.nwo.shader_type
+                        for game in ('halo1', 'halo2', 'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'):
+                            mat.nwo.set_shader_type(existing_mat.nwo.get_shader_type(game), game)
                         mat.nwo.uses_blender_nodes = existing_mat.nwo.uses_blender_nodes
                         mat.nwo.game_functions = existing_mat.nwo.game_functions
                         mat.nwo.object_functions = existing_mat.nwo.object_functions
@@ -7487,7 +7489,7 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                             family = node.node_tree.name.partition('.')[2]
                             if family in {'shader', 'shader_custom', 'shader_decal', 'shader_foliage',
                                           'shader_glass', 'shader_halogram', 'shader_terrain'}:
-                                mat.nwo.shader_type = '.' + family
+                                mat.nwo.set_shader_type('.' + family, importer.target_game)
                                 break
                     arrange(mat.node_tree)
         

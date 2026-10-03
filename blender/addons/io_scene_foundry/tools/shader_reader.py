@@ -268,6 +268,7 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
                     shader.to_nodes(mat, always_extract_bitmaps)
     
     if shader is not None:
+        mat.nwo.set_shader_type(Path(shader.system_path).suffix, shader.game)
         mat.nwo.game_functions = ",".join(shader.game_functions)
         mat.nwo.object_functions = ",".join(shader.object_functions)
         if target_game is not None:
@@ -290,7 +291,7 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
                         family = node.node_tree.name.partition('.')[2]
                         if family in {'shader', 'shader_custom', 'shader_decal', 'shader_foliage',
                                       'shader_glass', 'shader_halogram', 'shader_terrain'}:
-                            mat.nwo.shader_type = '.' + family
+                            mat.nwo.set_shader_type('.' + family, target_game)
                             break
         if mat.node_tree is not None:
             utils.update_foundry_material(mat, target_game or shader.game)
