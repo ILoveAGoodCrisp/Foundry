@@ -48,6 +48,7 @@ LEGACY_IMPORT_INFO_SUFFIXES = frozenset({
     '.ass', '.jms', '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo',
     '.jmr', '.jmrx',
 })
+IMPORT_INFO_SUFFIXES = LEGACY_IMPORT_INFO_SUFFIXES | {'.gr2'}
 
 PROFILES: dict[str, str] = {
     'halo1': 'haloce_mcc', 'halo2': 'halo2_mcc', 'halo3': 'halo3_mcc',
@@ -268,11 +269,10 @@ class TagDocument:
             self.tag_has_changes = True
 
     def import_info_sources(self) -> list[ImportInfoSource]:
-        """Return JMS/ASS/JMA payloads from modern or classic import info.
+        """Return supported source payloads from modern or classic import info.
 
         Modern tags store import information as a separate top-level struct. Halo 2
-        stores the same records in an ``import info`` block on the tag root. GR2 and
-        all other source formats are deliberately omitted until their importers exist.
+        stores the same records in an ``import info`` block on the tag root.
         """
         info_structs: list[blam_tags.TagStruct] = []
         attached = self.tag.import_info()
@@ -303,7 +303,7 @@ class TagDocument:
                     continue
                 path = str(path_field.value or '').strip()
                 suffix = Path(path.replace('\\', '/')).suffix.lower()
-                if not path or suffix not in LEGACY_IMPORT_INFO_SUFFIXES:
+                if not path or suffix not in IMPORT_INFO_SUFFIXES:
                     continue
                 compressed_data = data_field.as_data()
                 if not compressed_data:
