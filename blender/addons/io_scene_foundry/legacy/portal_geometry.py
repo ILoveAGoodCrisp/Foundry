@@ -39,6 +39,8 @@ def planarize_halo1_portals(asset, tolerance=0.025):
         if len(indices) < 4 or protected.intersection(indices):
             continue
         points = np.array([asset.vertices[i].position for i in indices], dtype=np.float64)
+        if not np.all(np.isfinite(points)):
+            continue
         center = points.mean(axis=0)
         _, singular, axes = np.linalg.svd(points-center, full_matrices=False)
         if singular[1] <= 1e-10:

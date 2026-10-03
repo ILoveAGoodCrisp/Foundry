@@ -1,7 +1,10 @@
-"""Text serializers for the shared legacy asset models; no Blender dependency."""
+"""Text serializers for prepared legacy asset models; no Blender dependency.
+
+Export trusts the prepared records. Format compatibility is checked in tests,
+without validating the records or parsing the generated files during export.
+"""
 from ..exceptions import ExportCancelled
 from dataclasses import replace
-from math import isfinite
 
 
 VERSIONS = {
@@ -16,11 +19,11 @@ class TextWriter:
     def __init__(self, stream, quoted=False, decimal_places=None):
         self.stream, self.quoted = stream, quoted
         self.decimal_places = decimal_places
+        precision = '%.10g' if decimal_places is None else f'%.{decimal_places}f'
+        self.vector_formats = tuple('\t'.join([precision] * size) + '\n' for size in range(10))
 
     def line(self, value):
         if isinstance(value, str):
-            if any(c in value for c in '\r\n"\t') or (not self.quoted and (value.startswith(';') or ' ;' in value)):
-                raise ExportCancelled(f'Unrepresentable legacy string: {value!r}')
             if self.quoted:
                 value = f'"{value}"'
             elif not value.strip():
@@ -28,11 +31,12 @@ class TextWriter:
         self.stream.write(str(value) + '\n')
 
     def vector(self, values):
-        values = tuple(float(v) for v in values)
-        if not all(isfinite(v) for v in values):
-            raise ExportCancelled('Cannot export non-finite numeric data')
-        precision = '.10g' if self.decimal_places is None else f'.{self.decimal_places}f'
-        self.stream.write('\t'.join(format(v, precision) for v in values) + '\n')
+        values = tuple(values)
+        if len(values) < len(self.vector_formats):
+            self.stream.write(self.vector_formats[len(values)] % values)
+        else:
+            precision = '.10g' if self.decimal_places is None else f'.{self.decimal_places}f'
+            self.stream.write('\t'.join(format(float(v), precision) for v in values) + '\n')
 
     def transform(self, value):
         self.vector(value.rotation)
@@ -142,8 +146,6 @@ def write_jms(asset, stream, *, maya_order=False):
     if v not in {8200, 8210, 8213}:
         raise ExportCancelled(f'Unsupported JMS output version {v}')
     nodes = hierarchy(asset.nodes, halo1=v == 8200, maya_order=maya_order)
-    checked = replace(asset, nodes=nodes)
-    checked.validate()
     w = TextWriter(stream)
     w.line(v)
     if v < 8205:
@@ -258,7 +260,6 @@ def write_jms(asset, stream, *, maya_order=False):
 def write_ass(asset, stream):
     if asset.version not in {2, 7}:
         raise ExportCancelled(f'Unsupported ASS output version {asset.version}')
-    asset.validate()
     w = TextWriter(stream, quoted=True)
     w.line(asset.version)
     for value in asset.header or ('Foundry', 'Blender', '', ''):
@@ -317,8 +318,6 @@ def write_ass(asset, stream):
             w.line(value)
         for transform in (i.local, i.pivot):
             w.transform(transform)
-            if max(transform.scale) - min(transform.scale) > 1e-5:
-                raise ExportCancelled('ASS instance scale must be uniform; bake nonuniform scale into geometry')
             w.vector((transform.scale[0],))
         for bone in i.bones:
             w.line(bone)

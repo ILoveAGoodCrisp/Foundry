@@ -5,6 +5,7 @@ from uuid import uuid4
 import bmesh
 import bpy
 from mathutils import Matrix, Quaternion, Vector
+from mathutils.bvhtree import BVHTree
 import numpy as np
 
 from .structure_meta import StructureMetaTag
@@ -53,6 +54,12 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         ]
         if not render_objects:
             return objects
+        if self.game == 'halo1' and not merge_render_collision and collision_objects:
+            # The separate collision mesh already defines the physics shell.
+            # Feeding the render triangles into collision as well duplicates
+            # coplanar surfaces and prevents Tool from rebuilding the BSP.
+            for mesh in {ob.data for ob in render_objects}:
+                utils.add_face_prop(mesh, 'face_mode').face_mode = 'render_only'
         if not merge_render_collision or not collision_objects:
             if skip_structure_merge or len(render_objects) == 1:
                 return objects
@@ -398,11 +405,19 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         if not records:
             return []
         if self.game == 'halo1':
-            from .portal_reconstruction import reconstruct_portals
+            from .portal_reconstruction import (
+                reconstruct_portals, stabilize_halo1_portals, group_halo1_portals,
+                dissolve_halo1_portal_seams,
+            )
             from .halo1_bsp_blender import collision_point_is_solid
-            source_count = len(records)
-            records, rebuilt = reconstruct_portals(records, is_solid=collision_point_is_solid(self))
+            source_records = records
+            is_solid = collision_point_is_solid(self)
+            records, _ = reconstruct_portals(records, is_solid=is_solid)
+            records = stabilize_halo1_portals(records, is_solid, source_records)
+            groups = group_halo1_portals(records, source_records)
             utils.print_step(f'Imported portals')
+        else:
+            groups = [(record,) for record in records]
         # utils.print_step("Creating Portals")
         layer = utils.add_permutation("portals", utils.SetType.SCENARIO)
         portals_collection = bpy.data.collections.new(
@@ -412,12 +427,42 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         portals_collection.nwo.permutation = layer
         collection.children.link(portals_collection)
         objects = []
-        for record in records:
-            ob = Portal(record).create()
+        for group in groups:
+            record = group[0]
+            ob = Portal(record, group[1:]).create()
+            if self.game == 'halo1':
+                dissolve_halo1_portal_seams(ob.data, group, source_records, is_solid,
+                                           100 * import_transform.scale_factor())
+                # These outlines come from compiled portal fragments. Exact
+                # portals retain the reconstructed boundary during rebuild.
+                ob.nwo.portal_exact = True
+                ob['halo1_source_portal_index'] = record.index
+                ob['halo1_source_portal_indices'] = [piece.index for piece in group]
+                ob['halo1_source_bsp'] = self.path
             portals_collection.objects.link(ob)
             objects.append(ob)
         return objects
     
+    def scenario_import_bvh(self, sky_index=-1):
+        """Read placement filtering collision independently of displayed geometry."""
+        if self.game in {'halo1', 'halo2'}:
+            vertices, polygons = [], []
+            for index, element in enumerate(self.block(self.tag.root(), 'collision bsp')):
+                collision = self._collision_bsp(
+                    element, large=False, label=f'structure collision {index}')
+                offset = len(vertices)
+                vertices.extend(Vector(vertex) * 100 for vertex in collision.vertices)
+                polygons.extend(tuple(offset + vertex for vertex in polygon)
+                                for polygon in collision.polygons)
+            return BVHTree.FromPolygons(vertices, polygons) if polygons else None
+
+        collision = self.structure_collision()
+        if collision is not None:
+            return StructureCollision.from_native(collision, [], sky_index).to_bvh()
+        materials = [BSPCollisionMaterial(record) for record in self.collision_materials()]
+        havok = self._read_havok_collisions(materials, self.havok_geometry())
+        return havok[0].to_bvh() if havok else None
+
     def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1, import_havok=False, skip_structure_merge=False, merge_render_collision=True):
         
         objects = []
@@ -425,6 +470,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         bvh = None
         
         if not import_geometry and not import_lights and not import_havok:
+            if always_get_structure_collision:
+                bvh = self.scenario_import_bvh(sky_index)
             return objects, game_objects, bvh
         
         self.collection = collection
@@ -451,6 +498,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                         objects.extend(create_helpers(self, collection))
                 if not for_cinematic:
                     objects.extend(self._create_classic_portals(collection))
+            if always_get_structure_collision:
+                bvh = self.scenario_import_bvh(sky_index)
             return objects, game_objects, bvh
 
         def new_structure_collection():
@@ -500,7 +549,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         )
         native_structure_collision = (
             self.structure_collision()
-            if import_geometry and not for_cinematic else None
+            if always_get_structure_collision or (import_geometry and not for_cinematic) else None
         )
         native_surface_mappings = (
             self.surface_triangle_mappings()
@@ -553,8 +602,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     collision_materials, native_havok_geometry)
                 if havok_collisions:
                     add_havok_collision_objects(havok_collisions, new_structure_collection())
-                    if always_get_structure_collision:
-                        bvh = havok_collisions[0].to_bvh()
+            if always_get_structure_collision:
+                bvh = self.scenario_import_bvh(sky_index)
             return objects, game_objects, bvh
                     
         # Get all render materials

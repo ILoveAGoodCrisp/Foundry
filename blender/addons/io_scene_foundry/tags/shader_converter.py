@@ -12,7 +12,7 @@ from .connected_material import Function, AnimatedParameterType, FunctionEditorC
 
 from .render_method_option import OptionParameter
 
-from ..constants import NormalType
+from ..constants import FORCED_SHADER_PERMUTATION, NormalType
 from .backend import TagDocument, TagReference
 from .blender import BlenderTag
 from .field_view import NativeTagStruct
@@ -1618,19 +1618,25 @@ class ShaderTag(BlenderTag, TagDocument):
                 var.name = f'v{len(variables)}'
                 var.type = 'SINGLE_PROP'
                 var.targets[0].data_path = f'["{bpy.utils.escape_identifier(name)}"]'
-                self.game_functions.add(name)
-                if name not in game_functions:
-                    self.object_functions.add(name)
+                if name != FORCED_SHADER_PERMUTATION:
+                    self.game_functions.add(name)
+                    if name not in game_functions:
+                        self.object_functions.add(name)
                 variables[name] = var.name
                 self.sequence_drivers.setdefault((name, tree), []).append((driver, sequence_length))
             return variables[name]
 
         scene = bpy.context.scene
         fps = scene.render.fps / scene.render.fps_base
-        value = variable('variant') if function is None else function.driver_expression(variable, f'frame/{fps:.9g}')
-        # ImageUser applies the scene frame before its offset. Cancel that
-        # contribution so the 0..1 factor always selects the same bitmap.
-        expression = f'floor(min(max({value},0),1)*{sequence_length-1}+0.500001)+1-frame'
+        if self.game == 'halo1' and function is None:
+            value = variable(FORCED_SHADER_PERMUTATION)
+            index = f'min(max(floor({value}),0),{sequence_length-1})'
+        else:
+            value = variable('variant') if function is None else function.driver_expression(variable, f'frame/{fps:.9g}')
+            index = f'floor(min(max({value},0),1)*{sequence_length-1}+0.500001)'
+        # Blender clamps the scene frame to 0..duration BEFORE applying the
+        # offset. Cancel that clamped contribution, including past the sequence.
+        expression = f'{index}+1-min(max(floor(frame),0),{sequence_length})'
         set_scalar_driver_expression(tree, curve, expression)
 
     def _halo2_parameter_function(self, element, kind):

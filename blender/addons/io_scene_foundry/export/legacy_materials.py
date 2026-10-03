@@ -11,6 +11,14 @@ def material_variant(shader, props, global_material='default', ass_version=None,
     name = shader
     special = {13: '+portal', 14: '+seam', 15: '+fog', 16: '+cookiecutter',
                17: '+water', 18: '+water', 8: '+rainblocker', 9: '+rain'}
+    water_surface = target_game in {'halo3', 'halo3odst'} and get('mesh_type') == 17
+    if target_game in {'halo3', 'halo3odst'}:
+        # Physics-water is classified by the ~ ASS instance, not +water.
+        special[18] = '+unused'
+    if water_surface:
+        # H3/ODST water retains its shader and is identified by the apostrophe
+        # material symbol. +water is not a special water-surface material.
+        special.pop(17)
     if target_game == 'halo1':
         # H1 has its own hard-coded BSP material names. Water uses a real
         # shader, while standalone fog is the unused material with a $ flag.
@@ -28,6 +36,10 @@ def material_variant(shader, props, global_material='default', ass_version=None,
         name = '+sky' + (str(sky_index) if target_game == 'halo1' and sky_index else '')
     # These suffixes are also understood by Foundry's legacy importer.
     sides, mode = get('face_sides'), get('face_mode')
+    if water_surface:
+        # Water surfaces must never enter the solid BSP collision pass, even
+        # when a mesh/face override requests a collision mode.
+        mode = 1
     if mode == 4 and (ass_version is None or ass_version < 4):
         raise ExportCancelled('Shadow Only requires ASS 7 material flags; this output dialect cannot encode it')
     flags = [sides in {2, 3, 4, 5, 6, 7}, sides == 1, sides in {3, 5, 7},
@@ -43,6 +55,8 @@ def material_variant(shader, props, global_material='default', ass_version=None,
         # Later games' symbols are not H1 material flags.
         flags = [flag and symbol in '%#!@*$^-&' for flag, symbol in zip(flags, suffixes)]
     name += ''.join(s for flag, s in zip(flags, suffixes) if flag)
+    if water_surface:
+        name += "'"
     legacy_resolution = target_game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
     lmres = get('lightmap_resolution_scale', 1 if legacy_resolution else 3)
     lmres_scale = lmres if legacy_resolution else lmres / 3

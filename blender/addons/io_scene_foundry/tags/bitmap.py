@@ -149,8 +149,12 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_ind
     
     with BitmapTag(path=rel_path) as bitmap:
         if not bitmap.has_bitmap_data(): return info
+        use_first_sequence_frame = bitmap.game == 'halo1' or bitmap.is_cubemap
         if bitmap.is_cubemap:
             info.cubemap = True
+            cubemap_frame_count = len(bitmap.block_bitmaps)
+            if frame_index is not None and not 0 <= frame_index < cubemap_frame_count:
+                raise BitmapExtractionError(f'Bitmap frame {frame_index} is unavailable for {rel_path}')
             rel_path = f"{bitmap.tag_path.RelativePath}_equirectangular"
             system_tiff_path = Path(data_dir, rel_path).with_suffix('.tiff')
             alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
@@ -161,7 +165,24 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_ind
         info.curve = bitmap.curve_index()
         info.for_normal = bitmap.used_as_normal_map()
         info.shader_type = bitmap.get_shader_type()
-        if always_extract_bitmaps or (frame_index is not None and len(bitmap.block_bitmaps) > 1):
+        incomplete_cubemap_sequence = False
+        if info.cubemap and len(bitmap.block_bitmaps) > 1:
+            # Prefer the numbered sequence over a stale single-image preview.
+            cubemap_sequence_paths = [system_tiff_path.with_name(
+                f"{system_tiff_path.stem}_{index + 1:05}{system_tiff_path.suffix}")
+                for index in range(cubemap_frame_count)]
+            system_tiff_path = sequence_tiff_path
+            alt_system_tiff_path = alt_sequence_tiff_path
+            tiff_sequence_exists = all(preview.is_file() for preview in cubemap_sequence_paths)
+            tif_sequence_exists = all(preview.with_suffix('.tif').is_file() for preview in cubemap_sequence_paths)
+            incomplete_cubemap_sequence = not (tiff_sequence_exists or tif_sequence_exists)
+            if tif_sequence_exists and not tiff_sequence_exists:
+                system_tiff_path = alt_system_tiff_path
+            if incomplete_cubemap_sequence:
+                path_cache.discard(system_tiff_path)
+                path_cache.discard(alt_system_tiff_path)
+        if (always_extract_bitmaps or incomplete_cubemap_sequence
+                or (frame_index is not None and len(bitmap.block_bitmaps) > 1)):
             info.image_path = bitmap.save_to_tiff(info.for_normal)
         elif system_tiff_path.exists():
             info.image_path = str(system_tiff_path)
@@ -175,17 +196,22 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_ind
             info.image_path = bitmap.save_to_tiff(info.for_normal)
 
         if info.cubemap:
-            suffix = '_00001' if len(bitmap.block_bitmaps) > 1 else ''
+            source_frame = frame_index if frame_index is not None else 0
+            suffix = f'_{source_frame + 1:05}' if len(bitmap.block_bitmaps) > 1 else ''
             cube_source = Path(bitmap._raw_tiff_save_path(suffix))
             if not cube_source.exists():
                 # A cached preview alone is not sufficient for shader export.
-                bitmap._save_single_raw_tiff(0, suffix, not info.for_normal)
+                bitmap._save_single_raw_tiff(source_frame, suffix, not info.for_normal)
             
     if not info.image_path:
         return info
     
     image_path = Path(info.image_path)
-    sequence_paths = _bitmap_sequence_paths(image_path)
+    if info.cubemap:
+        sequence_paths = ([preview.with_suffix(image_path.suffix) for preview in cubemap_sequence_paths]
+                          if cubemap_frame_count > 1 else [])
+    else:
+        sequence_paths = _bitmap_sequence_paths(image_path)
     if frame_index is not None:
         if sequence_paths:
             if not 0 <= frame_index < len(sequence_paths):
@@ -195,14 +221,19 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_ind
             raise BitmapExtractionError(f'Bitmap frame {frame_index} is unavailable for {rel_path}')
     elif sequence_paths and (len(sequence_paths) > info.sequence_length or image_path.is_dir()):
         info.sequence_length = max(info.sequence_length, len(sequence_paths))
-        for sequence_path in sequence_paths:
-            if sequence_path in used_plate_paths:
-                continue
-            used_plate_paths.append(sequence_path)
-            info.image_path = str(sequence_path)
-            break
-        else:
+        if use_first_sequence_frame:
+            # A permutation driver indexes from the first bitmap on every
+            # material, including materials sharing this image datablock.
             info.image_path = str(sequence_paths[0])
+        else:
+            for sequence_path in sequence_paths:
+                if sequence_path in used_plate_paths:
+                    continue
+                used_plate_paths.append(sequence_path)
+                info.image_path = str(sequence_path)
+                break
+            else:
+                info.image_path = str(sequence_paths[0])
             
     image = bpy.data.images.load(filepath=info.image_path, check_existing=True)
     if frame_index is not None and image.source == 'SEQUENCE':
@@ -216,7 +247,7 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_ind
 
     apply_bitmap_info_color_space(image, info)
 
-    if info.sequence_length > 1 and not info.cubemap:
+    if info.sequence_length > 1:
         image.source = 'SEQUENCE'
         
     info.image = image

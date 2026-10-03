@@ -91,7 +91,7 @@ class PortalType(Enum):
     _connected_geometry_portal_type_two_way = 2
 
 class Portal:
-    def __init__(self, record):
+    def __init__(self, record, fragments=()):
         self.index = record.index
         self.type = PortalType._connected_geometry_portal_type_two_way
         if record.one_way:
@@ -102,8 +102,13 @@ class Portal:
         self.ai_deafening = record.ai_deafening
         self.blocks_sounds = record.blocks_sounds
         self.is_door = record.is_door
-        self.vertices = [Vector(vertex) * 100 for vertex in record.vertices]
-        self.polygons = record.polygons or (tuple(range(len(self.vertices))),)
+        self.vertices = []
+        self.polygons = []
+        for piece in (record, *fragments):
+            offset = len(self.vertices)
+            self.vertices.extend(Vector(vertex) * 100 for vertex in piece.vertices)
+            faces = piece.polygons or (tuple(range(len(piece.vertices))),)
+            self.polygons.extend(tuple(index+offset for index in face) for face in faces)
             
     def create(self) -> bpy.types.Object:
         mesh = bpy.data.meshes.new(f"portal:{self.index}")

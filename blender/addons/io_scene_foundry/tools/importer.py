@@ -47,7 +47,7 @@ from ..legacy.jma import JMA
 from ..ui.panel.cinematic import bake_vis_to_keyframes
 
 from ..tags.object import ObjectDocument, circular_aiming_for_graph
-from ..animation_aiming import LEGACY_AIMING_MODE_ITEMS
+from ..tags.ai import AI_TAG_EXTENSIONS, AIUnitDocument
 from ..tags.object_blender import ObjectTag
 from ..tags.particle_model import ParticleModelTag
 from ..tags.scenario_structure_bsp import ScenarioStructureBspTag
@@ -69,6 +69,7 @@ from ..tools.rigging.create_rig import bake_imported_actions_to_control_rig
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
 from ..constants import (
+    FORCED_SHADER_PERMUTATION,
     IDENTITY_MATRIX,
     IMPORT_TEMPLATE_DEFAULT,
     IMPORT_TEMPLATE_EVERYTHING,
@@ -85,9 +86,23 @@ from .. import utils
 from .model_to_instance import ModelInstance
 from functools import partial
 
+def _hand_marker_names(marker_names, side):
+    """Recognize spaced and underscored hand names, including species suffixes."""
+    return tuple(name for name in marker_names
+                 if name.lower().replace('_', ' ').split()[:2] == [side, 'hand'])
+
+
 def _matching_marker_name(preferred, fallback, marker_names):
-    """Use a tag's preferred attachment marker only when the model has it."""
-    return preferred if preferred and preferred in marker_names else fallback
+    """Use the tag marker, then the expected marker or a matching hand variant."""
+    marker_names = tuple(marker_names)
+    if preferred and preferred in marker_names:
+        return preferred
+    if fallback in marker_names:
+        return fallback
+    words = (fallback or '').lower().replace('_', ' ').split()
+    if words[:2] in (['right', 'hand'], ['left', 'hand']):
+        return next(iter(_hand_marker_names(marker_names, words[0])), fallback)
+    return fallback
 
 
 def _selected_weapon_parent(context):
@@ -95,8 +110,28 @@ def _selected_weapon_parent(context):
     return context.object if context.object in selected else next(iter(selected), None)
 
 
-def _armature_attachment_markers(armature):
+def _attachment_markers(objects):
+    """Keep the first visible marker in each group, falling back to hidden ones."""
     markers = {}
+    for ob in objects:
+        if ob.type != 'EMPTY' or not ob.nwo.marker_model_group:
+            continue
+        name = ob.nwo.marker_model_group
+        current = markers.get(name)
+        if current is None or (not current.visible_get() and ob.visible_get()):
+            markers[name] = ob
+    return markers
+
+
+def _first_attachment_marker_name(candidates, markers):
+    matching = [name for name in candidates if name and name in markers]
+    if hasattr(markers, 'get'):
+        return next((name for name in matching if markers[name].visible_get()), next(iter(matching), ''))
+    return next(iter(matching), '')
+
+
+def _armature_attachment_markers(armature):
+    objects = []
     for ob in armature.children_recursive:
         if ob.type != 'EMPTY' or not ob.nwo.marker_model_group:
             continue
@@ -104,8 +139,8 @@ def _armature_attachment_markers(armature):
         while parent is not None and parent.type != 'ARMATURE':
             parent = parent.parent
         if parent == armature:
-            markers.setdefault(ob.nwo.marker_model_group, ob)
-    return markers
+            objects.append(ob)
+    return _attachment_markers(objects)
 
 
 def _weapon_attachment_markers(game, parent_names, gun_names, hand='', gun='', stow='', secondary=False):
@@ -113,15 +148,20 @@ def _weapon_attachment_markers(game, parent_names, gun_names, hand='', gun='', s
     legacy = game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
     if secondary and game != 'halo1':
         parent_candidates = (stow, 'weapon_back', 'weapon_thigh', 'weapon_hip', 'weapon_stow')
-        gun_candidates = ('weapon_stow',)
+        gun_candidates = ('weapon_stow_anchor', 'weapon_stow')
     else:
         defaults = ('right hand', 'right_hand', 'primary_weapon') if game == 'halo1' else (
             ('right_hand', 'primary_weapon', 'right hand') if legacy else
             ('primary_weapon', 'right_hand', 'right hand'))
-        parent_candidates = (hand, *defaults)
-        gun_candidates = () if game == 'halo1' else (gun, 'right_hand', 'right hand', 'primary_weapon')
-    parent = next((name for name in parent_candidates if name and name in parent_names), '')
-    child = next((name for name in gun_candidates if name and name in gun_names), '')
+        hand_side = 'left' if (hand or '').lower().replace('_', ' ').split()[:2] == ['left', 'hand'] else 'right'
+        if hand_side == 'left':
+            defaults = ('left hand', 'left_hand') if game == 'halo1' else ('left_hand', 'left hand')
+        parent_candidates = (hand, *defaults, *_hand_marker_names(parent_names, hand_side))
+        gun_side = 'left' if (gun or '').lower().replace('_', ' ').split()[:2] == ['left', 'hand'] else 'right'
+        gun_candidates = () if game == 'halo1' else (
+            gun, f'{gun_side}_hand', f'{gun_side} hand', 'primary_weapon', *_hand_marker_names(gun_names, gun_side))
+    parent = _first_attachment_marker_name(parent_candidates, parent_names)
+    child = _first_attachment_marker_name(gun_candidates, gun_names)
     return parent, child
 
 
@@ -424,10 +464,6 @@ def draw_animation_conversions(operator, layout, enabled=None):
     row = layout.row()
     row.enabled = enabled
     row.prop(operator, "convert_animations")
-    if operator.convert_animations:
-        row = layout.row()
-        row.enabled = enabled
-        row.prop(operator, 'legacy_aiming_mode')
 
 
 def draw_animation_graph_import_options(operator, layout, corinth, include_generate_frames=False):
@@ -925,7 +961,7 @@ def biped_weapon_source_items(_self, _context):
     if cache_key in biped_weapon_source_item_cache:
         return biped_weapon_source_item_cache[cache_key]
     items = [
-        (BIPED_WEAPON_SOURCE_BIPED_TAG, "Default", "Import the weapons referenced by the biped tag"),
+        (BIPED_WEAPON_SOURCE_BIPED_TAG, "Default", "Import the actor variant's weapon when available, otherwise the biped's weapons"),
     ]
     weapon_paths = set()
 
@@ -1071,7 +1107,7 @@ filetype_suffixes = (
     ("scenario_structure_bsp", (".scenario_structure_bsp",)),
     ("scenario_structure_lighting_info", (".scenario_structure_lighting_info",)),
     ("particle_model", (".particle_model",)),
-    ("object", object_tag_types),
+    ("object", object_tag_types + AI_TAG_EXTENSIONS),
     ("animation", (".model_animation_graph", ".model_animations")),
     ("prefab", (".prefab",)),
     ("structure_design", (".structure_design",)),
@@ -1179,6 +1215,25 @@ def set_asset(tag_ext: str, ob: bpy.types.Object=None, is_sky=False,
             case '.cinematic':
                 scene_nwo.asset_type = 'cinematic'
 
+def resolve_ai_import(file, tags_root, game):
+    path = Path(file).resolve()
+    root = Path(tags_root).resolve()
+    if not path.is_relative_to(root):
+        root = next((parent for parent in path.parents if parent.name.lower() == 'tags'), root)
+    with AIUnitDocument(path, tags_root=root, game=game, must_exist=True) as document:
+        return document.resolve_import()
+
+
+def set_shader_permutation_property(ob, value=None):
+    if ob is None:
+        return
+    if value is not None or FORCED_SHADER_PERMUTATION not in ob:
+        ob[FORCED_SHADER_PERMUTATION] = int(value) if value is not None else 0
+    ob.id_properties_ui(FORCED_SHADER_PERMUTATION).update(
+        min=-1, max=32767, soft_min=0,
+        description="Zero-based bitmap permutation; negative values preview the first bitmap")
+
+
 def add_function(scene: bpy.types.Scene, name: str, rename: str, ob: bpy.types.Object, armature: bpy.types.Object=None) -> bool:
     func = game_functions.get(name)
     ammo = name.startswith(ammo_names)
@@ -1194,7 +1249,12 @@ def add_function(scene: bpy.types.Scene, name: str, rename: str, ob: bpy.types.O
         ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
         return value_is_bool
     
-    if func is None:
+    if name == FORCED_SHADER_PERMUTATION:
+        if has_armature:
+            id = armature
+            set_shader_permutation_property(armature)
+        set_shader_permutation_property(ob, id[name] if id is not None else None)
+    elif func is None:
         if has_armature:
             id = armature
             needs_id_prop = armature.get(rename) is None
@@ -1899,10 +1959,6 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
 
-    legacy_aiming_mode: bpy.props.EnumProperty(
-        name='Legacy Aiming', items=LEGACY_AIMING_MODE_ITEMS, default='AUTO',
-    )
-
     use_import_info: bpy.props.BoolProperty(
         name="Use Import Info",
         description="Imports embedded JMS, ASS, and JMA source data instead of compiled tag data when available. GR2 source data is currently ignored",
@@ -1985,7 +2041,6 @@ class NWO_Import(bpy.types.Operator):
                     importer.add_import_info_sources(filepaths)
                 importer.graph_bake_to_control_rig = self.graph_bake_to_control_rig
                 importer.convert_animations = self.convert_animations
-                importer.legacy_aiming_mode = self.legacy_aiming_mode
                 switch_blender_scene = None
                 
                 mouse_matrix = utils.matrix_from_mouse(self.mouse_x, self.mouse_y)
@@ -2907,7 +2962,7 @@ class NWO_Import(bpy.types.Operator):
             if 'particle_model' in self.scope:
                 self.filter_glob += '*.particle_model;'
             if 'object' in self.scope:
-                self.filter_glob += '*.biped;*.crate;*.creature;*.d*_control;*.d*_dispenser;*.e*_scenery;*.equipment;*.giant;*.d*_machine;*.projectile;*.scenery;*.spawner;*.sound_scenery;*.d*_terminal;*.vehicle;*.weapon;'
+                self.filter_glob += '*.actor;*.actor_variant;*.character;*.biped;*.crate;*.creature;*.d*_control;*.d*_dispenser;*.e*_scenery;*.equipment;*.giant;*.d*_machine;*.projectile;*.scenery;*.spawner;*.sound_scenery;*.d*_terminal;*.vehicle;*.weapon;'
             if 'animation' in self.scope:
                 self.filter_glob += '*.mod*_*_graph;'
             if 'prefab' in self.scope:
@@ -3306,7 +3361,6 @@ class NWOImporter:
         self.graph_scale_animations_to_skeleton = False
         self.tag_animation = False
         self.convert_animations = True
-        self.legacy_aiming_mode = 'AUTO'
         self.graph_import_animations = False
         self.graph_bake_to_control_rig = True
         self.graph_import_pca_data = False
@@ -4164,12 +4218,24 @@ class NWOImporter:
         for file in paths:
             imported_file_objects = []
             fp_default_models = ()
+            ai_import = None
             if is_game_object:
                 game_object = file
                 file = str(Path(utils.get_tags_path(), game_object.nwo.marker_game_instance_tag_name))
                 if not Path(file).is_file():
                     utils.print_warning(f"Game object tag does not exist: {game_object.nwo.marker_game_instance_tag_name}")
                     continue
+
+            source_file = file
+            if Path(file).suffix.lower() in AI_TAG_EXTENSIONS:
+                try:
+                    ai_import = resolve_ai_import(file, self.tags_dir, self.game)
+                except (ValueError, FileNotFoundError) as error:
+                    utils.print_warning(f"Cannot import AI tag {Path(file).name}: {error}")
+                    continue
+                if ai_import.actor_variant is not None:
+                    utils.print_tag(f"Actor variant: {ai_import.actor_variant.RelativePathWithExtension}")
+                file = ai_import.unit.Filename
             
             # cache_key = file, self.tag_variant
             # cached = objects_cache.get(cache_key)
@@ -4218,6 +4284,8 @@ class NWOImporter:
                     vehicle_biped = (self.vehicle_biped_armature if obj.tag_path.Extension == 'vehicle'
                                      and not is_game_object and not for_instance_conversion and not return_cin_stuff else None)
                     change_colors = obj.get_change_colors(self.tag_variant)
+                    if ai_import is not None:
+                        change_colors = ai_import.override_change_colors(change_colors)
                     magazine_size = obj.get_magazine_size(find_weapon=True)
                     has_ammo = magazine_size > 0
                     if has_ammo:
@@ -4251,7 +4319,7 @@ class NWOImporter:
 
                             cache_key = None
                             if self._should_cache_object_import(existing_armature, pose, make_non_export, for_instance_conversion, return_cin_stuff):
-                                cache_key = self._get_object_import_cache_key(file, temp_variant)
+                                cache_key = self._get_object_import_cache_key(source_file, temp_variant)
                                 cached = self.get_cached_object_import(cache_key, scene_collection)
                                 if cached is not None:
                                     imported_file_objects, armature, render, model_collection = cached
@@ -4291,6 +4359,9 @@ class NWOImporter:
                             if render:
                                 render_objects, armature = self.import_render_model(render, model_collection, None if weapon_parent is not None or vehicle_biped is not None else existing_armature, allowed_region_permutations, allow_control_rig=(not uses_fp_arms))
                                 set_variant_property(armature, model, selection)
+                                if obj.game == 'halo1':
+                                    set_shader_permutation_property(
+                                        armature, ai_import.forced_shader_permutation if ai_import is not None else 0)
                                 
                                 if pose:
                                     print(f"--- Posing {obj.tag_path.ShortName}")
@@ -4399,6 +4470,8 @@ class NWOImporter:
                                 weapon_paths = []
                                 if self.biped_weapon_source and self.biped_weapon_source != BIPED_WEAPON_SOURCE_BIPED_TAG:
                                     weapon_paths.append(self.biped_weapon_source)
+                                elif ai_import is not None and ai_import.weapon is not None:
+                                    weapon_paths.append(ai_import.weapon)
                                 else:
                                     weapon_paths.extend(obj.get_unit_weapons())
 
@@ -4484,8 +4557,7 @@ class NWOImporter:
             utils.print_warning("Selected vehicle seat is unavailable; biped attachment skipped")
             return False
         label, marker_name = seats[seat_index]
-        marker = next((ob for ob in render_objects if ob.type == 'EMPTY'
-                       and marker_name and ob.nwo.marker_model_group == marker_name), None)
+        marker = _attachment_markers(render_objects).get(marker_name)
         if marker is None:
             utils.print_warning(f"Vehicle seat [{label}] has no matching marker [{marker_name}]; biped attachment skipped")
             return False
@@ -4554,8 +4626,7 @@ class NWOImporter:
         # H1 has no backpack support, including when a newer weapon is imported.
         secondary = self.weapon_secondary and game != 'halo1' and weapon.game != 'halo1'
         parent_markers = _armature_attachment_markers(biped)
-        gun_markers = {ob.nwo.marker_model_group: ob for ob in render_objects
-                       if ob.type == 'EMPTY' and ob.nwo.marker_model_group}
+        gun_markers = _attachment_markers(render_objects)
         parent_name, gun_name = _weapon_attachment_markers(
             game, parent_markers, gun_markers, hand, gun,
             weapon.get_weapon_stow_anchor() if secondary else '', secondary)
@@ -4733,6 +4804,7 @@ class NWOImporter:
                             if group_name == child_marker:
                                 marker_children.append(marker_ob)
                                 
+                    marker_children.sort(key=lambda ob: not ob.visible_get())
                     if marker_children:
                         attach_point = marker_children[0].copy()
                         attach_point.name = f"{obj.tag_path.ShortName}_attach"
@@ -4753,6 +4825,7 @@ class NWOImporter:
                             if group_name == child_object.parent_marker:
                                 marker_parents.append(marker_ob)
 
+                    marker_parents.sort(key=lambda ob: not ob.visible_get())
                     if marker_parents:
                         if marker_children:
                             _copy_marker_transform(attach_point, marker_parents[0])
@@ -5013,7 +5086,6 @@ class NWOImporter:
                             convert_to_legacy=convert_to_legacy,
                             legacy_blend_screens=legacy_blend_screens,
                             legacy_circular_aiming=circular_aiming,
-                            legacy_aiming_mode=self.legacy_aiming_mode,
                             blend_screen_choices=blend_screen_choices,
                             convert_animation_names=self.convert_animations,
                             target_game=self.target_game,
@@ -5040,7 +5112,6 @@ class NWOImporter:
                             convert_to_legacy=convert_to_legacy,
                             legacy_blend_screens=legacy_blend_screens,
                             legacy_circular_aiming=circular_aiming,
-                            legacy_aiming_mode=self.legacy_aiming_mode,
                             blend_screen_choices=blend_screen_choices,
                             convert_animation_names=self.convert_animations,
                             target_game=self.target_game,
@@ -5241,7 +5312,7 @@ class NWOImporter:
                 if not placement.bsps.intersection(bsp_indices):
                     continue
             position = Vector(tuple(value * 100 for value in placement.position))
-            if scenario.game != 'halo1' and not has_bsp_filter and bvh and not utils.test_point_bvh(bvh, position):
+            if not has_bsp_filter and bvh and not utils.test_point_bvh(bvh, position):
                 continue
 
             if scenario.game == 'halo1':
@@ -5567,7 +5638,11 @@ class NWOImporter:
             game_objects = [ob for ob in bsp_objects if ob.type == 'EMPTY'
                             and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance']
             self._import_bsp_game_objects(bsp_objects, game_objects)
-            return bsp_objects, None
+            if always_get_structure_collision:
+                with utils.TagImportMover(self.tags_dir, file) as mover:
+                    with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
+                        bvh = bsp.scenario_import_bvh(sky_index)
+            return bsp_objects, bvh
         bsp_objects = []
         collection = bpy.data.collections.get(bsp_name)
         if collection is not None and collection.nwo.type != 'region':
@@ -6546,10 +6621,6 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         default=True,
     )
 
-    legacy_aiming_mode: bpy.props.EnumProperty(
-        name='Legacy Aiming', items=LEGACY_AIMING_MODE_ITEMS, default='AUTO',
-    )
-
     use_import_info: bpy.props.BoolProperty(
         name="Use Import Info",
         description="Imports embedded JMS, ASS, and JMA source data instead of compiled tag data when available. GR2 source data is currently ignored",
@@ -6613,7 +6684,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         if self.import_type in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
             self.legacy_okay = True
 
-        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "gbxmodel", "collision_model", "model_collision_geometry", "physics_model", "physics", "sky", "scenario", "scenario_structure_bsp", "model_animation_graph", "model_animations", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
+        if self.import_type in {"camera_track", "jms", "ass", "model", "render_model", "gbxmodel", "collision_model", "model_collision_geometry", "physics_model", "physics", "sky", "scenario", "scenario_structure_bsp", "model_animation_graph", "model_animations", "actor", "actor_variant", "character", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon", "prefab", "decorator_set", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx", "cinematic"}:
             if self.import_type == "scenario":
                 global zone_set_items
                 global bsp_items
@@ -6652,7 +6723,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 with DecoratorSetTag(path=self.filepath) as decorator_Set:
                     decorator_type_items = decorator_Set.get_decorator_types()
                         
-            elif self.import_type in {"model", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon"}:
+            elif self.import_type in {"model", "actor", "actor_variant", "character", "biped", "crate", "creature", "device_control", "device_dispenser", "effect_scenery", "equipment", "giant", "device_machine", "projectile", "scenery", "spawner", "sound_scenery", "device_terminal", "vehicle", "weapon"}:
                 global variant_items
                 global permutation_items
                 variant_items = []
@@ -6666,7 +6737,16 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         else:
                             variant_items = model.get_model_variants()
                 else:
-                    with ObjectTag(path=self.filepath) as object_tag:
+                    object_path = self.filepath
+                    if Path(object_path).suffix.lower() in AI_TAG_EXTENSIONS:
+                        project = utils.get_project(scene_nwo.scene_project)
+                        try:
+                            object_path = resolve_ai_import(object_path, project.tags_directory, project.game).unit.Filename
+                        except (ValueError, FileNotFoundError) as error:
+                            self.report({'WARNING'}, str(error))
+                            utils.clear_external_project()
+                            return {'CANCELLED'}
+                    with ObjectTag(path=object_path) as object_tag:
                         if object_tag.game == 'halo1':
                             permutation_items = object_tag.get_model_permutations()
                             self.has_permutations = True
@@ -6693,7 +6773,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         if self.import_type not in {"cinematic", "jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"} and utils.get_scene_props().asset_type != 'cinematic':
             layout.prop(self, "use_import_info")
         match self.import_type:
-            case "model" | "biped" | "crate" | "creature" | "device_control" | "device_dispenser" | "effect_scenery" | "equipment" | "giant" | "device_machine" | "projectile" | "scenery" | "spawner" | "sound_scenery" | "device_terminal" | "vehicle" | "weapon":
+            case "model" | "actor" | "actor_variant" | "character" | "biped" | "crate" | "creature" | "device_control" | "device_dispenser" | "effect_scenery" | "equipment" | "giant" | "device_machine" | "projectile" | "scenery" | "spawner" | "sound_scenery" | "device_terminal" | "vehicle" | "weapon":
                 if self.place_at_mouse:
                     if self.has_variants or self.has_permutations:
                         draw_model_source_options(
@@ -6710,7 +6790,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         has_variants=self.has_variants,
                         has_permutations=self.has_permutations,
                         show_fp_arms=self.import_type == "weapon",
-                        show_biped_weapon=self.import_type == "biped",
+                        show_biped_weapon=self.import_type in {"biped", "actor", "actor_variant", "character"},
                         show_weapon_attachment=self.import_type == "weapon",
                         show_vehicle_seat=self.import_type == "vehicle",
                     )
@@ -6814,6 +6894,17 @@ class NWO_FH_ImportCollision(bpy.types.FileHandler):
     @classmethod
     def poll_drop(cls, context):
         return NWO_FH_Import.poll_drop(context)
+
+class NWO_FH_ImportAI(bpy.types.FileHandler):
+    bl_idname = "NWO_FH_ImportAI"
+    bl_label = "File handler Foundry AI Importer"
+    bl_import_operator = "nwo.import_from_drop"
+    bl_file_extensions = ';'.join(AI_TAG_EXTENSIONS)
+
+    @classmethod
+    def poll_drop(cls, context):
+        return NWO_FH_Import.poll_drop(context)
+
 
 class NWO_FH_ImportCinematic(bpy.types.FileHandler):
     # Blender stores each extension list in a 512-byte buffer, including the

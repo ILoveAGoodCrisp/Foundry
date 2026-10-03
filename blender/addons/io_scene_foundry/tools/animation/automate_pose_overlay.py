@@ -8,20 +8,20 @@ from math import degrees, radians
 from mathutils import Matrix
 
 from ... import utils
-from ...animation_aiming import LEGACY_AIMING_MODE_ITEMS, animation_aiming_is_planar, blend_screen_yaw_span
+from ...animation_aiming import animation_aiming_is_planar, blend_screen_yaw_span
 from ...tags.object import circular_aiming_for_graph
 from ...tags.animation_graph import AnimationBlendScreen, AnimationGraphTag
 import xml.etree.cElementTree as ET
 
 def legacy_blend_screen_wrap_events(animation_name: str, animation=None, screen=None,
-                                  *, circular_aiming=None, wrap_mode=None) -> bool:
+                                  *, circular_aiming=None) -> bool:
     """Only planar aim/look screens receive automatically generated wraps."""
     name = utils.AnimationName(animation_name)
     return (name.valid and name.type == utils.AnimationStateType.ACTION
             and (name.state in {'aim', 'look'}
                  or name.state.startswith(('aim_', 'look_')))
             and animation_aiming_is_planar(animation, screen,
-                                          circular_aiming=circular_aiming, wrap_mode=wrap_mode))
+                                          circular_aiming=circular_aiming))
 
 class BlendScreen:
     def __init__(self):
@@ -818,7 +818,7 @@ def parse_xml_for_blend_screens(xml_path: Path) -> dict | None:
     return data
     
 def convert_legacy_pose_overlays(armature: bpy.types.Object, scene: bpy.types.Scene, builder: PoseBuilder, data: dict,
-                                 *, circular_aiming=None, wrap_mode='AUTO'):
+                                 *, circular_aiming=None):
     scene_nwo = utils.get_scene_props()
     animations = {a.name.strip().replace(" ", ":").lower(): a for a in scene_nwo.animations}
     animation_indexes = {a: idx for idx, a in enumerate(list(animations.values()))}
@@ -832,10 +832,6 @@ def convert_legacy_pose_overlays(armature: bpy.types.Object, scene: bpy.types.Sc
             if animation is None:
                 continue
             print(f"--- Converting {animation_name}")
-            # Auto preserves each animation's override; an operator choice can
-            # apply one explicit mode to the entire conversion.
-            if wrap_mode != 'AUTO':
-                animation.pose_overlay_wrap_mode = wrap_mode
             if circular_aiming is not None:
                 animation.pose_overlay_aiming_source = 'CIRCULAR' if circular_aiming else 'PLANAR'
             animation.pose_overlay_yaw_span = blend_screen_yaw_span(blend_screen)
@@ -856,10 +852,6 @@ class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
     bl_description = 'Converts legacy pose overlay animations (those used in H1 - ODST) to the new format'
     bl_options = {'REGISTER', 'UNDO'}
 
-    legacy_aiming_mode: bpy.props.EnumProperty(
-        name='Legacy Aiming', items=LEGACY_AIMING_MODE_ITEMS, default='AUTO',
-    )
-    
     filepath: bpy.props.StringProperty(
         name='Filepath',
         subtype='FILE_PATH',
@@ -936,7 +928,7 @@ class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
                 utils.print_warning(f'Could not read source aiming metadata: {error}')
         convert_legacy_pose_overlays(
             armature, scene, PoseBuilder(pedestal, pitch, yaw, aim), blend_screen_info,
-            circular_aiming=circular_aiming, wrap_mode=self.legacy_aiming_mode)
+            circular_aiming=circular_aiming)
         nwo.active_animation_index = current_animation_index
         scene.frame_current = current_frame
         
@@ -951,7 +943,6 @@ class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
         return {'RUNNING_MODAL'}
     
     def draw(self, context):
-        self.layout.prop(self, 'legacy_aiming_mode')
         self.layout.label(text="Select the animation tag file")
         self.layout.label(text="containing the blend screens")
         self.layout.label(text="you wish to use for conversion")

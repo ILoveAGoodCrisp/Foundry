@@ -47,12 +47,16 @@ class CinematicCameraDocument(TagDocument):
                 corinth, camera.header, camera.header_text, camera.header_use_text))
             self._write_script(element, 'footer', script_from_text(
                 corinth, camera.footer, camera.footer_text, camera.footer_use_text))
-            self._write_value(element, 'environment darken', camera.environment_darken)
-            self._write_value(element, 'forced exposure', camera.forced_exposure)
+            for name, value in (('environment darken', camera.environment_darken),
+                                ('forced exposure', camera.forced_exposure)):
+                if element.field(name) is not None:
+                    self._write_value(element, name, value)
             flags = self.required_field(element, 'flags')
-            flags.set_flag('Instant Auto-Exposure', camera.instant_auto_exposure)
-            flags.set_flag('Force Exposure', camera.force_exposure)
-            flags.set_flag('Generate Looping Script', camera.generate_looping_script)
+            for name, enabled in (('Instant Auto-Exposure', camera.instant_auto_exposure),
+                                  ('Force Exposure', camera.force_exposure),
+                                  ('Generate Looping Script', camera.generate_looping_script)):
+                if name in flags.options().names:
+                    flags.set_flag(name, enabled)
 
             if corinth:
                 settings = self.required_field(element, 'settings flags')
@@ -81,6 +85,8 @@ class CinematicCameraDocument(TagDocument):
 
     def write_camera_frames(self, shots, corinth, rebuild=False):
         for element, shot in zip(self._shot_elements(shots, rebuild), shots):
+            if not getattr(shot, 'in_scope', True):
+                continue
             self._write_value(element, 'frame count', shot.frame_count)
             frame_data = self.block(element, 'frame data')
             frame_data.clear()
@@ -176,7 +182,9 @@ class CinematicCameraDocument(TagDocument):
         shots = self.block(self.tag.root(), 'shots')
         for shot in shots:
             self.block(shot, 'music').clear()
-            self.block(shot, 'object functions').clear()
+            functions = shot.field('object functions')
+            if functions is not None:
+                functions.as_block().clear()
 
         for event, frame_index in music.items():
             shot_index, shot_frame = locate_frame(frame_index)
@@ -184,9 +192,12 @@ class CinematicCameraDocument(TagDocument):
                 continue
             block = self.block(shots[shot_index], 'music')
             element = block[block.add()]
-            self.required_field(element, 'flags').set_flag(
-                'Stop Music At Frame (rather than starting it)',
-                event.stops_music_at_frame)
+            flags = element.field('flags')
+            if flags is not None:
+                flags.set_flag('Stop Music At Frame (rather than starting it)',
+                               event.stops_music_at_frame)
+            elif event.stops_music_at_frame:
+                raise ValueError(f'{self.path}: stopping music is unavailable in this tag layout')
             self.set_reference(element, r'music\foley', event.music)
             self._write_value(element, 'frame', shot_frame)
 
@@ -211,12 +222,16 @@ class CinematicCameraDocument(TagDocument):
             keys = self.block(element, 'keyframes')
             for event, shot_frame in keyframes:
                 key = keys[keys.add()]
-                self.required_field(key, 'flags').set_flag(
-                    'clear function (Value and Interpolation time are unused)',
-                    event.clear_function)
+                flags = key.field('flags')
+                if flags is not None:
+                    flags.set_flag('clear function (Value and Interpolation time are unused)',
+                                   event.clear_function)
+                elif event.clear_function:
+                    raise ValueError(f'{self.path}: clearing object functions is unavailable in this tag layout')
                 self._write_value(key, 'frame', shot_frame)
                 self._write_value(key, 'value', event.value)
-                self._write_value(key, 'interpolation time', event.interpolation_time)
+                if key.field('interpolation time') is not None:
+                    self._write_value(key, 'interpolation time', event.interpolation_time)
         self.tag_has_changes = True
 
     def write_script_events(self, scripts, locate_frame, corinth, script_from_text):
@@ -291,13 +306,17 @@ class CinematicCameraDocument(TagDocument):
                     ('function a', event.function_a), ('function b', event.function_b),
                     ('node id', event.node_id), ('sequence id', event.sequence_id)):
                 if element.field(name) is not None:
+                    if name == 'marker parent' and element.field(name).type_name == 'string id':
+                        value = event.marker_parent
                     self._write_value(element, name, value)
         self.tag_has_changes = True
 
     def write_lighting_events(self, assignments):
         shots = self.block(self.tag.root(), 'shots')
         for shot in shots:
-            self.block(shot, 'lighting').clear()
+            lighting = shot.field('lighting')
+            if lighting is not None:
+                lighting.as_block().clear()
         for shot_index, subject, lighting, marker, persist in assignments:
             if not 0 <= shot_index < len(shots):
                 raise ValueError(f'{self.path}: lighting assignment has invalid shot {shot_index}')

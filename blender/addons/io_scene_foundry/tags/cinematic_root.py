@@ -11,7 +11,6 @@ from .blender import BlenderTag
 
 from .. import utils
 
-# TODO Handle resources
 CINEMATIC_TAG_NAME_MAX_LENGTH = 25
 
 
@@ -66,7 +65,8 @@ class CinematicScenarioDocument(TagDocument):
             element = zone_sets[zone_set_index]
             self._set_value(element, 'name', zone_set)
             self._enable_all_flags(element, 'bsp zone flags', len(self.block(root, 'structure bsps')))
-            self._enable_all_flags(element, 'structure design zone flags', len(self.block(root, 'structure designs')))
+            if element.field('structure design zone flags') is not None:
+                self._enable_all_flags(element, 'structure design zone flags', len(self.block(root, 'structure designs')))
         self._set_indexed_flag(zone_sets[zone_set_index], 'cinematic zones', cinematic_index)
         return zone_set_index
 
@@ -116,8 +116,28 @@ class CinematicScenarioDocument(TagDocument):
         with TagDocument(reference, tags_root=self.tags_root, game=self.game,
                          must_exist=True) as resource:
             destination = resource.tag.root()
-            resource.block(destination, 'cinematics').copy_from(self.block(root, 'cinematics'))
-            resource.block(destination, 'flags').copy_from(self.block(root, 'cutscene flags'))
+            # Older H3/ODST resources contain only flags, camera points and
+            # recorded animations. Their flags also use fixed strings instead
+            # of string IDs and omit editor folders. Copy values into the
+            # resource's own layout rather than assuming identical blocks.
+            for target_name, source_name in (('cinematics', 'cinematics'),
+                                             ('flags', 'cutscene flags')):
+                if target_name == 'cinematics' and destination.field(target_name) is None:
+                    continue
+                target = resource.block(destination, target_name)
+                source = self.block(root, source_name)
+                target.clear()
+                for entry in source:
+                    element = target[target.add()]
+                    for field in element.fields():
+                        source_field = entry.field(field.name) if field.name else None
+                        if source_field is not None:
+                            if field.type_name in {'byte flags', 'word flags', 'long flags'}:
+                                source_names = source_field.options().names
+                                for name in field.options().names:
+                                    field.set_flag(name, name in source_names and source_field.get_flag(name))
+                            else:
+                                field.set(source_field.value)
             resource.tag_has_changes = True
 
     def scenario_type(self):
@@ -156,23 +176,32 @@ class CinematicTag(BlenderTag, TagDocument):
         self._set_value(root, 'channel type', channel_type_value)
         self._set_value(root, 'easing in time', scene_nwo.cinematic_easing_in_time)
         self._set_value(root, 'easing out time', scene_nwo.cinematic_easing_out_time)
-        if scene_nwo.cinematic_transition_settings.strip():
-            transition = Path(utils.relative_path(scene_nwo.cinematic_transition_settings)).with_suffix(".cinematic_transition")
+        if self.game in {'halo3', 'halo3odst'}:
+            for direction in ('in', 'out'):
+                color = self.required_field(root, f'fade {direction} color')
+                color.set(type(color.value)(*getattr(scene_nwo, f'cinematic_fade_{direction}_color')))
+                self._set_value(root, f'fade {direction} time', getattr(scene_nwo, f'cinematic_fade_{direction}_time'))
         else:
-            transition = Path(self.tag_path.RelativePath).with_suffix(".cinematic_transition")
-        with TagDocument(transition, tags_root=self.tags_dir, game=self.game,
-                         extension='cinematic_transition', must_exist=False) as trans:
-            transition_reference = trans.reference_from_path(trans.path)
-            self.set_reference(root, 'transition settings', transition_reference)
-            if not scene_nwo.cinematic_transition_settings.strip():
-                scene_nwo.cinematic_transition_settings = transition_reference.RelativePathWithExtension
+            if scene_nwo.cinematic_transition_settings.strip():
+                transition = Path(utils.relative_path(scene_nwo.cinematic_transition_settings)).with_suffix(".cinematic_transition")
+            else:
+                transition = Path(self.tag_path.RelativePath).with_suffix(".cinematic_transition")
+            with TagDocument(transition, tags_root=self.tags_dir, game=self.game,
+                             extension='cinematic_transition', must_exist=False) as trans:
+                transition_reference = trans.reference_from_path(trans.path)
+                self.set_reference(root, 'transition settings', transition_reference)
+                if not scene_nwo.cinematic_transition_settings.strip():
+                    scene_nwo.cinematic_transition_settings = transition_reference.RelativePathWithExtension
             
         if scene_nwo.cinematic_bink_movie.strip():
             b_path = Path(utils.relative_path(scene_nwo.cinematic_bink_movie)).with_suffix(".bink")
             self.set_reference(root, 'bink movie', b_path)
             
-        flags = self.required_field(root, 'flags')
-        flags.set_flag("Outro", scene_nwo.cinematic_outro)
+        flags = root.field('flags')
+        if flags is not None:
+            flags.set_flag("Outro", scene_nwo.cinematic_outro)
+        elif scene_nwo.cinematic_outro:
+            raise ValueError(f'{self.path}: outro is unavailable in this tag layout')
         if self.corinth:
             flags.set_flag("Extra Memory Bink", scene_nwo.cinematic_extra_memory_bink)
             flags.set_flag("Opaque Bink", scene_nwo.cinematic_opaque_bink)

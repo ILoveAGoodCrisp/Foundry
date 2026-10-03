@@ -50,3 +50,5 @@ copy to add-ons.bat
 /blender/addons/io_scene_foundry/tags/definitions/
 /tests
 /tools
+/blender/tests
+/reports

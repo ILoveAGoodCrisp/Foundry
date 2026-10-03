@@ -5,7 +5,6 @@ from bpy.types import PropertyGroup
 from mathutils import Matrix
 
 from ..animation_events import frame_event_items_for_game
-from ..animation_aiming import LEGACY_AIMING_MODE_ITEMS
 from ..constants import get_named_color
 
 from ..tools.asset_types import asset_type_items
@@ -1224,12 +1223,6 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
                ('time', "Time", "Preserve the imported time overlay classification")],
         default='auto',
         options={'HIDDEN'},
-    )
-
-    pose_overlay_wrap_mode: bpy.props.EnumProperty(
-        name='Legacy Aiming',
-        description='Aiming behavior when converting legacy pose overlays; rerun conversion after changing this',
-        items=LEGACY_AIMING_MODE_ITEMS, default='AUTO', options=set(),
     )
 
     pose_overlay_aiming_source: bpy.props.EnumProperty(
@@ -3395,6 +3388,23 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         default=False,
         options=set(),
         description="On export, assigns non-BSP-defining scenario objects to the BSP that contains their origin. Objects outside all BSPs use the default BSP only when automatic structure is being generated"
+    )
+
+    cinematic_fade_in_color: bpy.props.FloatVectorProperty(
+        name="Fade In Color", subtype='COLOR', size=3, min=0, max=1,
+        default=(0, 0, 0), options=set(),
+    )
+    cinematic_fade_in_time: bpy.props.IntProperty(
+        name="Fade In Frames", min=0, options=set(),
+        description="Duration of the Halo 3 / ODST cinematic fade in, in 30 fps frames",
+    )
+    cinematic_fade_out_color: bpy.props.FloatVectorProperty(
+        name="Fade Out Color", subtype='COLOR', size=3, min=0, max=1,
+        default=(0, 0, 0), options=set(),
+    )
+    cinematic_fade_out_time: bpy.props.IntProperty(
+        name="Fade Out Frames", min=0, options=set(),
+        description="Duration of the Halo 3 / ODST cinematic fade out, in 30 fps frames",
     )
     skies_authored_from_blender: bpy.props.BoolProperty(
         name="Skies Authored From Blender", default=False, options=set(),

@@ -33,6 +33,38 @@ per BSP. H1 structures use JMS; later structures use ASS. Model permutations
 containing instanced objects use ASS on supported games, including bone palettes
 and region/permutation material variants.
 
+H3/ODST design ASS files use Tool's `structure-design` command. Their compiled
+`.structure_design` tags are linked in the scenario's structure-BSP row using
+the Foundry BSP assignment; selected-BSP exports include the associated design.
+Water surfaces retain their shader and use the `!'` material symbols. Physics
+water uses `~` ASS instances with `+unused` material, so Tool generates water
+physics instead of processing an open plane as solid BSP geometry.
+
+H1 BSP tag import repairs compiled portal roundoff before creating the Blender
+meshes. It tests plane stability, retains repaired outlines as clean ngons,
+and gives enclosed openings a bounded wall overlap only when the
+source collision BSP confirms the entire expanded boundary is solid. Overlap
+is limited to 0.01 tag units; plane correction is limited to 0.0005 tag units.
+Adjacent fragments with matching flags and front/back clusters become one
+object. Compiled contacts are welded, and redundant internal edges are dissolved
+into one flat face when the source collision walls still cover its perimeter
+and junctions with other portals fit the same plane. Joining allows at most
+0.03 tag units of contact welding; plane changes are bounded by 0.1 tag units
+and 0.1% of the opening's size. Necessary cutting faces and holes are retained.
+Point contacts and different cluster connections stay separate. Export uses ordinary triangulation
+and the final JMS plane correction; stability probes do not become visible
+triangle fans. This runs on fresh tag imports without a WRL file or
+portal-number-specific rules.
+
+A fresh `levels/a30/a30_a` import, Blender save/reopen and production JMS export
+compiled through HCE Tool with no yellow portal-closure errors. It retained all
+38 clusters and the original 47 cluster connections (including sky assignments),
+with no invalid portal links. Nearly-coplanar, non-dividing-surface and
+clipped-surface warnings remain. The 65 source fragments import as 51 portal
+objects with 54 faces, removing 11 internal fragment boundaries. Portals 20
+and 35 each have one face. The clean surfaces compile to 69 portal fragments,
+compared with 94 from the previous visible-fan repair.
+
 Every JMS contains a skeleton. When the Blender scene has no armature, Foundry
 writes one identity bone named `implied_root_node` and binds otherwise unparented
 vertices, markers, collision records, and physics records to that serialized
@@ -48,10 +80,12 @@ surface material names; pre-H4 BSPs keep shader-derived surface types.
 The H1 JMS dialect omits the later precise-position `)` material suffix because
 H1 Tool treats it as part of the shader name rather than as a surface flag.
 
-Text serializers reuse the importer's Blender-independent asset models. Output
-is staged in temporary files and JMS/ASS files are parsed back before any existing
-output is replaced. Staging failure leaves existing outputs intact. Replacing a
-batch is not a filesystem-wide atomic transaction.
+Text serializers reuse the importer's Blender-independent asset models and trust
+the prepared export data. Export does not run model validation, scan numeric
+records for non-finite values, or parse generated files back. Serializer
+compatibility and round trips are checked in tests. Output is staged in temporary
+files before any existing output is replaced. Staging failure leaves existing
+outputs intact. Replacing a batch is not a filesystem-wide atomic transaction.
 
 ## Tag writing
 
@@ -87,6 +121,25 @@ settings remain intact. H2 particle-model and decorator-set exports write an
 8210 JMI manifest plus its child render JMS, then invoke Tool's dedicated
 `import-particle-model` or `import-decorator-set` command and verify the expected
 tag was created.
+
+H3/ODST cinematic assets use the shared cinematic scene and actor sampling path.
+The armature transform is included in the root bone, as in Reach. Each actor's
+shots are written as normal `.jmm` animations, with no world-relative flag
+override. Tool also requires a skeleton-only render JMS; Foundry derives its
+bind transforms and node order from the actor's existing render-model tag.
+Sources live under `objects/<cinematic-scene>/<actor>/render` and `animations`,
+and `model-animations` compiles a separate graph for each actor and scene.
+An extra terminal held JMM sample keeps compiled animation and camera lengths
+equal. Cinematic, scene, event, scenario-link and anchor data are written directly
+to tags; the asset marker never drives cinematic compilation.
+
+Camera Only leaves actor sources and graphs untouched. Objects Only skips camera
+frame sampling and scene-tag writing. Tags Only reuses existing JMS/JMM files and
+samples current camera data. Current-scene exports retain the complete root scene
+list; current-shot exports preserve the other shots' sources and camera frames
+and require an existing scene tag. H3/ODST supports up to 32 shots per scene.
+Fade colors and durations are stored directly in the cinematic tag and exposed
+in the cinematic settings instead of a Reach transition tag.
 
 Isolated H2 Tool acceptance runs compiled rigid one-bone children from the
 generated `<child>/render/<child>.jms` layout through `import-particle-model` and

@@ -1,5 +1,5 @@
 """Practical H1 decal previews with independent, reusable placement controls."""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import asin, atan2, cos, isfinite, pi, sin
 
 from .backend import TagDocument, read_only_tags
@@ -21,6 +21,8 @@ class DecalPreview:
     bitmap_index: int = 0
     sequence_index: int = -1
     sprite_index: int = -1
+    no_random_rotation: bool = False
+    snap_to_axis: bool = False
 
 
 def preview_bounds(radius, width, height, sprite=None, preserve_aspect=False):
@@ -51,16 +53,22 @@ def read_preview(document):
     properties = document.required_field(root, 'properties').as_struct()
     flags = document.required_field(properties, 'flags')
     preserve_aspect = flags.get_flag('preserve aspect')
+    no_random_rotation = flags.get_flag('no random rotation')
+    snap_to_axis = flags.get_flag('editor snap to axis')
+
+    def with_flags(preview):
+        return replace(preview, no_random_rotation=no_random_rotation, snap_to_axis=snap_to_axis)
+
     shader = document.required_field(root, 'shader').as_struct()
     bitmap = TagDocument.reference(document, shader, 'map')
     if bitmap is None:
-        return preview_bounds(radius, 1, 1)
+        return with_flags(preview_bounds(radius, 1, 1))
     with read_only_tags(), TagDocument(bitmap.Filename, tags_root=document.tags_root, game='halo1',
                                       definitions=document.definitions, must_exist=True) as tag:
         bitmap_root = tag.tag.root()
         bitmaps = list(tag.block(bitmap_root, 'bitmaps'))
         if not bitmaps:
-            return preview_bounds(radius, 1, 1)
+            return with_flags(preview_bounds(radius, 1, 1))
         for si, sequence in enumerate(tag.block(bitmap_root, 'sequences')):
             for fi, sprite in enumerate(tag.block(sequence, 'sprites')):
                 bi = int(tag.value(sprite, 'bitmap index'))
@@ -72,9 +80,47 @@ def read_preview(document):
                 if width <= 0 or height <= 0 or bounds[1] <= bounds[0] or bounds[3] <= bounds[2]:
                     continue
                 preview = preview_bounds(radius, width, height, (*bounds, reg.x, reg.y), preserve_aspect)
-                return DecalPreview(preview.extent, preview.uv_bounds, bi, si, fi)
+                return with_flags(DecalPreview(preview.extent, preview.uv_bounds, bi, si, fi))
         width, height = (int(tag.value(bitmaps[0], key)) for key in ('width', 'height'))
-        return preview_bounds(radius, width, height, preserve_aspect=preserve_aspect)
+        return with_flags(preview_bounds(radius, width, height, preserve_aspect=preserve_aspect))
+
+
+def fixed_preview_axes(direction, normal, snap_to_axis=False):
+    """H1's no-random-rotation texture basis, in tag space (Y increases up).
+
+    Match decal_new_from_collision's signed dominant-axis selection and its
+    surface-parallel fallback. Scenario yaw/pitch remain projection angles.
+    """
+    from mathutils import Vector
+
+    if normal.dot(direction) >= -1e-4:
+        return None
+
+    def dominant_axis(vector):
+        # H1 breaks equal magnitudes in favour of Z, then Y, then X.
+        index = max(range(3), key=lambda i: (abs(vector[i]), i))
+        axis = Vector((0, 0, 0))
+        axis[index] = 1 if vector[index] > 0 else -1
+        return axis
+
+    if snap_to_axis:
+        axis = (dominant_axis(direction) - normal).normalized()
+        tangent = normal.cross(axis)
+        bitangent = normal.cross(tangent)
+        if tangent.length_squared < 1e-4 or bitangent.length_squared < 1e-4:
+            parallel = direction - normal * direction.dot(normal)
+            axis = dominant_axis(parallel)
+            axis += normal if axis.dot(normal) > 0 else -normal
+            tangent = normal.cross(axis.normalized())
+    else:
+        tangent = normal.cross(direction)
+    if tangent.length_squared < 1e-12:
+        return None  # Stable existing preview for a degenerate fixed basis.
+    tangent.normalize()
+    bitangent = normal.cross(tangent).normalized()
+    # Engine forward=-bitangent, left=-tangent. Its extent Y is bitmap-down;
+    # preview vertices and UVs use Y up, so negate the engine's left axis.
+    return -bitangent, tangent
 
 
 def projection_bvh(objects):
@@ -141,6 +187,14 @@ def create_preview(placement, preview, material, collection, scenario_path, bvh=
         horizontal = normal.cross(Vector((0, 1, 0)))
     horizontal.normalize()
     vertical = normal.cross(horizontal).normalized()
+    if preview.no_random_rotation:
+        # Axis snapping is in Halo coordinates, before the scene forward-axis
+        # conversion. Keep the raw rotation on the exportable parent control.
+        tag_to_world = import_transform.rotation_matrix().to_3x3()
+        world_to_tag = tag_to_world.inverted()
+        axes = fixed_preview_axes(world_to_tag @ direction, world_to_tag @ normal, preview.snap_to_axis)
+        if axes is not None:
+            horizontal, vertical = (tag_to_world @ axis for axis in axes)
     point += normal * import_transform.distance(.0001)
     to_control = control.matrix_world.inverted_safe()
     x0, x1, y0, y1 = preview.extent
@@ -161,6 +215,8 @@ def create_preview(placement, preview, material, collection, scenario_path, bvh=
     ob.matrix_basis = Matrix.Identity(4)
     ob['halo1_decal_preview'] = True
     ob['halo1_decal_surface_fitted'] = fitted
+    ob['halo1_decal_no_random_rotation'] = preview.no_random_rotation
+    ob['halo1_decal_snap_to_axis'] = preview.snap_to_axis
     collection.objects.link(ob)
     return control, ob
 

@@ -136,8 +136,8 @@ FAILURE_LINE = re.compile(
     re.IGNORECASE,
 )
 SECTION_LINE = re.compile(r"^[-=]{8,}$")
-WARNING_LINE = re.compile(r"^(?:\[?warning\]?|warn)\s*[:\-]", re.IGNORECASE)
-ERROR_LINE = re.compile(r"^(?:\[?error\]?|fatal(?: error)?|critical|traceback|exception)\b", re.IGNORECASE)
+WARNING_LINE = re.compile(r"^(?:\s*###\s+warning\b|(?:\[?warning\]?|warn)\s*[:\-])", re.IGNORECASE)
+ERROR_LINE = re.compile(r"^(?:\s*###\s+)?(?:\[?error\]?|fatal(?: error)?|critical|traceback|exception)\b", re.IGNORECASE)
 TRACEBACK_START_LINE = re.compile(
     r"(?:^|:\s*)[+|]?\s*(?:Exception Group )?Traceback \(most recent call last\):$",
     re.IGNORECASE,

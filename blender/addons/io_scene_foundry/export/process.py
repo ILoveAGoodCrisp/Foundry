@@ -1824,9 +1824,10 @@ class ExportScene:
             # marker check is exclusive as we don't care about markers on the first frame
             markers = [m for m in scene.timeline_markers if m.camera is not None and m.frame > scene.frame_start and m.frame <= scene.frame_end]
             markers.sort(key=lambda m: m.frame)
-            shot_count = min(len(markers) + 1, MAXIMUM_CINEMATIC_SHOTS)
-            if shot_count == MAXIMUM_CINEMATIC_SHOTS:
-                self.warnings.append(f"Maximum shot count of 64 exceeeded (You have {len(markers) + 1} shots). Shots have been limited")
+            maximum_shots = 32 if self.project_game in {'halo3', 'halo3odst'} else MAXIMUM_CINEMATIC_SHOTS
+            shot_count = min(len(markers) + 1, maximum_shots)
+            if len(markers) + 1 > maximum_shots:
+                self.warnings.append(f"Maximum shot count of {maximum_shots} exceeded (You have {len(markers) + 1} shots). Shots have been limited")
                 
             if self.corinth:
                 film_aperture = 22.5
@@ -1947,7 +1948,8 @@ class ExportScene:
                     utils.update_job_count(process, "", 1, 1)
                 else:
                     utils.update_job_count(process, "", shot_count, shot_count)
-                self.sidecar.cinematic_scenes.append(self.cinematic_scene)
+                if self.sidecar is not None:
+                    self.sidecar.cinematic_scenes.append(self.cinematic_scene)
         finally:
             if armature_mods is not None:
                 utils.unmute_armature_mods(armature_mods)
@@ -2517,7 +2519,8 @@ class ExportScene:
         # if self.is_child_asset:
         #     writer = QUA(self.parent_asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
         # else:
-        writer = QUA(self.asset_path_relative, cin_scene.name, cin_scene.shots, cin_scene.actors, self.corinth, False)
+        writer = QUA(self.asset_path_relative, cin_scene.name, cin_scene.shots, cin_scene.actors, self.corinth, False,
+                     preserve_unexported_shots=self.legacy_export and self.current_shot_only)
         # scene specific
         cin_scene_settings = cin_scene.scene_settings or self.scene_settings.cinematic_scenes[0]
         writer.write_to_tag(cin_scene_settings, cin_scene.scene)

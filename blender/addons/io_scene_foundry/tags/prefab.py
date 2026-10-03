@@ -551,9 +551,9 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 blocks_sounds=blocks_sounds,
                 is_door=is_door,
                 vertices=vertices,
-                plane_index=int(self.value(element, 'plane index')) if self.game == 'reach' else -1,
-                back_cluster=int(self.value(element, 'back cluster')) if self.game == 'reach' else -1,
-                front_cluster=int(self.value(element, 'front cluster')) if self.game == 'reach' else -1,
+                plane_index=int(self.value(element, 'plane index')) if self.game in {'halo1', 'reach'} else -1,
+                back_cluster=int(self.value(element, 'back cluster')) if self.game in {'halo1', 'reach'} else -1,
+                front_cluster=int(self.value(element, 'front cluster')) if self.game in {'halo1', 'reach'} else -1,
             ))
         return records
 
@@ -623,7 +623,7 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
         )
         if any(not isfinite(value) for vertex in vertices for value in vertex):
             raise ValueError(f'{self.path}: {label} has non-finite vertices')
-        mask = 0xffffffff if large else 0xffff
+        mask = 0xffffffff if large or self.game == 'halo1' else 0xffff
         edge_names = ('start vertex', 'end vertex', 'forward edge', 'reverse edge',
                       'left surface', 'right surface')
         edges = tuple(
@@ -658,16 +658,22 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
             flags = self.required_field(surface, 'flags')
             breakable = flags.get_flag('breakable')
             invisible = flags.get_flag('invisible')
+            # Classic games encode plane orientation in the plane index. H1
+            # uses 32-bit indices and has neither invalid nor slip flags.
+            if self.game in {'halo1', 'halo2'}:
+                plane_mask = 0x80000000 if self.game == 'halo1' else 0x8000
+                negated = bool(int(self.value(surface, 'plane')) & plane_mask)
+            else:
+                negated = (self.game not in {'halo3', 'halo3odst'} and
+                           flags.get_flag('plane negated'))
             surfaces.append(StructureBspCollisionSurface(
                 index=surface_index,
                 material_index=int(self.value(surface, 'material')),
-                negated=((int(self.value(surface, 'plane')) & 0x8000) != 0
-                         if self.game == 'halo2' else
-                         self.game not in {'halo3', 'halo3odst'} and flags.get_flag('plane negated')),
-                invalid=flags.get_flag('invalid'),
+                negated=negated,
+                invalid=False if self.game == 'halo1' else flags.get_flag('invalid'),
                 ladder=flags.get_flag('climbable'),
                 breakable=breakable,
-                slip_surface=False if self.game == 'halo2' else flags.get_flag('slip'),
+                slip_surface=False if self.game in {'halo1', 'halo2'} else flags.get_flag('slip'),
                 invisible=invisible,
                 two_sided=(flags.get_flag('two sided') and
                            not (breakable or invisible)),

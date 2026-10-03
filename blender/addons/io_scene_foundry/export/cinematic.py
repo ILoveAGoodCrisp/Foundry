@@ -343,7 +343,7 @@ class QUA:
     audio_data_version = 3
     custom_script_version = 1
     effect_data_version = 4
-    def __init__(self, asset_path, scene_name: str, shots: list, actors: list[Actor], corinth: bool, blender_scene: bpy.types.Scene, is_segment = False):
+    def __init__(self, asset_path, scene_name: str, shots: list, actors: list[Actor], corinth: bool, blender_scene: bpy.types.Scene, is_segment = False, preserve_unexported_shots=False):
         self.has_camera_data = not is_segment
         self.version = 4 if corinth else 2
         self.scene_type = "segment" if is_segment else "main"
@@ -355,6 +355,7 @@ class QUA:
         self.tag_path = Path(asset_path, scene_name)
         self.shot_counts = [shot.frame_count for shot in shots]
         self.blender_scene = blender_scene
+        self.preserve_unexported_shots = preserve_unexported_shots
 
     def get_shot_index_and_frame(self, frame_index: int) -> tuple[int | None, int]:
         frame_base = int(self.corinth)
@@ -596,6 +597,8 @@ class QUA:
         # scene specific
 
         scene_path = self.tag_path.with_suffix(".cinematic_scene")
+        if self.preserve_unexported_shots and not Path(utils.get_tags_path(), scene_path).is_file():
+            raise ExportCancelled('Export all shots before exporting only the current shot')
         data_path = self.tag_path.with_suffix(".cinematic_scene_data") if self.corinth else None
         header = script_from_text(self.corinth, cin_scene_settings.header,
                                   cin_scene_settings.header_text,
@@ -612,14 +615,14 @@ class QUA:
                     self.scene_name, cin_scene_settings.reset_object_lighting,
                     header, footer, data_path)
                 native_scene.write_shot_settings(
-                    self.shots, True, script_from_text, rebuild=True)
+                    self.shots, True, script_from_text, rebuild=not self.preserve_unexported_shots)
                 native_scene.write_export_objects(
                     self.objects, script_from_text, native_data)
                 native_scene.write_camera_events(self.shots, True, utils.game_frame)
                 native_scene.write_timeline_events(
                     music, function_keyframes, self.get_shot_index_and_frame)
                 native_scene.write_lighting_events(lighting)
-                native_data.write_camera_frames(self.shots, True, rebuild=True)
+                native_data.write_camera_frames(self.shots, True, rebuild=not self.preserve_unexported_shots)
                 native_data.write_script_events(
                     scripts, self.get_shot_index_and_frame, True, script_from_text)
                 native_data.write_content_events(
@@ -631,7 +634,7 @@ class QUA:
                     header, footer)
                 native_scene.write_export_objects(self.objects, script_from_text)
                 native_scene.write_camera_shots(
-                    self.shots, False, script_from_text, rebuild=True)
+                    self.shots, False, script_from_text, rebuild=not self.preserve_unexported_shots)
                 native_scene.write_camera_events(self.shots, False, utils.game_frame)
                 native_scene.write_timeline_events(
                     music, function_keyframes, self.get_shot_index_and_frame)

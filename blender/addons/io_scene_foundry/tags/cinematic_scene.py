@@ -363,7 +363,8 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
         root = self.tag.root()
         self._set_value(root, 'name', name)
         self._set_value(root, 'anchor', f'{name}_anchor')
-        self._set_value(root, 'reset object lighting', int(reset_object_lighting))
+        if root.field('reset object lighting') is not None:
+            self._set_value(root, 'reset object lighting', int(reset_object_lighting))
         self._set_script(root, 'header', header)
         self._set_script(root, 'footer', footer)
         if data_path is not None:

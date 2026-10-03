@@ -304,7 +304,7 @@ class VirtualShot:
         self.in_scope = in_scope
     
     def perform(self, scene: 'VirtualScene', film_aperture: float):
-        if scene.cinematic_scope != 'OBJECT' and self.in_scope:
+        if self.in_scope and (scene.cinematic_scope != 'OBJECT' or scene.granny is None):
             fps = utils.real_frame_rate()
             start, end = self.frame_start, self.frame_end
 
@@ -325,7 +325,8 @@ class VirtualShot:
                     subframe = 0.0
 
                 scene.context.scene.frame_set(frame, subframe=subframe)
-                self.frames.append(Frame(self.camera, scene.corinth, film_aperture, scene.halo_transform_scale, scene.halo_rotation))
+                if scene.cinematic_scope != 'OBJECT':
+                    self.frames.append(Frame(self.camera, scene.corinth, film_aperture, scene.halo_transform_scale, scene.halo_rotation))
                 for shot_actor in self.shot_actors:
                     if not shot_actor.in_scope:
                         continue
@@ -354,7 +355,16 @@ class VirtualShot:
         frame_total = self.frame_count - 1
                 
         for shot_actor in self.shot_actors:
-            if shot_actor.in_scope:
+            if shot_actor.in_scope and self.in_scope:
+                if scene.granny is None:
+                    animation = VirtualShotAnimation(f"{shot_actor.name}_{self.index + 1}", None, None, self.index, False)
+                    animation.frame_count = self.frame_count
+                    animation.legacy_tracks = [
+                        (bone.name, shot_actor.positions[bone], shot_actor.orientations[bone], shot_actor.scales[bone])
+                        for bone in shot_actor.bones
+                    ]
+                    self.actor_animation[shot_actor] = animation
+                    continue
                 tracks = []
                 for bone in shot_actor.bones:
                     tracks.append((c_float * (self.frame_count * 3))(*shot_actor.positions[bone]))

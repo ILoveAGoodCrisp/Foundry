@@ -245,6 +245,28 @@ class ScenarioDocument(TagDocument):
             self.tag_has_changes = True
         return removed
 
+    def set_structure_designs(self, paths: dict[TagPathInput, TagPathInput]) -> None:
+        """Link H3/ODST designs to their assigned BSP rows, preserving other links."""
+        if self.game not in {'halo3', 'halo3odst'}:
+            raise ValueError('Per-BSP structure designs require Halo 3 or ODST')
+        wanted = {
+            self.reference_from_path(bsp).RelativePathWithExtension.casefold(): design
+            for bsp, design in paths.items()
+        }
+        block = self.block(self.tag.root(), 'structure bsps')
+        matched = set()
+        for element in block:
+            bsp = self.reference(element, 'structure bsp')
+            if bsp is None:
+                continue
+            key = bsp.RelativePathWithExtension.casefold()
+            if key in wanted:
+                self.set_reference(element, 'structure design', wanted[key])
+                matched.add(key)
+        missing = wanted.keys() - matched
+        if missing:
+            raise ValueError(f'{self.path}: design assignment has no matching BSP: {sorted(missing)}')
+
     def scenario_type(self) -> int:
         field = self.required_field(self.tag.root(), 'type')
         value = field.value

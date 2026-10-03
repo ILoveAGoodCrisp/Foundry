@@ -594,10 +594,12 @@ def _check_call_tool(command, cwd, stdout=None, stderr=None, tool_patches=None, 
         raise subprocess.CalledProcessError(returncode, command)
     return 0
         
-def _stderr_reader(pipe, q):
-    for line in iter(pipe.readline, b''):
-        q.put(line)
-    q.put(None)
+def _tool_output_reader(pipe, q, source):
+    try:
+        for line in iter(pipe.readline, b''):
+            q.put((source, line))
+    finally:
+        q.put((source, None))
 
 class _ToolMemoryPatchError(RuntimeError):
     pass
@@ -1091,8 +1093,10 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
         if log_warnings:
             tmp_log = Path(tempfile.gettempdir(), "halo_errors.txt")
             tmp_log.write_bytes(b'')
-        # Every output mode must pass through the watchdog, on both streams.
-        p = _popen_tool(command, project_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, tool_patches=tool_patches)
+        # Watch both streams, but keep routine stdout out of stderr's warning
+        # fallback when culling diagnostics.
+        stderr = subprocess.PIPE if cull_warnings else subprocess.STDOUT
+        p = _popen_tool(command, project_dir, stdout=subprocess.PIPE, stderr=stderr, tool_patches=tool_patches)
     except _ToolMemoryPatchError as e:
         return True, str(e)
     except OSError as e:
@@ -1109,15 +1113,21 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
     watchdog = _CompositeWatchdog()
 
     q = queue.Queue()
-    t = threading.Thread(target=_stderr_reader, args=(p.stdout, q), daemon=True)
-    t.start()
-    output_closed = False
+    pipes = [("stdout", p.stdout)]
+    if cull_warnings:
+        pipes.append(("stderr", p.stderr))
+    readers = []
+    for source, pipe in pipes:
+        reader = threading.Thread(target=_tool_output_reader, args=(pipe, q, source), daemon=True)
+        reader.start()
+        readers.append(reader)
+    closed_sources = set()
             
-    # Read and print stderr contents while writing to the file
+    # Drain both streams while preserving the source used for classification.
     try:
         while True:
             now = time.monotonic()
-            if output_closed and p.poll() is not None and q.empty():
+            if len(closed_sources) == len(pipes) and p.poll() is not None and q.empty():
                 break
 
             if watchdog.expired(now) and p.poll() is None:
@@ -1126,12 +1136,12 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
                 return True, watchdog.explanation()
 
             try:
-                item = q.get(timeout=0.1)
+                source, item = q.get(timeout=0.1)
             except queue.Empty:
                 continue
 
             if item is None:
-                output_closed = True
+                closed_sources.add(source)
                 continue
 
             line = item.decode(errors="replace").rstrip("\r\n")
@@ -1142,13 +1152,15 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
                 failed = True
                 if not error:
                     error = line
-            if not cull_warnings:
+            if not cull_warnings or source == "stdout":
                 output_stream.write(item)
                 if tmp_log is not None:
                     with tmp_log.open('ab') as file:
                         file.write(item)
                 if is_error_line(line):
                     failed = True
+                    if not error:
+                        error = get_error_explanation(line)
                 elif failed and not error:
                     error = get_error_explanation(line)
                 continue
@@ -1159,9 +1171,11 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
             if failed and not error:
                 error = get_error_explanation(line)
 
-            elif not failed and is_error_line(line):
+            if is_error_line(line):
                 print_error(line)
                 failed = True
+                if not error:
+                    error = get_error_explanation(line)
 
             else:
                 if "(skipping tangent-space calculations)" in line or "if it is a decorator" in line:
@@ -1230,8 +1244,10 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
         raise
     finally:
         if p.poll() is not None:
-            t.join(timeout=1)
-            p.stdout.close()
+            for reader in readers:
+                reader.join(timeout=1)
+            for _source, pipe in pipes:
+                pipe.close()
 
     returncode = p.wait()
     if returncode and not failed:
@@ -1299,7 +1315,8 @@ def _tool_structured_output_text(line):
     return ""
 
 def is_error_line(line):
-    return line.startswith("IMPORT FAILED") or "### ASSERTION FAILED" in line or "FATAL ERROR!" in line
+    return (line.startswith("IMPORT FAILED") or "### ASSERTION FAILED" in line or "FATAL ERROR!" in line
+            or bool(re.match(r"^\s*###\s+ERROR\b", line, re.IGNORECASE)))
 
 def get_error_explanation(line):
     if "plane3d_passes_through_point" in line:
@@ -1314,6 +1331,8 @@ def get_error_explanation(line):
         return "You need to add a render mesh that has the region referenced above or change the named region on collision meshes to one in use by any render mesh"
     elif "no corresponding model region (will not be physical)" in line:
         return "You need to add a render mesh that has the region referenced above or change the named region on physics meshes to one in use by any render mesh"
+    elif re.match(r"^\s*###\s+ERROR\b", line, re.IGNORECASE):
+        return line.strip()
     
     
     return ""

@@ -22,6 +22,7 @@ from mathutils import Vector
 
 
 from ...tags.connected_material import functions_list
+from ...constants import FORCED_SHADER_PERMUTATION
 game_functions = {func.name for func in functions_list}
 all_change_color_prop_names = ("Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color")
 all_change_color_prop_display_names = ("Primary", "Secondary", "Tertiary", "Quaternary")
@@ -599,7 +600,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(nwo, "cinematic_channel_type")
                 col.prop(nwo, "cinematic_easing_in_time")
                 col.prop(nwo, "cinematic_easing_out_time")
-                draw_tag_path(col, nwo, "cinematic_transition_settings")
+                project = utils.get_project(nwo.scene_project)
+                if project and project.game in {'halo3', 'halo3odst'}:
+                    col.prop(nwo, "cinematic_fade_in_color")
+                    col.prop(nwo, "cinematic_fade_in_time")
+                    col.prop(nwo, "cinematic_fade_out_color")
+                    col.prop(nwo, "cinematic_fade_out_time")
+                else:
+                    draw_tag_path(col, nwo, "cinematic_transition_settings")
                 col.separator()
                 col.prop(nwo, "cinematic_bink_movie")
                 if self.h4:
@@ -1934,19 +1942,20 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
         change_colors_props = [k for k in custom_props if k in all_change_color_prop_names]
         weapon_props = [k for k in custom_props if k in ("Ammo", "Tether Distance")]
+        shader_props = [k for k in custom_props if k == FORCED_SHADER_PERMUTATION]
         function_props = [k for k in custom_props if k in game_functions]
-        built_in_props = set(change_colors_props + weapon_props + function_props)
+        built_in_props = set(change_colors_props + weapon_props + shader_props + function_props)
         tag_props = [k for k in custom_props if k.lower() == k and k and k not in built_in_props]
         has_driver_remap = ob.type == 'ARMATURE'
 
-        if not (change_colors_props or weapon_props or function_props or tag_props or has_driver_remap):
+        if not (change_colors_props or weapon_props or shader_props or function_props or tag_props or has_driver_remap):
             box.label(text="No custom properties")
             return
 
         box.use_property_split = True
         if has_driver_remap:
             box.operator("nwo.remap_child_drivers_to_armature", icon='DRIVER')
-            if change_colors_props or weapon_props or function_props or tag_props:
+            if change_colors_props or weapon_props or shader_props or function_props or tag_props:
                 box.separator()
         if change_colors_props:
             change_colors_box = box.box()
@@ -1955,6 +1964,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             for key, display in zip(all_change_color_prop_names, all_change_color_prop_display_names):
                 if key in change_colors_props:
                     change_colors_box.prop(ob, f'["{key}"]', text=display)
+
+        if shader_props:
+            shader_box = box.box()
+            shader_box.label(text="Shader")
+            shader_box.prop(ob, f'["{FORCED_SHADER_PERMUTATION}"]')
 
         if weapon_props:
             weapon_box = box.box()
@@ -3959,7 +3973,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             if animation.animation_type == 'overlay':
                 row.prop(animation, "pose_overlay")
                 if animation.pose_overlay and not animation.external:
-                    col.prop(animation, 'pose_overlay_wrap_mode')
                     col.operator('nwo.generate_poses', text='Generate Poses', icon='ANIM')
                 
         col.separator()
