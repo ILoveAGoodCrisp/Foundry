@@ -4,7 +4,7 @@ from collections import defaultdict
 from math import atan2, cos, radians, sin, tau
 from typing import cast
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Euler, Matrix, Vector
 from ...constants import WU_SCALAR
 from ... import utils
 from .shapes import *
@@ -91,9 +91,6 @@ reach_fp_ik_fix_render_models = frozenset({
 
 def needs_reach_fp_ik_fix(tag_path: str) -> bool:
     return str(tag_path).replace("/", "\\").lower() in reach_fp_ik_fix_render_models
-
-def needs_fp_hand_ik_shape_fix(tag_path: str) -> bool:
-    return str(tag_path).replace("/", "\\").lower().endswith(r"\fp\fp.render_model")
 
 # Bone that should be connected
 bone_links = (
@@ -256,7 +253,7 @@ class HaloRig:
                 
                 pedestal.color.palette = 'THEME04'
                 pedestal.custom_shape = shape_ob
-                pedestal.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale * self.shape_scale
+                pedestal.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale
                 pedestal.use_custom_shape_bone_size = False
                 
                 pedestal.custom_shape_rotation_euler = Vector((
@@ -264,6 +261,7 @@ class HaloRig:
                     0.0,
                     0.0,
                 ))
+                fit_root_control_shape(self.rig_ob, pedestal)
                 
                 # if wireframe:
                 #     self.rig_data.bones[pedestal.name].show_wire = True
@@ -327,7 +325,7 @@ class HaloRig:
                 if aim_control is not None:
                     aim_control.color.palette = 'THEME04'
                     aim_control.custom_shape = shape_ob
-                    aim_control.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale * self.shape_scale
+                    aim_control.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale
                     aim_control.use_custom_shape_bone_size = False
 
                     aim_control.custom_shape_rotation_euler = Vector((
@@ -342,7 +340,7 @@ class HaloRig:
                 if pitch is not None:
                     pitch.color.palette = 'THEME04'
                     pitch.custom_shape = shape_ob
-                    pitch.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale * self.shape_scale
+                    pitch.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale
                     pitch.use_custom_shape_bone_size = False
                     pitch.custom_shape_rotation_euler = Vector((
                         0.0 if reach_fp_fix else radians(90),
@@ -356,7 +354,7 @@ class HaloRig:
                 if yaw is not None:
                     yaw.color.palette = 'THEME04'
                     yaw.custom_shape = shape_ob
-                    yaw.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale * self.shape_scale
+                    yaw.custom_shape_scale_xyz = Vector((0.2, 0.2, 0.2)) * shape_scale
                     yaw.use_custom_shape_bone_size = False
 
                     yaw.custom_shape_rotation_euler = Vector((
@@ -656,7 +654,7 @@ class HaloRig:
                 continue
 
             if pbone.custom_shape is None or is_foundry_deform_custom_shape(pbone.custom_shape):
-                fallback_scale, fallback_translation = fallback_deform_shape_transform(pbone, shape_scale * self.shape_scale)
+                fallback_scale, fallback_translation = fallback_deform_shape_transform(pbone, shape_scale)
                 pbone.custom_shape = shape
                 pbone.use_custom_shape_bone_size = False
                 pbone.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
@@ -794,9 +792,9 @@ class HaloRig:
 
         root_control = self.rig_pose.bones[0] if len(self.rig_pose.bones) else None
         min_size, max_size = stable_armature_rest_aabb(self.rig_ob)
-        control_shape_scale = abs((max_size - min_size).length) * 0.1 * self.shape_scale
+        control_shape_scale = abs((max_size - min_size).length) * 0.1
         if control_shape_scale <= 0:
-            control_shape_scale = self.shape_scale
+            control_shape_scale = 1.0
 
         head_control = self.rig_pose.bones.get(head_control_name)
         if head_control is not None:
@@ -1307,15 +1305,6 @@ class HaloRig:
 
         fk_shape = get_or_create_fk_control_shape()
         fk_to_deform_mapping = {fk_name: deform_name for deform_name, fk_name in deform_fk_mapping.items()}
-        enlarge_fp_hand_ik_shapes = needs_fp_hand_ik_shape_fix(self.rig_ob.nwo.node_order_source)
-        fp_hand_bounds = {}
-        if enlarge_fp_hand_ik_shapes:
-            hand_deform_names = {
-                deform_name
-                for deform_name, fk_name in deform_fk_mapping.items()
-                if is_hand_ik_source_name(fk_name)
-            }
-            fp_hand_bounds = vertex_group_bounds_by_deform_bone(self.rig_ob, self.rig_pose, hand_deform_names)
                 
         for db_name, fkb_name in deform_fk_mapping.items():
             fkb = self.rig_pose.bones[fkb_name]
@@ -1338,7 +1327,7 @@ class HaloRig:
         self.build_extra_control_bones(deform_fk_mapping, constraints_only, reverse_controls)
 
         apply_fk_control_shapes(self.rig_pose, fk_bone_names, fk_shape)
-        apply_torso_control_shapes(self.rig_pose, deform_fk_mapping, shape_scale * self.shape_scale)
+        apply_torso_control_shapes(self.rig_pose, deform_fk_mapping, shape_scale)
 
         settings_pb = self.rig_pose.bones.get(settings_control_name)
         if settings_pb is not None:
@@ -1362,31 +1351,14 @@ class HaloRig:
                 ptb.color.palette = 'THEME01'
 
             is_finger_ik = is_finger_ik_source_name(fkb_name)
-            ik_shape_scale = 0.45 if is_finger_ik else 1.2
-            pole_shape_scale = 0.35 if is_finger_ik else 1.0
             if is_finger_ik:
                 configure_finger_ik_limits(fkb)
                 setup_finger_curl_constraints(fkb, self.rig_ob, settings_pb, not reverse_controls)
 
             source_deform_name = fk_to_deform_mapping.get(fkb_name)
             source_deform = self.rig_pose.bones.get(source_deform_name) if source_deform_name is not None else None
-            ik_shape_scale_xyz = Vector.Fill(3, self.scale / 0.03048 * ik_shape_scale)
-            ik_shape_translation = Vector((0.0, ikb.length, 0.0))
-            ik_use_bone_size = True
-            if enlarge_fp_hand_ik_shapes and is_hand_ik_source_name(fkb_name):
-                ik_shape_scale_xyz, ik_shape_translation = fp_hand_ik_shape_transform(
-                    ikb,
-                    source_deform or fkb,
-                    fp_hand_bounds.get(source_deform_name),
-                    shape_scale * self.shape_scale,
-                )
-                ik_use_bone_size = False
-
             ikb.custom_shape = ik_shape
             ikb.custom_shape_wire_width = 2.5
-            ikb.custom_shape_scale_xyz = ik_shape_scale_xyz
-            ikb.use_custom_shape_bone_size = ik_use_bone_size
-            ikb.custom_shape_translation = ik_shape_translation
             ikb.custom_shape_rotation_euler = ik_shape_rotation_for_source(ikb, source_deform or fkb)
 
             if foot_rollb is not None:
@@ -1397,9 +1369,6 @@ class HaloRig:
                 foot_rollb.lock_scale = (True, True, True)
                 foot_rollb.custom_shape = ik_shape
                 foot_rollb.custom_shape_wire_width = 2.5
-                foot_rollb.custom_shape_scale_xyz = Vector.Fill(3, self.scale / 0.03048 * 0.8)
-                foot_rollb.use_custom_shape_bone_size = True
-                foot_rollb.custom_shape_translation = Vector((0.0, foot_rollb.length, 0.0))
                 foot_rollb.custom_shape_rotation_euler = ik_shape_rotation_for_source(foot_rollb, source_deform or fkb)
                 if foot_roll_pivotb is not None:
                     foot_roll_pivotb.rotation_mode = 'XYZ'
@@ -1409,8 +1378,6 @@ class HaloRig:
 
             if ptb is not None:
                 ptb.custom_shape = pole_shape
-                ptb.custom_shape_scale_xyz = Vector.Fill(3, self.scale / 0.03048 * pole_shape_scale)
-                # ptb.use_custom_shape_bone_size = True
                 ptb.custom_shape_translation = Vector((0.0, 0.0, 0.0))
                 ptb.custom_shape_rotation_euler = Vector((0.0, 0.0, 0.0))
 
@@ -1523,7 +1490,9 @@ class HaloRig:
                 con.influence = 0.0
                 if settings_pb is not None:
                     add_ik_control_prop_driver(con, self.rig_ob, ik_blend_property_name(fkb_name))
-            
+
+        fit_control_shapes_to_mesh(self.rig_ob, deform_fk_mapping, fk_ik_mapping)
+
 def clear_ik_inversion_constraints(ikb: bpy.types.PoseBone, rig_ob: bpy.types.Object):
     clear_matching_constraints(ikb, ik_child_of_constraint_name, 'CHILD_OF', rig_ob)
     clear_matching_constraints(ikb, ik_copy_location_constraint_name, 'COPY_LOCATION', rig_ob)
@@ -1587,6 +1556,7 @@ def control_rig_build_in_rest_position(method):
 
 HaloRig.build_and_apply_control_shapes = control_rig_build_in_rest_position(HaloRig.build_and_apply_control_shapes)
 HaloRig.build_fk_ik_rig = control_rig_build_in_rest_position(HaloRig.build_fk_ik_rig)
+HaloRig.apply_halo_bone_shape = control_rig_build_in_rest_position(HaloRig.apply_halo_bone_shape)
 
 def fk_ik_chain_count(fkb: bpy.types.PoseBone):
     if is_finger_ik_source_name(fkb.name):
@@ -1861,62 +1831,92 @@ def collect_deform_descendant_bone_names(bone: bpy.types.Bone, names: set[str]):
         collect_deform_descendant_bone_names(child, names)
 
 def vertex_group_bounds_by_deform_bone(arm: bpy.types.Object, rig_pose: bpy.types.Pose, bone_names: set[str]) -> dict[str, tuple[Vector, Vector]]:
-    if not bone_names:
-        return {}
+    frames = {
+        name: (name, rig_pose.bones[name].bone.matrix_local, False)
+        for name in bone_names if name in rig_pose.bones
+    }
+    return control_shape_mesh_bounds(arm, frames)
 
-    bone_inverses = {}
-    for bone_name in bone_names:
-        pbone = rig_pose.bones.get(bone_name)
-        if pbone is not None:
-            bone_inverses[bone_name] = pbone.bone.matrix_local.inverted_safe()
+def visible_rig_meshes(arm: bpy.types.Object):
+    """Only visible render geometry belonging to this rig contributes to shapes."""
+    shape_objects = {pbone.custom_shape for pbone in arm.pose.bones if pbone.custom_shape is not None}
+    for ob in bpy.context.view_layer.objects:
+        if ob.type != 'MESH' or ob in shape_objects or not ob.visible_get():
+            continue
+        mesh_types = {
+            getattr(getattr(owner, 'nwo', None), 'mesh_type', '')
+            for owner in (ob, ob.data)
+        }
+        if mesh_types - {'', '_connected_geometry_mesh_type_default'}:
+            continue
+        deformers = {mod.object for mod in ob.modifiers if mod.type == 'ARMATURE' and mod.object is not None}
+        if arm in deformers or (not deformers and (ob.parent == arm or ob.find_armature() == arm)):
+            yield ob
 
-    if not bone_inverses:
-        return {}
-
-    hard_bounds = {}
-    soft_bounds = {}
+def rig_mesh_vertices(arm: bpy.types.Object):
+    """Yield evaluated rest geometry in armature object space; release temporary meshes."""
+    depsgraph = bpy.context.evaluated_depsgraph_get()
     armature_inv = arm.matrix_world.inverted_safe()
-    bone_name_lookup = deform_bone_vertex_group_lookup(bone_inverses)
-
-    for ob in bpy.data.objects:
-        if not mesh_uses_armature_vertex_groups(ob, arm):
+    for ob in visible_rig_meshes(arm):
+        evaluated = ob.evaluated_get(depsgraph)
+        mesh = evaluated.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
+        if mesh is None:
             continue
+        try:
+            yield ob, mesh.vertices, armature_inv @ evaluated.matrix_world
+        finally:
+            evaluated.to_mesh_clear()
 
-        group_to_bone = {}
-        for group in ob.vertex_groups:
-            bone_name = deform_bone_name_from_vertex_group(group.name, bone_inverses, bone_name_lookup)
-            if bone_name is not None:
-                group_to_bone[group.index] = bone_name
-
-        if not group_to_bone:
+def control_shape_mesh_bounds(arm: bpy.types.Object, frames: dict[str, tuple[str, Matrix, bool]]) -> dict[str, tuple[Vector, Vector]]:
+    """Measure weighted/rigid geometry directly in each control's rotated shape frame."""
+    if not frames:
+        return {}
+    bone_targets = defaultdict(set)
+    inverses = {}
+    for name, (source_name, matrix, include_children) in frames.items():
+        source = arm.data.bones.get(source_name)
+        if source is None:
             continue
+        inverses[name] = matrix.inverted_safe()
+        bone_targets[source_name].add(name)
+        if include_children:
+            for child in source.children_recursive:
+                if child.use_deform:
+                    bone_targets[child.name].add(name)
 
-        mesh_to_armature = armature_inv @ ob.matrix_world
-        for vert in ob.data.vertices:
-            if not vert.groups:
-                continue
+    bone_names = {bone.name for bone in arm.data.bones if bone.use_deform} | set(bone_targets)
+    lookup = deform_bone_vertex_group_lookup(bone_names)
+    bounds = {}
+    for ob, vertices, mesh_to_armature in rig_mesh_vertices(arm):
+        group_bones = {
+            group.index: deform_bone_name_from_vertex_group(group.name, bone_names, lookup)
+            for group in ob.vertex_groups
+        }
+        rigid_bone = ob.parent_bone if ob.parent == arm and ob.parent_type == 'BONE' else None
+        for vert in vertices:
+            weights = [
+                (group_bones[weight.group], weight.weight)
+                for weight in vert.groups
+                if group_bones.get(weight.group) is not None and weight.weight > 0.001
+            ]
+            targets = set()
+            if weights:
+                # Include blended boundaries, but reject tiny stray influences on distant parts.
+                threshold = max(weight for _, weight in weights) * 0.25
+                for bone_name, weight in weights:
+                    if weight >= threshold:
+                        targets.update(bone_targets.get(bone_name, ()))
+            elif rigid_bone is not None:
+                targets.update(bone_targets.get(rigid_bone, ()))
+            if targets:
+                co = mesh_to_armature @ vert.co
+                for name in targets:
+                    update_bounds(bounds, name, inverses[name] @ co)
+    return bounds
 
-            armature_co = mesh_to_armature @ vert.co
-            for group_weight in vert.groups:
-                bone_name = group_to_bone.get(group_weight.group)
-                if bone_name is None or group_weight.weight <= 0.001:
-                    continue
-
-                local_co = bone_inverses[bone_name] @ armature_co
-                if group_weight.weight >= 0.8:
-                    update_bounds(hard_bounds, bone_name, local_co)
-                else:
-                    update_bounds(soft_bounds, bone_name, local_co)
-
-    for bone_name, bounds in soft_bounds.items():
-        if bone_name not in hard_bounds:
-            hard_bounds[bone_name] = bounds
-
-    return hard_bounds
-
-def deform_bone_vertex_group_lookup(bone_inverses: dict[str, Matrix]) -> dict[str, str]:
+def deform_bone_vertex_group_lookup(bone_names: set[str]) -> dict[str, str]:
     aliases = defaultdict(set)
-    for bone_name in bone_inverses:
+    for bone_name in bone_names:
         for alias in deform_bone_vertex_group_aliases(bone_name):
             aliases[alias].add(bone_name)
 
@@ -1936,27 +1936,14 @@ def deform_bone_vertex_group_aliases(name: str) -> set[str]:
     aliases.add(normalized.casefold())
     return {alias for alias in aliases if alias}
 
-def deform_bone_name_from_vertex_group(group_name: str, bone_inverses: dict[str, Matrix], lookup: dict[str, str]) -> str | None:
-    if group_name in bone_inverses:
+def deform_bone_name_from_vertex_group(group_name: str, bone_names: set[str], lookup: dict[str, str]) -> str | None:
+    if group_name in bone_names:
         return group_name
 
     for alias in deform_bone_vertex_group_aliases(group_name):
         bone_name = lookup.get(alias)
         if bone_name is not None:
             return bone_name
-
-def mesh_uses_armature_vertex_groups(ob: bpy.types.Object, arm: bpy.types.Object) -> bool:
-    if ob.type != 'MESH' or not ob.data.vertices or not ob.vertex_groups:
-        return False
-
-    if ob.parent == arm:
-        return True
-
-    for mod in ob.modifiers:
-        if mod.type == 'ARMATURE' and mod.object == arm and mod.use_vertex_groups:
-            return True
-
-    return ob.find_armature() == arm
 
 def update_bounds(bounds: dict[str, tuple[Vector, Vector]], bone_name: str, co: Vector):
     existing = bounds.get(bone_name)
@@ -2006,20 +1993,28 @@ def is_foundry_deform_custom_shape(shape: bpy.types.Object) -> bool:
     return False
 
 def stable_armature_rest_aabb(arm: bpy.types.Object) -> tuple[Vector, Vector]:
-    try:
-        matrix = utils.halo_transforms(arm)
-    except AttributeError:
-        matrix = arm.matrix_world
+    """Local visible-mesh bounds, with a rest-skeleton fallback for meshless rigs.
+
+    Custom shapes use armature object units. Export/game-unit conversions and the
+    object's world scale must not be applied again to these dimensions.
+    """
+    bounds = {}
+    for _, vertices, matrix in rig_mesh_vertices(arm):
+        for vert in vertices:
+            update_bounds(bounds, 'rig', matrix @ vert.co)
+    if 'rig' in bounds:
+        return bounds['rig']
+
     coords = []
     for bone in arm.data.bones:
         if is_control_bone_name(bone.name) or not bone.use_deform:
             continue
 
-        coords.append(matrix @ bone.head_local)
-        coords.append(matrix @ bone.tail_local)
+        coords.append(bone.head_local)
+        coords.append(bone.tail_local)
 
     if not coords:
-        return utils.to_aabb(arm)
+        return Vector((0.0, 0.0, 0.0)), Vector((1.0, 1.0, 1.0))
 
     min_co = Vector((
         min(co.x for co in coords),
@@ -2298,28 +2293,93 @@ def apply_control_shape(pbone: bpy.types.PoseBone, shape: bpy.types.Object, scal
     pbone.custom_shape_rotation_euler = rotation
     pbone.use_custom_shape_bone_size = use_bone_size
 
-def fp_hand_ik_shape_transform(ik_bone: bpy.types.PoseBone, source_bone: bpy.types.PoseBone, bounds: tuple[Vector, Vector] | None, rig_shape_scale: float) -> tuple[Vector, Vector]:
-    fallback_length = max(ik_bone.length, source_bone.length, 0.01)
-    scale_multiplier = 0.5
-    fallback_scale = max(fallback_length * 1.8, rig_shape_scale * 0.8, 0.01) * scale_multiplier
-    fallback_translation = Vector((0.0, ik_bone.length, 0.0))
-    if bounds is None:
-        return Vector.Fill(3, fallback_scale), fallback_translation
+def fit_shape_to_bounds(pbone: bpy.types.PoseBone, bounds: tuple[Vector, Vector], *, floor=False, padding=1.1):
+    """Fit a shared shape without editing its mesh or multiplying by bone length.
 
-    min_co, max_co = bounds
-    dimensions = max_co - min_co
-    if max(dimensions.x, dimensions.y, dimensions.z) < 1e-6:
-        return Vector.Fill(3, fallback_scale), fallback_translation
+    Bounds are measured in the shape's rotated axes. Translation, however, is
+    expressed in bone axes, so rotate the fitted center back into that frame.
+    """
+    coords = [vert.co for vert in pbone.custom_shape.data.vertices]
+    native_min = Vector(tuple(min(co[i] for co in coords) for i in range(3)))
+    native_max = Vector(tuple(max(co[i] for co in coords) for i in range(3)))
+    native_size = native_max - native_min
+    native_center = (native_min + native_max) * 0.5
+    minimum, maximum = bounds
+    size = maximum - minimum
+    min_size = max(size) * 0.05
+    scale = Vector((1.0, 1.0, 1.0))
+    for i in range(3):
+        if native_size[i] > max(native_size) * 1e-5:
+            scale[i] = max(size[i], min_size) * padding / native_size[i]
+    center = (minimum + maximum) * 0.5
+    if floor:
+        center.z = minimum.z - max(size.x, size.y) * 0.025
+    translation = center - Vector(tuple(native_center[i] * scale[i] for i in range(3)))
+    pbone.custom_shape_scale_xyz = scale
+    pbone.custom_shape_translation = Euler(pbone.custom_shape_rotation_euler).to_matrix() @ translation
+    pbone.use_custom_shape_bone_size = False
+    pbone.custom_shape_transform = None
 
-    native_width = max(max(co[0] for co in ik_shape_vert_coords) - min(co[0] for co in ik_shape_vert_coords), 1e-6)
-    native_height = max(max(co[1] for co in ik_shape_vert_coords) - min(co[1] for co in ik_shape_vert_coords), 1e-6)
-    scale = max(
-        dimensions.x / native_width,
-        dimensions.y / native_height,
-        dimensions.z / native_width,
-    ) * 1.2
-    scale = max(scale, fallback_scale / scale_multiplier) * scale_multiplier
-    return Vector.Fill(3, scale), (min_co + max_co) * 0.5
+def fit_root_control_shape(arm: bpy.types.Object, pbone: bpy.types.PoseBone):
+    frame = pbone.bone.matrix_local @ Euler(pbone.custom_shape_rotation_euler).to_matrix().to_4x4()
+    inverse = frame.inverted_safe()
+    bounds = {}
+    for _, vertices, matrix in rig_mesh_vertices(arm):
+        for vert in vertices:
+            update_bounds(bounds, 'root', inverse @ matrix @ vert.co)
+    if 'root' in bounds:
+        fit_shape_to_bounds(pbone, bounds['root'], floor=True, padding=1.15)
+
+def fit_control_shapes_to_mesh(arm: bpy.types.Object, deform_fk_mapping: dict[str, str], fk_ik_mapping: dict):
+    frames = {}
+    floor_controls = set()
+    pole_sources = {}
+    for source_name, fk_name in deform_fk_mapping.items():
+        include_children = is_hand_ik_source_name(fk_name) or is_foot_ik_source_name(fk_name)
+        names = [fk_name]
+        if fk_name in fk_ik_mapping:
+            ik_name, pole_name, _ = fk_ik_mapping[fk_name]
+            names.append(ik_name)
+            if is_foot_ik_source_name(ik_name):
+                floor_controls.add(ik_name)
+                roll_name = foot_roll_control_bone_name(fk_name)
+                names.append(roll_name)
+                floor_controls.add(roll_name)
+            if pole_name is not None:
+                pole_sources[pole_name] = ik_name
+        for name in names:
+            pbone = arm.pose.bones.get(name)
+            if pbone is None or pbone.custom_shape is None:
+                continue
+            frame = pbone.bone.matrix_local @ Euler(pbone.custom_shape_rotation_euler).to_matrix().to_4x4()
+            frames[name] = source_name, frame, include_children
+
+    bounds = control_shape_mesh_bounds(arm, frames)
+    rig_min, rig_max = stable_armature_rest_aabb(arm)
+    rig_size = (rig_max - rig_min).length
+    for name, (source_name, _, _) in frames.items():
+        pbone = arm.pose.bones[name]
+        shape_bounds = bounds.get(name)
+        if shape_bounds is None or max(shape_bounds[1] - shape_bounds[0]) <= 1e-8:
+            # Meshless/unweighted endpoints still get a useful, unit-independent shape.
+            length = max(arm.data.bones[source_name].length, rig_size * 0.015)
+            shape_bounds = Vector((-0.4, -0.2, -0.4)) * length, Vector((0.4, 0.8, 0.4)) * length
+        fit_shape_to_bounds(pbone, shape_bounds, floor=name in floor_controls)
+
+    for name, source_name in pole_sources.items():
+        pbone = arm.pose.bones.get(name)
+        if pbone is None or pbone.custom_shape is None or source_name not in frames:
+            continue
+        endpoint_bounds = bounds.get(source_name)
+        if endpoint_bounds is not None and max(endpoint_bounds[1] - endpoint_bounds[0]) > 1e-8:
+            radius = max(endpoint_bounds[1] - endpoint_bounds[0]) * 0.16
+        else:
+            source = arm.data.bones[frames[source_name][0]]
+            radius = max(source.length * 0.12, rig_size * 0.005)
+        pbone.custom_shape_scale_xyz = Vector.Fill(3, radius)
+        pbone.custom_shape_translation = Vector((0.0, 0.0, 0.0))
+        pbone.use_custom_shape_bone_size = False
+        pbone.custom_shape_transform = None
 
 def ik_shape_rotation_for_source(ik_bone: bpy.types.PoseBone, source_bone: bpy.types.PoseBone) -> Vector:
     if is_foot_ik_source_name(ik_bone.name):

@@ -2645,13 +2645,15 @@ def get_project(project_name=None, use_external=True):
         return projects[0]
 
 def set_import_context_from_filepath(path: Path) -> None:
-    """Use the tag's project as temporary import context without changing the scene project."""
+    """Use a tag or GR2 asset's project without changing the scene project."""
     global _external_project
     path = Path(path).resolve()
+    source_asset = path.suffix.lower() == '.gr2' or path.name.lower() == 'sidecar.xml' or path.name.lower().endswith('.sidecar.xml')
     for project in get_prefs().projects:
-        try:
-            path.relative_to(Path(project.tags_directory).resolve())
-        except ValueError:
+        roots = [Path(project.tags_directory).resolve()]
+        if source_asset:
+            roots.append(Path(project.data_directory).resolve())
+        if not any(path.is_relative_to(root) for root in roots):
             continue
         # Hold the source kit for the complete import. Imports can switch Blender
         # scenes while building animations and materials; consulting the active
