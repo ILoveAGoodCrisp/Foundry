@@ -14,6 +14,7 @@ COLLECTION_PATHS = {
     "halo3odst": PureWindowsPath("levels/shader_collections.txt"),
 }
 FOUNDRY_HEADING = "; Foundry shader collections (generated from full shader paths)"
+MAX_PREFIX_LENGTH = 32
 
 
 def _tag_path(value) -> PureWindowsPath:
@@ -121,15 +122,25 @@ class ShaderCollections:
             if _directory_key(pending_directory) == key:
                 return f"{prefix} {shader_name}"
 
-        digest = sha1(key.encode("utf-8")).hexdigest()
-        length = 10
-        prefix = "f_" + digest[:length]
+        # Use the closest asset folder, skipping generic shader folders. Prefixes
+        # are whitespace-delimited in the collection file, so normalize spaces.
+        asset_name = next((part for part in reversed(_tag_path(key).parts)
+                           if part != "shaders"), "collection")
+        asset_name = "_".join(asset_name.split())
+        prefix = asset_name[:MAX_PREFIX_LENGTH]
         used = self.used_prefixes | {p.casefold() for p in self.pending}
+        duplicate = 0
         while prefix.casefold() in used:
-            length += 1
-            if length > len(digest):
+            duplicate += 1
+            number = duplicate
+            letters = ""
+            while number:
+                number, remainder = divmod(number - 1, 26)
+                letters = chr(ord("a") + remainder) + letters
+            suffix = "_" + letters
+            if len(suffix) >= MAX_PREFIX_LENGTH:
                 raise ExportCancelled(f"Could not allocate a shader collection prefix for {directory}")
-            prefix = "f_" + digest[:length]
+            prefix = asset_name[:MAX_PREFIX_LENGTH - len(suffix)] + suffix
         self.pending[prefix] = directory
         return f"{prefix} {shader_name}"
 
