@@ -20,6 +20,7 @@ from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
 import bpy
+from blam_tags import RealRgbColor
 from mathutils import Matrix, Quaternion, Vector
 
 from .process import ExportScene
@@ -903,8 +904,13 @@ class LegacyExportScene(ExportScene):
                     destination,
                     tags_root=self.tags_dir,
                     game='halo1',
-                ):
-                    pass
+                ) as shader:
+                    if shader_type == 'shader_environment':
+                        diffuse = shader.required_field(shader.tag.root(), 'diffuse').as_struct()
+                        channel = 80 / 255
+                        shader.required_field(diffuse, 'material color').set(
+                            RealRgbColor(channel, channel, channel))
+                        shader.tag_has_changes = True
                 existing.add(name.casefold())
                 for mat, _ in candidates:
                     mat.nwo.shader_path = utils.relative_path(destination)
