@@ -1,6 +1,16 @@
 """Shared frame-event names, independent of tag enum ordering."""
 
 
+# H1 stores single events in scalar slots rather than a frame-event block.
+# Keyframes are zero-based; foot slots reserve zero and are one-based.
+HALO1_FRAME_EVENT_SLOTS = {
+    'primary keyframe': ('key frame index', 0),
+    'secondary keyframe': ('second key frame index', 0),
+    'left foot': ('left foot frame index', 1),
+    'right foot': ('right foot frame index', 1),
+}
+
+
 def canonical_frame_event(value: str) -> str:
     """Resolve tag spelling and pre-Reach transitions to stable Blender IDs."""
     key = value.partition('{')[0].strip().replace('_', ' ').casefold()

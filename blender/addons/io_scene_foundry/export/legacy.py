@@ -1159,7 +1159,7 @@ class LegacyExportScene(ExportScene):
                 except ValueError as exc:
                     raise ExportCancelled(str(exc)) from exc
         if animations:
-            print(f'--- Updated inline events for {count} animation(s) in {destination}')
+            print(f'--- Updated frame events for {count} animation(s) in {destination}')
         if settings:
             print(f'--- Updated animation settings for {len(settings)} animation(s) in {destination}')
         if world_animations:

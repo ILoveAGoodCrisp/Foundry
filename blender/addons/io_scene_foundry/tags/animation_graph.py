@@ -7,7 +7,7 @@ from math import degrees, radians
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
-from ..animation_events import canonical_frame_event
+from ..animation_events import HALO1_FRAME_EVENT_SLOTS, canonical_frame_event
 from .backend import RelativeTagPath, TagDocument, TagPathInput, TagReference
 from .blender import BlenderTag
 from .animation_names import (
@@ -1213,7 +1213,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 raise ValueError(
                     f'{self.path}: Tool did not create animation {supplied_name!r}')
             record: dict[str, object] = {
-                'left foot': 0, 'right foot': 0,
+                'slots': {},
                 'frames': [], 'sounds': [], 'effects': [], 'dialogues': [],
             }
             for blender_event in blender_animation.animation_events:
@@ -1233,20 +1233,20 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                         f'{start}..{end}')
                 event_name = self._event_key(blender_event.frame_name)
                 if self.game == 'halo1':
-                    if event_name not in {'none', 'left foot', 'right foot'}:
+                    if event_name != 'none' and event_name not in HALO1_FRAME_EVENT_SLOTS:
                         raise ValueError(
                             f'{supplied_name}: Halo 1 cannot store frame event '
                             f'{blender_event.frame_name!r}')
                     if event_name != 'none':
                         if start != end:
                             raise ValueError(
-                                f'{supplied_name}: Halo 1 foot events cannot span a range')
-                        if record[event_name]:
+                                f'{supplied_name}: Halo 1 {event_name} events cannot span a range')
+                        slots = cast(dict[str, int], record['slots'])
+                        if event_name in slots:
                             raise ValueError(
                                 f'{supplied_name}: Halo 1 stores only one {event_name} event')
-                        # Halo 1 foot slots are one-based because zero is the
-                        # empty sentinel. Sound-frame indices remain zero-based.
-                        record[event_name] = start + 1
+                        _, frame_base = HALO1_FRAME_EVENT_SLOTS[event_name]
+                        slots[event_name] = start + frame_base
                 elif event_name != 'none':
                     frames = cast(list[tuple[str, int]], record['frames'])
                     frames.extend((event_name, frame) for frame in range(start, end + 1))
@@ -1310,10 +1310,10 @@ class AnimationGraphTag(BlenderTag, TagDocument):
         for index, _, record in owned:
             animation = self.block(self._definitions(), 'animations')[index]
             if self.game == 'halo1':
-                self.required_field(animation, 'left foot frame index').set(
-                    record['left foot'])
-                self.required_field(animation, 'right foot frame index').set(
-                    record['right foot'])
+                slots = cast(dict[str, int], record['slots'])
+                for event_name, (field_name, _) in HALO1_FRAME_EVENT_SLOTS.items():
+                    self.required_field(animation, field_name).set(
+                        slots.get(event_name, 0))
                 sounds = cast(list[tuple[tuple[object, ...], int, str]],
                               record['sounds'])
                 self.required_field(animation, 'sound').set(
@@ -1409,11 +1409,7 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             for animation in self.block(definitions, 'animations'):
                 name = str(self.value(animation, 'name'))
                 events: list[AnimationEvent] = []
-                for field_name, event_type, frame_base in (
-                        ('key frame index', 'primary keyframe', 0),
-                        ('second key frame index', 'secondary keyframe', 0),
-                        ('left foot frame index', 'left foot', 1),
-                        ('right foot frame index', 'right foot', 1)):
+                for event_type, (field_name, frame_base) in HALO1_FRAME_EVENT_SLOTS.items():
                     frame = int(self.value(animation, field_name))
                     # Zero means no event. Keyframe indices are zero-based;
                     # foot slots use one-based frame numbers.
