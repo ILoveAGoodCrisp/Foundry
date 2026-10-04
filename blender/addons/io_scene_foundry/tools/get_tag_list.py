@@ -117,7 +117,7 @@ def extensions_from_type(list_type):
         case "marker_game_instance_tag_name":
             return (".crate", ".scenery", ".effect_scenery", ".device_control", ".device_machine", ".device_terminal",
                         ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment",
-                        ".prefab", ".light", ".cheap_light", ".leaf", ".decorator_set")
+                        ".prefab", ".light", ".cheap_light", ".leaf", ".decorator_set", ".decal")
         case 'marker_looping_effect':
             return (".effect")
         case 'marker_light_cone_tag':
@@ -330,7 +330,7 @@ def get_glob_from_prop(prop):
         case 'sky_path':
             return '*.sky;*.scenery'
         case 'marker_game_instance_tag_name':
-            return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light;dec*_set"
+            return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light;dec*_set;*.decal"
         case 'attachment_type':
             return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light;dec*_set"
         case 'fog_appearance_tag':
