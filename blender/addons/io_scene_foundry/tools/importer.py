@@ -93,6 +93,15 @@ def _hand_marker_names(marker_names, side):
                  if name.lower().replace('_', ' ').split()[:2] == [side, 'hand'])
 
 
+def set_imported_face_prop_colors(starting_meshes):
+    """Apply the Add menu's color sequence after import joins and consolidation."""
+    for mesh in bpy.data.meshes:
+        if mesh in starting_meshes:
+            continue
+        for index, prop in enumerate(mesh.nwo.face_props, start=1):
+            prop.color = utils.random_color(index)
+
+
 def _matching_marker_name(preferred, fallback, marker_names):
     """Use the tag marker, then the expected marker or a matching hand variant."""
     marker_names = tuple(marker_names)
@@ -533,13 +542,14 @@ def render_lod_source_project(operator):
     filepath = getattr(operator, 'filepath', '')
     if filepath:
         path = Path(filepath).resolve()
-        for source_project in utils.get_prefs().projects:
-            try:
-                path.relative_to(Path(source_project.tags_directory).resolve())
-            except ValueError:
-                continue
-            project = source_project
-            break
+        try:
+            source_root = getattr(operator, 'source_tags_directory', '')
+            if source_root:
+                return utils.external_project_from_tag(path, bpy.path.abspath(source_root),
+                    bpy.path.abspath(operator.source_data_directory) if operator.source_data_directory else None)
+            project = utils.project_for_file(path) or project
+        except (OSError, ValueError, RuntimeError):
+            return None
     return project
 
 
@@ -1222,7 +1232,9 @@ def resolve_ai_import(file, tags_root, game):
     path = Path(file).resolve()
     root = Path(tags_root).resolve()
     if not path.is_relative_to(root):
-        root = next((parent for parent in path.parents if parent.name.lower() == 'tags'), root)
+        root = utils.source_tags_root(path, root)
+        if root is None:
+            raise ValueError('Choose the source tags folder before importing this AI tag')
     with AIUnitDocument(path, tags_root=root, game=game, must_exist=True) as document:
         return document.resolve_import()
 
@@ -1431,16 +1443,9 @@ class XREF:
             self.preferred_type = ".device_machine"
         if xref_path:
             source_path = PureWindowsPath(xref_path.replace('/', '\\'))
-            parts = source_path.parts
-            data_index = next((i for i, part in enumerate(parts)
-                               if part.casefold() == 'data'), None)
-            tags_index = next((i for i, part in enumerate(parts)
-                               if part.casefold() == 'tags'), None)
-            start = ((data_index + 1) if data_index is not None else
-                     (tags_index + 1) if tags_index is not None else
-                     0 if not source_path.is_absolute() else None)
-            if start is not None:
-                relative_parts = list(parts[start:-1])
+            relative = utils.relative_content_path(source_path, utils.get_tags_path(), utils.get_data_path())
+            if relative is not None:
+                relative_parts = list(relative.parts[:-1])
                 if relative_parts and relative_parts[-1].casefold() in {'render', 'collision', 'physics'}:
                     relative_parts.pop()
                 if not any(part in {'.', '..'} for part in relative_parts):
@@ -1552,7 +1557,7 @@ class NWO_Import(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid()
+        return context.scene is not None and not utils.get_scene_props().export_in_progress
     
     filter_glob: bpy.props.StringProperty(
         default="",
@@ -1567,6 +1572,13 @@ class NWO_Import(bpy.types.Operator):
         subtype='FILE_PATH',
         options={"HIDDEN"},
     )
+
+    source_tags_directory: bpy.props.StringProperty(
+        name='Source Tags Folder', subtype='DIR_PATH', options={'SKIP_SAVE'},
+        description='Optional root for an unregistered tag set with a custom folder name')
+    source_data_directory: bpy.props.StringProperty(
+        name='Source Data Folder', subtype='DIR_PATH', options={'SKIP_SAVE'},
+        description='Optional companion data folder for bitmap extraction and source assets')
 
     import_template: bpy.props.EnumProperty(
         name="Template",
@@ -1967,6 +1979,12 @@ class NWO_Import(bpy.types.Operator):
         description="Uses embedded JMS, ASS, JMA, or Reach+ GR2 source data when available; falls back to compiled tag data if a source cannot be imported",
         default=True,
     )
+
+    gr2_convert_scale: bpy.props.BoolProperty(
+        name="Convert GR2 Scale",
+        description="Convert GR2 source units and apply Foundry's scene scale multiplier. Disable to preserve original source dimensions without either scale conversion. Axis conversion is always applied",
+        default=True,
+    )
     
     def execute(self, context):
         global deferred_ops
@@ -1991,6 +2009,7 @@ class NWO_Import(bpy.types.Operator):
         context.view_layer.update()
         selected_vehicle_biped_matrix = selected_vehicle_biped.matrix_world.copy() if selected_vehicle_biped is not None else None
         starting_materials = set(bpy.data.materials)
+        starting_meshes = set(bpy.data.meshes)
         for_cinematic = scene_nwo.asset_type == 'cinematic'
         self.anchor = None
         self.nothing_imported = False
@@ -2030,13 +2049,17 @@ class NWO_Import(bpy.types.Operator):
                 # Read tags using their source kit without changing the scene project.
                 # Only checking the last file for speed (last file is always self.filepath if there was one).
                 # If another file is a tag, too bad, we won't try to identify its source project
-                utils.set_import_context_from_filepath(Path(filepaths[-1]))
+                utils.set_import_context_from_filepath(
+                    Path(filepaths[-1]),
+                    bpy.path.abspath(self.source_tags_directory) if self.source_tags_directory else None,
+                    bpy.path.abspath(self.source_data_directory) if self.source_data_directory else None)
 
                 scope_list = []
                 if self.scope:
                     scope_list = self.scope.split(',')
                     
                 importer = NWOImporter(context, filepaths, scope_list)
+                importer.gr2_convert_scale = self.gr2_convert_scale
                 importer.build_materials_for_project = self.build_materials_for_project
                 importer.render_lod = self.render_lod
                 if self.use_import_info:
@@ -2857,6 +2880,8 @@ class NWO_Import(bpy.types.Operator):
                 
                 for op in deferred_ops:
                     op()
+
+                set_imported_face_prop_colors(starting_meshes)
                     
                 # # Clamp lights
                 # utils.print_tag("Clamping Lights")
@@ -2871,8 +2896,9 @@ class NWO_Import(bpy.types.Operator):
                 failed = True
             except Exception as e:
                 failed = True
-                if isinstance(e, RuntimeError):
-                    utils.print_warning(traceback.format_exception_only(e)[0][14:])
+                if isinstance(e, (RuntimeError, ValueError)):
+                    utils.print_warning(str(e))
+                    self.report({'WARNING'}, str(e))
                 else:
                     utils.print_error("\n\nException hit. Please include in report\n")
                     traceback.print_exc()
@@ -3019,6 +3045,11 @@ class NWO_Import(bpy.types.Operator):
         corinth = utils.is_corinth(context)
         project = render_lod_source_project(self)
         game = project.game if project is not None else None
+        box = layout.box()
+        box.label(text='Source Folders (optional)')
+        box.prop(self, 'source_tags_directory')
+        if self.source_tags_directory:
+            box.prop(self, 'source_data_directory')
         scope_items = set(self.scope.split(',')) if self.scope else set()
         corinth = project.corinth if project is not None else corinth
         if (utils.get_scene_props().asset_type != 'cinematic' and 'cinematic' not in scope_items
@@ -3026,15 +3057,19 @@ class NWO_Import(bpy.types.Operator):
             box = layout.box()
             box.label(text="Tag Source Data")
             box.prop(self, "use_import_info")
-        if 'gr2' in scope_items:
+        loose_gr2 = 'gr2' in scope_items or (not scope_items and (
+            Path(self.filepath).suffix.lower() == '.gr2'
+            or any(Path(file.name).suffix.lower() == '.gr2' for file in self.files)))
+        if loose_gr2:
             box = layout.box()
             box.label(text="GR2 Settings")
+            box.prop(self, 'gr2_convert_scale')
             box.prop(self, 'reuse_armature')
         if 'sidecar' in scope_items:
             box = layout.box()
             box.label(text="Sidecar Settings")
             box.prop(self, 'setup_as_asset')
-            if 'gr2' not in scope_items:
+            if not loose_gr2:
                 box.prop(self, 'reuse_armature')
         if not self.scope or ('jms' in self.scope or 'model' in self.scope or 'object' in self.scope or 'render_model' in self.scope or 'collision_model' in self.scope or 'physics_model' in self.scope or 'sky' in self.scope):
             box = layout.box()
@@ -3368,15 +3403,16 @@ class NWOImporter:
     def __init__(self, context, filepaths=None, scope=None, existing_scene=False):
         self.scene_nwo = utils.get_scene_props()
         self.scene_nwo_export = utils.get_export_props()
-        self.game = utils.get_project(self.scene_nwo.scene_project).game
-        self.target_game = utils.get_project(
-            self.scene_nwo.scene_project, use_external=False).game
+        source_project = utils.get_project(self.scene_nwo.scene_project)
+        self.game = source_project.game if source_project is not None else 'reach'
+        target_project = utils.get_project(self.scene_nwo.scene_project, use_external=False)
+        self.target_game = target_project.game if target_project is not None else self.game
         self.build_materials_for_project = False
         self.filepaths = list(filepaths) if filepaths else []
         self.context = context
         self.scene = context.scene
         self.scene_collection = self.scene.collection
-        self.tags_dir = utils.get_project(self.scene_nwo.scene_project).tags_directory
+        self.tags_dir = source_project.tags_directory if source_project is not None else ''
         self.tags_path = Path(self.tags_dir)
         self.mesh_objects = []
         self.marker_objects = []
@@ -3461,6 +3497,7 @@ class NWOImporter:
         
         self.tag_model_override_type = None
         self.use_import_info = False
+        self.gr2_convert_scale = True
         self.import_info_output_root = None
         self.import_info_source_cache = {}
         self.import_info_source_index = 0
@@ -3501,13 +3538,14 @@ class NWOImporter:
 
     @staticmethod
     def _import_info_output_path(root: Path, source: ImportInfoSource, index: int) -> Path:
+        relative = utils.relative_content_path(source.path, utils.get_tags_path(), utils.get_data_path())
         parts = [
-            part for part in PureWindowsPath(source.path).parts
+            part for part in (relative or PureWindowsPath(source.path)).parts
             if part not in {'\\', '/', '.', '..'} and ':' not in part
         ]
         data_index = next(
             (i for i, part in enumerate(parts) if part.casefold() == 'data'), None)
-        relative_parts = parts[data_index + 1:] if data_index is not None else parts[-1:]
+        relative_parts = list(relative.parts) if relative is not None else parts[data_index + 1:] if data_index is not None else parts[-1:]
         if not relative_parts:
             relative_parts = [f"source_{index}{source.suffix}"]
         return root.joinpath(*relative_parts)
@@ -3622,9 +3660,11 @@ class NWOImporter:
         collections_before = set(bpy.data.collections)
         meshes_before = set(bpy.data.meshes)
         armatures_before = set(bpy.data.armatures)
+        lights_before = set(bpy.data.lights)
         materials_before = set(bpy.data.materials)
+        images_before = set(bpy.data.images)
         try:
-            objects, _ = self.import_gr2_files(paths, import_animations=False, **kwargs)
+            objects, _ = self.import_gr2_files(paths, import_animations=False, convert_scale=True, **kwargs)
             if not objects:
                 raise ValueError('The embedded GR2 contains no supported objects')
             self.emissive_meshes.update(ob.data for ob in objects if ob.type == 'MESH'
@@ -3641,42 +3681,64 @@ class NWOImporter:
                 bpy.data.collections.remove(collection)
             for blocks, previous in ((bpy.data.meshes, meshes_before),
                                      (bpy.data.armatures, armatures_before),
+                                     (bpy.data.lights, lights_before),
                                      (bpy.data.materials, materials_before)):
                 for block in set(blocks) - previous:
                     if block.users == 0:
                         blocks.remove(block)
+            for image in set(bpy.data.images) - images_before:
+                bpy.data.images.remove(image)
             utils.print_warning(f'Could not import GR2 source for {Path(tag_path).name}: {exc}. Using compiled tag data')
             return None
 
     def import_gr2_files(self, paths, *, tag_armature=None, parent_collection=None,
-                         import_animations=True, animation_name=None, animation_metadata=None, **kwargs):
-        from ..granny.importer import GR2Importer, animation_action, read_gr2
+                         import_animations=True, animation_name=None, animation_metadata=None, convert_scale=None, **kwargs):
+        if convert_scale is not None:
+            from copy import copy
+            self = copy(self)
+            self.gr2_convert_scale = convert_scale
+        from ..granny.importer import GR2Importer, animation_action, canonical_name, read_gr2
         objects, actions = [], []
         for path in paths:
+            file_armatures = []
             data = read_gr2(self, path, animations=import_animations)
-            if data['models'] and (data['meshes'] or any(
+            if data.get('textures') or (data['models'] and (data['meshes'] or any(
                     skeleton['name'].casefold() != 'bungieexportinfo' and skeleton['bones']
-                    for skeleton in data['skeletons'].values())):
+                    for skeleton in data['skeletons'].values()))):
                 adapter = GR2Importer(self, path, data, parent_collection=parent_collection,
                                       tag_armature=tag_armature, **kwargs)
                 objects.extend(adapter.build())
+                file_armatures = adapter.armatures
                 tag_armature = adapter.armature or tag_armature
             if import_animations and data['animations']:
                 armature = tag_armature or utils.get_rig_prioritize_active(self.context)
                 if armature is None:
                     raise ValueError('A GR2 animation requires an armature')
                 for source in data['animations']:
+                    targets = file_armatures or [armature]
+                    if len(targets) > 1:
+                        names = {canonical_name(track['name']) for group in source['groups'] for track in group['tracks']}
+                        targets = [rig for rig in targets if names.intersection(
+                            {canonical_name(bone.name) for bone in rig.data.bones}
+                            | {canonical_name(rig.get('gr2_object_root', '')), canonical_name(rig.name)})]
+                        if not targets:
+                            raise ValueError('GR2 animation has no tracks matching the imported armatures')
                     name = animation_name if animation_name and len(data['animations']) == 1 else source['name'] or Path(path).stem
                     metadata = animation_metadata or {}
                     frame_start = max(0, int(metadata.get('StartFrame', 1)))
-                    action, count = animation_action(self, source, armature, name, frame_start)
-                    actions.append(action)
-                    animation = self.scene_nwo.animations.add()
-                    animation.name = name
-                    animation.frame_start = frame_start
-                    animation.frame_end = round(frame_start + (count - 1) * source['dt'] * self.scene.render.fps / self.scene.render.fps_base)
-                    track = animation.action_tracks.add()
-                    track.object, track.action = armature, action
+                    animation = None
+                    for rig in targets:
+                        action, count = animation_action(self, source, rig, name, frame_start)
+                        actions.append(action)
+                        if animation is None:
+                            animation = self.scene_nwo.animations.add()
+                            animation.name = name
+                            animation.frame_start = frame_start
+                        animation.frame_end = round(frame_start + (count - 1) * source['dt'] * self.scene.render.fps / self.scene.render.fps_base)
+                        track = animation.action_tracks.add()
+                        track.object, track.action = rig, action
+                        if metadata:
+                            action['sidecar_network'] = json.dumps(metadata)
                     if metadata:
                         from ..granny.sidecar import animation_settings
                         for field, value in animation_settings(metadata).items():
@@ -3684,7 +3746,6 @@ class NWOImporter:
                                 setattr(animation, field, value)
                             except (TypeError, ValueError):
                                 utils.print_warning(f'Could not apply sidecar animation setting {field}={value!r}')
-                        action['sidecar_network'] = json.dumps(metadata)
         return objects, actions
 
     def import_sidecar_files(self, paths, *, tag_armature=None, setup_as_asset=True):
@@ -3699,6 +3760,9 @@ class NWOImporter:
 
     def replace_gr2_animation_sources(self, file, armature, actions, animations):
         """Keep graph settings/events while replacing compiled motion with GR2."""
+        from copy import copy
+        self = copy(self)
+        self.gr2_convert_scale = True
         from ..granny.importer import animation_action, read_gr2
         paths = self.gr2_sources_for_tag(file)
         if not paths or not self.graph_import_animations:
@@ -6886,10 +6950,16 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="Uses embedded JMS, ASS, JMA, or Reach+ GR2 source data when available; falls back to compiled tag data if a source cannot be imported",
         default=True,
     )
+
+    gr2_convert_scale: bpy.props.BoolProperty(
+        name="Convert GR2 Scale",
+        description="Convert GR2 source units and apply Foundry's scene scale multiplier. Disable to preserve original source dimensions without either scale conversion. Axis conversion is always applied",
+        default=True,
+    )
     
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid()
+        return NWO_Import.poll(context)
     
     def execute(self, context):
         keywords = self.as_keywords()
@@ -6906,7 +6976,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        utils.set_import_context_from_filepath(Path(self.filepath))
+        try:
+            utils.set_import_context_from_filepath(Path(self.filepath))
+        except (OSError, ValueError, RuntimeError) as error:
+            self.report({'WARNING'}, str(error))
+            utils.clear_external_project()
+            return {'CANCELLED'}
         try:
             return self._invoke_with_source_project(context, event)
         except Exception:
@@ -6945,7 +7020,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
             # self.tag_animation = False
             self.tag_state = "default"
 
-        if self.import_type == 'sidecar':
+        if self.import_type in {'sidecar', 'gr2'}:
             return context.window_manager.invoke_props_dialog(self, width=600)
             
         if self.import_type in {"jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"}:
@@ -7037,9 +7112,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         layout.use_property_split = True
         draw_import_summary(self, layout)
         corinth = utils.is_corinth(context)
-        if self.import_type not in {"sidecar", "cinematic", "jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"} and utils.get_scene_props().asset_type != 'cinematic':
+        if self.import_type not in {"gr2", "sidecar", "cinematic", "jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"} and utils.get_scene_props().asset_type != 'cinematic':
             layout.prop(self, "use_import_info")
         match self.import_type:
+            case 'gr2':
+                layout.prop(self, 'gr2_convert_scale')
+                layout.prop(self, 'reuse_armature')
             case 'sidecar':
                 layout.prop(self, 'setup_as_asset')
                 layout.prop(self, 'reuse_armature')
@@ -7233,7 +7311,11 @@ class NWO_OT_ImportBitmap(bpy.types.Operator):
         if Path(self.filepath).suffix != '.bitmap':
             return {'CANCELLED'}
 
-        utils.set_import_context_from_filepath(Path(self.filepath))
+        try:
+            utils.set_import_context_from_filepath(Path(self.filepath))
+        except (OSError, ValueError, RuntimeError) as error:
+            self.report({'WARNING'}, str(error))
+            return {'CANCELLED'}
         try:
             clear_path_cache()
             importer = NWOImporter(context, [self.filepath], ['bitmap'])
@@ -7307,9 +7389,13 @@ class NWO_OT_ImportShader(bpy.types.Operator):
         if Path(self.filepath).suffix.lower() not in IMPORT_SHADER_EXTENSIONS:
             return {'CANCELLED'}
         
-        mat = bpy.data.materials.new(str(Path(self.filepath).with_suffix("").name))
         project = utils.get_project(use_external=False)
-        utils.set_import_context_from_filepath(Path(self.filepath))
+        try:
+            utils.set_import_context_from_filepath(Path(self.filepath))
+        except (OSError, ValueError, RuntimeError) as error:
+            self.report({'WARNING'}, str(error))
+            return {'CANCELLED'}
+        mat = bpy.data.materials.new(str(Path(self.filepath).with_suffix("").name))
         try:
             shader_path = utils.relative_path(self.filepath)
             mat.name = utils.imported_material_name(mat.name)
@@ -7480,7 +7566,6 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                 # Some decal-system materials are built while reading their
                 # owning tag and have no standalone shader path to rebuild.
                 from .material_game_mapping import convert_material_game
-                from .node_tree_arrange import arrange
                 if convert_material_game(mat, importer.game, importer.target_game):
                     mat.nwo.uses_blender_nodes = True
                     mat.nwo.material_shader = ''
@@ -7491,7 +7576,6 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                                           'shader_glass', 'shader_halogram', 'shader_terrain'}:
                                 mat.nwo.set_shader_type('.' + family, importer.target_game)
                                 break
-                    arrange(mat.node_tree)
         
         for ob in imported_objects:
             for slot_index, slot in enumerate(ob.material_slots):
@@ -7531,8 +7615,18 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
         preview_game = importer.target_game if importer.build_materials_for_project else importer.game
         if meshes:
             print("Updating Foundry mesh previews")
+            materials = {mat for mesh in meshes for mat in mesh.materials if mat is not None}
+            previous_nodes = {mat: set(mat.node_tree.nodes) if mat.node_tree else set()
+                              for mat in materials}
             for mesh in meshes:
-                utils.update_foundry_mesh(mesh, preview_game)
+                utils.update_foundry_mesh(mesh, preview_game, arrange_nodes=False)
+            # Imported shaders already have their final layout. Only place a
+            # material here if the preview refresh added/replaced its wrapper,
+            # and do this once even when many meshes share that material.
+            from .node_layout import layout_nodes
+            for mat in materials:
+                if mat.node_tree and set(mat.node_tree.nodes) != previous_nodes[mat]:
+                    layout_nodes(mat.node_tree)
 
 
 class NWO_ImportGameInstanceTag(bpy.types.Operator):
@@ -7600,6 +7694,7 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
         if collection is None:
             importer = NWOImporter(context)
             starting_materials = set(bpy.data.materials)
+            starting_meshes = set(bpy.data.meshes)
             
             suffix = "Marker"
             if tag_path_full.suffix.lower() == ".prefab":
@@ -7619,6 +7714,7 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
             collection = importer.cache_game_object_collection(merged_collection, tag_path_rel, variant)
             
             setup_materials(context, importer, starting_materials, collection.all_objects, self.build_blender_materials, self.always_extract_bitmaps)
+            set_imported_face_prop_colors(starting_meshes)
             
         ob.instance_type = 'COLLECTION'
         ob.instance_collection = collection
