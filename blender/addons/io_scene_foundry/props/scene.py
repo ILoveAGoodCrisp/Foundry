@@ -3394,17 +3394,17 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Fade In Color", subtype='COLOR', size=3, min=0, max=1,
         default=(0, 0, 0), options=set(),
     )
-    cinematic_fade_in_time: bpy.props.IntProperty(
-        name="Fade In Frames", min=0, options=set(),
-        description="Duration of the Halo 3 / ODST cinematic fade in, in 30 fps frames",
+    cinematic_fade_in_time: bpy.props.FloatProperty(
+        name="Fade In Time", min=0, options=set(), subtype='TIME_ABSOLUTE',
+        description="Duration of the Halo 3 / ODST cinematic fade in, in seconds",
     )
     cinematic_fade_out_color: bpy.props.FloatVectorProperty(
         name="Fade Out Color", subtype='COLOR', size=3, min=0, max=1,
         default=(0, 0, 0), options=set(),
     )
-    cinematic_fade_out_time: bpy.props.IntProperty(
-        name="Fade Out Frames", min=0, options=set(),
-        description="Duration of the Halo 3 / ODST cinematic fade out, in 30 fps frames",
+    cinematic_fade_out_time: bpy.props.FloatProperty(
+        name="Fade Out Time", min=0, options=set(), subtype='TIME_ABSOLUTE',
+        description="Duration of the Halo 3 / ODST cinematic fade out, in seconds",
     )
     skies_authored_from_blender: bpy.props.BoolProperty(
         name="Skies Authored From Blender", default=False, options=set(),
