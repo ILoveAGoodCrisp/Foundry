@@ -53,20 +53,20 @@ def load_projects():
     if not getattr(bpy.context, "scene", None):
         return projects
 
-    nwo = utils.get_scene_props()
     blend_path = bpy.data.filepath
-    project_names = [p.name for p in projects]
-
-    if projects and (not nwo.scene_project or nwo.scene_project not in project_names):
-        if blend_path:
-            for project in projects:
-                if Path(blend_path).is_relative_to(project.project_path):
-                    nwo.scene_project = project.name
-                    break
-            else:
-                nwo.scene_project = projects[0].name
-        else:
-            nwo.scene_project = projects[0].name
+    for scene in bpy.data.scenes:
+        nwo = scene.nwo
+        project = utils.resolve_scene_project(projects, nwo.scene_project_id,
+                                             nwo.scene_project, nwo.scene_project_snapshot)
+        if project is None and not nwo.scene_project_id and blend_path:
+            try:
+                project = utils.matching_project(blend_path, projects, data=True)
+            except ValueError as error:
+                utils.print_warning(str(error))
+        if project is None and not nwo.scene_project_id and not nwo.scene_project and not blend_path and projects:
+            project = projects[0]
+        if project is not None:
+            utils.set_scene_project(nwo, project)
 
     return projects
 
@@ -121,6 +121,7 @@ def load_handler(dummy):
 
     global load_handler_complete, _subscription_owner
 
+    load_handler_complete = False
     context = bpy.context
     nwo = utils.get_scene_props()
 
@@ -181,6 +182,20 @@ def load_handler(dummy):
             subscribe(_subscription_owner)
 
     load_handler_complete = True
+
+
+def initialize_foundry(context):
+    """Apply the same scene setup for explicit launch and project creation."""
+    load_handler(context)
+    load_set_output_state(context)
+    save_object_positions_to_tags(context)
+    if context.space_data and context.space_data.type == 'VIEW_3D':
+        context.space_data.show_region_ui = True
+    bpy.app.timers.register(utils.set_foundry_panel_active, first_interval=0.01)
+    nwo = utils.get_scene_props()
+    projects = utils.get_prefs().projects
+    if projects and not nwo.scene_project:
+        utils.set_scene_project(nwo, projects[0])
 
 
 @persistent
