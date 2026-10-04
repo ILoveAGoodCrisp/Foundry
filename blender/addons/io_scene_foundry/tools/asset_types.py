@@ -92,7 +92,7 @@ def _asset_type_items_for_game(game):
 
 def asset_type_items(self, context):
     project = utils.get_project(use_external=False)
-    return _asset_type_items_for_game(project.game if project else None)
+    return _asset_type_items_for_game(project.game if project else 'reach')
 
 def asset_type_items_creator(self, context):
     project = utils.get_project(self.project, use_external=False)

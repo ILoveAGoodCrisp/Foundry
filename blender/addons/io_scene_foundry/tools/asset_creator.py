@@ -18,7 +18,7 @@ protected_folder_names = "models", "export", "animations", "cinematics", "work",
 class NWO_OT_NewAsset(bpy.types.Operator):
     bl_idname = "nwo.new_asset"
     bl_label = "New Asset"
-    bl_description = "Creates a new asset. Allows exporting the asset to the game"
+    bl_description = "Create an asset folder in data, with a matching tags folder used on export"
     bl_options = set()
 
     @classmethod
@@ -33,12 +33,23 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     use_filter_folder: bpy.props.BoolProperty(default=True)
 
     filepath: bpy.props.StringProperty(
-        name="asset_path",
-        description="Set the location of your asset",
+        name="Asset Location",
+        description="Choose a parent folder inside the project's data directory",
         subtype="FILE_PATH",
     )
     
-    filename: bpy.props.StringProperty(subtype='FILE_NAME')
+    directory: bpy.props.StringProperty(subtype='DIR_PATH', options={'HIDDEN'})
+
+    def update_asset_name(self, context):
+        if context.area and context.area.type == 'FILE_BROWSER':
+            params = context.space_data.params
+            if params and params.filename != self.filename:
+                params.filename = self.filename
+
+    filename: bpy.props.StringProperty(
+        name='Asset Name', subtype='FILE_NAME', update=update_asset_name,
+        description='The name of the asset folder created inside the chosen data folder',
+    )
 
     # work_dir: bpy.props.BoolProperty( # Removed 08/01/2025. Asset philosophy is that the blend exists in the asset root as it IS the asset. Work dir should be for files that contribute to the asset
     #     description="Set whether blend file should be saved to a work directory within the asset folder"
@@ -59,13 +70,14 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     def update_file_directory(self, context: bpy.types.Context):
         if self.project:
             project = utils.get_project(self.project)
-            if project and context.area.type == 'FILE_BROWSER':
+            if project and context.area and context.area.type == 'FILE_BROWSER':
+                self.directory = project.data_directory + os.sep
                 context.space_data.params.directory = bytes(project.data_directory, 'utf-8')
     
     def project_items(self, context):
         items = []
         for i, p in enumerate(utils.get_prefs().projects):
-            items.append((p.name, p.name, '', utils.project_icon(context, p), i))
+            items.append((p.project_id, p.name, f'Tags: {p.tags_directory}\nData: {p.data_directory}', utils.project_icon(context, p), i))
             
         return items
             
@@ -224,19 +236,29 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         ],
     )
 
-    def execute(self, context):
-        project = utils.get_project(self.project)
-        # Work out asset name / asset directory
-        if self.filename:
-            asset_name = self.filename
-            asset_directory = Path(self.filepath)
-        elif Path(self.filepath).relative_to(Path(project.data_directory)) and self.filepath != project.data_directory:
-            asset_name = Path(self.filepath).name
-            asset_directory = Path(self.filepath)
+    def asset_location(self, project, directory=None, filename=None):
+        """Resolve the asset folder beneath the browser's chosen parent."""
+        filename = self.filename if filename is None else filename
+        directory = self.directory if directory is None else directory
+        path = Path(self.filepath or project.data_directory)
+        if filename:
+            asset_name = filename
+            if directory:
+                asset_directory = Path(directory, filename)
+            else:
+                asset_directory = path if path.name == filename else path / filename
+        elif Path(directory or path) != Path(project.data_directory):
+            asset_directory = Path(directory or path)
+            asset_name = asset_directory.name
         else:
             asset_name = f"new_{self.asset_type}_asset"
             asset_directory = Path(project.data_directory, asset_name)
-            
+        return asset_name, asset_directory
+
+    def execute(self, context):
+        project = utils.get_project(self.project)
+        asset_name, asset_directory = self.asset_location(project)
+
         # Check that asset location is valid
         if not asset_directory.is_relative_to(Path(project.data_directory)):
             # User may have selected wrong project for path, attempt to fix
@@ -291,7 +313,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         scene.render.fps = 30
         scene.render.image_settings.tiff_codec = 'LZW'
         # Set Foundry scene settings
-        scene_nwo.scene_project = project.name
+        utils.set_scene_project(scene_nwo, project)
         scene_nwo.sidecar_path = str(sidecar_path)
         scene_nwo.asset_type = self.asset_type
         if scene_nwo.scale != self.scale:
@@ -342,7 +364,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, None, scene_nwo, utils.is_corinth(context), context)
         sidecar.build()
         
-        self.report({"INFO"}, f"Created new {self.asset_type.title()} asset for {self.project}. Asset Name = {asset_name}")
+        self.report({"INFO"}, f"Created {self.asset_type.title()} asset '{asset_name}' for {project.name}")
         
         return {"FINISHED"}
     
@@ -360,6 +382,8 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         col.prop(self, "project", text='')
         project = utils.get_project(self.project)
         if not project: return
+        col.label(text='Choose asset location and name')
+        col.prop(self, 'filename', text='Asset Name')
         col.separator()
         col.prop(self, "asset_type", text="")
         col.label(text="Scale")
@@ -398,12 +422,13 @@ class NWO_OT_NewAsset(bpy.types.Operator):
                 # text="",
                 icon_value=get_icon_id("scenery"),
             )
-            flow.prop(
-                self,
-                "output_effect_scenery",
-                text="Effect",
-                icon_value=get_icon_id("effect_scenery"),
-            )
+            if project.game not in {'halo1', 'halo2'}:
+                flow.prop(
+                    self,
+                    "output_effect_scenery",
+                    text="Effect",
+                    icon_value=get_icon_id("effect_scenery"),
+                )
 
             flow.prop(
                 self,
@@ -502,7 +527,9 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         self.output_vehicle = scene_nwo.output_vehicle
         
         if scene_nwo.scene_project:
-            self.project = scene_nwo.scene_project
+            project = utils.get_project(use_external=False)
+            if project is not None:
+                self.project = project.project_id
             
         self.asset_type = scene_nwo.asset_type
             
@@ -512,6 +539,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
                 self.filepath = str(Path(bpy.data.filepath).parent) + os.sep
             else:
                 self.filepath = project.data_directory + os.sep
+            self.directory = self.filepath
         
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
