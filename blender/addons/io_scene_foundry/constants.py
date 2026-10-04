@@ -67,33 +67,6 @@ class object_type(Enum):
 
 MATERIAL_SHADERS_DIR = r'shaders\material_shaders'
 
-# Protected material names, we never let the user set shader paths for these
-PROTECTED_MATERIALS = (
-    "+sky",
-    "+seamsealer",
-    "+seam",
-    "InvisibleSky",
-    "Physics",
-    "Seam",
-    "Portal",
-    "Collision",
-    "PlayerCollision",
-    "WallCollision",
-    "BulletCollision",
-    "CookieCutter",
-    "RainBlocker",
-    "WaterVolume",
-    "Structure",
-    "WeatherPoly",
-    "Override",
-    "SeamSealer",
-    "SlipSurface",
-    "SoftCeiling",
-    "SoftKill",
-    "InvisibleMesh",
-    "LightmapRegion",
-)
-
 MAT_SEAMSEALER = '+seamsealer'
 MAT_SKY = '+sky'
 MAT_SEAM = '+seam'
