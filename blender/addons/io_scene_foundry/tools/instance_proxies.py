@@ -364,13 +364,13 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         items = []
         nwo = context.object.data.nwo
         if not nwo.proxy_collision:
-            items.append(("collision", "Collision", ""))
+            items.append(("collision", "Collision", "", 0))
         for i in range(200):
             if not getattr(nwo, f"proxy_physics{i}"):
-                items.append(("physics", "Physics", ""))
+                items.append(("physics", "Physics", "", 1))
                 break
         if not is_corinth(context) and not nwo.proxy_cookie_cutter:
-            items.append(("cookie_cutter", "Cookie Cutter", ""))
+            items.append(("cookie_cutter", "Cookie Cutter", "", 2))
 
         return items
 
@@ -582,11 +582,23 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
 
         return {'FINISHED'}
 
+    def ensure_available_options(self, context):
+        types = [item[0] for item in self.proxy_type_items(context)]
+        if not types:
+            self.report({'WARNING'}, "No instance proxy slots are available")
+            return False
+        if self.proxy_type not in types:
+            self.proxy_type = types[0]
+        sources = [item[0] for item in self.proxy_source_items(context)]
+        if self.proxy_source not in sources:
+            self.proxy_source = sources[0]
+        return True
+
     def execute(self, context):
+        if not self.ensure_available_options(context):
+            return {'CANCELLED'}
         self.parent = context.object
         proxy_type = self.proxy_type
-        if proxy_type == "":
-            proxy_type = self.proxy_type_items(context)[0][0]
             
         if self.proxy_source == "coacd":
             if proxy_type != "physics":
@@ -638,6 +650,8 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
+        if not self.ensure_available_options(context):
+            return {'CANCELLED'}
         wm = context.window_manager
         return wm.invoke_props_dialog(self)
     
@@ -658,6 +672,114 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         if self.proxy_source != "coacd":
             col.prop(self, "proxy_edit", text="Edit Proxy")
     
+class NWO_ProxyInstanceCopyToSelected(bpy.types.Operator):
+    bl_idname = "nwo.proxy_instance_copy_to_selected"
+    bl_label = "Copy to Selected"
+    bl_description = "Copy the active instance's proxies to the other selected mesh objects"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    copy_mode: bpy.props.EnumProperty(
+        name="Copy Method",
+        items=[
+            ("DUPLICATE", "Duplicate", "Create independent proxy objects and meshes"),
+            ("LINKED", "Duplicate and Link", "Create proxy objects sharing the source proxy meshes"),
+        ],
+        default="DUPLICATE",
+    )
+
+    @staticmethod
+    def proxy_slots():
+        return ("proxy_collision", "proxy_cookie_cutter", *(f"proxy_physics{i}" for i in range(200)))
+
+    @staticmethod
+    def targets(context):
+        return [
+            ob for ob in context.selected_objects
+            if ob != context.object and ob.type == 'MESH' and ob.data is not None
+            and ob.is_editable and ob.data.is_editable and not ob.nwo.proxy_type
+        ]
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        return (
+            context.mode == 'OBJECT' and ob is not None and ob.type == 'MESH'
+            and ob in context.selected_objects and not ob.nwo.proxy_type
+            and any(getattr(ob.data.nwo, slot, None) is not None for slot in cls.proxy_slots())
+            and bool(cls.targets(context))
+        )
+
+    def invoke(self, context, _event):
+        self.copy_mode = 'DUPLICATE'
+        return context.window_manager.invoke_props_dialog(self, width=400)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text=f"Copy proxies from {context.object.name}")
+        layout.prop(self, "copy_mode", expand=True)
+        layout.label(text="Replaces existing proxies on selected mesh objects.")
+
+    def execute(self, context):
+        if not self.poll(context):
+            self.report({'WARNING'}, "Select an active instance with proxies and another editable mesh object")
+            return {'CANCELLED'}
+
+        source = context.object
+        slots = self.proxy_slots()
+        source_proxies = {slot: getattr(source.data.nwo, slot, None) for slot in slots}
+        created_objects = []
+        created_meshes = []
+        assignments = []
+        targets = self.targets(context)
+        try:
+            for target in targets:
+                # Proxy pointers live on the mesh: isolate this target from the
+                # source and any other objects using the same instance mesh.
+                original_mesh = target.data
+                target_mesh = original_mesh
+                if original_mesh.users > 1:
+                    target_mesh = original_mesh.copy()
+                    created_meshes.append(target_mesh)
+                old_proxies = {slot: getattr(original_mesh.nwo, slot, None) for slot in slots}
+                copies = {}
+                target_proxies = {}
+                for slot, proxy in source_proxies.items():
+                    if proxy is None:
+                        target_proxies[slot] = None
+                        continue
+                    if proxy not in copies:
+                        duplicate = proxy.copy()
+                        created_objects.append(duplicate)
+                        if self.copy_mode == 'DUPLICATE':
+                            duplicate.data = proxy.data.copy()
+                            created_meshes.append(duplicate.data)
+                        duplicate.name = f"{target.name}_{slot}"
+                        duplicate.parent = target.parent if target.parent and target.parent.type == 'ARMATURE' else None
+                        duplicate.matrix_world = target.matrix_world.copy()
+                        copies[proxy] = duplicate
+                    target_proxies[slot] = copies[proxy]
+
+                assignments.append((target, original_mesh, old_proxies))
+                target.data = target_mesh
+                for slot, proxy in target_proxies.items():
+                    setattr(target_mesh.nwo, slot, proxy)
+        except Exception as exc:
+            for target, original_mesh, old_proxies in reversed(assignments):
+                target.data = original_mesh
+                for slot, proxy in old_proxies.items():
+                    setattr(original_mesh.nwo, slot, proxy)
+            for duplicate in reversed(created_objects):
+                bpy.data.objects.remove(duplicate, do_unlink=True)
+            for mesh in reversed(created_meshes):
+                if mesh.users == 0:
+                    bpy.data.meshes.remove(mesh)
+            self.report({'ERROR'}, f"Could not copy instance proxies: {exc}")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Copied instance proxies to {len(targets)} selected objects")
+        return {'FINISHED'}
+
+
 class NWO_ProxyInstanceDelete(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_delete"
     bl_description = "Unlinks a proxy object"
@@ -763,4 +885,3 @@ class NWO_ProxyInstanceCancel(bpy.types.Operator):
     def execute(self, context):
         get_scene_props().instance_proxy_running = False
         return {'FINISHED'}
-
