@@ -1085,7 +1085,8 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
 
         prop = self.me.nwo.face_props[self.attribute_index]
         self.attribute_name = prop.attribute_name
-        self.color = prop.color
+        self.color = (prop.material_lighting_emissive_color
+                      if prop.type == 'emissive' else prop.color)
         self.alpha = 0
         self.batch = None
         self.handler = None

@@ -653,6 +653,8 @@ class NWO_OT_ExportFrameEvents(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
+        if not utils.current_project_valid():
+            return False
         tag_path = utils.get_asset_tag(".model_animation_graph", True)
         return tag_path is not None and Path(tag_path).exists()
     

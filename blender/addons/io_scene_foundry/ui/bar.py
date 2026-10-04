@@ -1,5 +1,4 @@
 import multiprocessing
-from functools import partial
 from pathlib import Path
 import bpy
 
@@ -11,7 +10,7 @@ from ..tags.lightmapper_globals import LightmapperGlobalsTag
 
 from .. import utils
 from .. import icons
-from ..icons import get_icon_id, get_icon_id_in_directory
+from ..icons import get_icon_id
 from .. import startup
 
 import blf
@@ -55,27 +54,10 @@ def display_fading_text(text, position=(200, 200), size=50, fade_in_start=1, fad
     bpy.context.area.tag_redraw()
     bpy.ops.screen.animation_play()
     
-def invoke_project_add(window):
-    screen = getattr(window, "screen", None)
-    if screen is None:
-        return
-
-    area = next((area for area in screen.areas if area.type == "VIEW_3D"), None)
-    if area is None:
-        return
-
-    region = next((region for region in area.regions if region.type == "WINDOW"), None)
-    override = {"window": window, "area": area}
-    if region is not None:
-        override["region"] = region
-
-    with bpy.context.temp_override(**override):
-        bpy.ops.nwo.project_add("INVOKE_DEFAULT")
-
 class NWO_OT_StartFoundry(bpy.types.Operator):
     bl_idname = "nwo.launch_foundry"
-    bl_label = "Launch Foundry"
-    bl_description = "Loads the Foundry UI for the first time. Only has to be done once post install"
+    bl_label = "Load Foundry Panel"
+    bl_description = "Initialize Foundry's scene defaults and open its panel"
     bl_options = {"UNDO"}
     
     @classmethod
@@ -83,21 +65,7 @@ class NWO_OT_StartFoundry(bpy.types.Operator):
         return True
     
     def execute(self, context):
-        startup.load_handler(context)
-        startup.load_set_output_state(context)
-        startup.save_object_positions_to_tags(context)
-        scene_nwo = utils.get_scene_props()
-        if context.space_data and context.space_data.type == 'VIEW_3D':
-            context.space_data.show_region_ui = True
-            
-        bpy.app.timers.register(utils.set_foundry_panel_active, first_interval=0.01)
-        projects = utils.get_prefs().projects
-        if not projects:
-            bpy.app.timers.register(partial(invoke_project_add, context.window), first_interval=0.02)
-        elif not scene_nwo.scene_project:
-            scene_nwo.scene_project = projects[0].name
-        # self.report({'INFO'}, "Welcome to Foundry!")
-        # display_fading_text("Foundry Loaded")
+        startup.initialize_foundry(context)
         return {"FINISHED"}
     
 class NWO_OT_ReloadIcons(bpy.types.Operator):
@@ -131,8 +99,7 @@ class NWO_MT_ProjectChooserMenu(bpy.types.Menu):
 
     @classmethod
     def poll(self, context):
-        prefs = utils.get_prefs()
-        return prefs.projects
+        return context.scene is not None
 
     def draw(self, context):
         layout = self.layout
@@ -140,12 +107,8 @@ class NWO_MT_ProjectChooserMenu(bpy.types.Menu):
         projects = prefs.projects
         for p in projects:
             name = p.name
-            thumbnail = Path(p.project_path, p.image_path)
-            if thumbnail.is_file():
-                icon_id = get_icon_id_in_directory(str(thumbnail))
-            else:
-                icon_id = utils.project_game_icon(context, p)
-            layout.operator("nwo.project_select", text=name, icon_value=icon_id).project_name = name
+            icon_id = utils.project_icon(context, p)
+            layout.operator("nwo.project_select", text=name, icon_value=icon_id).project_name = p.project_id
 
         if self.bl_idname == "NWO_MT_ProjectChooser":
             layout.operator("nwo.project_add", text="New Project", icon="ADD").set_scene_project = True
@@ -169,11 +132,15 @@ class NWO_OT_ProjectChooser(bpy.types.Operator):
 
     def execute(self, context):
         nwo = utils.get_scene_props()
-        nwo.scene_project = self.project_name
+        project = utils.get_project(self.project_name, use_external=False)
+        if project is None:
+            self.report({'WARNING'}, 'Project configuration no longer exists')
+            return {'CANCELLED'}
+        utils.set_scene_project(nwo, project)
         return {'FINISHED'}
     
     def draw(self, context):
-        self.layout.label("Blender needs to restart in order to load a different project. Save and restart now?")
+        self.layout.label('Select the editing kit and content folders for this asset')
     
 class NWO_HaloLauncherExplorerSettings(bpy.types.Panel):
     bl_label = "Explorer Settings"
@@ -506,17 +473,13 @@ class NWO_HaloExportSettings(bpy.types.Panel):
             col.prop(scene_nwo_export, "event_level", text="")
         if asset_type == 'camera_track_set':
             return
-        if utils.uses_legacy_export(scene_nwo.scene_project):
-            if utils.get_project(scene_nwo.scene_project).game == 'halo1':
-                col.prop(scene_nwo_export, "legacy_maya_order")
+        if utils.uses_legacy_export(scene_nwo.scene_project) and not halo1:
             col.prop(scene_nwo_export, "legacy_generate_checksum")
             if not scene_nwo_export.legacy_generate_checksum:
                 col.prop(scene_nwo_export, "legacy_file_checksum")
         scenario = asset_type == "scenario"
-        if scenario and project and project.game in {'halo1', 'halo2'}:
+        if scenario and project and project.game == 'halo2':
             col.prop(scene_nwo_export, "import_wrl")
-        if halo1 and scenario:
-            col.prop(scene_nwo_export, "halo1_fix_phantom_bsp")
         render = utils.poll_ui(("model", "sky"))
         scenario_lightmap = (h4 and render) or scenario
         if (render and not halo1) or scenario:
@@ -570,7 +533,7 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
         scene_nwo_export = utils.get_export_props()
         scene_nwo = utils.get_scene_props()
         project = utils.get_project(scene_nwo.scene_project)
-        game = project.game if project else None
+        game = project.game if project else 'reach'
 
         layout.use_property_split = False
         flow = layout.grid_flow(
@@ -637,8 +600,10 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
     def poll(self, context):
         scene_nwo = utils.get_scene_props()
         project = utils.get_project(scene_nwo.scene_project)
-        game = project.game if project else None
-        if game in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
+        game = project.game if project else 'reach'
+        if game == 'halo1':
+            return utils.poll_ui(('model', 'scenario', 'sky', 'animation'))
+        if game in {'halo2', 'halo3', 'halo3odst'}:
             return utils.poll_ui(('scenario',))
         return utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation', 'multi_model', 'multi_prefab'))
 
@@ -663,9 +628,17 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
         )
         col = flow.column()
         if utils.uses_legacy_export(scene_nwo.scene_project):
+            project = utils.get_project(scene_nwo.scene_project)
+            if project and project.game == 'halo1':
+                col.prop(scene_nwo_export, "legacy_maya_order")
+                col.prop(scene_nwo_export, "legacy_generate_checksum")
+                if not scene_nwo_export.legacy_generate_checksum:
+                    col.prop(scene_nwo_export, "legacy_file_checksum")
+                if scenario:
+                    col.prop(scene_nwo_export, "import_wrl")
+                    col.prop(scene_nwo_export, "halo1_fix_phantom_bsp")
             if scenario:
                 col.prop(scene_nwo_export, "preserve_non_asset_bsps")
-                project = utils.get_project(scene_nwo.scene_project)
                 if project and project.game in {'halo1', 'halo2'}:
                     return
                 col.prop(scene_nwo_export, "create_debug_zone_set")
@@ -833,6 +806,10 @@ class NWO_HaloExport(bpy.types.Operator):
     bl_idname = "nwo.export_quick"
     bl_label = "Quick Export"
     bl_description = "Exports the current Halo asset and creates tags"
+
+    @classmethod
+    def poll(cls, context):
+        return utils.current_project_valid()
 
     def execute(self, context):
         scene_nwo_export = utils.get_export_props()
@@ -1444,6 +1421,15 @@ def draw_foundry_nodes_toolbar(self, context):
     #if context.region.alignment == 'RIGHT':
     foundry_nodes_toolbar(self.layout, context)
 
+def draw_project_selection_toolbar(row, context):
+    if utils.get_prefs().projects:
+        row.menu('NWO_MT_ProjectChooser', text='Select Project', icon_value=utils.project_game_icon(context))
+    else:
+        row.operator('nwo.project_add', text='Add First Project').set_scene_project = True
+    row.operator('nwo.reload_icons', text='', icon='FILE_REFRESH')
+    row.prop(utils.get_scene_props(), 'toolbar_expanded', text='', icon_value=get_icon_id('foundry'))
+
+
 def foundry_nodes_toolbar(layout, context):
     row = layout.row()
     nwo = utils.get_scene_props()
@@ -1451,6 +1437,9 @@ def foundry_nodes_toolbar(layout, context):
     box = row.box()
     box.scale_x = 0.3
     box.label(text="")
+    if utils.get_project(use_external=False) is None:
+        draw_project_selection_toolbar(row, context)
+        return
     if not nwo.toolbar_expanded:
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
@@ -1485,6 +1474,9 @@ def foundry_toolbar(layout, context):
     if not startup.load_handler_complete:
         sub = row.row()
         sub.operator("nwo.launch_foundry")
+        return
+    if utils.get_project(use_external=False) is None:
+        draw_project_selection_toolbar(row, context)
         return
     if not nwo.toolbar_expanded:
         sub_foundry = row.row(align=True)
@@ -1557,7 +1549,7 @@ def foundry_toolbar(layout, context):
         sub2.operator(
             "nwo.launch_foundation",
             text="" if icons_only else "Tag Editor",
-            icon_value=get_icon_id("foundation") if utils.get_prefs().tag_editor == 'default' else get_icon_id("bonobo"),
+            icon_value=utils.get_tag_editor_icon_id(),
         )
         sub2.popover(panel="NWO_PT_HaloLauncherFoundationSettings", text="")
         if utils.has_gr2_viewer():

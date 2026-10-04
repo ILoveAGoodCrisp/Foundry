@@ -6,17 +6,14 @@ from ...icons import get_icon_id
 
 from ... import constants
 from ... import utils
+from ... import startup
 from ..bar import draw_halo1_lightmap_settings
 import bpy
 
 from ...props.object import IgnoreReason
 
-FOUNDRY_DOCS = r"https://c20.reclaimers.net/general/community-tools/foundry"
+FOUNDRY_DOCS = r"https://halomods.com/Tools/Foundry"
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry"
-
-BLENDER_TOOLSET = r"https://github.com/General-101/Halo-Asset-Blender-Development-Toolset/releases"
-RECLAIMER = r"https://github.com/Gravemind2401/Reclaimer/releases"
-ANIMATION_REPO = r"https://github.com/77Mynameislol77/HaloAnimationRepository"
 
 from mathutils import Vector
 
@@ -193,17 +190,6 @@ def _draw_event_influence_property(layout, item, animation, context: bpy.types.C
     op = layout.operator("nwo.key_event_influence_property", icon='KEY_HLT', text="Key Root Influence")
     op.single_animation = single_animation
 
-HOTKEYS = [
-    ("show_foundry_panel", "SHIFT+F"),
-    ("apply_mesh_type", "CTRL+F"),
-    ("apply_marker_type", "ALT+F"),
-    ("halo_join", "ALT+J"),
-    ("move_to_halo_collection", "ALT+M"),
-    ("translate_bone_without_children", "CTRL+SHIFT+G"),
-    ("rotate_bone_without_children", "CTRL+SHIFT+R"),
-    ("resize_bone_without_children", "CTRL+SHIFT+S"),
-]
-
 PANELS_PROPS = [
     "scene_properties",
     "asset_editor",
@@ -362,12 +348,18 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     
     @classmethod
     def poll(cls, context):
-        return utils.get_prefs().projects and utils.get_scene_props().scene_project
+        return context.scene is not None and hasattr(context.scene, 'nwo')
 
     def draw(self, context):
         self.context = context
         layout = self.layout
-        self.h4 = utils.is_corinth(context)
+        if not utils.get_prefs().projects:
+            from ...preferences import draw_first_project_setup
+            draw_first_project_setup(layout)
+        if not startup.load_handler_complete:
+            layout.operator('nwo.launch_foundry')
+            return
+        self.h4 = utils.get_game(use_external=False) in {'halo4', 'halo2a'}
         self.scene = context.scene
         self.scene_nwo = utils.get_scene_props()
         self.scene_nwo_export = utils.get_export_props()
@@ -472,7 +464,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.label(text="Scene Project")
         row = col.row()
         row.scale_y = 1.1
-        row.menu("NWO_MT_ProjectChooser", text=self.scene_nwo.scene_project, icon_value=utils.project_icon(bpy.context))
+        project = utils.get_project(use_external=False)
+        row.menu("NWO_MT_ProjectChooser", text=project.name if project else 'Select Project',
+                 icon_value=utils.project_icon(bpy.context))
+        if project and project.game in {'halo1', 'halo2'}:
+            col.label(text=f'Tags: {project.tags_directory}')
+            col.label(text=f'Data: {project.data_directory}')
         
         if utils.nwo_asset_type() in ('model', 'scenario', 'sky'):
             col.label(text="File Collections")
@@ -553,7 +550,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 # self.draw_expandable_box(self.box.box(), nwo, 'zone_sets')
                 self.draw_expandable_box(self.box.box(), nwo, 'lighting')
                 project = utils.get_project(nwo.scene_project)
-                game = project.game if project else None
+                game = utils.get_game(nwo.scene_project, use_external=False)
+                if game == 'halo1':
+                    self.draw_expandable_box(self.box.box(), nwo, 'decals')
                 if game == 'reach' or self.h4:
                     self.draw_expandable_box(self.box.box(), nwo, 'decorators')
                 if game == 'reach':
@@ -882,7 +881,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_scenario(self, box: bpy.types.UILayout, nwo):
         tag_path = utils.get_asset_tag(".scenario")
         if tag_path:
-            box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Scenario Tag").tag_path = tag_path
+            box.operator('nwo.open_foundation_tag', icon_value=utils.get_tag_editor_icon_id(), text="Open Scenario Tag").tag_path = tag_path
         col = box.column()
         col.use_property_split = True
         draw_tag_path(col, nwo, "template_scenario")
@@ -907,6 +906,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = "sky_path"
         col.operator("nwo.scenario_skies_update", text="Update Scenario Skies", icon_value=get_icon_id('sky'))
         
+    def draw_decals(self, box: bpy.types.UILayout, nwo):
+        box.prop(nwo, "decals_from_blender")
+        if nwo.decals_from_blender:
+            box.operator("nwo.export_decals", icon='EXPORT')
+
     def draw_decorators(self, box: bpy.types.UILayout, nwo):
         box_decorators = box.box()
         box_decorators.label(text="Decorators")
@@ -930,7 +934,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw_lighting(self, box: bpy.types.UILayout, nwo):
         scene_nwo_export = self.scene_nwo_export
         project = utils.get_project(nwo.scene_project)
-        game = project.game if project else None
+        game = utils.get_game(nwo.scene_project, use_external=False)
         _, asset_name = utils.get_asset_info()
         if self.asset_type == 'scenario':
             lighting_name = "Lightmap Scenario"
@@ -950,11 +954,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         name = path.with_suffix("").name
                         if name.startswith(asset_name):
                             name = name[len(asset_name) + 1:]
-                        box_lights.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open {name} Lighting Tag").tag_path = str(path)
+                        box_lights.operator('nwo.open_foundation_tag', icon_value=utils.get_tag_editor_icon_id(), text=f"Open {name} Lighting Tag").tag_path = str(path)
             else:
                 tag_path = utils.get_asset_tag(".scenario_structure_lighting_info")
                 if tag_path:
-                    box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open Lighting Tag").tag_path = tag_path
+                    box.operator('nwo.open_foundation_tag', icon_value=utils.get_tag_editor_icon_id(), text=f"Open Lighting Tag").tag_path = tag_path
         
         box_lightmapping = box.box()
         box_lightmapping.label(text="Lightmapping")
@@ -1041,7 +1045,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = box.column()
         if nwo.asset_type == "model":
             project = utils.get_project(nwo.scene_project)
-            game = project.game if project else None
+            game = utils.get_game(nwo.scene_project, use_external=False)
             col.label(text="Output Tags")
             row = col.grid_flow(
                 row_major=True,
@@ -1066,12 +1070,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 # text="",
                 icon_value=get_icon_id("scenery"),
             )
-            row.prop(
-                nwo,
-                "output_effect_scenery",
-                text="Effect",
-                icon_value=get_icon_id("effect_scenery"),
-            )
+            if game not in {'halo1', 'halo2'}:
+                row.prop(
+                    nwo,
+                    "output_effect_scenery",
+                    text="Effect",
+                    icon_value=get_icon_id("effect_scenery"),
+                )
 
             row.prop(
                 nwo,
@@ -1144,7 +1149,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 self.draw_expandable_box(col.box(), nwo, 'crate')
             if nwo.output_scenery:
                 self.draw_expandable_box(col.box(), nwo, 'scenery')
-            if nwo.output_effect_scenery:
+            if game not in {'halo1', 'halo2'} and nwo.output_effect_scenery:
                 self.draw_expandable_box(col.box(), nwo, 'effect_scenery')
             if nwo.output_device_control:
                 self.draw_expandable_box(col.box(), nwo, 'device_control')
@@ -1174,7 +1179,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box.operator('nwo.load_template', icon='DUPLICATE').tag_type = tag_type
         tag_path = utils.get_asset_tag(tag_type)
         if tag_path:
-            box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open {tag_type.capitalize()} Tag").tag_path = tag_path
+            box.operator('nwo.open_foundation_tag', icon_value=utils.get_tag_editor_icon_id(), text=f"Open {tag_type.capitalize()} Tag").tag_path = tag_path
         
     def draw_crate(self, box: bpy.types.UILayout, nwo):
         self.draw_output_tag(box, nwo,'crate')
@@ -1229,7 +1234,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             tag_path = utils.get_asset_tag(".model")
             if tag_path:
                 row = box.row(align=True)
-                row.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Model Tag").tag_path = tag_path
+                row.operator('nwo.open_foundation_tag', icon_value=utils.get_tag_editor_icon_id(), text="Open Model Tag").tag_path = tag_path
         self.draw_expandable_box(box.box(), nwo, 'render_model', 'Model' if halo1 else '')
         self.draw_expandable_box(box.box(), nwo, 'collision_model')
         self.draw_expandable_box(box.box(), nwo, 'animation_graph')
@@ -1244,7 +1249,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if tag_path:
             col.separator()
             text = "Open Model Tag" if halo1 else "Open Render Model Tag"
-            col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=text).tag_path = tag_path
+            col.operator('nwo.open_foundation_tag', icon_value=utils.get_tag_editor_icon_id(), text=text).tag_path = tag_path
     
     def draw_collision_model(self, box: bpy.types.UILayout, nwo):
         col = box.column()
@@ -1252,7 +1257,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         tag_path = utils.get_asset_collision_model()
         if tag_path:
             col.separator()
-            col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Collision Model Tag").tag_path = tag_path
+            col.operator('nwo.open_foundation_tag', icon_value=utils.get_tag_editor_icon_id(), text="Open Collision Model Tag").tag_path = tag_path
     
     def draw_animation_graph(self, box: bpy.types.UILayout, nwo):
         col = box.column()
@@ -1276,12 +1281,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row.prop(nwo, "blend_screens_from_blender")
         tag_path = utils.get_asset_animation_graph()
         if tag_path:
-            col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Animation Graph Tag").tag_path = tag_path
+            col.operator('nwo.open_foundation_tag', icon_value=utils.get_tag_editor_icon_id(), text="Open Animation Graph Tag").tag_path = tag_path
         project = utils.get_project(nwo.scene_project)
         if project and project.game not in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
             frame_events_tag_path = utils.get_asset_tag(".frame_event_list")
             if frame_events_tag_path:
-                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Frame Events List Tag").tag_path = frame_events_tag_path
+                col.operator('nwo.open_foundation_tag', icon_value=utils.get_tag_editor_icon_id(), text="Open Frame Events List Tag").tag_path = frame_events_tag_path
         self.draw_expandable_box(box.box(), nwo, 'animation_copies')
         # if self.h4:
         #     self.draw_expandable_box(box.box(), nwo, 'animation_composites')
@@ -1293,7 +1298,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         tag_path = utils.get_asset_physics_model()
         if tag_path:
             col.separator()
-            col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Physics Model Tag").tag_path = tag_path
+            col.operator('nwo.open_foundation_tag', icon_value=utils.get_tag_editor_icon_id(), text="Open Physics Model Tag").tag_path = tag_path
     
     # def draw_model_overrides(self, box: bpy.types.UILayout, nwo):
     #     asset_dir, asset_name = utils.get_asset_info()
@@ -2047,7 +2052,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row.operator_menu_enum("nwo.get_model_markers", "marker", icon="DOWNARROW_HLT", text="")
         row = col.row(align=True)
         row.enabled = nwo.cinematic_lighting in {'PERSIST', 'PER_SHOT'}
-        row.operator("nwo.open_cinematic_lighting_tag", icon_value=get_icon_id("foundation"), text=f"Open Cinematic Lighting Tag for Shot {self.scene.nwo.current_shot}")
+        row.operator("nwo.open_cinematic_lighting_tag", icon_value=utils.get_tag_editor_icon_id(), text=f"Open Cinematic Lighting Tag for Shot {self.scene.nwo.current_shot}")
         col.separator()
         col.prop(nwo, "object_source")
         col.label(text="Flags")
@@ -3012,7 +3017,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.prop(nwo, "decorator_motion_scale")
                     col.prop(nwo, "decorator_ground_tint")
                     col.prop(nwo, "decorator_tint")
-                elif not tag_name in (".prefab", ".cheap_light", ".light", ".leaf"):
+                elif not tag_name in (".prefab", ".cheap_light", ".light", ".leaf", ".decal"):
                     row = col.row(align=True)
                     row.prop(
                         nwo,
@@ -3232,14 +3237,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             elif nwo.marker_type == "_connected_geometry_marker_type_envfx" and h4:
                 draw_tag_path(col, nwo, "marker_looping_effect")
                 if nwo.marker_looping_effect.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.marker_looping_effect)).exists():
-                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.marker_looping_effect
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=utils.get_tag_editor_icon_id()).tag_path = nwo.marker_looping_effect
 
             elif (
                 nwo.marker_type == "_connected_geometry_marker_type_lightCone" and h4
             ):
                 draw_tag_path(col, nwo, "marker_light_cone_tag")
                 if nwo.marker_light_cone_tag.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.marker_light_cone_tag)).exists():
-                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.marker_light_cone_tag
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=utils.get_tag_editor_icon_id()).tag_path = nwo.marker_light_cone_tag
                 col.prop(nwo, "marker_light_cone_color", text='Color')
                 # col.prop(nwo, "marker_light_cone_alpha", text='Alpha')
                 col.prop(nwo, "marker_light_cone_intensity", text='Intensity')
@@ -3247,7 +3252,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(nwo, "marker_light_cone_length", text='Length')
                 draw_tag_path(col, nwo, "marker_light_cone_curve")
                 if nwo.marker_light_cone_curve.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.marker_light_cone_curve)).exists():
-                    row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.marker_light_cone_curve
+                    row.operator("nwo.open_foundation_tag", text="", icon_value=utils.get_tag_editor_icon_id()).tag_path = nwo.marker_light_cone_curve
                 
         elif ob.type == 'ARMATURE' and utils.poll_ui(
             ("model", "scenario", "sky", "animation", "prefab")):
@@ -3467,6 +3472,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     icon="TRASH",
                 )
     
+        if len(self.context.selected_objects) > 1:
+            row = box.row()
+            row.scale_y = 1.3
+            row.operator("nwo.proxy_instance_copy_to_selected", text="Copy to Selected", icon="DUPLICATE")
+
     def draw_material_properties(self):
         box = self.box
         row = box.row()
@@ -3564,7 +3574,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     # row.scale_y = 1.5
                     col.operator(
                         "nwo.open_halo_material",
-                        icon_value=get_icon_id("foundation"),
+                        icon_value=utils.get_tag_editor_icon_id(),
                         text=f"Open {txt} Tag"
                     )
                     shader_path = mat.nwo.shader_path
@@ -3577,9 +3587,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col = box.column()
                     col.label(text=f'{txt} Export Tools')
                     col.operator("nwo.shader_duplicate", icon='DUPLICATE')
-                    if utils.material_read_only(nwo.shader_path):
-                        col.label(text=f"{txt} is read only")
-                        return
                     col.prop(nwo, "uses_blender_nodes", text=f"Link Tag to Nodes", icon='NODETREE')
                     if nwo.uses_blender_nodes:
                         col.operator("nwo.build_shader_single", text=f"Update {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
@@ -3671,7 +3678,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col_props.prop(bitmap, "bitmap_type", text="Type")
             return
         col.separator()
-        col.operator("nwo.open_foundation_tag", text="Open Bitmap Tag", icon_value=get_icon_id("foundation")).tag_path = bitmap_path
+        col.operator("nwo.open_foundation_tag", text="Open Bitmap Tag", icon_value=utils.get_tag_editor_icon_id()).tag_path = bitmap_path
         col.separator()
         col.label(text='Bitmap Export Tools')
         col.prop(bitmap, "export", text="Link Bitmap to Blender Image", icon="TEXTURE")
@@ -4441,7 +4448,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         
         draw_tag_path(col, nwo, "animation_cmd_path", set_row_split=True)
         if nwo.animation_cmd_path.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.animation_cmd_path)).exists():
-            row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = nwo.animation_cmd_path
+            row.operator("nwo.open_foundation_tag", text="", icon_value=utils.get_tag_editor_icon_id()).tag_path = nwo.animation_cmd_path
             row = col.row(align=True)
             row.use_property_split = True
             row.prop(nwo, "animation_cmd_name")
@@ -4480,37 +4487,32 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.operator("nwo.append_grid_materials", text="Append Grid Materials", icon_value=get_icon_id("grid_material"))
         if h4:
             col.separator()
-            col.operator("nwo.open_matman", text="Open Material Tag Viewer", icon_value=get_icon_id("foundation"))
+            col.operator("nwo.open_matman", text="Open Material Tag Viewer", icon_value=utils.get_tag_editor_icon_id())
 
     def draw_help(self):
+        from ...preferences import HALO_MODS_DISCORD
+        from ...keymap import draw_shortcuts
+
         self.box.operator("extensions.userpref_show_for_update", text="Check for Update", icon_value=get_icon_id("foundry"))
         box_websites = self.box.box()
-        box_websites.label(text="Foundry Documentation")
+        box_websites.label(text="Foundry Guidance & Support")
         col = box_websites.column()
-        col.operator("nwo.open_url", text="Documentation", icon_value=get_icon_id("c20_reclaimers")).url = FOUNDRY_DOCS
+        col.operator("nwo.open_url", text="Documentation", icon='HELP').url = FOUNDRY_DOCS
         col.operator("nwo.open_url", text="Github", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
+        col.operator("nwo.open_url", text="Halo Mods Discord", icon='URL').url = HALO_MODS_DISCORD
+        col.operator("nwo.open_url", text="Halo Mods Wiki", icon_value=get_icon_id("halo_mods")).url = "https://halomods.com"
+        col.operator("nwo.open_url", text="The Reclaimers Library", icon_value=get_icon_id("c20_reclaimers")).url = "https://c20.reclaimers.net/"
 
         box_hotkeys = self.box.box()
         box_hotkeys.label(text="Keyboard Shortcuts")
-        col = box_hotkeys.column()
-        col.direction
-        for shortcut in HOTKEYS:
-            col.operator("nwo.describe_hotkey", emboss=False, text=shortcut[0].replace("_", " ").title() + " : " + shortcut[1]).hotkey = shortcut[0]
-
-        box_downloads = self.box.box()
-        box_downloads.label(text="Other Resources")
-        col = box_downloads.column()
-        col.operator("nwo.open_url", text="Halo Blender Toolset", icon="BLENDER").url = BLENDER_TOOLSET
-        col.operator("nwo.open_url", text="Reclaimer", icon_value=get_icon_id("marathon")).url = RECLAIMER
-        col.operator("nwo.open_url", text="Animation Repository", icon_value=get_icon_id("github")).url = ANIMATION_REPO
-        #self.box.operator('nwo.register_icons', icon='FILE_REFRESH')
+        draw_shortcuts(box_hotkeys, self.context)
 
     def draw_settings(self):
         prefs = utils.get_prefs()
         context = self.context
         from ...preferences import draw_foundry_preferences
 
-        draw_foundry_preferences(self.box, prefs, context, show_save_button=True)
+        draw_foundry_preferences(self.box, prefs, context, show_save_button=True, show_setup=False)
 
 
     def draw_table_menus(self, col, nwo, ob):
@@ -4671,7 +4673,8 @@ class NWO_ShaderEditorMaterialPanel(bpy.types.Panel):
     def poll(cls, context):
         space = context.space_data
         return (
-            space
+            startup.load_handler_complete
+            and space
             and space.type == "NODE_EDITOR"
             and getattr(space, "tree_type", "") == "ShaderNodeTree"
             and utils.get_prefs().projects
@@ -4739,16 +4742,16 @@ class NWO_OpenURL(bpy.types.Operator):
     
     @classmethod
     def description(cls, context, properties) -> str:
+        from ...preferences import HALO_MODS_DISCORD, FOUNDRY_DISCORD_FORUM
+
         if properties.url == FOUNDRY_DOCS:
-            return "Opens documentation for Foundry on the c20 Reclaimers site in a new tab"
+            return "Open Foundry guidance on HaloMods.com in a new tab"
+        elif properties.url == HALO_MODS_DISCORD:
+            return "Join the Halo Mods Discord to ask questions about Foundry"
+        elif properties.url == FOUNDRY_DISCORD_FORUM:
+            return "Open the dedicated Foundry forum in the Halo Mods Discord"
         elif properties.url == FOUNDRY_GITHUB:
             return "Opens the github page for Foundry in a new tab"
-        elif properties.url == BLENDER_TOOLSET:
-            return "Opens the github releases page for the Halo Blender Development Toolset, a blender addon supporting H1/H2/H3/ODST. Opens in a new tab"
-        elif properties.url == RECLAIMER:
-            return "Opens the download page for Reclaimer, a tool for extracting render models, BSPs, and textures for Halo games"
-        elif properties.url == ANIMATION_REPO:
-            return "Opens the github page for a repository containing a collection of Halo animations stored in the legacy Halo animation format"
         
 class NWO_OT_FoundryTip(bpy.types.Operator):
     bl_idname = "nwo.show_tip"
@@ -4933,7 +4936,7 @@ def draw_tag_path(ui, prop_group, prop_name, override_name=None, set_row_split=F
     row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = prop_name
     row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = prop_name
     if attr.strip() and not row.alert:
-        row.operator("nwo.open_foundation_tag", text="", icon_value=get_icon_id("foundation")).tag_path = attr
+        row.operator("nwo.open_foundation_tag", text="", icon_value=utils.get_tag_editor_icon_id()).tag_path = attr
 
 def prop_path_should_alert(value, data=False):
     if value.strip():

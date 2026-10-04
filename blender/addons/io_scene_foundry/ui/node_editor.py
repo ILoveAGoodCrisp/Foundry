@@ -100,7 +100,7 @@ class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
             tree = context.material.node_tree
             shader = tree.nodes.new('ShaderNodeGroup')
             shader.node_tree = bpy.data.node_groups[self.node]
-            foundry = utils.update_foundry_material(context.material)
+            foundry = utils.update_foundry_material(context.material, arrange_nodes=False)
             surface = next((socket for socket in shader.outputs if socket.type == 'SHADER'), None)
             if surface is not None:
                 tree.links.new(surface, foundry.inputs['Shader'])

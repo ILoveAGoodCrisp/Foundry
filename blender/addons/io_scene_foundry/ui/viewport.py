@@ -641,12 +641,15 @@ class NWO_OT_ApplyTypeMarkerSingle(NWO_OT_ApplyTypeMarker):
         return {"FINISHED"}
     
 def object_context_apply_types(self, context):
+    selection_count = len(context.selected_objects)
+    ob = context.object
+    if not selection_count and ob is None:
+        return
+
     layout = self.layout
     asset_type = utils.get_scene_props().asset_type
     layout.separator()
-    selection_count = len(context.selected_objects)
-    ob = context.object
-    if selection_count > 1:
+    if selection_count > 1 or ob is None:
         layout.label(text=f'{selection_count} Halo Objects Selected', icon_value=get_icon_id('category_object_properties_pinned'))
     else:
         object_type = utils.get_object_type(ob, True)

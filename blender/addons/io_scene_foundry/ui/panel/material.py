@@ -5,7 +5,7 @@ import bpy
 from ... import utils
 from ...constants import face_prop_type_items, face_prop_descriptions, face_mode_items
 from ...tags.halo1_emissive import (asset_shader_folder, localize_shader_environment,
-                                    material_emissive_matches, shader_environment_path,
+                                    shader_environment_path,
                                     write_material_emissive, read_material_emissive)
 
 
@@ -39,19 +39,10 @@ class NWO_OT_UpdateHaloMaterialEmissive(bpy.types.Operator):
             target, copied = localize_shader_environment(
                 source, folder, project.tags_directory, project.game)
             tag_path = str(target.relative_to(Path(project.tags_directory).resolve()))
-            if (utils.material_read_only(tag_path) and
-                    not material_emissive_matches(
-                        tag_path, project.tags_directory,
-                        prop.material_lighting_emissive_power,
-                        prop.material_lighting_emissive_color, project.game)):
-                raise ValueError('This shader is protected from editing')
-
-            changed = False
-            if not utils.material_read_only(tag_path):
-                changed = write_material_emissive(
-                    tag_path, project.tags_directory,
-                    prop.material_lighting_emissive_power,
-                    prop.material_lighting_emissive_color, project.game)
+            changed = write_material_emissive(
+                tag_path, project.tags_directory,
+                prop.material_lighting_emissive_power,
+                prop.material_lighting_emissive_color, project.game)
             # Set the path only after writing. Its update callback can import
             # the tag and replace the Blender emission with the saved values.
             if material.nwo.shader_path != tag_path:
