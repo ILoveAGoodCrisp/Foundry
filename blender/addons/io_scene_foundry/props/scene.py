@@ -1120,7 +1120,7 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
 
     def frame_event_items(self, context):
         project = utils.get_project(use_external=False) if context is not None else None
-        return frame_event_items_for_game(getattr(project, 'game', ''))
+        return frame_event_items_for_game(getattr(project, 'game', 'reach'))
 
     frame_name: bpy.props.EnumProperty(
         name="Frame Event",
@@ -3442,6 +3442,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     # model_overrides_expanded: bpy.props.BoolProperty(default=False, options=set())
     scenario_expanded: bpy.props.BoolProperty(default=False, options=set())
     lighting_expanded: bpy.props.BoolProperty(default=False, options=set())
+    decals_expanded: bpy.props.BoolProperty(default=False, options=set())
     decorators_expanded: bpy.props.BoolProperty(default=False, options=set())
     airprobes_expanded: bpy.props.BoolProperty(default=False, options=set())
     # zone_sets_expanded: bpy.props.BoolProperty(default=False, options=set())
@@ -3700,7 +3701,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     scene_project : bpy.props.StringProperty(
         name="Project",
         options=set(),
+        update=utils.update_scene_project,
     )
+
+    scene_project_id: bpy.props.StringProperty(options={'HIDDEN'})
+    scene_project_snapshot: bpy.props.StringProperty(options={'HIDDEN'})
 
     # TABLES
 
@@ -4040,7 +4045,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     def get_is_valid_asset(self):
         if not bpy.data.filepath:
             return False
-        project = utils.get_project(self.scene_project)
+        project = utils.get_project(self.scene_project, use_external=False)
         return bool(project and self.sidecar_path.strip())
     
     is_valid_asset: bpy.props.BoolProperty(
@@ -4219,6 +4224,13 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
     )
     
+    decals_from_blender: bpy.props.BoolProperty(
+        name="Decals Authored From Blender",
+        options=set(),
+        description="On export the scenario decal palette and placements will be replaced by exported game object markers referencing decal tags",
+        default=False,
+    )
+
     decorators_from_blender: bpy.props.BoolProperty(
         name="Decorators Authored From Blender",
         options=set(),

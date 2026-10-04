@@ -37,9 +37,7 @@ def face_mode_ui_items(_self, context):
         return list(FACE_MODE_UI_ITEMS)
     scene_nwo = utils.get_scene_props()
     project = utils.get_project(scene_nwo.scene_project)
-    if project is None:
-        return list(FACE_MODE_UI_ITEMS)
-    game = project.game
+    game = project.game if project is not None else 'reach'
     return [item for item in FACE_MODE_UI_ITEMS
             if item[0] == 'normal' or face_prop_game_supported('face_mode', game, item[0])]
 

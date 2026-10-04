@@ -1334,7 +1334,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
 
     marker_game_instance_tag_name: bpy.props.StringProperty(
         name="Marker Game Instance Tag",
-        description="Reference to the tag that should be placed at this marker in your scenario",
+        description="Reference to the object, decorator set, or decal tag that should be placed at this marker in your scenario. Decals project along local +X",
         update=game_instance_clean_tag_path,
         override={'LIBRARY_OVERRIDABLE'},
     )
