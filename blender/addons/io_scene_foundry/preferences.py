@@ -708,6 +708,8 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
     row.prop(prefs, "allow_foundation_plugin_install")
     row = box.row(align=True)
     row.prop(prefs, "granny_viewer_path")
+    row = box.row(align=True)
+    row.prop(prefs, "copy_scenario_path_on_sapien_launch")
 
     box = _settings_box(layout, "Import & Bitmaps")
     row = box.row(align=True)
@@ -769,6 +771,12 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
 
 class FoundryPreferences(AddonPreferences):
     bl_idname = __package__
+
+    copy_scenario_path_on_sapien_launch: BoolProperty(
+        name="Copy Scenario Path on Sapien Launch",
+        description="Copy the full scenario tag path to the clipboard when launching Halo 1, Halo 2, Halo 3, or ODST Sapien with an asset scenario",
+        default=True,
+    )
 
     tag_editor: EnumProperty(
         name="Tag Editor",
