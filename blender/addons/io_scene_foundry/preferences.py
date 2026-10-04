@@ -644,7 +644,7 @@ def draw_first_project_setup(layout):
     col.separator()
     text(col, 'Specific questions? Use the dedicated Foundry forum in the Halo Mods Discord server')
     col.separator()
-    col.operator('wm.url_open', text='Join Discord', icon='URL').url = HALO_MODS_DISCORD
+    col.operator('wm.url_open', text='Join Discord', icon_value=get_icon_id('discord')).url = HALO_MODS_DISCORD
     # row.operator('wm.url_open', text='Foundry Forum', icon='HELP').url = FOUNDRY_DISCORD_FORUM
     col = box.column(align=True)
     text(col, 'Add a project or load the Foundry panel to begin')

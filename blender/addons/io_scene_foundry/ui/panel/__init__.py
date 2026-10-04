@@ -4499,7 +4499,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = box_websites.column()
         col.operator("nwo.open_url", text="Documentation", icon='HELP').url = FOUNDRY_DOCS
         col.operator("nwo.open_url", text="Github", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
-        col.operator("nwo.open_url", text="Halo Mods Discord", icon='URL').url = HALO_MODS_DISCORD
+        col.operator("nwo.open_url", text="Halo Mods Discord", icon_value=get_icon_id('discord')).url = HALO_MODS_DISCORD
         col.operator("nwo.open_url", text="Halo Mods Wiki", icon_value=get_icon_id("halo_mods")).url = "https://halomods.com"
         col.operator("nwo.open_url", text="The Reclaimers Library", icon_value=get_icon_id("c20_reclaimers")).url = "https://c20.reclaimers.net/"
 
@@ -4748,8 +4748,6 @@ class NWO_OpenURL(bpy.types.Operator):
             return "Open Foundry guidance on HaloMods.com in a new tab"
         elif properties.url == HALO_MODS_DISCORD:
             return "Join the Halo Mods Discord to ask questions about Foundry"
-        elif properties.url == FOUNDRY_DISCORD_FORUM:
-            return "Open the dedicated Foundry forum in the Halo Mods Discord"
         elif properties.url == FOUNDRY_GITHUB:
             return "Opens the github page for Foundry in a new tab"
         
