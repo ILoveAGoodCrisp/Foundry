@@ -20,6 +20,10 @@ class NWO_FarmShaders(bpy.types.Operator):
     bl_idname = "nwo.shader_farm"
     bl_description = "Builds shader/material tags for all valid blender materials. Will export all necessary bitmaps"
 
+    @classmethod
+    def poll(cls, context):
+        return utils.current_project_valid()
+
     def farm_type_items(self, context):
         tag_type = "Materials" if utils.is_corinth(context) else "Shaders"
         items = [

@@ -104,9 +104,6 @@ def build_shader(material, corinth, folder="", report=None):
     project = utils.get_project(utils.get_scene_props().scene_project)
     game = project.game if project else 'reach'
     shader_type = nwo.get_shader_type(game)
-    if utils.material_read_only(nwo.shader_path):
-        print(f"{material.name} is read only, skipping")
-        return {'FINISHED'}
     if nwo.shader_path.strip():
         shader_path = Path(nwo.shader_path)
     else:
@@ -236,7 +233,7 @@ class NWO_Shader_BuildSingle(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.active_material and not utils.protected_material_name(context.object.active_material.name)
+        return utils.current_project_valid() and context.object and context.object.active_material and utils.has_shader_path(context.object.active_material)
     
     def execute(self, context):
         with utils.ExportManager():

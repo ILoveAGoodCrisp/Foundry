@@ -3,7 +3,7 @@ from pathlib import Path
 import time
 import bpy
 
-from .node_tree_arrange import arrange
+from .node_layout import layout_nodes
 from ..tags.backend import read_only_tags
 from ..tags.shader_glass import ShaderGlassTag
 from ..tags.shader_custom import ShaderCustomTag
@@ -227,31 +227,31 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
     shader = None
     if corinth:
         with MaterialTag(path=tag_path) as shader:
-            shader.to_nodes(mat, always_extract_bitmaps)
+            shader.to_nodes(mat, always_extract_bitmaps, layout=False)
     else:
         shader_type = Path(tag_path).suffix[1:]
         match shader_type:
             case 'shader':
                 with ShaderTag(path=tag_path) as shader:
-                    shader.to_nodes(mat, always_extract_bitmaps)
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
             case 'shader_decal':
                 with ShaderDecalTag(path=tag_path) as shader:
-                    shader.to_nodes(mat, always_extract_bitmaps)
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
             case 'shader_terrain':
                 with ShaderTerrainTag(path=tag_path) as shader:
-                    shader.to_nodes(mat, always_extract_bitmaps)
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
             case 'shader_halogram':
                 with ShaderHalogramTag(path=tag_path) as shader:
-                    shader.to_nodes(mat, always_extract_bitmaps)
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
             case 'shader_foliage':
                 with ShaderFoliageTag(path=tag_path) as shader:
-                    shader.to_nodes(mat, always_extract_bitmaps)
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
             case 'shader_custom':
                 with ShaderCustomTag(path=tag_path) as shader:
-                    shader.to_nodes(mat, always_extract_bitmaps)
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
             case 'shader_glass':
                 with ShaderGlassTag(path=tag_path) as shader:
-                    shader.to_nodes(mat, always_extract_bitmaps)
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
             case 'shader_water':
                 mat.node_tree.nodes.clear()
                 output = mat.node_tree.nodes.new("ShaderNodeOutputMaterial")
@@ -265,7 +265,7 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
                   'shader_transparent_meter' | 'shader_transparent_plasma' |
                   'shader_transparent_water'):
                 with ShaderTag(path=tag_path) as shader:
-                    shader.to_nodes(mat, always_extract_bitmaps)
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
     
     if shader is not None:
         mat.nwo.set_shader_type(Path(shader.system_path).suffix, shader.game)
@@ -273,7 +273,7 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
         mat.nwo.object_functions = ",".join(shader.object_functions)
         if target_game is not None:
             from .material_game_mapping import GAME_LIBRARIES, convert_material_game
-            converted = convert_material_game(mat, shader.game, target_game)
+            converted = convert_material_game(mat, shader.game, target_game, layout=False)
             shared_library = (shader.game != target_game and target_game in GAME_LIBRARIES
                               and GAME_LIBRARIES.get(shader.game) == GAME_LIBRARIES[target_game])
             if converted or shared_library:
@@ -294,8 +294,9 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
                             mat.nwo.set_shader_type('.' + family, target_game)
                             break
         if mat.node_tree is not None:
-            utils.update_foundry_material(mat, target_game or shader.game)
-            arrange(mat.node_tree)
+            utils.update_foundry_material(mat, target_game or shader.game, arrange_nodes=False)
+            layout_nodes(mat.node_tree)
         return shader.sequence_drivers
     if mat.node_tree is not None:
-        utils.update_foundry_material(mat, target_game)
+        utils.update_foundry_material(mat, target_game, arrange_nodes=False)
+        layout_nodes(mat.node_tree)
