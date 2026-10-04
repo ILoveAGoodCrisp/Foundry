@@ -1059,7 +1059,7 @@ class AnimationTag(AnimationGraphTag):
             return
 
         fcurves = utils.get_fcurves(action, slot_identifier)
-        if not fcurves:
+        if fcurves is None:
             return
 
         data_path = pose_bone.path_from_id(f'["{property_name}"]')
@@ -1971,7 +1971,7 @@ class AnimationTag(AnimationGraphTag):
                 animation_data.last_slot_identifier = slot_identifier
 
         fcurves = utils.get_fcurves(action, slot_identifier)
-        if not fcurves:
+        if fcurves is None:
             return None
 
         bone_name = pose_bone.name
@@ -4309,6 +4309,7 @@ class AnimationTag(AnimationGraphTag):
                     scale_animations_to_skeleton,
                     node_usages,
                     grounding_context,
+                    native_animation_cache.get(tag_animation.index),
                 )
                 actions.append(action)
                 action.frame_end = blender_animation.frame_end
@@ -4391,12 +4392,11 @@ class AnimationTag(AnimationGraphTag):
         scale_animations_to_skeleton=False,
         node_usages: dict | None = None,
         grounding_context: dict | None = None,
+        animation_data: AnimationData | None = None,
     ):
         fcurves = utils.get_fcurves(action, armature.animation_data.last_slot_identifier)
         fcurves.clear()
         
-        key_options = {'FAST'}
-
         self._match_animation_nodes_to_pose_bones(nodes, armature.pose.bones)
         legacy_conversion = getattr(self, '_legacy_conversion', False)
         if legacy_conversion:
@@ -4419,17 +4419,6 @@ class AnimationTag(AnimationGraphTag):
         for node in nodes:
             if node.pose_bone is None:
                 continue
-            bone_path = node.pose_bone.path_from_id()
-            node.fc_loc_x = fcurves.new(data_path=f'{bone_path}.location', index=0)
-            node.fc_loc_y = fcurves.new(data_path=f'{bone_path}.location', index=1)
-            node.fc_loc_z = fcurves.new(data_path=f'{bone_path}.location', index=2)
-            node.fc_rot_w = fcurves.new(data_path=f'{bone_path}.rotation_quaternion', index=0)
-            node.fc_rot_x = fcurves.new(data_path=f'{bone_path}.rotation_quaternion', index=1)
-            node.fc_rot_y = fcurves.new(data_path=f'{bone_path}.rotation_quaternion', index=2)
-            node.fc_rot_z = fcurves.new(data_path=f'{bone_path}.rotation_quaternion', index=3)
-            node.fc_sca_x = fcurves.new(data_path=f'{bone_path}.scale', index=0)
-            node.fc_sca_y = fcurves.new(data_path=f'{bone_path}.scale', index=1)
-            node.fc_sca_z = fcurves.new(data_path=f'{bone_path}.scale', index=2)
             valid_nodes.append(node)
             
         bone_dict = {}
@@ -4570,6 +4559,10 @@ class AnimationTag(AnimationGraphTag):
                 if not math.isfinite(grounding_offset):
                     grounding_offset = 0.0
         
+        # Decide which bones need curves from the final local channels, after
+        # composition, retargeting, root scaling and grounding. Parent motion
+        # alone does not change these channels.
+        bone_samples = {node: [] for node in valid_nodes}
         for frame_idx, nodes_transforms in transforms.items():
             for node in valid_nodes:
                 bind_inv = bone_base_matrices[node.pose_bone].inverted_safe()
@@ -4599,18 +4592,140 @@ class AnimationTag(AnimationGraphTag):
                     local_offset_matrix = parent_world_matrix.inverted_safe() @ Matrix.Translation(Vector((0.0, 0.0, grounding_offset))) @ parent_world_matrix
                     loc, rot, sca = (bind_inv @ (local_offset_matrix @ local_matrix)).decompose()
 
-                node.fc_loc_x.keyframe_points.insert(frame_idx, loc.x, options=key_options)
-                node.fc_loc_y.keyframe_points.insert(frame_idx, loc.y, options=key_options)
-                node.fc_loc_z.keyframe_points.insert(frame_idx, loc.z, options=key_options)
-                
-                node.fc_rot_w.keyframe_points.insert(frame_idx, rot.w, options=key_options)
-                node.fc_rot_x.keyframe_points.insert(frame_idx, rot.x, options=key_options)
-                node.fc_rot_y.keyframe_points.insert(frame_idx, rot.y, options=key_options)
-                node.fc_rot_z.keyframe_points.insert(frame_idx, rot.z, options=key_options)
-                
-                node.fc_sca_x.keyframe_points.insert(frame_idx, sca.x, options=key_options)
-                node.fc_sca_y.keyframe_points.insert(frame_idx, sca.y, options=key_options)
-                node.fc_sca_z.keyframe_points.insert(frame_idx, sca.z, options=key_options)
+                bone_samples[node].append((frame_idx, (*loc, *rot, *sca)))
+
+        for node in valid_nodes:
+            samples = bone_samples.pop(node)
+            node_index = node_indices[node]
+            animated_channels = None
+            if animation_data is not None and node_index < animation_data.node_count:
+                animated_channels = (animation_data.translation_flags[node_index],
+                                     animation_data.rotation_flags[node_index],
+                                     animation_data.scale_flags[node_index])
+            self._write_animation_bone_curves(fcurves, node, samples, animated_channels)
+
+    @classmethod
+    def _write_animation_bone_curves(cls, fcurves, node, samples, animated_channels=None):
+        if not samples:
+            return
+
+        def is_rest(values):
+            # Matrix decomposition can leave roundoff at the identity pose.
+            # Both quaternion signs represent the same rest orientation.
+            return (all(abs(value) <= tolerance for value in values[:3])
+                    and abs(abs(values[3]) - 1.0) <= tolerance
+                    and all(abs(value) <= tolerance for value in values[4:7])
+                    and all(abs(value - 1.0) <= tolerance for value in values[7:]))
+
+        first = samples[0][1]
+        # Static masks describe the codec, not necessarily the composed pose.
+        # Check that final channels are actually constant before trusting them;
+        # leading reference frames and parent corrections can introduce motion.
+        static = (animated_channels is not None and not any(animated_channels)
+                  and all(values == first for _, values in samples[1:]))
+        # Do not erase small authored motion just because every sample falls
+        # inside the identity roundoff tolerance. Only a fixed local pose (or
+        # the equivalent quaternion sign) can be omitted.
+        opposite_rotation = tuple(-value for value in first[3:7])
+        if is_rest(first) and (static or all(
+                values[:3] == first[:3] and values[7:] == first[7:]
+                and values[3:7] in (first[3:7], opposite_rotation)
+                for _, values in samples[1:])):
+            node.pose_bone.matrix_basis = Matrix.Identity(4)
+            return
+        if static:
+            samples = samples[:1]
+
+        bone_path = node.pose_bone.path_from_id()
+        for channel, start, axes in (('location', 0, 'xyz'),
+                                     ('rotation_quaternion', 3, 'wxyz'),
+                                     ('scale', 7, 'xyz')):
+            attribute = {'location': 'loc', 'rotation_quaternion': 'rot', 'scale': 'sca'}[channel]
+            for index, axis in enumerate(axes):
+                curve = fcurves.new(data_path=f'{bone_path}.{channel}', index=index)
+                setattr(node, f'fc_{attribute}_{axis}', curve)
+                for frame, values in samples:
+                    curve.keyframe_points.insert(frame, values[start + index], options={'FAST'})
+                curve.update()
+                cls._reduce_animation_curve(curve)
+
+    @staticmethod
+    def _reduce_animation_curve(curve):
+        """Remove only keys whose entire interpolated curve is redundant.
+
+        Work on scalar curves so all four quaternion components keep exactly
+        the same paths. No endpoint-only rotation tests or error budget apply.
+        Bezier segments with curvature are retained.
+        """
+        points = curve.keyframe_points
+        if len(points) < 2 or curve.modifiers:
+            return
+        keys = [dict(index=index, co=tuple(point.co), left=tuple(point.handle_left),
+                     right=tuple(point.handle_right), interpolation=point.interpolation)
+                for index, point in enumerate(points)]
+
+        def straight(start, end):
+            interpolation = start['interpolation']
+            if interpolation == 'LINEAR':
+                return True
+            ax, ay = start['co']
+            bx, by = end['co']
+            if interpolation == 'CONSTANT':
+                return ay == by
+            if interpolation != 'BEZIER':
+                return False
+            right, left = start['right'], end['left']
+            # Out-of-range handles can trigger Blender's handle correction.
+            if not ax <= right[0] <= left[0] <= bx:
+                return False
+            return all((y - ay) * (bx - ax) == (by - ay) * (x - ax)
+                       for x, y in (right, left))
+
+        for start, end in zip(keys, keys[1:]):
+            start['straight'] = straight(start, end)
+        keys[-1]['straight'] = False
+
+        # A constant channel still needs one key on an animated bone so it
+        # cannot inherit a value from another action. Check handles as well as
+        # poses: equal key values alone can conceal Bezier overshoot.
+        if (curve.extrapolation == 'CONSTANT'
+                and all(key['co'][1] == keys[0]['co'][1] for key in keys)
+                and all(key['straight'] for key in keys[:-1])):
+            for index in range(len(points) - 1, 0, -1):
+                points.remove(points[index], fast=True)
+            curve.update()
+            return
+
+        kept = []
+        removed = set()
+        for key in keys:
+            kept.append(key)
+            while len(kept) >= 3:
+                a, b, c = kept[-3:]
+                ax, ay = a['co']
+                bx, by = b['co']
+                cx, cy = c['co']
+                if (not a['straight'] or not b['straight']
+                        or (by - ay) * (cx - bx) != (cy - by) * (bx - ax)):
+                    break
+                removed.add(b['index'])
+                kept.pop(-2)
+                a['interpolation'] = 'LINEAR'
+
+        if not removed:
+            return
+        # Deleting a key otherwise recomputes automatic handles on adjoining
+        # curved segments. Freeze the original handles to preserve those too.
+        for key in kept:
+            point = points[key['index']]
+            point.handle_left_type = 'FREE'
+            point.handle_right_type = 'FREE'
+            point.handle_left = key['left']
+            point.handle_right = key['right']
+            point.interpolation = key['interpolation']
+        for index in sorted(removed, reverse=True):
+            points.remove(points[index], fast=True)
+        curve.update()
 
     def _get_base_pose(self, animation_nodes, nodes, node_base_matrices: dict):
         for idx, (an, node) in enumerate(zip(animation_nodes, nodes)):

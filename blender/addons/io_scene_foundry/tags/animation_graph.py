@@ -1479,9 +1479,10 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                         if reference_index < 0:
                             continue
                         if reference_index >= len(references[kind]):
-                            raise ValueError(
+                            utils.print_warning(
                                 f'{self.path}: invalid {kind} reference index '
-                                f'{reference_index} in animation {name!r}')
+                                f'{reference_index} in animation {name!r}; skipping {kind} event')
+                            continue
                         setattr(record, kind + '_reference', references[kind][reference_index])
                         marker = element.field('marker name')
                         record.marker_name = '' if marker is None else str(marker.value)
