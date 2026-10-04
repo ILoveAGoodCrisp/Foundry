@@ -877,7 +877,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return not utils.validate_ek()
+        return utils.current_project_valid() and not utils.validate_ek()
 
     def execute(self, context):
         relative_path = Path(utils.relative_path(self.filepath))
