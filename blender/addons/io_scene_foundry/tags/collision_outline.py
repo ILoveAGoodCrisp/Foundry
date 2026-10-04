@@ -138,3 +138,116 @@ def reconstruct_collision_outline(mesh):
             utils.calc_face_prop_counts(mesh)
     finally:bm.free()
     return cleaned,triangulated
+
+
+def _merge_collapsed_seam_triangles(mesh):
+    """Recover seam ears whose thickness is within coordinate rounding error.
+
+    A compiler split can leave an almost collinear triangle on a different
+    plane. Join it only to a contiguous neighbour with identical authored
+    properties, and retain every boundary vertex.
+    """
+    if not mesh.attributes.get('.foundry_collision_plane') or mesh.has_custom_normals:
+        return set(), 0
+    bm = bmesh.new()
+    repaired = set()
+    changed = 0
+    try:
+        bm.from_mesh(mesh)
+        bm.normal_update()
+        plane = bm.faces.layers.int['.foundry_collision_plane']
+        layers = [bm.faces.layers.bool.get(prop.attribute_name) for prop in mesh.nwo.face_props]
+        layers = [layer for layer in layers if layer is not None]
+        for face in list(bm.faces):
+            if not face.is_valid or len(face.verts) != 3 or face[plane] < 0:
+                continue
+            longest = max(edge.calc_length() for edge in face.edges)
+            epsilon = max(abs(c) for v in face.verts for c in v.co) * 2**-22
+            if longest == 0 or 2 * face.calc_area() / longest > epsilon * 4:
+                continue
+            candidates = []
+            for edge in face.edges:
+                if len(edge.link_faces) != 2 or not edge.is_contiguous:
+                    continue
+                neighbour = next(f for f in edge.link_faces if f != face)
+                if (neighbour[plane] < 0 or neighbour.material_index != face.material_index
+                        or any(neighbour[layer] != face[layer] for layer in layers)):
+                    continue
+                if neighbour.calc_area() < longest * epsilon * 8:
+                    continue
+                point = neighbour.verts[0].co
+                if max(abs(neighbour.normal.dot(v.co - point)) for v in face.verts) > epsilon * 4:
+                    continue
+                candidates.append((edge.calc_length(), neighbour))
+            if not candidates:
+                continue
+            _, neighbour = max(candidates, key=lambda item: item[0])
+            original_plane = neighbour[plane]
+            joined = bmesh.utils.face_join([neighbour, face], True)
+            if joined is not None:
+                joined[plane] = original_plane
+                repaired.add(original_plane)
+                changed += 1
+        if changed:
+            from .. import utils
+            bm.to_mesh(mesh)
+            mesh.update()
+            utils.calc_face_prop_counts(mesh)
+    finally:
+        bm.free()
+    return repaired, changed
+
+
+def stabilize_seam_boundaries(objects):
+    """Stabilize repaired native seam patches and their adjoining surfaces.
+
+    Changing just the seam diagonals lets Tool move its boundary away from
+    the solid shell. Include the known-plane surfaces sharing its vertices,
+    without changing positions, face properties or unrelated triangulation.
+    Objects must belong to the same BSP and use the same mesh transform.
+    """
+    points = set()
+    merged = triangulated = 0
+    for ob in objects:
+        if ob.type != 'MESH' or not ob.data.nwo.mesh_type.endswith('_seam'):
+            continue
+        repaired, count = _merge_collapsed_seam_triangles(ob.data)
+        merged += count
+        if repaired:
+            mesh = ob.data
+            plane = mesh.attributes['.foundry_collision_plane']
+            points.update(tuple(mesh.vertices[i].co) for f in mesh.polygons
+                          if plane.data[f.index].value in repaired for i in f.vertices)
+    if not points:
+        return 0, 0
+    from .. import utils
+    for ob in objects:
+        if ob.type != 'MESH' or not ob.data.nwo.mesh_type.endswith(('_structure', '_seam')):
+            continue
+        mesh = ob.data
+        if not mesh.attributes.get('.foundry_collision_plane') or mesh.has_custom_normals:
+            continue
+        bm = bmesh.new()
+        changed = 0
+        try:
+            bm.from_mesh(mesh)
+            plane = bm.faces.layers.int['.foundry_collision_plane']
+            for face in list(bm.faces):
+                if (len(face.verts) < 4 or face[plane] < 0
+                        or not any(tuple(v.co) in points for v in face.verts)):
+                    continue
+                triangles = _stable_triangles(list(face.verts))
+                if triangles is None:
+                    continue
+                for triangle in triangles:
+                    bm.faces.new(triangle, face)
+                bm.faces.remove(face)
+                changed += 1
+            if changed:
+                bm.to_mesh(mesh)
+                mesh.update()
+                utils.calc_face_prop_counts(mesh)
+                triangulated += changed
+        finally:
+            bm.free()
+    return merged, triangulated

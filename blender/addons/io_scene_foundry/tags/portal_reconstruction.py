@@ -1,14 +1,149 @@
 """Conservative reconstruction of cutting planes from compiled tag portals.
 
-Coordinates and margins are in tag world units. Compiled fragments become
+Record coordinates and margins are in tag world units. Mesh contact snapping
+uses Blender world units. Compiled fragments become
 connected surfaces, with enclosing outlines recovered where solid-volume and
 bounded cluster-region proofs preserve the opening and its portal junctions.
 Unsupported outlines retain their cutting faces.
 """
+from collections import Counter, defaultdict
 from dataclasses import replace
+from itertools import product
 import bmesh
 import numpy as np
 from mathutils import Vector, kdtree
+
+
+def snap_portal_vertices(portals, structures, tolerance):
+    """Align nearby portal corners to the finished physical structure mesh.
+
+    Call after portal outline recovery, using objects from the same BSP. Keep
+    exact contacts and structure vertices untouched. Reject proposals which
+    collapse a face, reverse its winding, introduce a concave turn into a convex
+    outline, or warp its cutting plane. Only a recovered, single closed outline
+    is eligible: compiled fragment boundaries are collision cuts, not source
+    portal corners, and moving them independently can open a new leak. Interior
+    triangulation vertices stay untouched. No reconstruction data survives import.
+    """
+    if not np.isfinite(tolerance) or tolerance <= 0:
+        return 0
+    targets = {}
+    for ob in structures:
+        if ob.type != 'MESH' or not ob.data.nwo.mesh_type.endswith(('_structure', '_seam')):
+            continue
+        mesh = ob.data
+        excluded = set()
+        for prop in mesh.nwo.face_props:
+            if prop.type == 'face_mode' and prop.face_mode in {'render_only', 'lightmap_only', 'shadow_only'}:
+                attribute = mesh.attributes.get(prop.attribute_name)
+                if attribute is not None:
+                    excluded.update(i for i, value in enumerate(attribute.data) if value.value)
+        indices = {i for face in mesh.polygons if face.index not in excluded for i in face.vertices}
+        for i in sorted(indices):
+            local = mesh.vertices[i].co
+            targets.setdefault(tuple(ob.matrix_world @ local), (ob.matrix_world.copy(), local.copy()))
+    if not targets:
+        return 0
+    points = sorted(targets)
+    tree = kdtree.KDTree(len(points))
+    for i, point in enumerate(points):
+        tree.insert(point, i)
+    tree.balance()
+    changed = 0
+
+    def plane(points):
+        centered = points - points.mean(axis=0)
+        _, singular, axes = np.linalg.svd(centered, full_matrices=False)
+        return singular, axes[-1], np.abs(centered @ axes[-1]).max()
+
+    def winding(points):
+        local = points - points[0]
+        return np.cross(local, np.roll(local, -1, axis=0)).sum(axis=0)
+
+    for ob in portals:
+        if ob.type != 'MESH' or not ob.data.nwo.mesh_type.endswith('_portal'):
+            continue
+        mesh = ob.data
+        if not mesh.polygons:
+            continue
+        edge_uses = Counter(tuple(sorted((a, b))) for face in mesh.polygons
+                            for a, b in zip(face.vertices, (*face.vertices[1:], face.vertices[0])))
+        boundary = defaultdict(set)
+        for (a, b), count in edge_uses.items():
+            if count == 1:
+                boundary[a].add(b)
+                boundary[b].add(a)
+        if (not boundary or any(count > 2 for count in edge_uses.values())
+                or any(len(neighbors) != 2 for neighbors in boundary.values())):
+            continue
+        pending = [next(iter(boundary))]
+        visited = set()
+        while pending:
+            index = pending.pop()
+            if index in visited:
+                continue
+            visited.add(index)
+            pending.extend(boundary[index] - visited)
+        if len(visited) != len(boundary):
+            continue
+        old = np.asarray([tuple(ob.matrix_world @ v.co) for v in mesh.vertices], dtype=np.float64)
+        proposals = {}
+        inverse = ob.matrix_world.inverted_safe()
+        for vertex, position in zip(mesh.vertices, old):
+            if vertex.index not in boundary:
+                continue
+            _, index, distance = tree.find(position)
+            if 0 < distance <= tolerance:
+                target_matrix, local = targets[points[index]]
+                # Identical transforms are common for BSP structures/portals.
+                # Copy their actual mesh coordinates to avoid an extra float32
+                # rotation/inverse round trip separating the matched vertices.
+                proposals[vertex.index] = (local.copy() if target_matrix == ob.matrix_world
+                                           else inverse @ Vector(points[index]))
+        if not proposals:
+            continue
+        magnitude = np.max(np.abs(old))
+        epsilon = max(float(np.spacing(np.float32(magnitude))) * 4, 1e-10)
+        while proposals:
+            new = old.copy()
+            for index, local in proposals.items():
+                new[index] = ob.matrix_world @ local
+            invalid = set()
+            for face in mesh.polygons:
+                indices = list(face.vertices)
+                touched = set(indices) & proposals.keys()
+                if not touched:
+                    continue
+                before, after = old[indices], new[indices]
+                n0, n1 = winding(before), winding(after)
+                lengths = np.linalg.norm(np.roll(after, -1, axis=0) - after, axis=1)
+                if (lengths.min() <= 1e-10 or np.linalg.norm(n1) <= max(np.linalg.norm(n0)*1e-6, 1e-16)
+                        or n0 @ n1 <= 0):
+                    invalid.update(touched)
+                    continue
+                normal = n0 / np.linalg.norm(n0)
+                turns0 = np.cross(before - np.roll(before, 1, axis=0), np.roll(before, -1, axis=0) - before) @ normal
+                turns1 = np.cross(after - np.roll(after, 1, axis=0), np.roll(after, -1, axis=0) - after) @ normal
+                if turns0.min() >= -epsilon**2 and turns1.min() < -epsilon**2:
+                    invalid.update(touched)
+            # Preserve the common cutting plane of a multi-fragment portal,
+            # rather than accepting independently planar triangles that fold.
+            used = sorted({i for face in mesh.polygons for i in face.vertices})
+            if len(used) >= 3:
+                singular0, normal0, error0 = plane(old[used])
+                singular1, normal1, error1 = plane(new[used])
+                if (singular1[1] <= 1e-10 or abs(normal0 @ normal1) < .9999
+                        or error1 > max(tolerance*.05, error0 + epsilon)):
+                    break
+            if not invalid:
+                for index, local in proposals.items():
+                    mesh.vertices[index].co = local
+                mesh.update()
+                changed += len(proposals)
+                break
+            for index in invalid:
+                proposals.pop(index, None)
+    return changed
 
 
 def _triangle_plane_error(points, triangles):
@@ -988,6 +1123,85 @@ def rectangularize_halo1_portal(mesh, group, source_records, is_solid, scale, *,
     return False
 
 
+def recover_solid_portal_outline(mesh, group, source_records, is_solid, scale):
+    """Bridge clipped bays/holes only when all added coverage is inside solid.
+
+    An enclosing convex outline removes compiler cuts through cliffs. Subtract
+    the actual existing triangles, then prove every remaining convex piece is
+    solid on both sides using the native BSP. Preserve boundary junctions and
+    the old cutting plane. A genuine opening, unknown volume or an unsupported
+    junction prevents the replacement. Never change structure geometry.
+    """
+    if (not hasattr(is_solid, 'contains_prism') or not mesh.polygons
+            or not np.isfinite(scale) or scale <= 0):
+        return False
+    points = np.asarray([tuple(v.co) for v in mesh.vertices], dtype=np.float64)/scale
+    if len(points) < 3 or not np.all(np.isfinite(points)):
+        return False
+    origin = points.mean(axis=0)
+    _, singular, axes = np.linalg.svd(points-origin, full_matrices=False)
+    if singular[1] < 1e-8 or np.abs((points-origin) @ axes[-1]).max() > .00025:
+        return False
+    normal = axes[-1]
+    winding = sum((np.cross(points[face.vertices]-points[face.vertices[0]],
+                            np.roll(points[face.vertices], -1, axis=0)-points[face.vertices[0]]).sum(axis=0)
+                   for face in mesh.polygons), np.zeros(3))
+    if normal @ winding < 0:
+        normal = -normal
+    u = axes[0]
+    v = np.cross(normal, u)
+    projected = (points-origin) @ np.asarray((u, v)).T
+    outline = _hull(list(map(tuple, projected)))
+    if len(outline) < 3:
+        return False
+    mesh.calc_loop_triangles()
+    triangles = [_hull([tuple(projected[i]) for i in triangle.vertices]) for triangle in mesh.loop_triangles]
+    source_area = sum(_area(triangle) for triangle in triangles)
+    area = _area(outline)
+    if not source_area or area > source_area*3:
+        return False
+    edge_uses = Counter(tuple(sorted((a, b))) for face in mesh.polygons
+                        for a, b in zip(face.vertices, (*face.vertices[1:], face.vertices[0])))
+    boundary = [(projected[a], projected[b]) for (a, b), count in edge_uses.items() if count == 1]
+
+    def edge_distance(point, edges):
+        distances = []
+        for a, b in edges:
+            edge = b-a
+            length2 = float(edge @ edge)
+            if length2 > 1e-16:
+                fraction = np.clip((point-a) @ edge/length2, 0, 1)
+                distances.append(np.linalg.norm(point-a-fraction*edge))
+        return min(distances, default=float('inf'))
+
+    new_edges = list(zip(np.asarray(outline), np.roll(outline, -1, axis=0)))
+    for point in _portal_junctions(group, source_records, .00025):
+        contact = (point-origin) @ np.asarray((u, v)).T
+        if edge_distance(contact, boundary) <= .00025 and edge_distance(contact, new_edges) > .0005:
+            return False
+    pieces = [outline]
+    work = 0
+    for triangle in triangles:
+        if len(triangle) >= 3:
+            work += len(pieces)
+            if len(pieces) > 256 or work > 4096:
+                return False  # Retain highly fragmented/unsupported outlines.
+            pieces = [outside for part in pieces for outside in _subtract_convex(part, triangle)]
+    # Retain actual clipped coordinates at hull corners rather than introducing
+    # a new floating-point plane fit at exact contacts.
+    indices = [int(np.linalg.norm(projected-point, axis=1).argmin()) for point in outline]
+    if len(mesh.polygons) == 1 and len(mesh.vertices) == len(indices):
+        return False
+    for piece in sorted(pieces, key=_area, reverse=True):
+        world = origin + np.asarray(piece)[:, :1]*u + np.asarray(piece)[:, 1:]*v
+        if not is_solid.contains_prism(world, normal):
+            return False
+    mesh.clear_geometry()
+    mesh.from_pydata([tuple(points[i]*scale) for i in indices], [], [tuple(range(len(indices)))])
+    mesh.update()
+    return True
+
+
 def _near_portal(a, b, tolerance):
     # Conservative bounding-box/plane test: false positives retain the source.
     if any(max(p[j] for p in a) < min(p[j] for p in b)-tolerance or
@@ -1182,6 +1396,64 @@ dissolve_portal_seams = dissolve_halo1_portal_seams
 rectangularize_portal = rectangularize_halo1_portal
 
 
+def conform_portal_fragments(record, tolerance=1e-7):
+    """Share clipped corners and split T-junctions before float32 conversion.
+
+    Cluster-tree partitions can cut one side of an edge into several faces.
+    Merely welding equal endpoints leaves those faces topologically separate.
+    Match in double-precision tag coordinates, retain narrow edges/holes, and
+    insert existing corners into their common edges. No new coverage is added.
+    """
+    if not record.polygons or len(record.polygons) < 2:
+        return record
+    points = np.asarray(record.vertices, dtype=np.float64)
+    if not np.all(np.isfinite(points)):
+        return record
+    owners = [set() for _ in points]
+    for face, indices in enumerate(record.polygons):
+        for index in indices:
+            owners[index].add(face)
+    cells, canonical, memberships, remap = defaultdict(list), [], [], []
+    for point, faces in zip(points, owners):
+        cell = tuple(np.floor(point/tolerance).astype(np.int64))
+        candidates = [index for offset in product((-1, 0, 1), repeat=3)
+                      for index in cells[tuple(a+b for a, b in zip(cell, offset))]
+                      if not memberships[index] & faces
+                      and np.linalg.norm(canonical[index]-point) <= tolerance]
+        if candidates:
+            index = min(candidates)
+            memberships[index].update(faces)
+        else:
+            index = len(canonical)
+            canonical.append(point)
+            memberships.append(set(faces))
+            cells[cell].append(index)
+        remap.append(index)
+    points = np.asarray(canonical)
+    polygons = []
+    for face in record.polygons:
+        indices = [remap[i] for i in face]
+        order = []
+        for a, b in zip(indices, indices[1:]+indices[:1]):
+            order.append(a)
+            edge = points[b]-points[a]
+            length = float(np.linalg.norm(edge))
+            if length <= tolerance*2:
+                continue
+            fractions = (points-points[a]) @ edge / (length*length)
+            distances = np.linalg.norm(points-(points[a]+fractions[:, None]*edge), axis=1)
+            split = [i for i in range(len(points)) if i not in indices
+                     and tolerance/length < fractions[i] < 1-tolerance/length
+                     and distances[i] <= tolerance]
+            order.extend(sorted(split, key=lambda i: (fractions[i], i)))
+        polygons.append(tuple(order))
+    vertices = tuple(map(tuple, points))
+    polygons = tuple(polygons)
+    if vertices == record.vertices and polygons == record.polygons:
+        return record
+    return replace(record, vertices=vertices, polygons=polygons)
+
+
 def prepare_portal_import(records, game, is_solid=None, *, preserve_indices=()):
     """Prepare compatible fragment groups without changing their semantics.
 
@@ -1190,8 +1462,9 @@ def prepare_portal_import(records, game, is_solid=None, *, preserve_indices=()):
     added outlines are committed later only with a complete solid-volume proof.
     Recovered Reach face loops remain intact until seam cleanup on the mesh.
     """
-    sources = list(records)
     preserved = set(preserve_indices)
+    sources = [record if record.index in preserved else conform_portal_fragments(record)
+               for record in records]
     if game == 'halo1':
         records, _ = reconstruct_portals(sources, is_solid=is_solid, preserve_indices=preserved)
     else:

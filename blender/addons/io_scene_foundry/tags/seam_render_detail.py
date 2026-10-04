@@ -1,4 +1,4 @@
-"""Keep compiled seam boundaries independent of render triangulation."""
+"""Debug helpers for isolating seam-adjacent render faces."""
 
 import bmesh
 from mathutils import kdtree
@@ -22,13 +22,31 @@ def seam_adjacent_face_indices(mesh, seam_meshes):
         distance = tree.find(vertex.co)[2]
         if distance == 0 or distance < max(abs(value) for value in vertex.co) * 2**-22:
             vertices.add(vertex.index)
-    return {face.index for face in mesh.polygons
-            if vertices.intersection(face.vertices)}
+    selected = {face.index for face in mesh.polygons
+                if vertices.intersection(face.vertices)}
+    # A mapped source triangle may have been cut into shared and render-only
+    # pieces. Keep its original seam classification on every child: otherwise
+    # newly introduced internal cuts participate in structure plane fitting.
+    section = mesh.attributes.get('.foundry_render_section')
+    triangle = mesh.attributes.get('.foundry_render_triangle')
+    if section is not None and triangle is not None:
+        sources = {(section.data[i].value, triangle.data[i].value) for i in selected}
+        selected.update(face.index for face in mesh.polygons
+                        if (section.data[face.index].value, triangle.data[face.index].value) in sources)
+    return selected
 
 
-def separate_seam_render_detail(ob, seam_meshes, name):
+def separate_seam_render_detail(ob, seam_meshes, name, *, render_only=False):
     """Copy seam-adjacent render faces without changing positions or flags."""
     selected = seam_adjacent_face_indices(ob.data, seam_meshes)
+    if render_only:
+        rendered = set()
+        for prop in ob.data.nwo.face_props:
+            if prop.type == 'face_mode' and prop.face_mode == 'render_only':
+                attribute = ob.data.attributes.get(prop.attribute_name)
+                if attribute is not None:
+                    rendered.update(i for i, value in enumerate(attribute.data) if value.value)
+        selected.intersection_update(rendered)
     if not selected:
         return None
     detail = ob.copy()

@@ -20,6 +20,7 @@ import os
 from .bitmap import BitmapTag, bitmap_to_image
 from ..tools.export_bitmaps import export_bitmap, bitmap_export_image, bitmap_needs_rebuild
 from .. import utils
+from ..tools.node_layout import layout_nodes
 import bpy
 
 from .render_method_definition import RenderMethodDefinitionTag
@@ -1535,7 +1536,7 @@ class ShaderTag(BlenderTag, TagDocument):
             
     # READING
     def to_nodes(self, blender_material, always_extract_bitmaps=False, generated_uvs=False,
-                 decal_bitmap_index=None):
+                 decal_bitmap_index=None, *, layout=True):
         self.always_extract_bitmaps = always_extract_bitmaps
         self.game_functions = set()
         self.object_functions = set()
@@ -1547,12 +1548,16 @@ class ShaderTag(BlenderTag, TagDocument):
         if self.game == 'halo1':
             self._to_nodes_halo1(blender_material)
             self._import_classic_emission(blender_material)
-            utils.update_foundry_material(blender_material, self.game)
+            utils.update_foundry_material(blender_material, self.game, arrange_nodes=False)
+            if layout:
+                layout_nodes(blender_material.node_tree)
             return
         if self.game == 'halo2':
             self._to_nodes_halo2(blender_material)
             self._import_classic_emission(blender_material)
-            utils.update_foundry_material(blender_material, self.game)
+            utils.update_foundry_material(blender_material, self.game, arrange_nodes=False)
+            if layout:
+                layout_nodes(blender_material.node_tree)
             return
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
         family = self.system_path.suffix.lstrip('.').casefold()
@@ -1568,9 +1573,11 @@ class ShaderTag(BlenderTag, TagDocument):
         if not self.corinth:
             flags = self._native_root.SelectField("Struct:render_method[0]/WordFlags:shader flags")
             if flags is not None and flags.TestBit("only render for shields"):
-                utils.material_add_shield(blender_material)
+                utils.material_add_shield(blender_material, arrange_nodes=False)
 
-        utils.update_foundry_material(blender_material, self.game)
+        utils.update_foundry_material(blender_material, self.game, arrange_nodes=False)
+        if layout:
+            layout_nodes(blender_material.node_tree)
 
     def _import_classic_emission(self, blender_material: bpy.types.Material):
         """Apply tag emission after building the classic shader's surface nodes."""
@@ -1597,7 +1604,7 @@ class ShaderTag(BlenderTag, TagDocument):
             and node.node_tree.name == 'Basic H2 shader'
             for node in blender_material.node_tree.nodes)
         if not uses_h2_group and (self.game != 'halo1' or H1_WRITE_RADIOSITY_TO_NODES):
-            utils.update_classic_emissive_material(blender_material, self.game)
+            utils.update_classic_emissive_material(blender_material, self.game, arrange_nodes=False)
 
     def _setup_sequence_driver(self, tree, image_node, sequence_length, function=None):
         from .function_driver import set_scalar_driver_expression

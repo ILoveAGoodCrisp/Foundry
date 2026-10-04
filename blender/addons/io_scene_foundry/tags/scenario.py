@@ -58,6 +58,14 @@ class ScenarioDecalPlacement:
 
 
 @dataclass(frozen=True)
+class ScenarioDecalExport:
+    definition: str
+    position: tuple[float, float, float]
+    yaw: int
+    pitch: int
+
+
+@dataclass(frozen=True)
 class ScenarioDecalUpdate:
     source_index: int
     palette_index: int
@@ -93,6 +101,57 @@ class ScenarioDocument(TagDocument):
 
     def _set_value(self, struct, name: str, value: object) -> None:
         self.required_field(struct, name).set(value)
+        self.tag_has_changes = True
+
+    def replace_decals(self, placements: Iterable[ScenarioDecalExport]) -> None:
+        """Rebuild palette and placements, including clearing an empty export."""
+        if self.game != 'halo1':
+            raise ValueError('Scenario decal export is currently supported for Halo 1')
+        placements = list(placements)
+        if len(placements) > 65536:
+            raise ValueError('Halo 1 supports at most 65536 decal placements')
+        definitions = {}
+        for placement in placements:
+            path = placement.definition.replace('\\', '/')
+            if (not path or Path(path).suffix.lower() != '.decal' or
+                    Path(path).is_absolute() or '..' in Path(path).parts):
+                raise ValueError(f'Invalid decal tag path: {placement.definition!r}')
+            if not (self.tags_root / path).is_file():
+                raise FileNotFoundError(self.tags_root / path)
+            if len(placement.position) != 3 or not all(isfinite(v) for v in placement.position):
+                raise ValueError('Invalid decal position')
+            try:
+                position = struct.unpack('<3f', struct.pack('<3f', *placement.position))
+            except (OverflowError, struct.error) as exc:
+                raise ValueError('Decal position is outside the supported range') from exc
+            if not all(isfinite(v) for v in position):
+                raise ValueError('Decal position is outside the supported range')
+            if not all(isinstance(v, int) and -128 <= v <= 127 for v in (placement.yaw, placement.pitch)):
+                raise ValueError('Invalid decal angle bytes')
+            definitions.setdefault(path.casefold(), path)
+        if len(definitions) > 32767:
+            raise ValueError('Halo 1 supports at most 32767 decal palette entries')
+        root = self.tag.root()
+        self.block(root, 'decals').clear()
+        self.block(root, 'decal palette').clear()
+        indices = {}
+        for key, path in definitions.items():
+            palette = self.block(root, 'decal palette')
+            index = palette.add()
+            palette = self.block(root, 'decal palette')
+            self.set_reference(palette[index], 'reference', path)
+            indices[key] = index
+        for placement in placements:
+            rows = self.block(root, 'decals')
+            index = rows.add()
+            row = self.block(root, 'decals')[index]
+            self._set_value(row, 'decal type', indices[placement.definition.replace('\\', '/').casefold()])
+            point = self.required_field(row, 'position')
+            point.set(type(point.value)(*placement.position))
+            yaw = row.field('yaw[-127,127]')
+            pitch = row.field('pitch[-127,127]')
+            (yaw if yaw is not None else self.required_field(row, 'yaw')).set(placement.yaw)
+            (pitch if pitch is not None else self.required_field(row, 'pitch')).set(placement.pitch)
         self.tag_has_changes = True
 
     def update_halo1_decal_placements(self, updates: Iterable[ScenarioDecalUpdate]) -> int:

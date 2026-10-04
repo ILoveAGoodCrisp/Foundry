@@ -497,7 +497,11 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 additive = int(self.value(element, 'lightmap additive transparency color'))
                 translucency = int(self.value(element, 'lightmap traslucency tint color'))
                 analytical = float(self.value(element, 'lightmap analytical light absorb'))
-                normal = float(self.value(element, 'lightmap normal light absorb'))
+                # Older Reach layouts have photon fidelity instead of normal absorb.
+                # Preserve the default when the absorb field is absent.
+                normal_field = element.field('lightmap normal light absorb')
+                if normal_field is not None:
+                    normal = float(normal_field.value)
                 flags = self.required_field(element, 'lightmap flags')
                 both_sides = flags.get_flag('lighting from both sides')
                 transparency_override = flags.get_flag('transparency override')

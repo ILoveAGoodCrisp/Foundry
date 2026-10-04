@@ -109,9 +109,6 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
                     if any(self.value(function, n).strip() for n in ('Input Variable', 'Range Variable', 'Output Modifier Input')):
                         raise NotImplementedError(f'{self.path}: driven lighting-info functions are not implemented')
                     self._mapping_min(self.required_field(function, 'Mapping'))
-                gobo = self.reference(parameters, 'Gobo Tag Path')
-                if self.path_exists(gobo):
-                    raise NotImplementedError(f'{self.path}: native lighting-info gobo bitmap conversion is not implemented')
         for element in self.block_generic_light_instances:
             index = self.value(element, 'Light Definition Index' if self.corinth else 'definition index')
             if not 0 <= index < len(self.block_generic_light_definitions):
@@ -519,8 +516,15 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
 
     def _from_corinth_light_definitions(self):
         definitions: dict[int: bpy.types.Light] = {}
+        gobo_images = {}
         for element_index, element in enumerate(self.block_generic_light_definitions):
             parameters = self.required_field(element, 'Midnight_Light_Parameters').as_struct()
+            gobo = self.reference(parameters, 'Gobo Tag Path')
+            gobo_path = self._reference_path(gobo)
+            if gobo_path not in gobo_images:
+                gobo_images[gobo_path] = (bitmap_to_image(gobo.Filename, frame_index=0).image
+                                          if self.path_exists(gobo) else None)
+            gobo_image = gobo_images[gobo_path]
             name = self.value(parameters, 'haloLightNode')
             match self._index(parameters, 'Light Type'):
                 case 0:
@@ -599,12 +603,31 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
 
             if blender_light.type == 'SUN':
                 blender_light.energy = blender_light.nwo.light_intensity
+                if gobo_image is not None:
+                    self._apply_physical_gobo(blender_light, gobo_image)
             elif nwo.light_physically_correct:
                 blender_light.energy = blender_light.nwo.light_intensity * (utils.get_import_scale(bpy.context) ** 2)
+                if gobo_image is not None:
+                    self._apply_physical_gobo(blender_light, gobo_image)
             else:
-                utils.make_halo_light(blender_light)
+                utils.make_halo_light(blender_light, gobo_image=gobo_image)
 
         return definitions
+
+    @staticmethod
+    def _apply_physical_gobo(light, image):
+        # Keep Blender's physical falloff and energy; only modulate emission color.
+        tree = light.node_tree
+        emission = next(node for node in tree.nodes if node.type == 'EMISSION')
+        texture = tree.nodes.new('ShaderNodeTexImage')
+        texture.image = image
+        multiply = tree.nodes.new('ShaderNodeMixRGB')
+        multiply.blend_type = 'MULTIPLY'
+        multiply.inputs[0].default_value = 1.0
+        multiply.inputs[1].default_value = emission.inputs['Color'].default_value
+        tree.links.new(texture.outputs['Color'], multiply.inputs[2])
+        tree.links.new(multiply.outputs['Color'], emission.inputs['Color'])
+        utils.arrange(tree)
 
     def _from_reach_light_instances(self, definitions: dict[int: bpy.types.Light]):
         objects = []

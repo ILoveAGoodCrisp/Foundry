@@ -583,7 +583,10 @@ class FrameEventListTag(BlenderTag, TagDocument):
                         if reference_index == -1:
                             continue
                         if not 0 <= reference_index < len(references[kind]):
-                            raise ValueError(f'{self.path}: invalid {kind} reference index {reference_index}')
+                            utils.print_warning(
+                                f'{self.path}: invalid {kind} reference index {reference_index} '
+                                f'in animation {name!r}; skipping {kind} event')
+                            continue
                         setattr(record, kind + '_reference', references[kind][reference_index])
                         record.marker_name = self.value(element, 'marker name')
                         if kind == 'effect':
@@ -597,7 +600,10 @@ class FrameEventListTag(BlenderTag, TagDocument):
                     elif 0 <= index < event_count:
                         target = events[index]
                     else:
-                        raise ValueError(f'{self.path}: invalid frame event index {index}')
+                        utils.print_warning(
+                            f'{self.path}: invalid frame event index {index} '
+                            f'in animation {name!r}; skipping {kind} event')
+                        continue
                     getattr(target, kind + '_events').append(record)
             result[name] = collapse_events(events)
         return result

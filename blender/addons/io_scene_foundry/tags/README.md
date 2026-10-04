@@ -266,32 +266,73 @@ cluster-volume recovery and later outline cleanup across all supported games.
 Preserved portals use the native structure's single coordinate transform so
 float32 rounding does not separate an exact contact during Blender conversion.
 
-Reach structure imports preserve the complete native collision shell separately
-from the render clusters, following the H1 shell-preservation approach. Render
-faces meeting compiled seam vertices within float32 rounding bounds become
-render-only instances. Render-only structure still enters Tool's plane builder
-and can reopen the independently reconstructed solid at those boundaries.
-Ordinary render structure remains to help reproduce the original planes. Collision
+Reach structure imports repair the native collision shell before merging actual
+mapped render/collision surfaces into one editable structure object per BSP.
+Tag section and triangle identities survive cluster joining and separation.
+Mapped render coverage subdivides the repaired native polygons; shared faces
+use native positions, interpolated render corners and native collision flags.
+Only uncovered native coverage remains collision-only. Coincident unmapped
+render detail cannot claim a collision surface. Exact welding protects those
+independent visual overlays while reconnecting shared physical boundaries.
+Export derives both compiler streams from the shared editable triangles. Native
+boundary connectivity is recorded without another set of coordinates. On a
+private compiler copy, unchanged face groups recover their simpler native
+polygons using current mesh vertices. Geometry hashes and matching face flags
+prevent recovery from replacing edits. The physical copy restores native face
+and material traversal order and flat corners without render UV/color cuts;
+Tool's tolerant plane fitting otherwise turns very small cuts into open edges.
+Temporary compiler copies are removed and the merged authoring scene restored.
+Render boundary recipes refer to the live shared corners and retain small
+precision offsets from the original compiled renderer. Unchanged triangle
+families recover their source traversal and corners only when materials, face
+flags and interpolated UV/normal/color data agree. Geometry edits invalidate
+the recipe; nonuniform corner edits retain their subdivisions. These offsets
+guide Tool's reconstruction without restoring another authoring geometry body.
+Independent imported vertex fans preserve their encoded custom normals through
+the native join and compiler partition. Private render copies normalize only
+near-identical corner normals within 0.001 vector distance, below 0.06 degrees;
+larger hard splits and the authoring normals remain unchanged.
+Render structure remains to help reproduce Tool's solid planes. Every child of
+a subdivided source triangle retains its source seam-detail classification.
+Collision
 faces retain their material and surface flags,
 and compiler subdivisions dissolve only when the original plane, material,
 winding and all face properties agree. Boundary and junction vertices remain.
+In reconstructed Reach seam shells, sky subdivisions retain their native
+topology when joining them would introduce
+a concave ear within float32 rounding bounds. Ordinary sky partitions still
+dissolve; distant sky-box corners can otherwise create almost collinear ears
+and introduce overlapping-surface warnings. Unseamed BSPs and other imports
+retain the established sky dissolution; changing those partitions regressed
+visibility portals during the unseamed Reach regression.
 Known-plane collision outlines cancel zero-width compiler spurs and replace only
 triangulations with nearly collinear ears. The replacement maximizes the smallest
 triangle altitude inside the original outline, retains source vertex positions
 and face masks, and reconnects exposed junctions within float32 rounding bounds.
+Nearly collapsed seam triangles can also be joined to a contiguous surface
+within the same rounding bound, provided material and authored flags agree.
+Those repaired seam patches and the solid surfaces sharing their boundary
+vertices receive stable triangulation together. Changing only the seam side
+lets Tool move the two boundaries apart during its plane reconstruction.
+This recovery retains boundary positions and avoids retriangulating unrelated
+surfaces or replacing the shell with the separately compiled seam tag.
+It is shared by BSP imports with native plane provenance; unknown-plane render
+meshes and meshes with custom normals remain excluded. Tool verification of
+this seam recovery currently covers Reach firefight BSPs.
 Seam objects discard the inherited collision-only override and retain their
 normal seam mode.
 Native collision records retain plane provenance across H1, H2, H3, ODST, Reach,
-H4 and H2AMP; preserving a separate structure shell currently applies to Reach.
+H4 and H2AMP; the complete native structure reconstruction currently applies to Reach.
 The complete Reach shell skips the opposite-surface sidedness inference used
 for render/collision merging. Native instance proxies stitch only open
 boundaries; closed thin parts are excluded from proximity-based edge splitting.
 Native cookie cutters retain opposite face pairs as closed loops instead of
 collapsing them into two-sided face flags, which Tool does not use to close
-cookie-cutter volumes. Distant render-only instance meshes without collision,
+cookie-cutter volumes. Distant legacy render-only instance meshes without collision,
 physics or cookie-cutter proxies use a centred private mesh. Placement, UVs,
 normals and authored face properties are retained; smaller local coordinates
 avoid Tool's plane-through-point assertion on large sky geometry.
+Corinth instance origins stay with the later Havok proxy reconstruction.
 
 Authored PCA animation also reads native blocks and linked render-model metadata,
 then creates Blender shape keys and actions through the existing workflow. This

@@ -142,7 +142,8 @@ def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False):
     their surrounding polygon has a valid triangulation. Tool drops these
     triangles on reimport. Keep every boundary vertex and change only an
     internal diagonal between compatible triangles. At UV or normal seams,
-    retain the render triangles and recover collision separately instead.
+    retain the original shared geometry rather than generating overlapping
+    render-only and collision-only alternatives.
     """
     bm = bmesh.new()
     changed = 0
@@ -151,15 +152,12 @@ def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False):
         preserve_normals = mesh.has_custom_normals
         if preserve_normals:
             utils.save_loop_normals(bm, mesh)
-        mode_layers = [bm.faces.layers.bool.new('.reach_sliver_' + mode)
-                       for mode in ('render_only', 'collision_only')]
         attributes = [a for a in mesh.attributes if a.domain == 'FACE'
                       and not a.name.startswith(('.', 'ln'))
                       and a.data_type in {'BOOLEAN', 'INT', 'FLOAT'}]
         identities = {f: (f.material_index, tuple(a.data[f.index].value for a in attributes))
                       for f in bm.faces}
         uv_layers = list(bm.loops.layers.uv.values())
-        separated = set()
         excluded = {f for f in bm.faces for prop in mesh.nwo.face_props
                     if (prop.type == 'face_mode' and prop.face_mode not in
                         ({'normal', 'collision_only'} if collision_only else {'normal'})
@@ -182,7 +180,7 @@ def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False):
             return loop.face[bm.faces.layers.float_vector[f'ln{list(loop.face.loops).index(loop)}']]
 
         for face in list(bm.faces):
-            if not face.is_valid or face in separated or face in excluded or len(face.verts) != 3:
+            if not face.is_valid or face in excluded or len(face.verts) != 3:
                 continue
             old_altitude = altitude([v.co for v in face.verts])
             # Tool also loses normals on very long, narrow helper triangles:
@@ -197,7 +195,7 @@ def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False):
                 if len(edge.link_faces) != 2 or not edge.is_contiguous:
                     continue
                 other = next(f for f in edge.link_faces if f != face)
-                if (other in separated or other in excluded or len(other.verts) != 3
+                if (other in excluded or len(other.verts) != 3
                         or identities.get(face) != identities.get(other)):
                     continue
                 a, b = loop.vert, loop.link_loop_next.vert
@@ -228,80 +226,21 @@ def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False):
                     else:
                         loops[l.vert] = l
                 choices.append((compatible, quality, other, edge, triangles, loops))
+            choices = [choice for choice in choices if choice[0]]
             if not choices:
-                if collision_only:
-                    # Helper surfaces have no visible UV/normal seam to keep.
-                    # Do not retain overlapping render-only special materials.
-                    continue
-                # A folded sliver can backtrack along a neighbour's boundary:
-                # A--C--D is one straight edge, but the compiled pair takes
-                # A--D--B--C--A. Keep the visible faces, and recover collision
-                # as C--D--B plus a C split on the face across A--D.
-                longest = max(face.edges, key=lambda e: e.calc_length())
-                if len(longest.link_faces) != 2 or not longest.is_contiguous:
-                    continue
-                other = next(f for f in longest.link_faces if f != face)
-                if (other in excluded or other in separated or len(other.verts) != 3
-                        or identities[face] != identities.get(other)):
-                    continue
-                c = next(v for v in face.verts if v not in longest.verts)
-                d = next(v for v in other.verts if v not in longest.verts)
-                for a in longest.verts:
-                    delta = d.co-a.co
-                    if not delta.length_squared:
-                        continue
-                    t = (c.co-a.co).dot(delta) / delta.length_squared
-                    if not 0 < t < 1 or (c.co-(a.co+t*delta)).length > tolerance * .1:
-                        continue
-                    edge = bm.edges.get((a, d))
-                    if edge is None or len(edge.link_faces) != 2 or not edge.is_contiguous:
-                        continue
-                    across = next(f for f in edge.link_faces if f != other)
-                    if across in excluded or across in separated or c in across.verts:
-                        continue
-                    triangle = [c if v == a else v for v in other.verts]
-                    if altitude([v.co for v in triangle]) < tolerance * 2:
-                        continue
-                    boundary = []
-                    for loop in across.loops:
-                        boundary.append(loop.vert)
-                        if loop.edge == edge:
-                            boundary.append(c)
-                    for vertices, template in ((triangle, other), (boundary, across)):
-                        new = bm.faces.new([bm.verts.new(v.co) for v in vertices], template)
-                        for loop in new.loops:
-                            loop.copy_from_face_interp(template, True)
-                        new[mode_layers[1]] = True
-                        separated.add(new)
-                    for original in (face, other, across):
-                        original[mode_layers[0]] = True
-                        separated.add(original)
-                    changed += 1
-                    break
                 continue
-            compatible, _, other, edge, triangles, loops = max(choices, key=lambda choice: choice[:2])
+            _, _, other, edge, triangles, loops = max(choices, key=lambda choice: choice[:2])
             for vertices in triangles:
-                new_vertices = vertices if compatible else [bm.verts.new(v.co) for v in vertices]
-                new = bm.faces.new(new_vertices, face)
+                new = bm.faces.new(vertices, face)
                 identities[new] = identities[face]
                 for index, loop in enumerate(new.loops):
                     original = loops[vertices[index]]
                     loop.copy_from(original)
                     if preserve_normals:
                         new[bm.faces.layers.float_vector[f'ln{index}']] = normal(original)
-                if not compatible:
-                    new[mode_layers[1]] = True
-                    separated.add(new)
-            if compatible:
-                bm.faces.remove(face)
-                bm.faces.remove(other)
-                bm.edges.remove(edge)
-            else:
-                # A UV/hard-normal seam must remain in the visible surface.
-                # Preserve both render triangles and give their same outer
-                # boundary a separate, valid collision triangulation.
-                face[mode_layers[0]] = other[mode_layers[0]] = True
-                separated.update((face, other))
+            bm.faces.remove(face)
+            bm.faces.remove(other)
+            bm.edges.remove(edge)
             changed += 1
         if changed:
             bm.to_mesh(mesh)
@@ -311,12 +250,6 @@ def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False):
         mesh.update()
         if preserve_normals:
             utils.apply_loop_normals(mesh)
-        for mode in ('render_only', 'collision_only'):
-            attribute = mesh.attributes.get('.reach_sliver_' + mode)
-            mask = np.array([v.value for v in attribute.data], dtype=np.int8)
-            if mask.any():
-                utils.add_face_prop(mesh, 'face_mode', mask).face_mode = mode
-            mesh.attributes.remove(attribute)
         utils.calc_face_prop_counts(mesh)
     return changed
 

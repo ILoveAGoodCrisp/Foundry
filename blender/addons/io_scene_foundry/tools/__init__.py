@@ -4,6 +4,7 @@ import bpy
 
 from .decorator_exporter import NWO_OT_DecoratorCloudToInstances, NWO_OT_ExportDecorators, NWO_OT_GetDecoratorTypes
 from .airprobe_exporter import NWO_OT_ExportAirprobes
+from .decal_exporter import NWO_OT_ExportDecals
 
 from .scenario.wetness import NWO_OT_GenerateWetnessData
 from .scenario.decal_export import NWO_OT_ExportHalo1DecalPlacements
@@ -60,11 +61,12 @@ from .halo_launcher import NWO_HaloLauncherPropertiesGroup, NWO_MaterialGirl
 from .imposter_farm import NWO_OT_InstanceImposterGenerate
 from .file_split import NWO_OT_FileAggregate, NWO_OT_FileSplit, NWO_OT_OpenLinkedCollection
 from .barebones_model_format import NWO_OT_ExportBMF
+from .new_user_debug import NWO_OT_DebugNewUserExperience, restore_new_user_debug
 
 is_blender_startup = True
 
 # import Tool Operators
-from .instance_proxies import NWO_ProxyInstanceNew, NWO_ProxyInstanceCancel, NWO_ProxyInstanceEdit, NWO_ProxyInstanceDelete, NWO_ProxyInstancePhysicsClear
+from .instance_proxies import NWO_ProxyInstanceNew, NWO_ProxyInstanceCancel, NWO_ProxyInstanceEdit, NWO_ProxyInstanceDelete, NWO_ProxyInstancePhysicsClear, NWO_ProxyInstanceCopyToSelected
 
 #######################################
 # NEW TOOL UI
@@ -83,6 +85,7 @@ from .halo_join import NWO_JoinHalo
 # PROPERTIES MANAGER TOOL
 
 classes = (
+    NWO_OT_DebugNewUserExperience,
     NWO_HaloLauncherPropertiesGroup,
     NWO_ModelVariantViewerNameItem,
     NWO_ModelVariantViewerRegion,
@@ -130,6 +133,7 @@ classes = (
     NWO_ProxyInstanceCancel,
     NWO_ProxyInstanceDelete,
     NWO_ProxyInstancePhysicsClear,
+    NWO_ProxyInstanceCopyToSelected,
     NWO_ProxyInstanceEdit,
     NWO_ProxyInstanceNew,
     NWO_CollectionManager_CreateMove,
@@ -263,6 +267,7 @@ classes = (
     NWO_OT_ExportHalo1DecalPlacements,
     NWO_OT_ExportDecorators,
     NWO_OT_ExportAirprobes,
+    NWO_OT_ExportDecals,
     NWO_OT_GetDecoratorTypes,
     NWO_OT_DecoratorCloudToInstances,
     NWO_OT_InstancerToInstance,
@@ -286,6 +291,7 @@ def register():
     )
     
 def unregister():
+    restore_new_user_debug()
     del bpy.types.Scene.nwo_halo_launcher
     del bpy.types.Scene.nwo_shader_build
     for cls in classes:

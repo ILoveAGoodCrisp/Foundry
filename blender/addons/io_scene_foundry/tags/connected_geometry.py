@@ -438,7 +438,9 @@ class InstanceDefinition:
             from .classic_geometry import weld_classic_vertices
             from .reach_geometry import (preserve_two_sided_sealers, retriangulate_render_slivers,
                                          repair_collision_triangulation)
+            from .bsp_import_geometry import reconnect_collinear_triangles
             weld_classic_vertices(self.blender_render.data)
+            reconnect_collinear_triangles(self.blender_render.data)
             if retriangulate_render_slivers(self.blender_render.data, 0.025 * import_transform.scale_factor()):
                 weld_classic_vertices(self.blender_render.data)
             preserve_two_sided_sealers(self.blender_render.data)
@@ -538,7 +540,7 @@ class Instance:
         # Large render-only sky meshes can fail Tool's plane-through-point
         # assertion at their original local coordinates. Keep placement and
         # authored attributes, but use a centred private mesh for arithmetic.
-        if (self.render_only and not self.definition.has_collision
+        if (self.render_only and not utils.is_corinth() and not self.definition.has_collision
                 and not self.definition.has_cookie and not self.definition.has_physics):
             from .classic_geometry import centre_distant_render_instance
             centre_distant_render_instance(ob, import_transform.distance(500))
@@ -1649,6 +1651,12 @@ class BSP:
                     utils.add_face_prop(mesh, "global_material", material_indices).global_material = mat.name
             elif materials_set:
                 utils.add_face_prop(mesh, "global_material").global_material = surface.material.name
+
+        if self.uses_materials:
+            overrides={getattr(material,'global_material_override','') for material in map_material if material is not None}
+            for override in sorted(overrides-{''}):
+                mask=[getattr(material,'global_material_override','')==override for material in map_material]
+                utils.add_face_prop(mesh,'global_material',mask).global_material=override
 
         bm = bmesh.new()
         bm.from_mesh(mesh)
@@ -3681,7 +3689,12 @@ class Mesh:
             self.raw_water_texcoords = full
 
     def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None, is_io=False, surface_triangle_mapping=[], section_index=0, collision_info: BSP | None = None):
-        has_tag_path = self.tag_path is not None
+        # BSP clusters and instance definitions acquire collision flags, repairs
+        # and helper faces after creation. A shared render section does not prove
+        # identical collision. Cache only the immutable model meshes; instance
+        # placements still share their completed definition's mesh normally.
+        is_bsp_geometry = name.startswith(('cluster:', 'instance_definition:'))
+        has_tag_path = self.tag_path is not None and not is_bsp_geometry
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
         final_matrix = import_transform.object_matrix(matrix)
         if has_tag_path:
@@ -3736,6 +3749,15 @@ class Mesh:
             indices = [[i - idx_start for i in tri] for tri in indices]
 
         mesh.from_pydata(positions, [], indices)
+
+        if name.startswith('cluster:') and collision_info is not None and subpart is None:
+            # Preserve tag triangle identity through water/seam separation and
+            # cluster joining. Mapping indices must never refer to a reordered
+            # Blender face list.
+            mesh.attributes.new('.foundry_render_section', 'INT', 'FACE').data.foreach_set(
+                'value', [section_index] * len(mesh.polygons))
+            mesh.attributes.new('.foundry_render_triangle', 'INT', 'FACE').data.foreach_set(
+                'value', [face.index for face in self.tris])
 
         transform_matrix = import_transform.mesh_matrix() @ (self.bounds.co_matrix if self.bounds else Matrix.Scale(100, 4))
         mesh.transform(transform_matrix)
@@ -3859,6 +3881,9 @@ class Mesh:
             collision_material_indices = np.full(face_count, -1, dtype=np.int32)
             collision_material_slots = {material: index for index, material in enumerate(mesh.materials) if material is not None}
             global_material_override_masks = {}
+            # A compiled plane can contain opposing fragments of one authored
+            # polygon. Keep its identity only while repairing the import.
+            mapped_planes = [set() for _ in mesh.polygons]
             
             for mapping in surface_triangle_mapping:
                 surf = mapping.surface
@@ -3871,6 +3896,9 @@ class Mesh:
                         continue
 
                     collision_face_indices.add(idx)
+                    plane = getattr(surf, 'plane_index', -1)
+                    if plane >= 0:
+                        mapped_planes[idx].add(plane)
 
                     if surf.slip_surface:
                         slip_mask[idx] = 1
@@ -3919,6 +3947,10 @@ class Mesh:
                 utils.add_face_prop(mesh, "global_material", None if override_mask.all() else override_mask).global_material = override
             if render_only_mask.any():
                 utils.add_face_prop(mesh, "face_mode", None if render_only_mask.all() else render_only_mask).face_mode = 'render_only'
+            if any(mapped_planes):
+                plane_attribute = mesh.attributes.get('.foundry_collision_plane') or mesh.attributes.new('.foundry_collision_plane','INT','FACE')
+                plane_attribute.data.foreach_set('value', [next(iter(values)) if len(values)==1 else -1
+                                                         for values in mapped_planes])
 
         # for subpart in water_subparts:
         #     subpart.remove(ob, self.tris)

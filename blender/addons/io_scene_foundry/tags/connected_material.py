@@ -5,7 +5,7 @@ import math
 import struct
 from typing import TYPE_CHECKING
 
-from ..tools.node_tree_arrange import arrange
+from ..tools.node_layout import layout_nodes
 
 from .. import utils
 import bpy
@@ -1404,6 +1404,7 @@ class Function:
             output = self._apply_output_modifier(tree, output, max_value if normalize else None)
             if return_node_group:
                 tree.links.new(input=group_output.inputs[0], output=output)
+                layout_nodes(tree)
                 return tree
             else:
                 return output
@@ -1495,7 +1496,7 @@ class Function:
         output = self._apply_output_modifier(tree, final_node.outputs[0], max_value if normalize else None)
         if return_node_group:
             tree.links.new(input=group_output.inputs[0], output=output)
-            arrange(tree)
+            layout_nodes(tree)
             return tree
         return output
 

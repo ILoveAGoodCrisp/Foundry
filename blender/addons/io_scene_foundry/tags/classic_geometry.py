@@ -622,18 +622,51 @@ def weld_classic_vertices(mesh):
     per face. Blender stores those seams per corner, so they need not disconnect
     editable geometry. Do not use a distance weld: thin BSP features must retain
     their positions. Stacked faces are left for the explicit sidedness pass.
+    Keep render-only overlays topologically distinct from solid faces: Blender's
+    triangulation removes duplicate triangles sharing the same vertex IDs,
+    even when one is render-only and the other supplies collision.
     """
     bm = bmesh.new()
     try:
         bm.from_mesh(mesh)
+        noncollision_layers = [bm.faces.layers.bool.get(prop.attribute_name)
+                               for prop in mesh.nwo.face_props
+                               if getattr(prop, 'type', '') == 'face_mode'
+                               and getattr(prop, 'face_mode', '') in
+                               {'render_only', 'lightmap_only', 'shadow_only'}]
+        noncollision_layers = [layer for layer in noncollision_layers if layer is not None]
+        noncollision = {face for face in bm.faces
+                        if any(face[layer] for layer in noncollision_layers)}
+        split_needed = any(any(f in noncollision for f in v.link_faces)
+                           and any(f not in noncollision for f in v.link_faces)
+                           for v in bm.verts) if noncollision else False
+        preserve_normals = mesh.has_custom_normals
+        normals_saved = False
+        if split_needed:
+            if preserve_normals and bm.faces:
+                utils.save_loop_normals(bm, mesh)
+                normals_saved = True
+                # Adding the normal layers can reallocate face storage.
+                noncollision = {face for face in bm.faces
+                                if any(face[layer] for layer in noncollision_layers)}
+            before_faces = len(bm.faces)
+            bmesh.ops.split(bm, geom=list(noncollision), use_only_faces=True)
+            if len(bm.faces) != before_faces:
+                raise ValueError('Separating render-only BSP topology changed the face count')
+            noncollision = {face for face in bm.faces
+                            if any(face[layer] for layer in noncollision_layers)}
         by_position = defaultdict(list)
         by_face = defaultdict(list)
         protected = set()
         for vertex in bm.verts:
-            by_position[tuple(vertex.co)].append(vertex)
+            role = bool(vertex.link_faces) and all(f in noncollision for f in vertex.link_faces)
+            by_position[tuple(vertex.co), role].append(vertex)
         for face in bm.faces:
             coords = frozenset(tuple(v.co) for v in face.verts)
-            by_face[coords].append(face)
+            # Cross-role overlays are already protected by the weld key.
+            # Treating them as same-role stacked faces also blocks legitimate
+            # render corner welding and changes the compiler vertex stream.
+            by_face[coords, face in noncollision].append(face)
             if len(coords) != len(face.verts):
                 protected.update(face.verts)
         for faces in by_face.values():
@@ -643,10 +676,9 @@ def weld_classic_vertices(mesh):
         for vertices in by_position.values():
             if len(vertices) > 1 and not any(v in protected for v in vertices):
                 targets.update((v, vertices[0]) for v in vertices[1:])
-        if not targets:
+        if not targets and not split_needed:
             return 0
-        preserve_normals = mesh.has_custom_normals
-        if preserve_normals and bm.faces:
+        if preserve_normals and not normals_saved and bm.faces:
             utils.save_loop_normals(bm, mesh)
         before = len(bm.faces)
         bmesh.ops.weld_verts(bm, targetmap=targets)
@@ -676,13 +708,63 @@ def centre_distant_render_instance(ob, distance):
     return True
 
 
-def dissolve_source_collision_splits(mesh):
+def _sky_split_edges_to_preserve(edges, sky_materials):
+    """Keep sky partitions whose combined border has a rounded concave ear."""
+    neighbours = defaultdict(set)
+    for edge in edges:
+        a, b = edge.link_faces
+        if a.material_index in sky_materials:
+            neighbours[a].add(b)
+            neighbours[b].add(a)
+    remaining = set(neighbours)
+    protected = set()
+    while remaining:
+        group = set()
+        pending = [next(iter(remaining))]
+        while pending:
+            face = pending.pop()
+            if face in group:
+                continue
+            group.add(face)
+            pending.extend(neighbours[face] - group)
+        remaining.difference_update(group)
+        outgoing, incoming = defaultdict(list), defaultdict(list)
+        for face in group:
+            for loop in face.loops:
+                if sum(linked in group for linked in loop.edge.link_faces) == 1:
+                    a, b = loop.vert, loop.link_loop_next.vert
+                    outgoing[a].append(b)
+                    incoming[b].append(a)
+        normal = max(group, key=lambda face: face.calc_area()).normal
+        unstable = any(len(outgoing[v]) != 1 or len(incoming[v]) != 1 for v in outgoing)
+        if not unstable:
+            for vertex in outgoing:
+                a, b = incoming[vertex][0], outgoing[vertex][0]
+                delta = b.co - a.co
+                if not delta.length_squared:
+                    continue
+                offset = vertex.co - a.co
+                fraction = offset.dot(delta) / delta.length_squared
+                turn = offset.cross(b.co - vertex.co)
+                altitude = turn.length / delta.length
+                epsilon = max(abs(c) for point in (a, vertex, b) for c in point.co) * 2**-22
+                if 0 < fraction < 1 and 0 < altitude <= epsilon * 4 and turn.dot(normal) < 0:
+                    unstable = True
+                    break
+        if unstable:
+            protected.update(edge for edge in edges if all(face in group for face in edge.link_faces))
+    return protected
+
+
+def dissolve_source_collision_splits(mesh, *, preserve_sky=False):
     """Remove compiler subdivisions with the same original plane and flags.
 
     Collision streams have no render UVs or corner normals. Plane provenance
     lets us join a compiled split without guessing from rounded face normals.
     Material and every authored face property must still agree, and junction
     vertices stay in the boundary so adjacent surfaces remain connected.
+    Sky subdivisions retain native topology where dissolving them would create
+    a rounded concave ear which Tool can report as overlapping.
     """
     attribute = mesh.attributes.get('.foundry_collision_plane')
     if attribute is None:
@@ -696,6 +778,8 @@ def dissolve_source_collision_splits(mesh):
         layers = [bm.faces.layers.bool.get(prop.attribute_name)
                   for prop in mesh.nwo.face_props]
         layers = [layer for layer in layers if layer is not None]
+        sky_materials = {index for index, material in enumerate(mesh.materials)
+                         if material and material.name.startswith('+sky')} if preserve_sky else set()
         edges = []
         for edge in bm.edges:
             if len(edge.link_faces) != 2 or not edge.is_contiguous:
@@ -705,6 +789,9 @@ def dissolve_source_collision_splits(mesh):
                     and a.material_index == b.material_index
                     and all(a[layer] == b[layer] for layer in layers)):
                 edges.append(edge)
+        if sky_materials:
+            protected = _sky_split_edges_to_preserve(edges, sky_materials)
+            edges = [edge for edge in edges if edge not in protected]
         if not edges:
             return 0
         before = len(bm.faces)

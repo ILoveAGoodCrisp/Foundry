@@ -294,6 +294,15 @@ from 50 tags. The other ten stop at documented texture/function/layout gaps.
 The sampling uses identity transforms and stubs final light-node setup/energy
 conversion; visual parity and editing-kit acceptance still need verification.
 All sampled source bytes were unchanged. No ManagedBlam fallback was used.
+H4/H2AMP lighting-info gobos now use native bitmap conversion, selecting the
+first bitmap frame and sharing images across definitions. Artistic lights connect
+the image to the Halo Light shader; physical lights modulate emission color while
+retaining their energy and falloff. The Blender regression
+`tests/test_lighting_info_gobo_blender.py` also accepts a real lighting-info
+tag, tags root and game after `--`. The ca_warhouse H4 fixture passed preflight
+and imported 363 definitions with one unique gobo decoded, leaving source bytes
+unchanged. This check covers light definitions and shader connections; a complete
+scenario import and rendered projection parity remain unverified.
 Frame-event lists now read and write natively for Reach/H4/H2AMP. Partial exports
 preserve other animations and shared reference indices; repeated exports reuse
 references. Ranges, detached sound/effect/dialogue events, clearing and aborted

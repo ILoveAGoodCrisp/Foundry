@@ -143,14 +143,3 @@ def write_material_emissive(tag_path: str | Path, tags_root: str | Path,
                 shader.tag_has_changes = True
         changed = shader.tag_has_changes
     return changed
-
-
-def material_emissive_matches(tag_path: str | Path, tags_root: str | Path,
-                              power: float, linear_color, game='halo1') -> bool:
-    """Check whether a protected shader already has the material's values."""
-    path = shader_environment_path(tag_path, tags_root, game)
-    color = tuple(max(0.0, min(1.0, float(value))) ** (1 / 2.2)
-                  for value in linear_color[:3])
-    with TagDocument(path, tags_root=tags_root, game=game, must_exist=True) as shader:
-        pairs = _emissive_fields(shader)
-        return bool(pairs) and all(_matches(pair, float(power), color) for pair in pairs)

@@ -401,14 +401,15 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             prop.material_lighting_attenuation_cutoff = 0.0
 
     def _create_tag_portals(self, collection: bpy.types.Collection, records=None, *,
-                            collision_tree=None, preserve_indices=None) -> list[bpy.types.Object]:
+                            collision_tree=None, preserve_indices=None, structure_objects=()) -> list[bpy.types.Object]:
         """Recover editable cutting surfaces for portals imported from tags."""
         records = self.portals() if records is None else records
         if not records:
             return []
         from .portal_reconstruction import (
             prepare_portal_import, dissolve_portal_seams, rectangularize_portal,
-            stabilize_portal_tessellation, structure_aligned_portal_indices,
+            stabilize_portal_tessellation, structure_aligned_portal_indices, snap_portal_vertices,
+            recover_solid_portal_outline,
         )
         if collision_tree is None:
             collision_tree = self.portal_collision_tree()
@@ -443,17 +444,18 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         portals_collection.nwo.permutation = layer
         collection.children.link(portals_collection)
         objects = []
+        recovered_outline_count = 0
         for group in groups:
             record = group[0]
             ob = Portal(record, group[1:], preserve_coordinates=record.index in preserved).create()
             scale = 100 * import_transform.scale_factor()
             prefix = 'halo1_' if self.game == 'halo1' else 'tag_'
             ob[prefix+'portal_structure_aligned'] = record.index in preserved
-            ob[prefix+'portal_rectangularized'] = False
             if record.index not in preserved:
                 dissolve_portal_seams(ob.data, group, source_records, is_solid, scale)
-                ob[prefix+'portal_rectangularized'] = rectangularize_portal(
-                    ob.data, group, source_records, is_solid, scale)
+                if (rectangularize_portal(ob.data, group, source_records, is_solid, scale)
+                        or recover_solid_portal_outline(ob.data, group, source_records, is_solid, scale)):
+                    recovered_outline_count += 1
                 stabilize_portal_tessellation(ob, scale)
             # The compiled tag does not retain the authored exact flag.
             # Import ordinary portals rather than inventing that setting.
@@ -462,6 +464,14 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             ob[prefix+'source_bsp'] = self.path
             portals_collection.objects.link(ob)
             objects.append(ob)
+        if recovered_outline_count:
+            utils.print_step(f'Recovered {recovered_outline_count} portal outlines through solid structure')
+        # Align to the actual shared authoring mesh after all portal expansion
+        # and reconstruction. A tag-space native contact can differ from the
+        # recovered renderer; the finished mesh is what ordinary export uses.
+        snapped = snap_portal_vertices(objects, structure_objects, 0.01 * 100 * import_transform.scale_factor())
+        if snapped:
+            utils.print_step(f'Aligned {snapped} portal vertices to structure')
         return objects
 
     _create_classic_portals = _create_tag_portals
@@ -520,9 +530,12 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     if not for_cinematic:
                         objects.extend(create_helpers(self, collection))
                 if not for_cinematic:
-                    objects.extend(self._create_tag_portals(collection))
+                    objects.extend(self._create_tag_portals(collection, structure_objects=classic_objects))
             if always_get_structure_collision:
                 bvh = self.scenario_import_bvh(sky_index)
+            from .bsp_import_geometry import discard_import_working_data
+            for mesh in {ob.data for ob in objects if ob.type == 'MESH'}:
+                discard_import_working_data(mesh)
             return objects, game_objects, bvh
 
         def new_structure_collection():
@@ -735,32 +748,17 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                         objects.append(ob)
                         io_collection.objects.link(ob)
                         created_instance_indices.add(io.index)
-            legacy_surface_triangle_mapping = []
             if collision is not None:
-                # Reach keeps the complete collision shell below. Inferring
-                # authoring sidedness here can turn a compiler sky back into
-                # an overlapping seam sealer and open the native shell.
+                # The compiler mapping restores the original shared render
+                # triangles. Recover missing collision coverage separately;
+                # never overlay a complete native shell on those triangles.
                 if len(native_surface_mappings) > len(collision.surfaces):
                     raise ValueError('Structure surface mapping count exceeds collision surfaces')
-                legacy_surface_triangle_mapping = [
+                structure_surface_triangle_mapping = [
                     SurfaceMapping.from_native(record, collision.surfaces[record.surface_index])
                     for record in native_surface_mappings
                 ]
-                structure_surface_triangle_mapping = legacy_surface_triangle_mapping
 
-        # Compiled Reach render mappings identify related triangles, not an
-        # authoring collision shell. Recompiling those triangles drops thin
-        # faces and introduces open edges. Keep the complete native shell,
-        # as the preserved H1 import does, with render detail independent.
-        preserve_collision_shell = self.game == 'reach' and collision is not None
-        reconstruct_seamed_shell = preserve_collision_shell and any(
-            material.is_seam for material in collision_materials)
-        native_shell_ob = None
-        render_structure_objects = []
-        if preserve_collision_shell:
-            structure_surface_triangle_mapping = []
-        
-        
         num_clusters = len(clusters)
         if num_clusters > 0:
             instance_definitions = []
@@ -783,26 +781,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             
         # Create Structure Collision
         # self.structure_collision = None
-        if preserve_collision_shell:
-            from .classic_geometry import dissolve_source_collision_splits
-            for ob in structure_objects:
-                utils.add_face_prop(ob.data, 'face_mode').face_mode = 'render_only'
-            ob = collision.to_object()
-            native_shell_ob = ob
-            ob.name = f"{self.tag_path.ShortName}_collision"
-            mesh = ob.data
-            normal_mask = np.ones(len(mesh.polygons), dtype=np.int8)
-            for prop in mesh.nwo.face_props:
-                if prop.type == 'face_mode':
-                    attribute = mesh.attributes.get(prop.attribute_name)
-                    if attribute is not None:
-                        normal_mask &= np.asarray([not value.value for value in attribute.data], dtype=np.int8)
-            if normal_mask.any():
-                utils.add_face_prop(mesh, 'face_mode', normal_mask).face_mode = 'collision_only'
-            weld_classic_vertices(mesh)
-            dissolve_source_collision_splits(mesh)
-            structure_objects.append(ob)
-        elif collision is not None:
+        if collision is not None:
             if self.corinth:
                 utils.print_step("Creating Structure Sky")
             else:
@@ -877,14 +856,17 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
 
         def add_structure_object(ob: bpy.types.Object, seam_name: str | None = None, connect_edges=False):
             nonlocal seam_collection
-            if reconstruct_seamed_shell and ob is not native_shell_ob:
-                render_structure_objects.append(ob)
-            if self.game == 'reach' and connect_edges and not for_cinematic:
+            if self.game == 'reach' and not for_cinematic:
                 # Reuse the H1 topology repair before stitching collision edges.
                 weld_classic_vertices(ob.data)
+            if not for_cinematic:
+                from .bsp_import_geometry import recover_folded_patch_boundaries
+                repaired = recover_folded_patch_boundaries(ob.data, 0.025 * import_transform.scale_factor())
+                if repaired:
+                    utils.print_step(f"Recovered {repaired} folded source boundaries")
             if connect_edges and not for_cinematic:
                 utils.connect_verts_on_edge(ob.data, spatial_search=self.game == 'reach')
-            if self.game == 'reach' and not for_cinematic and ob is not native_shell_ob:
+            if self.game == 'reach' and not for_cinematic:
                 from .reach_geometry import repair_collision_triangulation
                 repair_collision_triangulation(ob.data, 0.025 * import_transform.scale_factor())
             objects.append(ob)
@@ -927,9 +909,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     utils.apply_loop_normals(seam_ob.data)
                 
                 seam_ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_seam'
-                # The separate solid shell adds collision-only to ordinary
-                # surfaces. Do not carry that generated override into the
-                # seam object, which needs its original normal seam mode.
+                # Collision-only overrides belong to surviving physical
+                # patches. Seam helpers need their original normal seam mode.
                 for index in range(len(seam_ob.data.nwo.face_props)-1, -1, -1):
                     prop = seam_ob.data.nwo.face_props[index]
                     if prop.type == 'face_mode' and prop.face_mode == 'collision_only':
@@ -949,13 +930,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 for ob in structure_objects:
                     add_structure_object(ob)
         else:
-            # A native collision shell stays separately editable; joining it
-            # to render faces would protect coincident faces from welding.
-            if preserve_collision_shell:
-                shell = structure_objects.pop()
-                add_structure_object(shell)
             main_structure_ob = None
-            utils.print_step("Merging Structure")
+            utils.print_step("Merging Clusters")
             if len(structure_objects) > 1:
                 main_structure_ob, remaining_structure_obs = structure_objects[0], structure_objects[1:]
                 main_structure_ob.name = f"{self.tag_path.ShortName}_structure"
@@ -971,25 +947,17 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 add_structure_object(main_structure_ob, f"{self.tag_path.ShortName}_seams", merged_collision_geometry)
         
         utils.print_step("Removing Duplicate Material Slots")
-        if reconstruct_seamed_shell:
-            from .seam_render_detail import separate_seam_render_detail
-            seam_meshes = [ob.data for ob in objects if ob.type == 'MESH'
-                           and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_seam']
-            # Render-only structure still enters Tool's BSP plane builder.
-            # Isolate its seam boundaries while retaining ordinary render
-            # structure, which helps reproduce the original solid planes.
-            for ob in render_structure_objects:
-                detail = separate_seam_render_detail(
-                    ob, seam_meshes, f"{self.tag_path.ShortName}_edge_detail")
-                if detail is not None:
-                    objects.append(detail)
-                    structure_collection.objects.link(detail)
+        if collision is not None and any(material.is_seam for material in collision_materials):
             from .collision_outline import reconstruct_collision_outline
             for ob in objects:
                 if (ob.type == 'MESH' and ob.data.nwo.mesh_type in
                         {'_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_seam'}
                         and ob.data.attributes.get('.foundry_collision_plane') is not None):
                     reconstruct_collision_outline(ob.data)
+        # Plane provenance makes this repair independent of the game format.
+        # Render meshes without native planes or with custom normals are skipped.
+        from .collision_outline import stabilize_seam_boundaries
+        stabilize_seam_boundaries(objects)
         ob_meshes = {o.data for o in objects if o.type == 'MESH'}
         for me in ob_meshes:
             if self.game == 'reach':
@@ -1019,7 +987,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                         utils.print_warning(f'Could not recover Reach portal volumes: {error}')
                         native_portals, _ = reconstruct_portals(native_portals, preserve_indices=preserved)
                 objects.extend(self._create_tag_portals(
-                    self.collection, native_portals, collision_tree=collision_tree, preserve_indices=preserved))
+                    self.collection, native_portals, collision_tree=collision_tree,
+                    preserve_indices=preserved, structure_objects=objects))
             
             if native_cookie_cutters:
                 utils.print_step("Creating Cookie Cutters")
@@ -1088,6 +1057,12 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                         objects.append(ob)
                         game_objects.append(ob)
             
+        # Plane and triangle identities are import working data. The finished
+        # scene uses ordinary geometry, materials and editable face properties.
+        # Export must need no tag-derived reconstruction recipes or attributes.
+        from .bsp_import_geometry import discard_import_working_data
+        for mesh in {ob.data for ob in objects if ob.type == 'MESH'}:
+            discard_import_working_data(mesh)
         return objects, game_objects, bvh
     
     def _import_prefabs(self, parent_collection):
