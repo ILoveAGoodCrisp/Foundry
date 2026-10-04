@@ -137,6 +137,11 @@ class ASSImporter(JMSImporter):
             p.emissive_color, p.emissive_quality = (1, 1, 1), 1.0
             p.emissive_per_unit, p.emissive_shader_gel, p.emissive_focus = False, False, 0.0
             p.emissive_attenuation_falloff = p.emissive_attenuation_cutoff = 0.0
+            p.emissive_bounce_ratio = 0.0
+            # Older ASS materials can encode power in the name instead of a
+            # BM_LIGHTING_BASIC record. Explicit lighting records take priority.
+            if self.owner.game in {'halo3', 'halo3odst'}:
+                p.emissive_power = p.emissive_power_scale
             p.ignore_default_resolution = False
             for record in material.lighting:
                 parts = record.split()
@@ -175,7 +180,10 @@ class ASSImporter(JMSImporter):
                         if enabled:
                             p.emissive_attenuation_falloff = falloff * self.scale
                             p.emissive_attenuation_cutoff = cutoff * self.scale
-                    # Frustum and other unsupported records remain in collection metadata.
+                    elif key == 'BM_LIGHTING_FRUS':
+                        blend, falloff, cutoff = map(float, values)
+                        p.emissive_bounce_ratio = blend
+                    # Frustum angles and other unsupported values remain in collection metadata.
                 except (ValueError, IndexError) as error:
                     raise ASSError(f'Material {material.name!r}: invalid {key}: {error}') from error
             p.mesh_type = p._mesh_type_from_special_name()
