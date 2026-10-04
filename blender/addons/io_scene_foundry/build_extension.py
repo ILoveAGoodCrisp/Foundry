@@ -24,7 +24,6 @@ ASSEMBLY_VERSION_PATTERNS: tuple[str, ...] = (
 )
 
 REQUIRED_WHEELS: tuple[tuple[str, str], ...] = (
-    ("networkx", "3.4.2"),
     ("coacd", "1.0.11"),
 )
 
@@ -307,12 +306,9 @@ def render_manifest(version: str, wheel_files: list[str]) -> str:
         'id = "io_scene_foundry"\n'
         f'version = "{version}"\n'
         'name = "Foundry"\n'
-        'tagline = "An import & export pipeline for Halo Reach, Halo 4, and Halo 2 '
-        'Anniversary Multiplayer"\n'
+        'tagline = "An import and export pipeline for the Halo: The Masterchief Collection games"\n'
         'maintainer = "Crisp"\n'
         'type = "add-on"\n'
-        "\n"
-        'permissions = ["files", "clipboard"]\n'
         "\n"
         'website = "https://c20.reclaimers.net/general/community-tools/foundry/"\n'
         "\n"
@@ -327,6 +323,10 @@ def render_manifest(version: str, wheel_files: list[str]) -> str:
         "wheels = [\n"
         f"{wheel_lines}\n"
         "]\n"
+        "\n"
+        "[permissions]\n"
+        'files = "Import and export Halo tags and asset files"\n'
+        'clipboard = "Copy tag paths and asset references"\n'
         "\n"
         "[build]\n"
         "paths_exclude_pattern = [\n"
