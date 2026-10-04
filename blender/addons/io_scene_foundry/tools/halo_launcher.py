@@ -2,6 +2,7 @@
 
 import os
 import ctypes
+import json
 from pathlib import Path
 import bpy
 import xml.etree.ElementTree as ET
@@ -9,7 +10,7 @@ from .halo1_guerilla import prepare_guerilla_config
 from ..ui.bar import draw_game_launcher_pruning, draw_game_launcher_settings
 from ..tags.scenario import ScenarioMetadataTag
 from ..utils import (
-    ProjectXML,
+    save_project_settings,
     get_asset_path_full,
     get_data_path,
     get_exe,
@@ -45,15 +46,6 @@ MIDNIGHT_FOUNDATION_VERSION = "1.890.0.0"
 GROUNDHOG_FOUNDATION_VERSION = "1.41.0.0"
 
 GUERILLA_GAMES = {"Halo1", "Halo2", "Halo3", "Halo3ODST"}
-BABOON_EDITING_KITS = {
-    "Halo1": "HCEEK",
-    "Halo2": "H2EK",
-    "Halo3": "H3EK",
-    "Halo3ODST": "H3ODSTEK",
-    "HaloReach": "HREK",
-    "Halo4": "H4EK",
-    "Halo2A": "H2AMPEK",
-}
 LEGACY_SAPIEN_GAMES = {"halo1", "halo2", "halo3", "halo3odst"}
 
 
@@ -106,8 +98,6 @@ def _baboon_executable(context=None):
     prefs = get_prefs()
     if getattr(prefs, "tag_editor", "default") != "baboon":
         return None
-    if project_game_for_mcc(context) not in BABOON_EDITING_KITS:
-        return None
     filepath = getattr(prefs, "baboon_path", "").strip().strip('"')
     if not filepath:
         return None
@@ -120,10 +110,50 @@ def _baboon_executable(context=None):
     return None
 
 
+def _baboon_editing_kit(executable):
+    """Find the current project's profile name in Baboon's preferences."""
+    prefs_path = Path(executable).with_name("prefs.json")
+    try:
+        if not prefs_path.exists():
+            appdata = os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming"
+            prefs_path = Path(appdata, "Baboon", "prefs.json")
+        prefs = json.loads(prefs_path.read_text(encoding="utf-8-sig"))
+        if not isinstance(prefs, dict):
+            return None
+        profiles = prefs.get("editing_kit_profiles", [])
+        if not isinstance(profiles, list):
+            return None
+
+        def normalise(path):
+            return os.path.normcase(str(Path(path).expanduser().resolve()))
+
+        # A kit-root Baboon profile uses the default tags folder. A custom tag
+        # set needs its own matching profile, otherwise use the native editor.
+        tags_path, kit_path = get_tags_path(), get_project_path()
+        project_paths = [normalise(tags_path)] if tags_path else []
+        if kit_path and normalise(tags_path) == normalise(Path(kit_path, 'tags')):
+            project_paths.append(normalise(kit_path))
+        for project_path in project_paths:
+            for profile in profiles:
+                if not isinstance(profile, dict):
+                    continue
+                root = profile.get("root")
+                name = profile.get("name")
+                if not isinstance(root, str) or not root.strip():
+                    continue
+                if not isinstance(name, str) or not name.strip():
+                    continue
+                if normalise(root) == project_path:
+                    return name.strip()
+    except (OSError, ValueError, UnicodeError):
+        pass
+    return None
+
+
 def tag_editor_executable(context=None):
     """Return the preferred editor, falling back to the active editing kit."""
     baboon = _baboon_executable(context)
-    if baboon:
+    if baboon and _baboon_editing_kit(baboon):
         return baboon
     if project_game_for_mcc(context) in GUERILLA_GAMES:
         return "guerilla.exe"
@@ -132,7 +162,10 @@ def tag_editor_executable(context=None):
 
 def _run_tag_editor(launch_args, context, report, load_tags=True):
     if launch_args[0] == _baboon_executable(context):
-        editing_kit = BABOON_EDITING_KITS[project_game_for_mcc(context)]
+        editing_kit = _baboon_editing_kit(launch_args[0])
+        if editing_kit is None:
+            report({"ERROR"}, "No matching editing kit found in Baboon's preferences")
+            return False
         # Baboon accepts a single path per invocation and no EK editor switches.
         tag_paths = [relative_path(path) for path in launch_args[1:] if path] if load_tags else []
         try:
@@ -792,12 +825,12 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
 
     # write last scenario to project
     if project and filepath:
-        project_xml = Path(project.project_xml)
-        if Path(project.project_path, "tool.exe").is_file():
-            xml = ProjectXML()
-            xml.last_scenario = str(Path(relative_path(filepath)).with_suffix(""))
-            if xml.parse(project_xml.parent):
-                project.last_scenario = xml.last_scenario
+        project.last_scenario = str(Path(relative_path(filepath)).with_suffix(''))
+        try:
+            save_project_settings(project)
+        except (OSError, ValueError) as error:
+            if report:
+                report({'WARNING'}, f'Could not save last scenario: {error}')
 
     run_ek_cmd(args, True)
 
