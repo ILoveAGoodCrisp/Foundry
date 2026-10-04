@@ -41,6 +41,7 @@ from ..tools.scenario.lightmap import run_lightmapper
 
 from ..tools.light_exporter import export_lights
 from ..tools.decorator_exporter import export_decorators
+from ..tools.decal_exporter import export_decals
 from ..tools.airprobe_exporter import export_airprobes
 
 # from ..tools.scenario.zone_sets import write_zone_sets_to_scenario
@@ -117,7 +118,7 @@ class ExportScene:
         self.limit_perms_to_selection = not export_settings.export_all_permutations and self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.SCENARIO, AssetType.PREFAB, AssetType.MULTI_MODEL, AssetType.MULTI_PREFAB}
         self.limit_bsps_to_selection = not export_settings.lightmap_all_bsps and self.asset_type == AssetType.SCENARIO
         
-        self.project_root = self.tags_dir.parent
+        self.project_root = Path(project.project_path)
         
         os.chdir(self.project_root)
         self.granny = None if self.legacy_export else Granny(Path(self.project_root, "granny2_x64.dll"), self.corinth)
@@ -332,6 +333,7 @@ class ExportScene:
         self.external_animations = {}
         self.local_views = set()
         self.decorators = []
+        self.decals = []
         self.hidden_objects = {}
         self.marker_instancers = []
         self.used_game_object_names = set()
@@ -509,7 +511,7 @@ class ExportScene:
             self._assign_cinematic_actor_export_names(self.export_objects)
         else:    
             self.export_objects = [ob for ob in proxy_export_objects if ob.nwo.export_this and ob.type in valid_objects]
-        
+
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, self.rotation_correction, self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.scene_settings.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context, self.halo_transform_scale, self.scene_settings)
         self.has_no_virtual_scene = False
 
@@ -1427,6 +1429,10 @@ class ExportScene:
                 tag_name = nwo.marker_game_instance_tag_name.lower()
                 props["bungie_marker_game_instance_tag_name"] = tag_name
                 
+                if tag_name.strip().endswith(".decal"):
+                    self.decals.append(ob)
+                    return # Decals are written directly to the scenario
+
                 if tag_name.endswith(".decorator_set"):
                     self.decorators.append(ob)
                     return # Decorators handled through MB
@@ -3050,8 +3056,21 @@ class ExportScene:
             scenario.set_skies(sky_paths)
         self.print_post(f'--- Updated {len(sky_paths)} scenario skies')
 
+    def export_scenario_decals(self):
+        if (self.asset_type == AssetType.SCENARIO and self.export_settings.export_structure and
+                self.scene_settings.decals_from_blender):
+            game = utils.get_project(self.scene_settings.scene_project).game
+            if game == 'halo1':
+                self.print_post(f"--- Writing {len(self.decals)} decal placements")
+                export_decals(self.decals,
+                              scenario_path=Path(self.asset_path_relative, self.asset_name).with_suffix('.scenario'),
+                              tags_root=self.tags_dir, game=game)
+            else:
+                self.warnings.append('Scenario decal export is currently supported for Halo 1')
+
     def postprocess_tags(self):
         """Tag edits to run after Tool import is called."""
+        self.export_scenario_decals()
         # if not self.is_child_asset:
         self._setup_model_overrides()
         

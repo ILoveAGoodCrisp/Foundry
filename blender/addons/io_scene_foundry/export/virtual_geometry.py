@@ -2697,20 +2697,13 @@ class VirtualScene:
         
         self.morph_vertex_data = defaultdict(list)
         
-        spath = "shaders\\invalid"
-        stype = "material" if corinth else "shader"
-        if project and project.default_material:
-            relative_default_shader = utils.relative_path(project.default_material)
-            if Path(tags_dir, relative_default_shader).exists():
-                spath, _, stype = relative_default_shader.rpartition('.')
-        
-        self.default_shader_path = spath
-        self.default_shader_type = stype
+        self.default_shader_path = "shaders\\invalid"
+        self.default_shader_type = "material" if corinth else "shader"
         
         # Create default material
-        default_material = VirtualMaterial("invalid", self, f"{self.default_shader_path}.{self.default_shader_type}")
+        fallback_material = VirtualMaterial("invalid", self, f"{self.default_shader_path}.{self.default_shader_type}")
             
-        self.materials["invalid"] = default_material
+        self.materials["invalid"] = fallback_material
 
         self.template_node_order = {}
         

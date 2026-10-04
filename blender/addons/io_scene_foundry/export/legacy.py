@@ -36,7 +36,7 @@ from ..legacy.writers import VERSIONS, TextWriter, hierarchy, legacy_bone_order,
 from ..tags.backend import TagDocument
 from ..tags.sky import SkyDocument, SkyLightRecord, MAX_SKY_LIGHTS
 from ..tags.halo1_emissive import (asset_shader_folder, localize_shader_environment,
-                                 shader_environment_path, material_emissive_matches,
+                                 shader_environment_path,
                                  write_material_emissive)
 from ..tags.animation_graph import AnimationGraphTag
 from ..tags.render_model import RenderModelMetadataTag
@@ -178,8 +178,8 @@ class LegacyExportScene(ExportScene):
 
     @property
     def supported_object_tag_types(self):
-        unsupported = ({'crate', 'device_terminal', 'giant'} if self.target_game == 'halo1'
-                       else {'device_terminal', 'giant'} if self.target_game == 'halo2'
+        unsupported = ({'crate', 'device_terminal', 'effect_scenery', 'giant'} if self.target_game == 'halo1'
+                       else {'device_terminal', 'effect_scenery', 'giant'} if self.target_game == 'halo2'
                        else set())
         return tuple(tag_type for tag_type in self.object_tag_types if tag_type not in unsupported)
 
@@ -769,11 +769,7 @@ class LegacyExportScene(ExportScene):
             target, _ = localize_shader_environment(source, folder, self.tags_dir, 'halo2')
             path = str(target.relative_to(Path(self.tags_dir).resolve()))
             if write_values:
-                if utils.material_read_only(path):
-                    if not material_emissive_matches(path, self.tags_dir, power, color, 'halo2'):
-                        raise ExportCancelled(f'{path}: shader is protected from editing')
-                else:
-                    write_material_emissive(path, self.tags_dir, power, color, 'halo2')
+                write_material_emissive(path, self.tags_dir, power, color, 'halo2')
             for material in materials:
                 material.nwo.shader_path = path
 
@@ -810,10 +806,6 @@ class LegacyExportScene(ExportScene):
                 requested[key] = (tag_path, values)
 
         for tag_path, (power, color) in requested.values():
-            if utils.material_read_only(tag_path):
-                if not material_emissive_matches(tag_path, self.tags_dir, power, color):
-                    raise ExportCancelled(f'{tag_path}: shader is protected from editing')
-                continue
             if write_material_emissive(tag_path, self.tags_dir, power, color):
                 print(f'--- Updated emissive shader {tag_path}')
 
@@ -1977,6 +1969,7 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
                 export.postprocess_tags()
             elif classic_scenario:
                 export.update_scenario_skies()
+                export.export_scenario_decals()
             if (project.game in {'halo1', 'halo2'} and scene_settings.asset_type == 'scenario' and
                     export_settings.lightmap_structure):
                 scenario_path = Path(export.asset_path_relative, export.asset_name)

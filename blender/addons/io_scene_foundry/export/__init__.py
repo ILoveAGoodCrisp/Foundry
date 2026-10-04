@@ -129,8 +129,11 @@ def _export_tool_path(scene_nwo) -> Path:
 
 def _export_project_error(scene_nwo) -> str | None:
     """Validate the parts of an editing kit required by this export format."""
+    error = validate_ek()
+    if error:
+        return error
     if not utils.uses_legacy_export(scene_nwo.scene_project):
-        return validate_ek()
+        return None
 
     project_path = get_project_path()
     if not project_path or not Path(project_path).exists():
@@ -138,7 +141,7 @@ def _export_project_error(scene_nwo) -> str | None:
 
     data_path = get_data_path()
     if not data_path or not Path(data_path).exists():
-        return f"Editing Kit data folder not found. Please ensure your {scene_nwo.scene_project} directory has a 'data' folder"
+        return f"Data folder not found: {data_path}. Edit this project in Foundry Preferences"
 
     if not _export_tool_path(scene_nwo).exists():
         return f"Tool not found, please check that you have tool.exe within your {scene_nwo.scene_project} directory"
@@ -542,8 +545,6 @@ class NWO_ExportScene(Operator, ExportHelper):
         scene_nwo_export = utils.get_export_props()
         scene_nwo = utils.get_scene_props()
         scenario = scene_nwo.asset_type == "scenario"
-        if scenario and game in {'halo1', 'halo2'}:
-            col.prop(scene_nwo_export, "import_wrl")
         prefab = scene_nwo.asset_type == "prefab"
         for p in projects:
             if p.name == scene_nwo.scene_project:
@@ -568,6 +569,8 @@ class NWO_ExportScene(Operator, ExportHelper):
         legacy = utils.uses_legacy_export(scene_nwo.scene_project)
 
         col = box.column()
+        if scenario and game in {'halo1', 'halo2'}:
+            col.prop(scene_nwo_export, 'import_wrl')
         row = col.row()
         col.prop(scene_nwo, "asset_type", text="Asset Type")
         col.prop(scene_nwo_export, "export_quick", text="Quick Export")
