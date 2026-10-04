@@ -657,7 +657,7 @@ def _remove_unused_nodes(tree):
             tree.nodes.remove(node)
 
 
-def convert_material_game(material, source_game, target_game):
+def convert_material_game(material, source_game, target_game, *, layout=True):
     """Return whether a material was converted; failures retain the source graph.
 
     H2 is supported as a source via its existing Principled preview, but is not
@@ -740,7 +740,10 @@ def convert_material_game(material, source_game, target_game):
         del material['foundry_material_conversion_error']
     material['foundry_material_source_game'] = source_game
     material['foundry_material_target_game'] = target_game
-    utils.update_foundry_material(material, target_game)
+    utils.update_foundry_material(material, target_game, arrange_nodes=False)
+    if layout:
+        from .node_layout import layout_nodes
+        layout_nodes(tree)
     material['foundry_material_conversion_notes'] = '\n'.join(sorted(notes))
     for note in sorted(notes):
         utils.print_warning(f'{material.name}: {note}')
