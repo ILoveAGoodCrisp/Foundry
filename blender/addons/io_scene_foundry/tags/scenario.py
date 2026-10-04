@@ -546,7 +546,7 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
             self.set_reference(root, field_name, destination)
 
     def survival_mode(self):
-        if self.game in {'halo1', 'halo2'}:
+        if self.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
             return False
         return self.scenario_type() == 0 and self.required_field(self.tag.root(), 'flags').get_flag('survival')
 
