@@ -2,10 +2,54 @@ import bpy
 
 keys = []
 
+SHORTCUTS = (
+    ('3D View', 'Show Foundry Panel', 'nwo.show_foundry_panel'),
+    ('3D View', 'Apply Mesh Type', 'nwo.apply_types_mesh_pie'),
+    ('3D View', 'Apply Marker Type', 'nwo.apply_types_marker_pie'),
+    ('3D View', 'Halo Join', 'nwo.join_halo'),
+    ('3D View', 'Move to Halo Collection', 'nwo.collection_create_move'),
+    ('3D View', 'Translate Bone Without Children', 'nwo.translate_bone_without_children'),
+    ('3D View', 'Rotate Bone Without Children', 'nwo.rotate_bone_without_children'),
+    ('3D View', 'Resize Bone Without Children', 'nwo.resize_bone_without_children'),
+    ('Outliner', 'Move to Halo Collection', 'nwo.collection_create_move'),
+)
+
+
+def draw_shortcuts(layout, context):
+    """Edit the effective user keymap so Blender persists user overrides."""
+    config = context.window_manager.keyconfigs.user
+    if config is None:
+        layout.label(text='Keyboard shortcuts are unavailable', icon='INFO')
+        return
+    layout.label(text='Click a shortcut to change its keys.')
+    previous_map = None
+    for map_name, label, operator in SHORTCUTS:
+        if map_name != previous_map:
+            col = layout.column(align=True)
+            col.label(text=map_name)
+            previous_map = map_name
+        keymap = config.keymaps.get(map_name)
+        items = [item for item in keymap.keymap_items if item.idname == operator] if keymap else []
+        if not items:
+            row = col.row()
+            row.enabled = False
+            row.label(text=label)
+            row.label(text='Not assigned')
+            continue
+        for item in items:
+            row = col.row(align=True)
+            row.context_pointer_set('keymap', keymap)
+            row.prop(item, 'active', text='')
+            row.label(text=label)
+            row.prop(item, 'type', text='', full_event=True)
+            if item.is_user_modified and not item.is_user_defined:
+                row.operator('preferences.keyitem_restore', text='', icon='BACK').item_id = item.id
+    if not context.preferences.use_preferences_save or bpy.app.use_userpref_skip_save_on_exit:
+        layout.operator('wm.save_userpref', text='Save Preferences', icon='FILE_TICK')
+
 
 def register():
     wm = bpy.context.window_manager
-    active_keyconfig = wm.keyconfigs.active
     addon_keyconfig = wm.keyconfigs.addon
 
     kc = addon_keyconfig

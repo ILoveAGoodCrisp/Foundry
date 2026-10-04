@@ -5,26 +5,41 @@ import re
 import subprocess
 import tempfile
 from pathlib import Path
+from .icons import get_icon_id
 from bpy.types import Operator, AddonPreferences
 from bpy.props import BoolProperty, StringProperty, EnumProperty, CollectionProperty
 
 from . import startup
 from .constants import IMPORT_TEMPLATE_DEFAULT, IMPORT_TEMPLATE_ITEMS
-from .utils import ProjectXML, get_prefs, get_scene_props, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list, addon_root, formalise_string
+from .utils import ProjectJSON, get_prefs, get_scene_props, get_tags_path, is_corinth, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list, addon_root, formalise_string
+from .utils import set_scene_project, set_project_list_index, project_selection_updates_suspended
+from .project_config import (CUSTOM_DIRECTORY_GAMES, DEFAULT_PROJECT_IMAGE, PROJECT_FIELDS, configuration_key,
+                             directory_path, new_project_record, project_image_path, project_record,
+                             stored_directory, unique_project_name)
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry"
+FOUNDRY_GUIDANCE = "https://halomods.com/Tools/Foundry"
+HALO_MODS_DISCORD = "https://discord.gg/mWY6SMr5z"
 import bpy
 
+def update_selected_project(self, context):
+    if project_selection_updates_suspended():
+        return
+    scene = getattr(context, 'scene', None)
+    if scene is not None and hasattr(scene, 'nwo') and 0 <= self.current_project_index < len(self.projects):
+        set_scene_project(scene.nwo, self.projects[self.current_project_index])
+
+
 class NWO_Project_ListItems(bpy.types.PropertyGroup):
+    project_id: StringProperty()
+    available: BoolProperty(default=True)
     project_path: StringProperty()
     project_name: StringProperty()
     name: StringProperty()
-    project_xml: StringProperty()
+    project_json: StringProperty()
     corinth: BoolProperty()
     game: StringProperty()
-    remote_server_name: StringProperty()
-    image_path: StringProperty()
-    default_material: StringProperty()
-    default_water: StringProperty()
+    image_path: StringProperty(default=DEFAULT_PROJECT_IMAGE)
+    use_project_thumbnail: BoolProperty(default=False)
     tags_directory: StringProperty()
     data_directory: StringProperty()
     last_scenario: StringProperty()
@@ -34,17 +49,98 @@ class NWO_UL_Projects(bpy.types.UIList):
         self, context, layout, data, item, icon, active_daata, active_propname
     ):
         if item:
-            layout.label(text=item.name, icon_value=project_game_icon(context, item))
-            if Path(item.project_path, item.image_path).is_file():
-                layout.label(text="", icon_value=project_icon(context, item))
+            layout.label(text=item.name, icon_value=project_icon(context, item))
+            if not item.available:
+                layout.label(text="Unavailable", icon='ERROR')
             # layout.label(text=item.project_path)
         else:
             layout.label(text="", translate=False, icon_value=icon)
 
+def draw_project_directory(layout, settings, field):
+    row = layout.row(align=True)
+    row.context_pointer_set('project_directory_settings', settings)
+    row.prop(settings, field)
+    row.operator('nwo.project_directory_browse', text='', icon='FILE_FOLDER').field = field
+
+
+class NWO_OT_ProjectDirectoryBrowse(Operator):
+    bl_label = 'Choose Content Folder'
+    bl_idname = 'nwo.project_directory_browse'
+    bl_description = 'Choose a tags or data folder, starting in the editing kit'
+
+    field: EnumProperty(items=[('tags_directory', 'Tags Folder', ''),
+                               ('data_directory', 'Data Folder', '')], options={'HIDDEN'})
+    directory: StringProperty(subtype='DIR_PATH')
+    filter_folder: BoolProperty(default=True, options={'HIDDEN'})
+
+    def invoke(self, context, event):
+        settings = context.project_directory_settings
+        self._editing = settings.bl_rna.identifier == 'NWO_OT_project_edit'
+        fields = ('display_name', 'project_path', 'image_path', 'use_project_thumbnail', 'tags_directory',
+                  'data_directory', 'duplicate') if self._editing else (
+                  'display_name', 'filepath', 'tags_directory', 'data_directory', 'set_scene_project')
+        # The file browser closes the settings dialog. Keep its unsaved values
+        # and restore them when browsing completes or is cancelled.
+        self._values = {name: getattr(settings, name) for name in fields}
+        root = Path(bpy.path.abspath(settings.project_path if self._editing else settings.filepath))
+        if root.is_file():
+            root = root.parent
+        self._root = root
+        self.directory = str(root) + os.sep
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def _restore(self):
+        operator = bpy.ops.nwo.project_edit if self._editing else bpy.ops.nwo.project_add
+        operator('INVOKE_DEFAULT', resume_settings=True, **self._values)
+
+    def execute(self, context):
+        self._values[self.field] = stored_directory(self._root, bpy.path.abspath(self.directory))
+        self._restore()
+        return {'FINISHED'}
+
+    def cancel(self, context):
+        self._restore()
+
+
+class NWO_OT_ProjectImageBrowse(Operator):
+    bl_label = 'Choose Project Image'
+    bl_idname = 'nwo.project_image_browse'
+    bl_description = 'Choose an image inside the editing kit folder'
+
+    filepath: StringProperty(subtype='FILE_PATH')
+    directory: StringProperty(subtype='DIR_PATH')
+    filter_image: BoolProperty(default=True, options={'HIDDEN'})
+    filter_glob: StringProperty(default='*.jpg;*.jpeg;*.png;*.bmp;*.tif;*.tiff;*.tga;*.webp;*.exr;*.hdr',
+                                options={'HIDDEN'})
+
+    def invoke(self, context, event):
+        # Share the content-folder browser's unsaved-settings capture and root.
+        self.filepath = ''
+        return NWO_OT_ProjectDirectoryBrowse.invoke(self, context, event)
+
+    _restore = NWO_OT_ProjectDirectoryBrowse._restore
+    cancel = NWO_OT_ProjectDirectoryBrowse.cancel
+
+    def execute(self, context):
+        try:
+            image = Path(bpy.path.abspath(self.filepath))
+            relative = project_image_path(self._root, image)
+            if not image.is_file():
+                raise ValueError('Select an existing image file')
+        except (OSError, ValueError) as error:
+            self.report({'WARNING'}, str(error))
+            self._restore()
+            return {'CANCELLED'}
+        self._values['image_path'] = relative
+        self._restore()
+        return {'FINISHED'}
+
+
 class NWO_ProjectAdd(Operator):
     bl_label = "Add Project"
     bl_idname = "nwo.project_add"
-    bl_description = "Add a new project"
+    bl_description = "Choose the main folder of a Halo editing kit, containing tool.exe, to add a project"
 
     filepath: StringProperty(
         name="path", description="Set the path to your project", subtype="FILE_PATH"
@@ -56,6 +152,12 @@ class NWO_ProjectAdd(Operator):
     )
 
     set_scene_project: BoolProperty(options={"HIDDEN"})
+    display_name: StringProperty(name="Display Name")
+    resume_settings: BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
+    tags_directory: StringProperty(name="Tags Folder", default="tags",
+                                  description="Halo 1/2 tags folder, absolute or relative to the editing kit")
+    data_directory: StringProperty(name="Data Folder", default="data",
+                                  description="Halo 1/2 data folder, absolute or relative to the editing kit")
 
     def execute(self, context):
         # validate new_project_path
@@ -68,32 +170,80 @@ class NWO_ProjectAdd(Operator):
                 self.report({'WARNING'}, f"{new_project_path} is not a path to a valid Halo project. Expected project root directory to contain tool.exe")
                 return {'CANCELLED'}
 
-        xml = ProjectXML()
-        if not xml.parse(new_project_path):
-            self.report({'WARNING'}, "Could not load project. Check tool.exe and project.xml; see console for details")
+        metadata = ProjectJSON()
+        if not metadata.parse(new_project_path):
+            self.report({'WARNING'}, "Could not load project. Check tool.exe and project.json; see console for details")
             return {'CANCELLED'}
         
         projects_list = read_projects_list()
         if projects_list is None:
-            projects_list = []
+            self.report({'ERROR'}, 'Could not read project settings. The existing settings have been preserved')
+            return {'CANCELLED'}
         had_no_projects = not projects_list
-        projects_list.append(str(new_project_path))
-        projects_list = list(dict.fromkeys(projects_list))
-
-        write_projects_list(projects_list)
+        name = self.display_name.strip() or unique_project_name(metadata.display_name, get_prefs().projects)
+        record = new_project_record(new_project_path, name, self.tags_directory, self.data_directory,
+                                    **{field: str(getattr(metadata, 'name' if field == 'project_name' else field, '') or '')
+                                       if field != 'image_path' else DEFAULT_PROJECT_IMAGE
+                                       for field in PROJECT_FIELDS})
+        error = validate_project_configuration(record, projects_list)
+        if error:
+            self.report({'WARNING'}, error)
+            return {'CANCELLED'}
+        projects_list.append(record)
+        try:
+            write_projects_list(projects_list)
+        except (OSError, ValueError) as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
         projects = setup_projects_list(report=self.report)
 
         if projects and (self.set_scene_project or had_no_projects):
             nwo = get_scene_props()
-            nwo.scene_project = projects[-1].name
-        
-        context.area.tag_redraw()
+            set_scene_project(nwo, projects[-1])
+        if projects and not startup.load_handler_complete:
+            startup.initialize_foundry(context)
+
+        if context.area:
+            context.area.tag_redraw()
+        if had_no_projects and projects:
+            self.report({'INFO'}, f'{projects[-1].name} is ready. Create an asset in its data folder to start exporting')
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        self.filepath = os.path.dirname(self.filepath)
+        if not self.resume_settings:
+            self.filepath = os.path.dirname(self.filepath)
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
+
+    def draw(self, context):
+        self.layout.label(text='Choose the editing kit folder containing tool.exe')
+        self.layout.prop(self, 'display_name', text='Display Name (Optional)')
+        self.layout.label(text='Halo 1 / Halo 2 content folders')
+        self.layout.label(text='Keep tags and data for the standard folders')
+        # Do not launch a second file selector from inside the project browser.
+        self.layout.prop(self, 'tags_directory')
+        self.layout.prop(self, 'data_directory')
+
+
+def validate_project_configuration(record, records, exclude_id=''):
+    root = record['project_path']
+    key = configuration_key(record)
+    if not record['name'].strip():
+        return 'Enter a display name for this project'
+    for other in records:
+        if other['id'] == exclude_id:
+            continue
+        if configuration_key(other) == key:
+            return 'This editing kit and tags/data folder pair already has a project configuration'
+        if other.get('name', '').casefold() == record['name'].casefold():
+            return 'A project with this display name already exists'
+    for field, default in (('tags_directory', 'tags'), ('data_directory', 'data')):
+        path = directory_path(root, record.get(field), default)
+        if record.get('game') not in CUSTOM_DIRECTORY_GAMES and path != directory_path(root, default, default):
+            return 'Custom tags/data folders are supported by the MCC Halo 1 and Halo 2 editing kits'
+        if not path.is_dir():
+            return f'{default.title()} folder not found: {path}'
+    return None
     
 class NWO_ProjectRemove(Operator):
     bl_label = "Remove Project"
@@ -106,17 +256,23 @@ class NWO_ProjectRemove(Operator):
 
     def execute(self, context):
         prefs = get_prefs()
-        current_project = prefs.projects[prefs.current_project_index].project_path
+        current_project = prefs.projects[prefs.current_project_index].project_id
         projects_list = read_projects_list()
-        if current_project in projects_list:
-            projects_list.remove(current_project)
-
-        write_projects_list(projects_list)
+        if projects_list is None:
+            self.report({'ERROR'}, 'Could not read project settings')
+            return {'CANCELLED'}
+        try:
+            write_projects_list([record for record in projects_list if record['id'] != current_project])
+        except (OSError, ValueError) as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
 
         prefs.projects.remove(prefs.current_project_index)
         if prefs.current_project_index > len(prefs.projects) - 1:
-            prefs.current_project_index += -1
-        context.area.tag_redraw()
+            # Removing a configuration must not redirect its scene to another.
+            set_project_list_index(prefs, len(prefs.projects) - 1)
+        if context.area:
+            context.area.tag_redraw()
         return {'FINISHED'}
     
 class NWO_ProjectMove(Operator):
@@ -141,14 +297,20 @@ class NWO_ProjectMove(Operator):
 
         to_index = (current_index + delta) % len(projects)
 
+        records = read_projects_list()
+        if records is None:
+            self.report({'ERROR'}, 'Could not read project settings')
+            return {'CANCELLED'}
+        records.insert(to_index, records.pop(current_index))
+        try:
+            write_projects_list(records)
+        except (OSError, ValueError) as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
         projects.move(current_index, to_index)
         prefs.current_project_index = to_index
-        new_projects_list = []
-        for p in projects:
-            new_projects_list.append(p.project_path)
-
-        write_projects_list(new_projects_list)
-        context.area.tag_redraw()
+        if context.area:
+            context.area.tag_redraw()
         return {'FINISHED'}
     
 class NWO_OT_ProjectEdit(Operator):
@@ -156,7 +318,22 @@ class NWO_OT_ProjectEdit(Operator):
     bl_idname = "nwo.project_edit"
 
     display_name: StringProperty(name="Display Name")
-    material_path: StringProperty(name="Default Material/Shader Tag")
+    use_project_thumbnail: BoolProperty(name='Use Project Thumbnail', default=False,
+                                       description='Use the project image when available instead of the game engine icon')
+    image_path: StringProperty(name='Project Image', default=DEFAULT_PROJECT_IMAGE,
+                              description='Image inside the editing kit, used when Use Project Thumbnail is enabled')
+    project_path: StringProperty(name='Editing Kit Folder', subtype='DIR_PATH')
+    tags_directory: StringProperty(name='Tags Folder',
+                                  description='Absolute path or folder relative to the editing kit')
+    data_directory: StringProperty(name='Data Folder',
+                                  description='Absolute path or folder relative to the editing kit')
+    duplicate: BoolProperty(options={'HIDDEN'})
+    resume_settings: BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
+
+    @classmethod
+    def description(cls, context, properties):
+        return ('Create another project configuration using this editing kit' if properties.duplicate
+                else 'Edit this configuration\'s name, editing kit, content folders and image')
 
     @classmethod
     def poll(cls, context):
@@ -166,43 +343,87 @@ class NWO_OT_ProjectEdit(Operator):
     def execute(self, context):
         prefs = get_prefs()
         active_project = prefs.projects[prefs.current_project_index]
-        project_xml = Path(active_project.project_xml)
-        if not Path(active_project.project_path, "tool.exe").is_file():
-            self.report({'WARNING'}, "No active project")
-            return {'CANCELLED'}
-        
-        xml = ProjectXML()
-        name = self.display_name.strip(" '\"")
-        xml.display_name = name
-        if is_corinth(context):
-            xml.name = name
-        default_material = relative_path(self.material_path.strip(" '\""))
-        if Path(get_tags_path(), default_material).exists():
-            xml.default_material = default_material
-        if not xml.parse(project_xml.parent):
+        metadata = ProjectJSON()
+        root = Path(bpy.path.abspath(self.project_path)).resolve()
+        if not metadata.parse(root):
             self.report({'WARNING'}, "Could not update project settings; see console for details")
             return {'CANCELLED'}
-        
-        active_project.name = xml.display_name
-        active_project.project_name = xml.name
-        active_project.default_material = xml.default_material
-
-        context.area.tag_redraw()
+        if active_project.game and active_project.game != metadata.game:
+            self.report({'WARNING'}, 'The new editing kit must be for the same Halo game')
+            return {'CANCELLED'}
+        records = read_projects_list()
+        if records is None:
+            self.report({'ERROR'}, 'Could not read project settings')
+            return {'CANCELLED'}
+        record = dict(next(entry for entry in records if entry['id'] == active_project.project_id))
+        record.update(project_record(active_project))
+        record.update(project_path=str(root), name=self.display_name.strip(), game=metadata.game,
+                      tags_directory=self.tags_directory, data_directory=self.data_directory,
+                      use_project_thumbnail=self.use_project_thumbnail)
+        image = self.image_path.strip().strip('"')
+        if image.startswith('//'):
+            image = bpy.path.abspath(image)
+        try:
+            record['image_path'] = project_image_path(root, image)
+        except (OSError, ValueError) as error:
+            self.report({'WARNING'}, str(error))
+            return {'CANCELLED'}
+        if self.duplicate:
+            record['id'] = new_project_record(root)['id']
+            record['last_scenario'] = ''
+        error = validate_project_configuration(record, records, '' if self.duplicate else active_project.project_id)
+        if error:
+            self.report({'WARNING'}, error)
+            return {'CANCELLED'}
+        old_id, old_name = active_project.project_id, active_project.name
+        if self.duplicate:
+            records.append(record)
+        else:
+            records = [record if entry['id'] == old_id else entry for entry in records]
+        try:
+            write_projects_list(records)
+        except (OSError, ValueError) as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
+        projects = setup_projects_list(report=self.report)
+        if not self.duplicate:
+            project = next(project for project in projects if project.project_id == old_id)
+            for scene in bpy.data.scenes:
+                if scene.nwo.scene_project_id == old_id or (not scene.nwo.scene_project_id and scene.nwo.scene_project == old_name):
+                    set_scene_project(scene.nwo, project)
+        else:
+            prefs.current_project_index = len(projects) - 1
+        if context.area:
+            context.area.tag_redraw()
         
         return {'FINISHED'}
     
     def invoke(self, context, event):
         prefs = get_prefs()
         active_project = prefs.projects[prefs.current_project_index]
-        self.display_name = active_project.name
-        self.material_path = active_project.default_material
-        return context.window_manager.invoke_props_dialog(self, width=800)
+        if not self.resume_settings:
+            self.display_name = unique_project_name(active_project.name, prefs.projects) if self.duplicate else active_project.name
+            self.image_path = active_project.image_path
+            self.use_project_thumbnail = active_project.use_project_thumbnail
+            self.project_path = active_project.project_path
+            self.tags_directory = stored_directory(active_project.project_path, active_project.tags_directory)
+            self.data_directory = stored_directory(active_project.project_path, active_project.data_directory)
+        return context.window_manager.invoke_props_dialog(self, width=800,
+            title='Duplicate Project' if self.duplicate else 'Edit Project Settings')
         
     def draw(self, context):
         layout = self.layout
-        shader_name = "Material" if is_corinth(context) else "Shader"
+        project = get_prefs().projects[get_prefs().current_project_index]
         layout.prop(self, "display_name")
-        layout.prop(self, "material_path", text=f"Default {shader_name} Tag")
+        layout.prop(self, 'project_path')
+        layout.prop(self, 'use_project_thumbnail')
+        row = layout.row(align=True)
+        row.context_pointer_set('project_directory_settings', self)
+        row.prop(self, 'image_path')
+        row.operator('nwo.project_image_browse', text='', icon='FILE_FOLDER')
+        if project.game in CUSTOM_DIRECTORY_GAMES:
+            draw_project_directory(layout, self, 'tags_directory')
+            draw_project_directory(layout, self, 'data_directory')
 
 class NWO_OT_InstallXRGBColorspace(Operator):
     bl_label = "Install xRGB Color Space"
@@ -363,7 +584,75 @@ def _settings_box(layout, title: str):
     box.label(text=title)
     return box
 
-def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False):
+def _welcome_text_width(context):
+    region = context.region
+    if region is None:
+        return 300
+    scale = context.preferences.system.ui_scale
+    # Sidebar zoom is independent of Blender's interface scale.
+    if region.type == 'UI':
+        view = region.view2d
+        zoom = view.region_to_view(1, 0)[0] - view.region_to_view(0, 0)[0]
+    else:
+        zoom = 1
+    # Leave room for the panel margins, box padding and sidebar tabs.
+    return max(40, region.width * zoom / scale - 64)
+
+
+def _welcome_text_lines(text, width, measure):
+    lines = []
+    line = ''
+    for word in text.split():
+        candidate = f'{line} {word}' if line else word
+        if line and measure(candidate) > width:
+            lines.append(line)
+            line = word
+        else:
+            line = candidate
+    if line:
+        lines.append(line)
+    return lines
+
+
+def draw_first_project_setup(layout):
+    if startup.load_handler_complete:
+        return
+    import blf
+    context = bpy.context
+    blf.size(0, context.preferences.ui_styles[0].widget.points)
+    width = _welcome_text_width(context)
+
+    def text(layout, message):
+        for line in _welcome_text_lines(message, width, lambda value: blf.dimensions(0, value)[0]):
+            layout.label(text=line)
+
+    box = layout.box()
+    box.label(text='Welcome to Foundry', icon_value=get_icon_id('foundry'))
+    col = box.column(align=True)
+    text(col, 'Connect an editing kit (project) to enable exporting')
+    col.operator('wm.url_open', text='Halo Editing Kits', icon_value=get_icon_id('c20_reclaimers')).url = "https://c20.reclaimers.net/general/mod-tools/"
+    text(col, '1. Install your preferred Halo editing kit')
+    text(col, '2. Add your project folder using the "Add First Project" button')
+    text(col, '3. Use the New Asset button to get started with creating')
+    row = box.row(align=True)
+    row.operator_context = 'INVOKE_DEFAULT'
+    row.operator('nwo.project_add', text='Add First Project', icon='ADD').set_scene_project = True
+    # row.operator('wm.url_open', text='Setup Guide', icon='HELP').url = FOUNDRY_GITHUB + '#installation'
+    col = box.column(align=True)
+    text(col, 'Getting started? Learn about Foundry here')
+    col.operator('wm.url_open', text='Foundry Documentation', icon='HELP').url = FOUNDRY_GUIDANCE
+    col.separator()
+    text(col, 'Specific questions? Use the dedicated Foundry forum in the Halo Mods Discord server')
+    col.separator()
+    col.operator('wm.url_open', text='Join Discord', icon='URL').url = HALO_MODS_DISCORD
+    # row.operator('wm.url_open', text='Foundry Forum', icon='HELP').url = FOUNDRY_DISCORD_FORUM
+    col = box.column(align=True)
+    text(col, 'Add a project or load the Foundry panel to begin')
+
+
+def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False, show_setup=True):
+    if show_setup and not prefs.projects:
+        draw_first_project_setup(layout)
     box = _settings_box(layout, "Projects")
     row = box.row()
     rows = 5
@@ -381,9 +670,16 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
     col.operator("nwo.project_remove", icon="REMOVE", text="")
     col.separator()
     col.operator("nwo.project_edit", icon="SETTINGS", text="")
+    col.operator("nwo.project_edit", icon="DUPLICATE", text="").duplicate = True
     col.separator()
     col.operator("nwo.project_move", text="", icon="TRIA_UP").direction = 'up'
     col.operator("nwo.project_move", icon="TRIA_DOWN", text="").direction = 'down'
+    if prefs.projects and 0 <= prefs.current_project_index < len(prefs.projects):
+        project = prefs.projects[prefs.current_project_index]
+        box.label(text=f'Editing Kit: {project.project_path}')
+        if project.game in CUSTOM_DIRECTORY_GAMES:
+            box.label(text=f'Tags: {project.tags_directory}')
+            box.label(text=f'Data: {project.data_directory}')
 
     box = _settings_box(layout, "Halo Tools")
     row = box.row(align=True)
@@ -434,8 +730,6 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
     row = box.row(align=True)
     row.prop(prefs, "apply_empty_display")
     row = box.row(align=True)
-    row.prop(prefs, "protect_materials")
-    row = box.row(align=True)
     row.prop(prefs, "update_materials_on_shader_path")
     row = box.row(align=True)
     row.prop(prefs, "import_classic_shader_emission")
@@ -482,13 +776,13 @@ class FoundryPreferences(AddonPreferences):
         default="default",
         items=[
             ("default", "Editing Kit Default", "Use the tag editor included with the current game's editing kit"),
-            ("baboon", "Baboon", "Use Baboon when its executable path is valid, otherwise use the editing kit's tag editor"),
+            ("baboon", "Baboon", "Use Baboon when its executable path is valid and its preferences contain a matching editing kit, otherwise use the editing kit's tag editor"),
         ],
     )
 
     baboon_path: StringProperty(
         name="Baboon Path",
-        description="Path to Baboon's executable. An invalid path falls back to the editing kit's tag editor",
+        description="Path to Baboon's executable. An invalid path or no matching editing kit in Baboon's prefs.json falls back to the editing kit's tag editor",
         subtype='FILE_PATH',
     )
 
@@ -500,7 +794,7 @@ class FoundryPreferences(AddonPreferences):
     )
 
     current_project : StringProperty()
-    current_project_index : bpy.props.IntProperty()
+    current_project_index : bpy.props.IntProperty(update=update_selected_project)
 
     projects : CollectionProperty(type=NWO_Project_ListItems)
 
@@ -527,12 +821,6 @@ class FoundryPreferences(AddonPreferences):
             ("full", "Full", "Applies object prefixes that specify the object type"),
             ("legacy", "Legacy", "Applies legacy object prefixes as you would see in the Halo 3 Editing Kit"),
         ]
-    )
-    
-    protect_materials: BoolProperty(
-        name="Protect Default Materials",
-        description="Prevents the material/shader tags that come bundeled with the Halo Editing Kits from being edited by Foundry",
-        default=True,
     )
     
     update_materials_on_shader_path: BoolProperty(
@@ -702,12 +990,16 @@ class FoundryPreferences(AddonPreferences):
         prefs = self
         layout = self.layout
         if not startup.load_handler_complete:
+            if not prefs.projects:
+                draw_first_project_setup(layout)
             return layout.operator("nwo.launch_foundry")
         draw_foundry_preferences(layout, prefs)
         
 classes = [
     NWO_Project_ListItems,
     NWO_UL_Projects,
+    NWO_OT_ProjectDirectoryBrowse,
+    NWO_OT_ProjectImageBrowse,
     NWO_ProjectAdd,
     NWO_ProjectRemove,
     NWO_ProjectMove,

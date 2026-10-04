@@ -5,15 +5,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-# Identifier, display name, MCC name, icon, legacy datastore server.
+# Identifier, display name, MCC name, icon.
 GAMES = {
-    "H1": ("halo1", "Halo 1", "Halo1", "halo_1", ""),
-    "H2": ("halo2", "Halo 2", "Halo2", "halo_2", ""),
-    "H3": ("halo3", "Halo 3", "Halo3", "halo_3", ""),
-    "H3ODST": ("halo3odst", "Halo 3 ODST", "Halo3ODST", "halo_odst", ""),
-    "HR": ("reach", "Halo Reach", "HaloReach", "halo_reach", "bngtoolsql"),
-    "H4": ("halo4", "Halo 4", "Halo4", "halo_4", "metawins"),
-    "H2A": ("halo2a", "Halo 2AMP", "Halo2A", "halo_2amp", "episql.343i.selfhost.corp.microsoft.com"),
+    "H1": ("halo1", "Halo 1", "Halo1", "halo_1"),
+    "H2": ("halo2", "Halo 2", "Halo2", "halo_2"),
+    "H3": ("halo3", "Halo 3", "Halo3", "halo_3"),
+    "H3ODST": ("halo3odst", "Halo 3 ODST", "Halo3ODST", "halo_odst"),
+    "HR": ("reach", "Halo Reach", "HaloReach", "halo_reach"),
+    "H4": ("halo4", "Halo 4", "Halo4", "halo_4"),
+    "H2A": ("halo2a", "Halo 2AMP", "Halo2A", "halo_2amp"),
 }
 GAME_INFO = {info[0]: info for info in GAMES.values()}
 
@@ -29,8 +29,9 @@ class ExternalProject:
     data_directory: str
     game: str
     corinth: bool
-    remote_server_name: str = ""
     image_path: str = ""
+    project_id: str = ""
+    use_project_thumbnail: bool = False
 
 
 def read_file_description(path):
@@ -105,27 +106,25 @@ def identify_game_from_tag(path: str | Path) -> str | None:
     return None
 
 
-def external_project_from_tag(path: str | Path) -> ExternalProject:
+def external_project_from_tag(path: str | Path, tags_root=None, data_root=None) -> ExternalProject:
     """Discover the owning editing kit without adding it to preferences."""
     path = Path(path).resolve()
     if not path.is_file():
         raise FileNotFoundError(path)
 
-    tags_directory = next(
+    tags_directory = Path(tags_root).resolve() if tags_root else next(
         (parent for parent in path.parents if parent.name.casefold() == "tags"),
         None,
     )
     if tags_directory is None:
-        raise ValueError(f"Tag is not inside a tags directory: {path}")
+        raise ValueError(f"Choose the source tags folder for this tag: {path}")
+    if not path.is_relative_to(tags_directory):
+        raise ValueError(f"Tag is outside the selected source tags folder: {path}")
 
     game = identify_game_from_tag(path)
-    tool_path = None
+    tool_path = next((parent / 'tool.exe' for parent in tags_directory.parents
+                      if (parent / 'tool.exe').is_file()), None)
     if game is None:
-        for parent in path.parents:
-            candidate = parent / "tool.exe"
-            if candidate.is_file():
-                tool_path = candidate
-                break
         if tool_path is None:
             raise RuntimeError(
                 f"The tag container does not identify a specific MCC title and no tool.exe "
@@ -140,8 +139,25 @@ def external_project_from_tag(path: str | Path) -> ExternalProject:
         project_name=project_name,
         project_path=str(project_path),
         tags_directory=str(tags_directory),
-        data_directory=str(project_path / "data"),
+        data_directory=str(Path(data_root).resolve() if data_root else project_path / "data"),
         game=game,
         corinth=game in {"halo4", "halo2a"},
-        remote_server_name=GAME_INFO[game][4],
     )
+
+
+def external_project_from_source(path, tags_root, data_root=None) -> ExternalProject:
+    """An explicit folder pair for source formats which cannot identify a title."""
+    tags = Path(tags_root).resolve()
+    tool = next((parent / 'tool.exe' for parent in tags.parents
+                 if (parent / 'tool.exe').is_file()), None)
+    if tool is None:
+        raise ValueError('Register the source editing kit as a Foundry project to identify this source asset\'s game')
+    root = tool.parent
+    data = Path(data_root).resolve() if data_root else root / 'data'
+    if not Path(path).resolve().is_relative_to(data):
+        raise ValueError('The source asset is outside Source Data Folder')
+    game = identify_game(tool)
+    return ExternalProject(
+        name=f'External {root.name}', project_name=root.name, project_path=str(root),
+        tags_directory=str(tags), data_directory=str(data), game=game,
+        corinth=game in {'halo4', 'halo2a'})
