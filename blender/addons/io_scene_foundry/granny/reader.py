@@ -5,17 +5,17 @@ conversion, packed vertex formats and compressed animation curves.
 """
 from ctypes import (
     CDLL, POINTER, addressof, byref, c_bool, c_char_p, c_float, c_int,
-    c_ubyte, c_void_p, cast, sizeof,
+    c_ubyte, c_void_p, cast, pointer, sizeof,
 )
-from math import floor, isfinite
+from math import floor, isclose, isfinite
 from pathlib import Path
 import struct
 
 import numpy as np
 
 from .formats import (
-    GrannyCurve2, GrannyDataTypeDefinition, GrannyFileInfo, GrannyMesh,
-    GrannyTransform, GrannyVariant,
+    GrannyCurve2, GrannyDataTypeDefinition, GrannyFileArtToolInfo, GrannyFileInfo, GrannyMesh,
+    GrannyPixelLayout, GrannyTexture, GrannyTransform, GrannyVariant,
 )
 
 
@@ -42,6 +42,9 @@ class GrannyReader:
             'GrannyFreeFile': ([c_void_p], None),
             'GrannyGetMemberTypeSize': ([POINTER(GrannyDataTypeDefinition)], c_int),
             'GrannyGetTotalObjectSize': ([POINTER(GrannyDataTypeDefinition)], c_int),
+            'GrannyDataTypesAreEqualWithNames': ([POINTER(GrannyDataTypeDefinition)] * 2, c_bool),
+            'GrannyCopyTextureImage': ([POINTER(GrannyTexture), c_int, c_int, POINTER(GrannyPixelLayout),
+                                        c_int, c_int, c_int, c_void_p], c_bool),
             'GrannyCopyMeshVertices': ([POINTER(GrannyMesh), POINTER(GrannyDataTypeDefinition), c_void_p], None),
             'GrannyBuildCompositeTransform4x4': ([POINTER(GrannyTransform), POINTER(c_float)], None),
             'GrannyComputeBasisConversion': ([POINTER(GrannyFileInfo), c_float] + [POINTER(c_float)] * 7, c_bool),
@@ -57,6 +60,7 @@ class GrannyReader:
             function = getattr(self.dll, name)
             function.argtypes = args
             function.restype = result
+        self.texture_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, 'GrannyTextureType')
 
     def members(self, dtype):
         if not dtype:
@@ -77,17 +81,27 @@ class GrannyReader:
     def variant(self, variant):
         return self.object(variant.type, variant.object)
 
-    def object(self, dtype, address, depth=0):
+    def object(self, dtype, address, depth=0, *, allow_nonfinite=False):
         if not dtype or not address:
             return {}
         if depth > 24:
             raise ValueError('GR2 metadata is nested too deeply')
+        if (getattr(self, 'texture_type', None) and dtype[0].name == b'FromFileName'
+                and self.dll.GrannyDataTypesAreEqualWithNames(dtype, self.texture_type)):
+            # Maya shader metadata can reference a complete texture. Its pixel
+            # buffer is binary image data, not an array of metadata objects.
+            texture = cast(address, POINTER(GrannyTexture)).contents
+            return dict(FromFileName=decode_string(texture.file_name), TextureType=texture.texture_type,
+                        Width=texture.width, Height=texture.height, Encoding=texture.encoding,
+                        SubFormat=texture.sub_format, ImageCount=texture.image_count,
+                        gr2_texture_id=address)
         result = {}
         for member, offset, size in self.members(dtype):
             name = decode_string(member.name)
             width = max(1, member.array_width)
             unit = size // width
-            values = [self.member(member, address + offset + i * unit, depth) for i in range(width)]
+            values = [self.member(member, address + offset + i * unit, depth, allow_nonfinite=allow_nonfinite)
+                      for i in range(width)]
             value = values[0] if width == 1 else values
             # Max/Maya exporters sometimes use repeated String members.
             if name in result:
@@ -97,12 +111,13 @@ class GrannyReader:
                 result[name] = value
         return result
 
-    def member(self, member, address, depth):
+    def member(self, member, address, depth, *, allow_nonfinite=False):
         kind = member.member_type
         if kind == 1:
-            return self.object(member.reference_type, address, depth + 1)
+            return self.object(member.reference_type, address, depth + 1, allow_nonfinite=allow_nonfinite)
         if kind == 2:
-            return self.object(member.reference_type, c_void_p.from_address(address).value, depth + 1)
+            return self.object(member.reference_type, c_void_p.from_address(address).value, depth + 1,
+                               allow_nonfinite=allow_nonfinite)
         if kind in (3, 4):
             count = checked_count(c_int.from_address(address).value, 100_000)
             data = c_void_p.from_address(address + 4).value
@@ -113,10 +128,10 @@ class GrannyReader:
             stride = self.dll.GrannyGetTotalObjectSize(member.reference_type)
             return [self.object(member.reference_type,
                                 c_void_p.from_address(data + i * sizeof(c_void_p)).value if kind == 4 else data + i * stride,
-                                depth + 1) for i in range(count)]
+                                depth + 1, allow_nonfinite=allow_nonfinite) for i in range(count)]
         if kind == 5:
             variant = GrannyVariant.from_address(address)
-            return self.object(variant.type, variant.object, depth + 1)
+            return self.object(variant.type, variant.object, depth + 1, allow_nonfinite=allow_nonfinite)
         if kind == 7:
             dtype = cast(c_void_p.from_address(address).value, POINTER(GrannyDataTypeDefinition))
             count = checked_count(c_int.from_address(address + sizeof(c_void_p)).value, 100_000)
@@ -124,7 +139,8 @@ class GrannyReader:
             if count and not data:
                 raise ValueError('Missing GR2 variant array')
             stride = self.dll.GrannyGetTotalObjectSize(dtype) if dtype else 0
-            return [self.object(dtype, data + i * stride, depth + 1) for i in range(count)]
+            return [self.object(dtype, data + i * stride, depth + 1, allow_nonfinite=allow_nonfinite)
+                    for i in range(count)]
         if kind == 8:
             return decode_string(c_char_p.from_address(address).value)
         if kind == 9:
@@ -138,7 +154,7 @@ class GrannyReader:
                 value = max(-1.0, value / (127 if kind == 13 else 32767))
             elif kind in (14, 18):
                 value /= 255 if kind == 14 else 65535
-            if isinstance(value, float) and not isfinite(value):
+            if not allow_nonfinite and isinstance(value, float) and not isfinite(value):
                 raise ValueError('Non-finite GR2 metadata value')
             return value
         if kind == 22:
@@ -150,10 +166,93 @@ class GrannyReader:
         self.dll.GrannyBuildCompositeTransform4x4(byref(transform), matrix)
         return np.array(matrix, dtype=np.float32).reshape(4, 4).T.copy()
 
-    def canonical_basis(self, info):
-        """Convert all geometry/curves to Halo X-forward, Z-up, 0.03048 m units."""
-        if not info.contents.art_tool_info:
-            raise ValueError('GR2 has no coordinate-system metadata')
+    def texture(self, texture_ptr):
+        """Detach top-level images as RGBA8; Granny decodes raw/Bink/S3TC."""
+        texture = texture_ptr.contents
+        result = dict(name=decode_string(texture.file_name), width=texture.width, height=texture.height,
+                      texture_type=texture.texture_type, encoding=texture.encoding, sub_format=texture.sub_format,
+                      props=self.variant(texture.extended_data), images=[])
+        try:
+            width, height = checked_count(texture.width, 32768), checked_count(texture.height, 32768)
+            count = checked_count(texture.image_count, 256)
+            if not count:
+                return result  # External/reference-only texture with no payload.
+            if not width or not height or not texture.images:
+                raise ValueError('Missing GR2 texture dimensions or image array')
+            checked_count(width * height * 4 * count, 256 * 1024 * 1024)
+            layout = GrannyPixelLayout(4, (c_int * 4)(0, 8, 16, 24), (c_int * 4)(8, 8, 8, 8))
+            for index in range(count):
+                image = texture.images[index]
+                mips = checked_count(image.mip_level_count, 32)
+                if not mips:
+                    continue
+                if not image.mip_levels:
+                    raise ValueError('Missing GR2 texture mip array')
+                mip = image.mip_levels[0]
+                if not checked_count(mip.pixel_byte_count, 256 * 1024 * 1024):
+                    continue
+                if not mip.pixel_bytes:
+                    raise ValueError('Missing GR2 texture pixels')
+                pixels = np.empty((height, width, 4), dtype=np.uint8)
+                if not self.dll.GrannyCopyTextureImage(texture_ptr, index, 0, byref(layout),
+                                                     width, height, width * 4, pixels.ctypes.data):
+                    raise ValueError('Granny could not decode the texture encoding')
+                result['images'].append(dict(index=index, mip_levels=mips, pixels=pixels))
+        except ValueError as error:
+            # Optional/unsupported textures should not discard usable geometry.
+            result['error'] = str(error)
+        return result
+
+    @staticmethod
+    def default_art_tool_info():
+        """Assume Foundry's canonical GR2 basis when the source omits its basis."""
+        return GrannyFileArtToolInfo(art_tool_name=b'Foundry defaults', units_per_meter=1 / .03048,
+                                     right_vector=(c_float * 3)(0, -1, 0),
+                                     up_vector=(c_float * 3)(0, 0, 1),
+                                     back_vector=(c_float * 3)(-1, 0, 0))
+
+    def source_basis(self, info, source_game=None):
+        """Resolve Halo Maya's authored units without changing source metadata."""
+        missing = not info.contents.art_tool_info
+        tool = self.default_art_tool_info() if missing else info.contents.art_tool_info.contents
+        units = float(tool.units_per_meter)
+        if not isfinite(units) or units <= 0:
+            raise ValueError('Invalid GR2 units per meter')
+        basis = dict(art_tool=decode_string(tool.art_tool_name), units_per_meter=units,
+                     effective_units_per_meter=units, unit_correction=1.0,
+                     origin=list(tool.origin), right=list(tool.right_vector),
+                     up=list(tool.up_vector), back=list(tool.back_vector))
+        if missing:
+            basis['coordinate_defaults'] = True
+        if 'maya' in basis['art_tool'].casefold() and isclose(units, 100, rel_tol=1e-5):
+            corinth = source_game in {'halo4', 'halo2a', 'corinth'}
+            if not corinth:
+                # Original 343 files often still declare Maya centimetres, but
+                # their exported geometry/transforms use Halo feet. Inspect the
+                # header too so direct/cross-project imports detect this case.
+                for i in range(checked_count(info.contents.skeleton_count, 100_000)):
+                    skeleton = info.contents.skeletons[i].contents
+                    if decode_string(skeleton.name).casefold() != 'bungieexportinfo' or not skeleton.bone_count:
+                        continue
+                    props = self.variant(skeleton.bones[0].extended_data)
+                    pending = [props]
+                    while pending:
+                        node = pending.pop()
+                        corinth |= str(node.get('bungie_export_toolset', '')).casefold() in {'343', '343i'}
+                        settings = str(node.get('bungie_export_granny_settings_file', '')).casefold()
+                        corinth |= 'corinth' in settings
+                        pending.extend(value for value in node.values() if isinstance(value, dict))
+            if corinth:
+                basis['effective_units_per_meter'] = 1 / .3048
+                basis['unit_correction'] = units * .3048
+        return basis
+
+    def canonical_basis(self, info, source_game=None, *, convert_scale=True):
+        """Convert axes and optionally units for geometry, bind poses and curves."""
+        basis = self.source_basis(info, source_game)
+        basis['convert_scale'] = convert_scale
+        if not convert_scale:
+            basis.update(effective_units_per_meter=basis['units_per_meter'], unit_correction=1.0)
         origin = (c_float * 3)(0, 0, 0)
         right = (c_float * 3)(0, -1, 0)
         up = (c_float * 3)(0, 0, 1)
@@ -161,9 +260,28 @@ class GrannyReader:
         affine = (c_float * 3)()
         linear = (c_float * 9)()
         inverse = (c_float * 9)()
-        if not self.dll.GrannyComputeBasisConversion(info, 1 / .03048, origin, right, up, back, affine, linear, inverse):
-            raise ValueError('Could not convert GR2 coordinate system')
-        self.dll.GrannyTransformFile(info, affine, linear, inverse, 1e-5, 1e-5, 3)
+        missing = not info.contents.art_tool_info
+        if missing:
+            # Keep the temporary structure alive through both native calls and
+            # remove its pointer before Granny frees the file's own memory.
+            default_tool = self.default_art_tool_info()
+            info.contents.art_tool_info = pointer(default_tool)
+        tool = info.contents.art_tool_info.contents
+        original_units = tool.units_per_meter
+        target_units = 1 / .03048 if convert_scale else basis['units_per_meter']
+        try:
+            tool.units_per_meter = basis['effective_units_per_meter']
+            try:
+                converted = self.dll.GrannyComputeBasisConversion(info, target_units, origin, right, up, back, affine, linear, inverse)
+            finally:
+                tool.units_per_meter = original_units
+            if not converted:
+                raise ValueError('Could not convert GR2 coordinate system')
+            self.dll.GrannyTransformFile(info, affine, linear, inverse, 1e-5, 1e-5, 3)
+        finally:
+            if missing:
+                info.contents.art_tool_info = POINTER(GrannyFileArtToolInfo)()
+        return basis
 
     def vertices(self, mesh_ptr):
         data = mesh_ptr.contents.primary_vertex_data.contents
@@ -182,7 +300,10 @@ class GrannyReader:
             names.append(name)
         vertices = np.empty(count, dtype=dtype)
         self.dll.GrannyCopyMeshVertices(mesh_ptr, definitions, vertices.ctypes.data)
-        if not all(np.isfinite(vertices[name]).all() for name in names):
+        # Broken UVs occur in shipped Max exports. Keep them for the adapter
+        # to repair and report; positions and other components must be finite.
+        if any(not np.isfinite(vertices[name]).all() for name in names
+               if not name.startswith('TextureCoordinates') and name != 'lighting'):
             raise ValueError('Non-finite GR2 vertex data')
         return {name: vertices[name].copy() for name in names}
 
@@ -198,8 +319,16 @@ class GrannyReader:
                           groups=[], annotations={}, geometry_missing=[name for name in
                           ('primary_vertex_data', 'primary_topology') if not getattr(mesh, name)])
             return result
-        vertices = self.vertices(mesh_ptr)
         vertex_data = mesh.primary_vertex_data.contents
+        topology = mesh.primary_topology.contents
+        if checked_count(vertex_data.vertex_count) == 0 and not (
+                checked_count(topology.index_count, 30_000_000) or checked_count(topology.index16_count, 30_000_000)):
+            # Some exporters allocate empty data/topology blocks for helpers
+            # instead of leaving the pointers null (Spindle01, gate_house03).
+            result.update(vertices={}, component_names={}, triangles=np.empty((0, 3), dtype=np.int32),
+                          groups=[], annotations={}, geometry_missing=['vertices'])
+            return result
+        vertices = self.vertices(mesh_ptr)
         component_names = {
             decode_string(member.name): decode_string(vertex_data.vertex_component_names[i])
             for i, (member, _, _) in enumerate(self.members(vertex_data.vertex_type))
@@ -207,7 +336,6 @@ class GrannyReader:
         }
         if 'Position' not in vertices:
             raise ValueError('GR2 mesh has no positions')
-        topology = mesh.primary_topology.contents
         count = topology.index_count or topology.index16_count
         checked_count(count, 30_000_000)
         source = topology.indices if topology.index_count else topology.indices16
@@ -219,10 +347,17 @@ class GrannyReader:
         annotations = {}
         for i in range(checked_count(topology.tri_annotation_set_count, 1024)):
             annotation = topology.tri_annotation_sets[i]
-            stride = self.dll.GrannyGetTotalObjectSize(annotation.tri_annotation_type)
             count = checked_count(annotation.tri_annotation_count)
+            if not count and not annotation.tri_annotation_index_count:
+                # An optional annotation set with no records adds no override.
+                continue
+            stride = self.dll.GrannyGetTotalObjectSize(annotation.tri_annotation_type)
             address = pointer_address(annotation.tri_annotations)
-            records = [self.object(annotation.tri_annotation_type, address + j * stride) for j in range(count)]
+            # Optional face overrides can contain NaN/Infinity in original Max
+            # exports. Detach them intact so the adapter can retain the source
+            # values and apply defaults only to the affected faces.
+            records = [self.object(annotation.tri_annotation_type, address + j * stride, allow_nonfinite=True)
+                       for j in range(count)]
             if annotation.tri_annotation_index_count:
                 remap = [annotation.tri_annotation_indices[j] for j in range(checked_count(annotation.tri_annotation_index_count))]
                 if any(j < 0 or j >= count for j in remap):
@@ -268,7 +403,7 @@ class GrannyReader:
             samples.append(sample)
         return samples
 
-    def read(self, path, animations=True):
+    def read(self, path, animations=True, *, source_game=None, convert_scale=True):
         path = Path(path)
         if not path.is_file():
             raise FileNotFoundError(path)
@@ -279,13 +414,30 @@ class GrannyReader:
             pointer = self.dll.GrannyGetFileInfo(file)
             if not pointer:
                 raise ValueError('GR2 has no file info')
-            self.canonical_basis(pointer)
+            basis = self.canonical_basis(pointer, source_game, convert_scale=convert_scale)
             info = pointer.contents
-            result = dict(materials={}, skeletons={}, meshes={}, models=[], animations=[], props=self.variant(info.extended_data))
-            for i in range(checked_count(info.material_count, 100_000)):
-                ptr = info.materials[i]
+            result = dict(materials={}, textures={}, skeletons={}, meshes={}, models=[], animations=[],
+                          props=self.variant(info.extended_data), source_basis=basis)
+            texture_ptrs = [info.textures[i] for i in range(checked_count(info.texture_count, 100_000))]
+            material_ptrs = [info.materials[i] for i in range(checked_count(info.material_count, 100_000))]
+            while material_ptrs:
+                ptr = material_ptrs.pop()
+                address = pointer_address(ptr)
+                if not address or address in result['materials']:
+                    continue
+                checked_count(len(result['materials']) + 1, 100_000)
                 material = ptr.contents
-                result['materials'][pointer_address(ptr)] = dict(name=decode_string(material.name), props=self.variant(material.extended_data))
+                maps = [material.maps[i] for i in range(checked_count(material.map_count, 100_000))]
+                result['materials'][address] = dict(name=decode_string(material.name), props=self.variant(material.extended_data),
+                    texture=pointer_address(material.texture),
+                    maps=[dict(usage=decode_string(mapping.usage), material=pointer_address(mapping.material)) for mapping in maps])
+                material_ptrs.extend(mapping.material for mapping in maps)
+                if material.texture:
+                    texture_ptrs.append(material.texture)
+            for ptr in texture_ptrs:
+                address = pointer_address(ptr)
+                if address and address not in result['textures']:
+                    result['textures'][address] = self.texture(ptr)
             for i in range(checked_count(info.skeleton_count, 100_000)):
                 ptr = info.skeletons[i]
                 skeleton = ptr.contents

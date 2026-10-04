@@ -1,10 +1,12 @@
 """Reconstruct editable Foundry objects from detached Granny source data."""
 import ast
 from collections import defaultdict
+import hashlib
 import json
-from math import radians
+from math import isclose, isfinite, radians
 from pathlib import Path
 import re
+from types import SimpleNamespace
 
 import bpy
 from mathutils import Matrix, Quaternion, Vector
@@ -54,6 +56,15 @@ def has_value(value):
     return value is not None and not (isinstance(value, str) and not value.strip())
 
 
+def finite_value(value):
+    """Face annotations may hold scalar, vector or nested optional values."""
+    if isinstance(value, dict):
+        return all(finite_value(item) for item in value.values())
+    if isinstance(value, (list, tuple)):
+        return all(finite_value(item) for item in value)
+    return not isinstance(value, (float, np.floating)) or isfinite(value)
+
+
 def vector_value(value):
     return tuple(float(v) for v in value.replace(',', ' ').split()) if isinstance(value, str) else tuple(value)
 
@@ -62,13 +73,23 @@ def canonical_name(name):
     return utils.remove_node_prefix(name).casefold()
 
 
+def gr2_scene_settings(owner):
+    """Bypass scene units for raw-scale imports without changing scene properties."""
+    scene = owner.scene_nwo
+    if getattr(owner, 'gr2_convert_scale', True):
+        return scene
+    return SimpleNamespace(scale='max', forward_direction=scene.forward_direction,
+                           maintain_marker_axis=scene.maintain_marker_axis,
+                           asset_type=getattr(scene, 'asset_type', ''))
+
+
 class GR2Importer:
     def __init__(self, owner, path, data, *, parent_collection=None, tag_armature=None,
                  geometry_only=False, allowed_region_permutations=(), shader_paths=None,
                  default_mesh_type=None, import_markers=True, import_geometry=True, render_only=False,
                  permutation=None, region=None, asset_type=None, regions=(), global_materials=()):
         self.owner, self.path, self.data = owner, Path(path), data
-        self.scene_nwo = owner.scene_nwo
+        self.scene_nwo = gr2_scene_settings(owner)
         self.tag_armature = tag_armature
         self.geometry_only = geometry_only
         self.allowed = set(allowed_region_permutations or ())
@@ -78,14 +99,18 @@ class GR2Importer:
         self.region = region
         self.is_structure = (default_mesh_type == '_connected_geometry_mesh_type_structure'
                              or (asset_type or getattr(self.scene_nwo, 'asset_type', '')) in {'scenario', 'prefab', 'resource', 'multi_prefab'}
-                             or (asset_type is None and '_structure_' in self.path.stem))
+                             or (asset_type is None and re.search(r'(?:^|_)structure(?:_|$)', self.path.stem, re.I)))
         self.import_markers, self.import_geometry = import_markers, import_geometry
         self.collection = bpy.data.collections.new(self.path.stem)
         self.collection.hide_render = default_mesh_type in {'_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics'}
         (parent_collection or owner.scene_collection).children.link(self.collection)
         self.objects, self.materials = [], {}
         self.created_materials = []
+        self.images, self.created_images = {}, []
+        self.unmapped_enums = {}
+        self.unmapped_face_keys = set()
         self.armature = tag_armature
+        self.armatures = []
         self.object_roots = set()
         self.export_info = {}
         for skeleton in data['skeletons'].values():
@@ -102,6 +127,8 @@ class GR2Importer:
         match = re.search(r'_(?:render|collision|physics|structure|design)_(.+)$', self.path.stem, re.I)
         self.permutation = permutation if permutation is not None else match[1] if match else 'default'
         self.collection['gr2_source'] = str(self.path)
+        if data.get('source_basis'):
+            self.collection['gr2_source_basis'] = json.dumps(data['source_basis'])
         self.collection['gr2_export_info'] = json.dumps(self.export_info)
         self.save_name_tables()
 
@@ -122,7 +149,12 @@ class GR2Importer:
             return default
         if isinstance(value, str) and value.startswith('_'):
             return value if prefix else value.rsplit(kind + '_', 1)[-1]
-        number = int(numeric(value))
+        if kind == 'object_type' and value == 'other':
+            return 'none'
+        try:
+            number = int(numeric(value))
+        except (TypeError, ValueError, OverflowError):
+            return self.unmapped_enum(kind, value, default)
         candidates = [f'e_connected_geometry_{kind}', f'e_connected_material_{kind}', f'e_connected_{kind}']
         for key in candidates:
             name = self.enum_tables.get(key, {}).get(number)
@@ -130,8 +162,19 @@ class GR2Importer:
                 return name if prefix else name.rsplit(kind + '_', 1)[-1]
         if cls is None:
             return str(value)
-        name = cls(number).name
+        try:
+            name = cls(number).name
+        except ValueError:
+            return self.unmapped_enum(kind, value, default)
         return prefix + name if prefix else name
+
+    def unmapped_enum(self, kind, value, default):
+        key = json.dumps([kind, value])
+        if key not in self.unmapped_enums:
+            self.unmapped_enums[key] = dict(kind=kind, value=value)
+            self.collection['gr2_unmapped_enums'] = json.dumps(list(self.unmapped_enums.values()))
+            utils.print_warning(f'{self.path.name}: unknown GR2 {kind} value {value!r}; retained as metadata')
+        return default
 
     def table_name(self, value, table):
         if isinstance(value, str):
@@ -216,6 +259,8 @@ class GR2Importer:
                 value = self.enum(kind, value, cls)
                 if value is None:
                     continue
+                if name == 'mesh_poop_imposter_policy' and value == 'none':
+                    value = 'never'
                 if name == 'mesh_boundary_surface_type':
                     target, dest, value = ob.data.nwo, 'boundary_surface_type', value.upper()
                 elif name == 'mesh_obb_type':
@@ -293,6 +338,9 @@ class GR2Importer:
             self.set_property(utils.add_face_prop(mesh, name, mask), name, bool(numeric(value)))
         elif key == 'bungie_face_sides':
             sides = self.enum('face_sides', value, enums.FaceSides)
+            if sides is None:
+                self.unmapped_face_keys.add(key)
+                return True
             if sides.startswith(('two_sided', 'mirror', 'keep')):
                 prop = utils.add_face_prop(mesh, 'face_sides', mask)
                 prop.face_sides_type = sides.split('_transparent')[0] if not sides.startswith('two_sided') else 'two_sided'
@@ -300,6 +348,9 @@ class GR2Importer:
                 utils.add_face_prop(mesh, 'transparent', mask)
         elif key == 'bungie_face_type':
             name = self.enum('face_type', value, enums.FaceType)
+            if name is None:
+                self.unmapped_face_keys.add(key)
+                return True
             if name in {'normal', 'sky', 'seam_sealer'}:
                 attribute = mesh.attributes.get(key) or mesh.attributes.new(name=key, type='INT', domain='FACE')
                 values = np.array([item.value for item in attribute.data], dtype=np.int32)
@@ -322,6 +373,9 @@ class GR2Importer:
             if key in enum_fields:
                 name, kind, cls = enum_fields[key]
                 value = self.enum(kind, value, cls)
+                if value is None:
+                    self.unmapped_face_keys.add(key)
+                    return True
                 if (name == 'mesh_tessellation_density' and value == 'none'
                         or name == 'additional_compression' and value == 'default'):
                     # Foundry represents these defaults by absence of an override.
@@ -333,6 +387,11 @@ class GR2Importer:
                 name = key[7:]
                 if name in {'lightmap_additive_transparency', 'lightmap_translucency_tint_color'}:
                     value = tuple(v / 255 for v in vector_value(value))
+                elif name == 'lightmap_resolution_scale' and isinstance(value, (float, np.floating)):
+                    # Max can store Reach size-class IDs in Real32 annotations,
+                    # including small rounding errors around integer values.
+                    if isclose(value, round(value), abs_tol=1e-6):
+                        value = round(value)
                 self.set_property(utils.add_face_prop(mesh, name, mask), name, value)
             else:
                 return False
@@ -345,6 +404,10 @@ class GR2Importer:
             array = np.asarray(values)[selected]
             if array.dtype.kind not in 'fiu':
                 return
+            # Invalid originals are retained separately by restore_faces.
+            # Keep usable components without exporting NaN/Infinity attributes.
+            if array.dtype.kind == 'f':
+                array[~np.isfinite(array)] = 0
             if array.ndim == 1:
                 kind, field = ('FLOAT', 'value') if array.dtype.kind == 'f' else ('INT', 'value')
             elif array.ndim == 2 and array.shape[1] in {3, 4}:
@@ -359,6 +422,34 @@ class GR2Importer:
             utils.print_warning(f'{self.path.name}: could not restore GR2 face annotation {key}')
 
     def restore_faces(self, mesh, props, annotations, selected):
+        # Maya/343 exports can put whole-mesh face enums in ExtendedData under
+        # exporter-specific names. Keep those originals in gr2_properties,
+        # while restoring the corresponding native face property here.
+        props = dict(props)
+        for key, value in list(props.items()):
+            match = re.fullmatch(r'face_prop_(bungie_.+)_EnumExportProperty', key)
+            if match and not has_value(props.get(match[1])):
+                props[match[1]] = value
+        annotation_values = {
+            key: [next(iter(record.values())) if len(record) == 1 else list(record.values()) for record in records]
+            for key, records in annotations.items()}
+        invalid_annotations = {}
+        for key, values in annotation_values.items():
+            invalid = [dict(face=face, source_face=int(source), value=values[source])
+                       for face, source in enumerate(selected) if not finite_value(values[source])]
+            if invalid:
+                invalid_annotations[key] = invalid
+                utils.print_warning(f'{self.path.name}: {mesh.name} has {len(invalid)} invalid {key} face values; '
+                                    'using defaults and retaining originals as metadata')
+        if invalid_annotations:
+            mesh['gr2_invalid_face_annotations'] = json.dumps(invalid_annotations)
+
+        def face_value(key, source):
+            value = annotation_values[key][source] if key in annotation_values else props.get(key)
+            if not finite_value(value):
+                value = props.get(key)
+            return value if finite_value(value) else None
+
         # Annotations carry per-face overrides; do not also add a whole-mesh
         # property for the same key (that would defeat the overrides on export).
         for key, value in props.items():
@@ -367,10 +458,10 @@ class GR2Importer:
         for key, records in annotations.items():
             if key.startswith('bungie_lighting_'):
                 continue
-            values = [next(iter(record.values())) if len(record) == 1 else list(record.values()) for record in records]
+            values = annotation_values[key]
             grouped = defaultdict(list)
             for face, source in enumerate(selected):
-                value = values[source]
+                value = face_value(key, source)
                 grouped[json.dumps(value)].append(face)
             for serialized, faces in grouped.items():
                 mask = np.zeros(len(mesh.polygons), dtype=np.int8)
@@ -378,9 +469,12 @@ class GR2Importer:
                 if not self.face_property(mesh, key, json.loads(serialized), mask):
                     self.raw_face_annotation(mesh, key, records, selected)
                     break
+            if key in self.unmapped_face_keys:
+                self.raw_face_annotation(mesh, 'gr2_original_' + key, records, selected)
             if key in {'bungie_face_region', 'bungie_face_global_material', 'bungie_mesh_global_material'}:
                 kind = 'region' if key.endswith('region') else 'global_material'
-                if any(not isinstance(values[source], str) and int(values[source]) in self.missing_table_entries[kind]
+                if any(has_value(values[source]) and finite_value(values[source]) and not isinstance(values[source], str)
+                       and int(values[source]) in self.missing_table_entries[kind]
                        for source in selected):
                     # Keep the original IDs for recovery without sending an
                     # invalid source index table back to Tool during re-export.
@@ -389,8 +483,10 @@ class GR2Importer:
         if emissive_keys:
             grouped = defaultdict(list)
             for face, source in enumerate(selected):
-                values = {key: next(iter(annotations[key][source].values())) if key in annotations else props[key]
-                          for key in sorted(emissive_keys)}
+                values = {key: value for key in sorted(emissive_keys)
+                          if has_value(value := face_value(key, source))}
+                if not values:
+                    continue
                 grouped[json.dumps(values)].append(face)
             for serialized, faces in grouped.items():
                 values = json.loads(serialized)
@@ -409,6 +505,44 @@ class GR2Importer:
                         value = float(value) / (.3280839895013123 * (1 if getattr(self.owner, 'game', 'reach') in {'halo4', 'halo2a'} else 100))
                     self.set_property(prop, name, value)
 
+    def restore_structure_proxy(self, ob, props):
+        """Auxiliary BSP geometry must not also be exported as an instance."""
+        if not self.is_structure:
+            return
+        mesh = ob.data
+        source_kind = self.enum('mesh_type', props.get('bungie_mesh_type'), enums.MeshType, default='default')
+        if source_kind in {'collision', 'physics', 'poop_collision', 'poop_physics'}:
+            self.set_property(ob.nwo, 'proxy_instance', False)
+            return
+        if mesh.nwo.mesh_type != '_connected_geometry_mesh_type_structure':
+            if mesh.nwo.mesh_type != '_connected_geometry_mesh_type_default':
+                self.set_property(ob.nwo, 'proxy_instance', False)
+            return
+        auxiliary = np.zeros(len(mesh.polygons), dtype=bool)
+        face_type = mesh.attributes.get('bungie_face_type')
+        if face_type is not None and face_type.domain == 'FACE' and face_type.data_type == 'INT':
+            values = np.empty(len(auxiliary), dtype=np.int32)
+            face_type.data.foreach_get('value', values)
+            auxiliary |= np.isin(values, [enums.FaceType.sky.value, enums.FaceType.seam_sealer.value])
+        for prop in mesh.nwo.face_props:
+            if prop.type != 'face_mode' or prop.face_mode not in {
+                    'collision_only', 'sphere_collision_only', 'shadow_only', 'lightmap_only'}:
+                continue
+            attribute = mesh.attributes.get(prop.attribute_name)
+            if attribute is not None and attribute.domain == 'FACE' and attribute.data_type == 'BOOLEAN':
+                mask = np.empty(len(auxiliary), dtype=bool)
+                attribute.data.foreach_get('value', mask)
+                auxiliary |= mask
+        # Foundry's convention materials can carry the same face semantics.
+        special_slots = {i for i, material in enumerate(mesh.materials) if material is not None
+                         and material.name.startswith(('+sky', '+seamsealer', '+seam'))}
+        if special_slots:
+            indices = np.empty(len(auxiliary), dtype=np.int32)
+            mesh.polygons.foreach_get('material_index', indices)
+            auxiliary |= np.isin(indices, list(special_slots))
+        if len(auxiliary) and auxiliary.all():
+            self.set_property(ob.nwo, 'proxy_instance', False)
+
     def material(self, address):
         if address in self.materials:
             return self.materials[address]
@@ -426,8 +560,93 @@ class GR2Importer:
             self.created_materials.append(material)
             material.nwo.shader_path = path
             material['gr2_properties'] = json.dumps(props)
+            material['gr2_material_maps'] = json.dumps(source.get('maps', []))
+            self.restore_material_textures(material, source)
         self.materials[address] = material
         return material
+
+    def texture_images(self, address):
+        if address in self.images:
+            return self.images[address]
+        source = self.data.get('textures', {}).get(address)
+        images = []
+        self.images[address] = images
+        if source is None:
+            return images
+        if source.get('error'):
+            utils.print_warning(f'{self.path.name}: could not extract GR2 texture {source["name"]}: {source["error"]}')
+        for frame in source['images']:
+            pixels = frame['pixels']
+            digest = hashlib.sha256(pixels.tobytes()).hexdigest()
+            # Repeated sidecar/component imports share the same packed pixels.
+            image = next((image for image in bpy.data.images if image.get('gr2_pixel_hash') == digest
+                          and tuple(image.size) == (source['width'], source['height'])), None)
+            if image is None:
+                name = Path(source['name'].replace('\\', '/')).stem or 'gr2_texture'
+                if len(source['images']) > 1:
+                    name += f'_{frame["index"]}'
+                image = bpy.data.images.new(name, width=source['width'], height=source['height'], alpha=True)
+                self.created_images.append(image)
+                image.colorspace_settings.name = 'sRGB'
+                image.alpha_mode = 'STRAIGHT'
+                image.file_format = 'PNG'
+                # Granny's first row is the top; Blender image buffers start at
+                # the bottom, matching the V conversion used by imported UVs.
+                image.pixels.foreach_set((pixels[::-1].astype(np.float32) / 255).ravel())
+                image['gr2_source'] = str(self.path)
+                image['gr2_texture_source'] = source['name']
+                image['gr2_texture_properties'] = json.dumps(source.get('props', {}))
+                image['gr2_texture_encoding'] = source['encoding']
+                image['gr2_texture_image_index'] = frame['index']
+                image['gr2_texture_mip_levels'] = frame['mip_levels']
+                image['gr2_pixel_hash'] = digest
+                image.pack()
+                image.use_fake_user = True
+            images.append(image)
+        return images
+
+    def material_texture(self, address, visited=None):
+        visited = set() if visited is None else visited
+        if not address or address in visited:
+            return None
+        visited.add(address)
+        source = self.data['materials'].get(address, {})
+        if source.get('texture'):
+            images = self.texture_images(source['texture'])
+            if images:
+                return images[0]
+        for mapping in source.get('maps', []):
+            image = self.material_texture(mapping['material'], visited)
+            if image is not None:
+                return image
+        return None
+
+    def restore_material_textures(self, material, source):
+        """Restore common diffuse channels through nested Granny material maps."""
+        image = None
+        if source.get('texture'):
+            images = self.texture_images(source['texture'])
+            image = images[0] if images else None
+        if image is None:
+            for mapping in source.get('maps', []):
+                channel = re.sub(r'[^a-z0-9]', '', mapping['usage'].casefold())
+                if channel in {'color', 'diffuse', 'diffusecolor', 'diffusemap', 'basecolor', 'albedo'}:
+                    image = self.material_texture(mapping['material'])
+                    if image is not None:
+                        break
+        if image is None:
+            return
+        material.use_nodes = True
+        nodes = material.node_tree.nodes
+        shader = next((node for node in nodes if node.type == 'BSDF_PRINCIPLED'), None)
+        if shader is None:
+            return
+        texture = nodes.new('ShaderNodeTexImage')
+        texture.image = image
+        texture.label = 'GR2 Diffuse'
+        texture.location = (shader.location.x - 300, shader.location.y)
+        material.node_tree.links.new(texture.outputs['Color'], shader.inputs['Base Color'])
+        material.node_tree.links.new(texture.outputs['Alpha'], shader.inputs['Alpha'])
 
     def bone_worlds(self, skeleton):
         worlds, visiting = {}, set()
@@ -475,6 +694,7 @@ class GR2Importer:
             return
         arm = self.object(skeleton['name'], bpy.data.armatures.new(skeleton['name']))
         self.armature = arm
+        arm['gr2_skeleton_name'] = skeleton['name']
         if root is not None:
             source = skeleton['bones'][root]
             arm.matrix_world = import_transform.object_matrix(worlds[root], self.scene_nwo)
@@ -509,6 +729,38 @@ class GR2Importer:
         arm.show_in_front = True
         for index in frames:
             arm.data.bones[skeleton['bones'][index]['name']]['gr2_properties'] = json.dumps(properties(skeleton['bones'][index]['props']))
+
+    def build_light(self, source, world, props):
+        kind = self.enum('light_type', props.get('bungie_light_type'), default='omni')
+        light_type = {'omni': 'POINT', 'spot': 'SPOT', 'directional': 'SUN'}.get(kind)
+        if light_type is None:
+            ob = self.object(source['name'])
+            self.restore_object_props(ob, props)
+            self.set_property(ob.nwo, 'export_this', False)
+            utils.print_warning(f'{self.path.name}: unsupported light type {kind!r}; preserved as an empty')
+        else:
+            light = bpy.data.lights.new(source['name'], light_type)
+            ob = self.object(source['name'], light)
+            self.restore_object_props(ob, props)
+            for key, value in props.items():
+                if not key.startswith('bungie_light_') or not has_value(value):
+                    continue
+                name = key[7:]
+                if name.startswith('light_clipping_size_') or name in {'light_far_attenuation_start', 'light_far_attenuation_end'}:
+                    value = float(value) * import_transform.scale_factor(self.scene_nwo)
+                self.set_property(light.nwo, name, value)
+            color = props.get('bungie_light_color')
+            if color is not None:
+                light.color = [utils.srgb_to_linear(v) for v in vector_value(color)[:3]]
+            intensity = float(props.get('bungie_light_intensity', 1))
+            light.energy = utils.calc_light_energy(light, intensity, utils.get_import_scale(self.owner.context))
+            if light_type == 'SPOT':
+                falloff = float(props.get('bungie_light_hotspot_falloff', 60))
+                light.spot_size = radians(falloff)
+                if falloff > 0:
+                    light.spot_blend = max(0, min(1, 1 - float(props.get('bungie_light_hotspot_size', 45)) / falloff))
+        ob.matrix_world = import_transform.object_matrix(world, self.scene_nwo)
+        return ob
 
     def build_mesh_helper(self, source, world, parent_bone, region):
         """Retain exported line/helper nodes which have no drawable geometry."""
@@ -575,7 +827,7 @@ class GR2Importer:
         selected = np.arange(len(triangles), dtype=np.int32)
         if self.render_only:
             mesh_type = self.enum('mesh_type', props.get('bungie_mesh_type'), enums.MeshType, default='default')
-            if mesh_type in {'collision', 'physics', 'poop_collision', 'poop_physics'}:
+            if mesh_type in {'collision', 'physics', 'poop_collision', 'poop_physics', 'cookie_cutter'}:
                 return
             records = source['annotations'].get('bungie_face_mode')
             modes = [next(iter(record.values())) for record in records] if records else [props.get('bungie_face_mode')] * len(triangles)
@@ -621,11 +873,18 @@ class GR2Importer:
             mesh['gr2_material_groups'] = json.dumps(source['groups'])
         mesh.polygons.foreach_set('material_index', material_indices[selected])
         loops = triangles[selected].reshape(-1)
+        invalid_uvs = {}
         for name, values in vertices.items():
             layer_name = source.get('component_names', {}).get(name) or name
             if name.startswith('TextureCoordinates') or name == 'lighting':
                 lighting = 'lighting' in layer_name.lower() or 'lighting' in name.lower()
                 uv = mesh.uv_layers.new(name='lighting' if lighting else layer_name)
+                invalid = ~np.isfinite(values)
+                if invalid.any():
+                    invalid_uvs[name] = dict(indices=np.argwhere(invalid).tolist(), values=values[invalid].tolist())
+                    values = values.copy()
+                    values[invalid] = 0
+                    utils.print_warning(f'{self.path.name}: {source["name"]}: replaced {int(invalid.sum())} invalid {layer_name} UV components with zero')
                 coordinates = values[loops, :2].copy()
                 coordinates[:, 1] = 1 - coordinates[:, 1]
                 uv.data.foreach_set('uv', coordinates.ravel())
@@ -634,6 +893,8 @@ class GR2Importer:
                 rgba = np.ones((len(loops), 4), dtype=np.float32)
                 rgba[:, :min(4, values.shape[1])] = values[loops, :4]
                 layer.data.foreach_set('color', rgba.ravel())
+        if invalid_uvs:
+            mesh['gr2_invalid_uvs'] = json.dumps(invalid_uvs)
         if 'Normal' in vertices:
             normals = vertices['Normal'][loops, :3] @ np.array(world.to_3x3(), dtype=np.float32)
             lengths = np.linalg.norm(normals, axis=1, keepdims=True)
@@ -642,6 +903,7 @@ class GR2Importer:
             mesh.normals_split_custom_set(normals.tolist())
         self.restore_faces(mesh, props, source['annotations'], selected)
         self.apply_special_material(ob, source, props)
+        self.restore_structure_proxy(ob, props)
         if self.armature is not None and (source['bones'] or parent_bone or props.get('bungie_parent_object')):
             matrix = ob.matrix_world.copy()
             ob.parent = self.armature
@@ -687,31 +949,131 @@ class GR2Importer:
                     ob.parent_type, ob.parent_bone = 'BONE', name
             ob.matrix_world = matrix
         self.owner.mesh_objects.append(ob)
+        return ob
+
+    def restore_instance_proxies(self, model, skeleton, meshes):
+        """Recover instance-owned meshes from this model's mesh bindings."""
+        kinds = {address: self.enum('mesh_type', properties(self.data['meshes'][address]['props']).get('bungie_mesh_type'),
+                                    enums.MeshType, default='default') for address in meshes}
+        instances = {self.data['meshes'][address]['name']: ob for address, ob in meshes.items()
+                     if kinds[address] in {'poop', 'default'}}
+        if not instances:
+            return
+        bones = skeleton['bones']
+        bone_indices = {bone['name']: i for i, bone in enumerate(bones)}
+        for address, proxy in meshes.items():
+            kind = kinds[address]
+            if kind not in {'poop_collision', 'poop_physics', 'cookie_cutter'}:
+                continue
+            source = self.data['meshes'][address]
+            props = properties(source['props'])
+            parent_names = re.findall(r"'([^']+)'", str(props.get('bungie_poop_parent', '')))
+            parent_name = parent_names[-1] if parent_names else props.get('bungie_poop_parent')
+            instance = instances.get(parent_name)
+            index = bone_indices.get(source['name'])
+            if instance is None and index is not None:
+                parent = bones[index]['parent']
+                while parent != -1:
+                    parent_name = bones[parent]['name']
+                    instance = instances.get(parent_name)
+                    if instance is not None:
+                        break
+                    parent = bones[parent]['parent']
+            # Some exporters omit the proxy's skeleton entry and parent tag.
+            # A model named for its instance still owns its bound proxy meshes.
+            if instance is None and not has_value(props.get('bungie_poop_parent')) and index is None:
+                parent_name = model['name']
+                instance = instances.get(parent_name)
+                if instance is None and len(instances) == 1:
+                    parent_name, instance = next(iter(instances.items()))
+            if instance is None:
+                continue
+            proxy_type = {'poop_collision': 'collision', 'poop_physics': 'physics',
+                          'cookie_cutter': 'cookie_cutter'}[kind]
+            # Halo 4/H2A use poop_collision with play_collision for physics.
+            if kind == 'poop_collision' and proxy.nwo.poop_collision_type == 'play_collision':
+                proxy_type = 'physics'
+            if proxy_type == 'physics':
+                slot = next((f'proxy_physics{i}' for i in range(200)
+                             if getattr(instance.data.nwo, f'proxy_physics{i}') is None), None)
+            else:
+                slot = f'proxy_{proxy_type}'
+                if getattr(instance.data.nwo, slot) is not None:
+                    slot = None
+            if slot is None:
+                utils.print_warning(f'{self.path.name}: no free {proxy_type} proxy slot for {parent_name}; keeping {source["name"]} in the scene')
+                continue
+            # Proxy edit/export replaces the object's matrix with the owner's.
+            # Bake any child offset into its mesh before removing its parenting.
+            proxy.data.transform(instance.matrix_world.inverted_safe() @ proxy.matrix_world)
+            proxy.parent = None
+            proxy.parent_type, proxy.parent_bone = 'OBJECT', ''
+            proxy.matrix_parent_inverse = Matrix.Identity(4)
+            proxy.matrix_world = instance.matrix_world.copy()
+            proxy.nwo.proxy_type = proxy_type
+            proxy.data.nwo.mesh_type = '_connected_geometry_mesh_type_' + (
+                'cookie_cutter' if proxy_type == 'cookie_cutter' else proxy_type)
+            proxy['gr2_proxy_owner'] = parent_name
+            # A bound proxy also identifies an instance when its owner lacks
+            # mesh-type metadata, as seen in older Max exports.
+            instance.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
+            setattr(instance.data.nwo, slot, proxy)
+            # The mesh pointer keeps the proxy alive. Foundry links it into the
+            # scene temporarily when the user opens instance proxy edit mode.
+            for collection in list(proxy.users_collection):
+                collection.objects.unlink(proxy)
 
     def build(self):
         context = self.owner.context
         selected, active = list(context.selected_objects), context.view_layer.objects.active
         try:
+            skeleton_armatures = {}
+            # Keep every embedded image, including textures not used by a
+            # supported shader channel or by the selected mesh components.
+            for address in self.data.get('textures', {}):
+                self.texture_images(address)
             for model in self.data['models']:
                 if model['name'].casefold() == 'bungieexportinfo':
                     continue
                 skeleton = self.data['skeletons'].get(model['skeleton'], dict(bones=[]))
                 placement = Matrix(model['matrix'])
                 worlds = {index: placement @ matrix for index, matrix in self.bone_worlds(skeleton).items()}
+                if self.tag_armature is None:
+                    self.armature = skeleton_armatures.get(model['skeleton'])
+                self.object_roots = set()
                 self.build_armature(skeleton, worlds)
+                if self.armature is not None:
+                    skeleton_armatures[model['skeleton']] = self.armature
+                    if self.armature not in self.armatures:
+                        self.armatures.append(self.armature)
                 by_name = {bone['name']: worlds[i] for i, bone in enumerate(skeleton['bones'])}
                 bone_indices = {bone['name']: i for i, bone in enumerate(skeleton['bones'])}
                 if self.import_geometry:
+                    meshes = {}
                     for address in model['meshes']:
                         source = self.data['meshes'][address]
                         index = bone_indices.get(source['name'])
                         parent = skeleton['bones'][index]['parent'] if index is not None else -1
                         parent_bone = self.bone_name(skeleton['bones'][parent]['name']) if parent != -1 else None
-                        self.build_mesh(source, by_name.get(source['name'], placement), parent_bone)
-                if not self.geometry_only and self.import_markers:
+                        ob = self.build_mesh(source, by_name.get(source['name'], placement), parent_bone)
+                        if ob is not None:
+                            meshes[address] = ob
+                    self.restore_instance_proxies(model, skeleton, meshes)
+                if (not self.geometry_only and self.import_markers) or self.import_geometry:
                     for index, bone in enumerate(skeleton['bones']):
                         props = properties(bone['props'])
-                        if self.enum('object_type', props.get('bungie_object_type'), enums.ObjectType, default='none') != 'marker':
+                        kind = self.enum('object_type', props.get('bungie_object_type'), enums.ObjectType, default='none')
+                        if kind == 'light' and self.import_geometry and not self.geometry_only:
+                            self.build_light(bone, worlds[index], props)
+                            continue
+                        if props.get('bungie_object_type') == 'other' and self.import_geometry and not self.geometry_only:
+                            helper = self.object(bone['name'])
+                            self.restore_object_props(helper, props)
+                            self.set_property(helper.nwo, 'export_this', False)
+                            helper['gr2_object_type'] = 'other'
+                            helper.matrix_world = import_transform.object_matrix(worlds[index], self.scene_nwo)
+                            continue
+                        if kind != 'marker' or self.geometry_only or not self.import_markers:
                             continue
                         marker = self.object(bone['name'])
                         marker.empty_display_type = 'ARROWS'
@@ -725,7 +1087,8 @@ class GR2Importer:
                             marker.parent = self.armature
                         marker.matrix_world = matrix
                         self.owner.marker_objects.append(marker)
-            if not self.objects and self.armature is None:
+            self.armature = max(self.armatures, key=lambda arm: len(arm.data.bones), default=self.tag_armature)
+            if not self.objects and self.armature is None and not any(self.images.values()):
                 raise ValueError('GR2 has no supported geometry, skeleton or markers')
             return self.objects
         except Exception:
@@ -741,10 +1104,14 @@ class GR2Importer:
                         bpy.data.meshes.remove(data)
                     elif isinstance(data, bpy.types.Armature):
                         bpy.data.armatures.remove(data)
+                    elif isinstance(data, bpy.types.Light):
+                        bpy.data.lights.remove(data)
             bpy.data.collections.remove(self.collection)
             for material in self.created_materials:
                 if material.users == 0:
                     bpy.data.materials.remove(material)
+            for image in self.created_images:
+                bpy.data.images.remove(image)
             raise
         finally:
             utils.set_object_mode(context)
@@ -756,10 +1123,37 @@ class GR2Importer:
             context.view_layer.objects.active = active
 
 
-def read_gr2(owner, path, animations=False):
+def resolve_granny_dll(owner):
+    """Use the source project's runtime, or an installed Halo editing kit's."""
     project = utils.get_project(owner.scene_nwo.scene_project)
-    dll_path = Path(project.project_path, 'granny2_x64.dll')
-    return GrannyReader(dll_path).read(path, animations=animations)
+    if project is not None and project.project_path:
+        dll_path = Path(project.project_path, 'granny2_x64.dll')
+        if dll_path.is_file():
+            return dll_path
+    projects = [candidate for candidate in utils.get_prefs().projects
+                if candidate.game in {'reach', 'halo4', 'halo2a'} and candidate.project_path]
+    # Prefer the same game's runtime without changing the import's source game.
+    projects.sort(key=lambda candidate: candidate.game != getattr(owner, 'game', None))
+    for candidate in projects:
+        dll_path = Path(candidate.project_path, 'granny2_x64.dll')
+        if dll_path.is_file():
+            utils.print_warning(f'Using fallback Granny runtime: {dll_path}')
+            return dll_path
+    raise RuntimeError(
+        'GR2 import requires granny2_x64.dll, but it was not found in the current '
+        'project or any configured Halo editing kit. The Halo Reach, Halo 4, and '
+        'Halo 2 AMP editing kits contain this DLL. Add one of these editing kits '
+        'as a Foundry project to use its DLL as a fallback.')
+
+
+def read_gr2(owner, path, animations=False):
+    dll_path = resolve_granny_dll(owner)
+    try:
+        reader = GrannyReader(dll_path)
+    except OSError as exc:
+        raise RuntimeError(f'Could not load Granny runtime {dll_path}: {exc}') from exc
+    return reader.read(path, animations=animations, source_game=getattr(owner, 'game', None),
+                       convert_scale=getattr(owner, 'gr2_convert_scale', True))
 
 
 def import_gr2(owner, path, **kwargs):
@@ -811,7 +1205,7 @@ def import_sidecar(owner, path, *, tag_armature=None, setup_as_asset=True):
         if rig is None and not rigs:
             rig = tag_armature
         blocks = (bpy.data.objects, bpy.data.collections, bpy.data.meshes,
-                  bpy.data.armatures, bpy.data.materials, bpy.data.actions)
+                  bpy.data.armatures, bpy.data.materials, bpy.data.actions, bpy.data.images)
         before = [set(block) for block in blocks]
         animation_start = len(owner.scene_nwo.animations)
         kind = source.object_type
@@ -824,7 +1218,7 @@ def import_sidecar(owner, path, *, tag_armature=None, setup_as_asset=True):
                               for entries in files.values() for entry in entries)
         try:
             new_objects, new_actions = owner.import_gr2_files(
-                [resolved], tag_armature=rig, parent_collection=group,
+                [resolved], tag_armature=rig, parent_collection=group, convert_scale=True,
                 import_geometry=any(entry.object_type != 'skeleton' for entry in references),
                 import_markers=kind == 'markers' or not has_marker_file,
                 import_animations=kind == 'model_animation_graph' or not kind,
@@ -848,14 +1242,14 @@ def import_sidecar(owner, path, *, tag_armature=None, setup_as_asset=True):
                 bpy.data.collections.remove(collection)
             for block, previous in zip(blocks[2:], before[2:]):
                 for item in set(block) - previous:
-                    if item.users == 0:
+                    if block == bpy.data.images or item.users == 0:
                         block.remove(item)
             utils.print_warning(f'{asset.path.name}: could not import {resolved.name}: {exc}')
             continue
         objects.extend(new_objects)
         actions.extend(new_actions)
         imported_animations.extend(owner.scene_nwo.animations[animation_start:])
-        rig = next((ob for ob in new_objects if ob.type == 'ARMATURE'), rig)
+        rig = max((ob for ob in new_objects if ob.type == 'ARMATURE'), key=lambda arm: len(arm.data.bones), default=rig)
         if rig is not None:
             rigs[source.rig_key] = rig
         for collection in set(bpy.data.collections) - before[1]:
@@ -926,11 +1320,17 @@ def import_sidecar(owner, path, *, tag_armature=None, setup_as_asset=True):
 
 def animation_action(owner, data, armature, name, frame_start=1):
     """Bake absolute GR2 local transforms into Blender bone basis transforms."""
-    tracks = {canonical_name(track['name']): track for group in data['groups'] for track in group['tracks']}
+    scene_nwo = gr2_scene_settings(owner)
+    groups = data['groups']
+    skeleton_name = canonical_name(armature.get('gr2_skeleton_name', ''))
+    matching_groups = [group for group in groups if skeleton_name and canonical_name(group.get('name', '')) == skeleton_name]
+    if matching_groups:
+        groups = matching_groups
+    tracks = {canonical_name(track['name']): track for group in groups for track in group['tracks']}
     mapped = {bone.name: tracks[canonical_name(bone.name)] for bone in armature.data.bones if canonical_name(bone.name) in tracks}
     bone_names = {canonical_name(bone.name) for bone in armature.data.bones}
     object_root = canonical_name(armature.get('gr2_object_root', ''))
-    roots = [(track, group.get('root_rest')) for group in data['groups'] for track in group['tracks']
+    roots = [(track, group.get('root_rest')) for group in groups for track in group['tracks']
              if canonical_name(track['name']) not in bone_names and canonical_name(track['name']) != 'bungieexportinfo'
              and canonical_name(track['name']) in {object_root, canonical_name(group.get('name', ''))}]
     root_track, root_rest = next((item for item in roots if canonical_name(item[0]['name']) == object_root), roots[0] if roots else (None, None))
@@ -942,52 +1342,66 @@ def animation_action(owner, data, armature, name, frame_start=1):
     old_object_basis = armature.matrix_basis.copy()
     if root_rest is None:
         root_rest = json.loads(armature.get('gr2_object_root_rest', 'null'))
-    root_inverse = import_transform.object_matrix(Matrix(root_rest), owner.scene_nwo, rotate=False).inverted_safe() if root_rest is not None else Matrix.Identity(4)
+    root_inverse = import_transform.object_matrix(Matrix(root_rest), scene_nwo, rotate=False).inverted_safe() if root_rest is not None else Matrix.Identity(4)
     action = bpy.data.actions.new(name)
     armature.animation_data_create()
     armature.animation_data.action = action
     count = len((root_track or next(iter(mapped.values())))['positions'])
-    previous_rotations = {}
+    from bpy_extras.anim_utils import action_ensure_channelbag_for_slot
+    slot = action.slots.new('OBJECT', armature.name)
+    armature.animation_data.action_slot = slot
+    channelbag = action_ensure_channelbag_for_slot(action, slot)
+    times = frame_start + np.arange(count) * data['dt'] * owner.context.scene.render.fps / owner.context.scene.render.fps_base
+    scalar = import_transform.scale_factor(scene_nwo)
     def local_transform(track, frame):
         q = track['orientations'][frame]
         matrix = Quaternion((q[3], q[0], q[1], q[2])).to_matrix() @ Matrix(np.array(track['scales'][frame]).reshape(3, 3))
         matrix = matrix.to_4x4()
-        matrix.translation = Vector(track['positions'][frame]) * import_transform.scale_factor(owner.scene_nwo)
+        matrix.translation = Vector(track['positions'][frame]) * scalar
         return matrix
-    try:
+
+    def bake_transform(track, prefix, target, group_name):
+        # Allocate each curve once instead of repeatedly inserting and updating
+        # growing keyframe arrays. Rest transforms are constant across samples.
+        samples = np.empty((count, 10), dtype=np.float32)
+        previous = None
         for frame in range(count):
-            time = frame_start + frame * data['dt'] * owner.context.scene.render.fps / owner.context.scene.render.fps_base
-            if root_track is not None:
-                armature.matrix_basis = old_object_basis @ root_inverse @ local_transform(root_track, frame)
-                armature.rotation_mode = 'QUATERNION'
-                rotation = armature.rotation_quaternion.copy()
-                if None in previous_rotations:
-                    rotation.make_compatible(previous_rotations[None])
-                armature.rotation_quaternion = rotation
-                previous_rotations[None] = rotation.copy()
-                for channel in ('location', 'rotation_quaternion', 'scale'):
-                    armature.keyframe_insert(channel, frame=time, group='Armature')
-            for bone in armature.pose.bones:
-                track = mapped.get(bone.name)
-                if track is None:
-                    bone.matrix_basis = Matrix.Identity(4)
-                    continue
-                local = local_transform(track, frame)
-                if bone.parent is None and not object_root:
-                    local = import_transform.rotation_matrix(owner.scene_nwo) @ local
-                rest = bone.bone.matrix_local
-                if bone.parent:
-                    rest = bone.parent.bone.matrix_local.inverted_safe() @ rest
-                bone.matrix_basis = rest.inverted_safe() @ local
-                bone.rotation_mode = 'QUATERNION'
-                rotation = bone.rotation_quaternion.copy()
-                if bone.name in previous_rotations:
-                    rotation.make_compatible(previous_rotations[bone.name])
-                bone.rotation_quaternion = rotation
-                previous_rotations[bone.name] = rotation.copy()
-                # Keep the source sample timing even when the scene is not 30 fps.
-                for channel in ('location', 'rotation_quaternion', 'scale'):
-                    bone.keyframe_insert(channel, frame=time, group=bone.name)
+            location, rotation, scale = (prefix @ local_transform(track, frame)).decompose()
+            if previous is not None:
+                rotation.make_compatible(previous)
+            previous = rotation
+            samples[frame] = (*location, *rotation, *scale)
+        group = channelbag.groups.new(group_name)
+        coordinates = np.empty((count, 2), dtype=np.float32)
+        coordinates[:, 0] = times
+        keyframe_rna = bpy.types.Keyframe.bl_rna.properties
+        for channel, start, width in (('location', 0, 3), ('rotation_quaternion', 3, 4), ('scale', 7, 3)):
+            for index in range(width):
+                curve = channelbag.fcurves.new(data_path=target.path_from_id(channel), index=index)
+                curve.group = group
+                curve.keyframe_points.add(count)
+                coordinates[:, 1] = samples[:, start + index]
+                curve.keyframe_points.foreach_set('co', coordinates.ravel())
+                for prop, identifier in (('interpolation', 'BEZIER'), ('handle_left_type', 'AUTO_CLAMPED'), ('handle_right_type', 'AUTO_CLAMPED')):
+                    value = keyframe_rna[prop].enum_items[identifier].value
+                    curve.keyframe_points.foreach_set(prop, np.full(count, value, dtype=np.int32))
+                curve.update()
+    try:
+        if root_track is not None:
+            armature.rotation_mode = 'QUATERNION'
+            bake_transform(root_track, old_object_basis @ root_inverse, armature, 'Armature')
+        for bone in armature.pose.bones:
+            track = mapped.get(bone.name)
+            if track is None:
+                continue
+            rest = bone.bone.matrix_local
+            if bone.parent:
+                rest = bone.parent.bone.matrix_local.inverted_safe() @ rest
+            prefix = rest.inverted_safe()
+            if bone.parent is None and not object_root:
+                prefix = prefix @ import_transform.rotation_matrix(scene_nwo)
+            bone.rotation_mode = 'QUATERNION'
+            bake_transform(track, prefix, bone, bone.name)
         action.use_fake_user = True
         action.use_frame_range = True
         action.frame_start = frame_start
