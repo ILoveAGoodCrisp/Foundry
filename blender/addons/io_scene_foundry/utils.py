@@ -33,10 +33,16 @@ from subprocess import Popen, check_call, PIPE
 import threading
 import queue
 
-from .project import ExternalProject, GAME_INFO, external_project_from_tag, identify_game
+from .project import ExternalProject, GAME_INFO, external_project_from_source, external_project_from_tag, identify_game
+from .project_config import (
+    CUSTOM_DIRECTORY_GAMES, DEFAULT_PROJECT_IMAGE, PROJECT_FIELDS, configuration_key, content_directory_args,
+    directory_path, matching_project, new_project_record, path_key, project_record,
+    read_kit_settings, read_project_records, relative_content_path, resolve_scene_project, snapshot_project, unique_project_name,
+    write_kit_settings, write_project_records,
+)
 from . import foundry_output
-from .tools.node_tree_arrange import arrange
-from .constants import OBJECT_TAG_EXTS, PROTECTED_MATERIALS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR
+from .tools.node_layout import layout_nodes as arrange
+from .constants import OBJECT_TAG_EXTS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR
 from .tools.materials import special_materials, convention_materials
 from .icons import get_icon_id, get_icon_id_in_directory
 # import requests
@@ -225,7 +231,7 @@ def get_data_path():
     return project.data_directory
 
 def get_tool_type():
-    return bpy.context.preferences.addons[__package__].preferences.tool_type
+    return get_prefs().tool_type
 
 def get_perm(
     ob,
@@ -240,6 +246,12 @@ def uses_legacy_export(project_name=None):
     """The project game determines its intermediate format."""
     project = get_project(project_name)
     return bool(project and project.game in {'halo1', 'halo2', 'halo3', 'halo3odst'})
+
+
+def get_game(project_name=None, *, use_external=True):
+    """Use Reach properties until an editing-kit context is available."""
+    project = get_project(project_name, use_external=use_external)
+    return project.game if project is not None else 'reach'
 
 
 def is_corinth(context=None):
@@ -279,13 +291,11 @@ def get_asset_path():
 def relative_path(path: str | Path):
     """Gets the tag/data relative path of the given filepath"""
     path = Path(path)
-    tags_path = Path(get_tags_path())
-    data_path = Path(get_data_path())
-    if path.is_relative_to(tags_path):
-        return str(path.relative_to(tags_path))
-    elif path.is_relative_to(data_path):
-        return str(path.relative_to(data_path))
-    
+    if path.is_absolute():
+        path = path.resolve()
+        for root in (get_tags_path(), get_data_path()):
+            if root and path.is_relative_to(Path(root).resolve()):
+                return str(path.relative_to(Path(root).resolve()))
     return str(path)
 
 
@@ -510,8 +520,10 @@ def prepare_tool(tool_args: list, in_background=False, null_output=False, event_
     """
     if in_background and input_data is not None:
         raise ValueError('Tool input is only supported for synchronous commands')
-    project_dir = get_project_path()
-    os.chdir(project_dir)
+    project = get_project()
+    if project is None or not getattr(project, 'available', True):
+        raise ValueError('Select an available Foundry project before running Tool')
+    project_dir = project.project_path
     if force_tool:
         tool_type = "tool"
     elif force_tool_fast:
@@ -519,7 +531,8 @@ def prepare_tool(tool_args: list, in_background=False, null_output=False, event_
     else:
         tool_type = get_tool_type()
 
-    command = [str(Path(project_dir, tool_type).with_suffix(".exe")), *[str(arg) for arg in tool_args]]
+    executable = str(Path(project_dir, tool_type).with_suffix(".exe"))
+    command = [executable, *content_directory_args(project, executable), *[str(arg) for arg in tool_args]]
     if is_corinth() and not null_output and event_level != 'LOG' and "-structured-xml" not in command:
         command.insert(1, "-structured-xml")
     output_stream = foundry_output.child_stream()
@@ -1364,6 +1377,8 @@ def set_project_in_registry():
         return
     # Get project name
     project = get_project(name)
+    if project is None:
+        return
     project_name = project.project_name
     try:
         # Open the registry key
@@ -1376,16 +1391,21 @@ def run_ek_cmd(args: list, in_background=False):
     """Executes a cmd line argument at the root editing kit directory"""
     # Set the current project in the users registry, this avoids the switch project prompt
     set_project_in_registry()
-    os.chdir(get_project_path())
-    command = f"""{' '.join(f'"{arg}"' for arg in args)}"""
+    project = get_project()
+    if project is None or not getattr(project, 'available', True):
+        raise ValueError('Select an available Foundry project before launching editing kit tools')
+    executable = Path(args[0])
+    if not executable.is_absolute():
+        executable = Path(project.project_path) / executable
+    command = [str(executable), *content_directory_args(project, executable), *[str(arg) for arg in args[1:]]]
     output_stream = foundry_output.child_stream()
     creationflags = _CREATE_NO_WINDOW if os.name == "nt" and output_stream is not None else 0
     # print(command)
     if in_background:
-        return Popen(command, stdout=output_stream, stderr=output_stream, creationflags=creationflags)
+        return Popen(command, cwd=project.project_path, stdout=output_stream, stderr=output_stream, creationflags=creationflags)
     else:
         try:
-            return check_call(command, stdout=output_stream, stderr=output_stream, creationflags=creationflags)
+            return check_call(command, cwd=project.project_path, stdout=output_stream, stderr=output_stream, creationflags=creationflags)
         except Exception as e:
             return e
 
@@ -1419,7 +1439,8 @@ def os_sep_partition(target_string, get_suffix=False):
 
 
 def check_path(filePath):
-    return filePath.lower().startswith(os.path.join(get_project_path().lower(), "data"))
+    data = get_data_path()
+    return bool(data and Path(filePath).resolve().is_relative_to(Path(data).resolve()))
 
 
 def valid_nwo_asset(context=None):
@@ -1539,10 +1560,6 @@ def cull_invalid_chars(string):
 
     return path
 
-
-def protected_material_name(material_name):
-    """Returns True if the passed material name is equal to a protected material"""
-    return material_name.startswith(PROTECTED_MATERIALS)
 
 ############ FOUNDRY UI UTILS
 def mesh_object(ob):
@@ -1943,23 +1960,22 @@ def get_halo_material_count() -> tuple:
 
 def validate_ek() -> str | None:
     """Returns an relevant error message if the current game does not reference a valid editing kit. Else returns None"""
-    ek = Path(get_project_path())
+    project = get_project(use_external=False)
+    if project is None:
+        return 'Saved project configuration is missing. Select a project in Foundry Scene Properties'
+    ek = Path(project.project_path)
     scene_project = get_scene_props().scene_project
     if not ek.exists():
         return f"{scene_project} Editing Kit path invalid"
     elif not Path(ek, 'tool').with_suffix('.exe').exists():
         return f"Tool not found, please check that you have tool.exe within your {scene_project} directory"
-    elif not Path(ek, "data").exists():
-        return f"Editing Kit data folder not found. Please ensure your {scene_project} directory has a 'data' folder"
-    else:
-        prefs = get_prefs()
-        projects = prefs.projects
-        for p in projects:
-            if p.name == scene_project:
-                if os.path.exists(p.project_path):
-                    return
-                return f'{p.name} project path does not exist'
-        return 'Please select a project in Foundry Scene Properties'
+    elif not getattr(project, 'available', True):
+        return f'{project.name} is unavailable. Check its editing kit and supported folders in Foundry Preferences'
+    elif not Path(project.data_directory).is_dir():
+        return f'Data folder not found: {project.data_directory}. Edit this project in Foundry Preferences'
+    elif not Path(project.tags_directory).is_dir():
+        return f'Tags folder not found: {project.tags_directory}. Edit this project in Foundry Preferences'
+    return None
     
 # def foundry_update_check(current_version):
 #     update_url = 'https://api.github.com/repos/iloveagoodcrisp/foundry-halo-blender-creation-kit/releases'
@@ -2053,6 +2069,17 @@ def restore_mode(mode):
 def get_prefs():
     return bpy.context.preferences.addons[__package__].preferences
 
+
+def get_tag_editor_icon_id():
+    """Return the tag editor icon for the preference and current engine."""
+    if get_prefs().tag_editor == "baboon":
+        icon = "baboon"
+    elif project_game_for_mcc(None) in {"HaloReach", "Halo4", "Halo2A"}:
+        icon = "foundation"
+    else:
+        icon = "Guerilla"
+    return get_icon_id(icon)
+
 def is_halo_mapping_node(node: bpy.types.Node) -> bool:
     """Checks if the given node is one of Foundry's texture tiling node variants."""
     input_names = {i.name for i in node.inputs}
@@ -2076,235 +2103,170 @@ def remove_chars(string, chars):
 
     return string
 
+_projects_settings_override = None
+
+
+def project_settings_path():
+    """Allow the new-user debug session to isolate its project list."""
+    return _projects_settings_override or Path(os.environ['APPDATA'], 'Foundry', 'projects.json')
+
+
 def write_projects_list(project_list):
-    appdata = os.getenv('APPDATA')
-    foundry_folder = Path(appdata, "Foundry")
-
-    if not foundry_folder.exists():
-        foundry_folder.mkdir(exist_ok=True)
-    
-    if not foundry_folder.exists():
-        return print('Failed to write projects list. Foundry will not work correctly')
-
-    projects = Path(foundry_folder, "projects.json")
-    with open(projects, 'w') as file:
-        json.dump(project_list, file, indent=4)
+    write_project_records(project_settings_path(), project_list)
 
 def read_projects_list() -> list:
-    projects_list = []
-    appdata = os.getenv('APPDATA')
-    foundry_folder = os.path.join(appdata, "Foundry")
-
-    if not os.path.exists(foundry_folder):
-        return projects_list
-
-    projects = os.path.join(foundry_folder, "projects.json")
-    if not os.path.exists(projects):
-        return projects_list
-    
     try:
-        with open(projects, 'r') as file:
-            projects_list = json.load(file)
-    except:
-        try:
-            os.remove(projects)
-        except:
-            return print("Foundry JSON corrupt. Failed to delete")
-        return print("Foundry JSON corrupt. Deleted")
+        return read_project_records(project_settings_path())
+    except (OSError, ValueError) as error:
+        print_warning(f'Could not read Foundry projects settings: {error}. Settings have been preserved')
+        return None
 
-    return projects_list
 
-class ProjectXML():
+def save_project_settings(project):
+    records = read_projects_list()
+    if records is None:
+        raise ValueError('Could not read Foundry projects settings; repair them before saving')
+    replacement = project_record(project)
+    for index, record in enumerate(records):
+        if record['id'] == project.project_id:
+            records[index].update(replacement)
+            write_projects_list(records)
+            return
+    raise ValueError('Project configuration no longer exists')
+
+
+_project_selection_updates_suspended = False
+
+
+def project_selection_updates_suspended():
+    return _project_selection_updates_suspended
+
+
+def set_project_list_index(prefs, index):
+    """Maintain the UI index without selecting another scene project."""
+    global _project_selection_updates_suspended
+    previous = _project_selection_updates_suspended
+    _project_selection_updates_suspended = True
+    try:
+        prefs.current_project_index = index
+    finally:
+        _project_selection_updates_suspended = previous
+
+
+def sync_project_selection(scene, project):
+    """Highlight the active scene's configuration without changing any scene."""
+    if project is None or getattr(scene, 'id_data', None) != getattr(bpy.context, 'scene', None):
+        return
+    try:
+        prefs = get_prefs()
+    except (KeyError, AttributeError):
+        return
+    for index, entry in enumerate(prefs.projects):
+        if entry.project_id == project.project_id:
+            if prefs.current_project_index != index:
+                set_project_list_index(prefs, index)
+            return
+
+
+def set_scene_project(scene, project):
+    changed = getattr(scene, 'scene_project_snapshot', '') != snapshot_project(project)
+    scene.scene_project = project.name
+    scene.scene_project_id = project.project_id
+    scene.scene_project_snapshot = snapshot_project(project)
+    sync_project_selection(scene, project)
+    if changed:
+        bitmap = sys.modules.get(f'{__package__}.tags.bitmap')
+        if bitmap is not None:
+            bitmap.clear_path_cache()
+
+
+def update_scene_project(self, context):
+    """Keep scripts which assign the legacy project-name property working."""
+    try:
+        project = resolve_scene_project(get_prefs().projects, name=self.scene_project)
+    except (KeyError, AttributeError):
+        return  # Preferences may not be registered while Blender loads RNA.
+    changed = self.scene_project_id != (project.project_id if project else '')
+    self.scene_project_id = project.project_id if project else ''
+    self.scene_project_snapshot = snapshot_project(project) if project else ''
+    sync_project_selection(self, project)
+    if changed:
+        bitmap = sys.modules.get(f'{__package__}.tags.bitmap')
+        if bitmap is not None:
+            bitmap.clear_path_cache()
+
+class ProjectJSON():
     def __init__(self):
         self.game = ""
-        self.remote_server_name = ""
         self.name = ""
         self.display_name = ""
-        self.remote_database_name = ""
-        self.project_xml = ""
-        self.image_path = ""
-        self.default_material = ""
-        self.default_water = ""
+        self.project_json = ""
         self.blender_path = ""
-        self.last_scenario = ""
 
     def parse(self, project_root):
-        has_changes = False
-        self.project_xml = Path(project_root, "project.xml")
+        self.project_json = Path(project_root, "project.json")
         try:
             tool_path = Path(project_root, "tool.exe")
             if not tool_path.is_file():
                 return print_warning(f"{project_root} is not a valid Halo project. Expected tool.exe in the project root")
             game = identify_game(tool_path)
-            if self.project_xml.exists():
-                tree = ET.parse(self.project_xml)
-            else:
-                root = ET.Element("project", name=Path(project_root).name, displayName=Path(project_root).name)
-                ET.SubElement(root, "tagDatastore", remoteDatabaseName="tags" if game in {"halo4", "halo2a"} else game, remoteServerName=GAME_INFO[game][4])
-                tree = ET.ElementTree(root)
-                has_changes = True
-        except ValueError as ex:
-            return print_warning(str(ex))
-        except OSError as ex:
-            return print_warning(f"Failed to read project tool or XML in {project_root}: {ex}")
-        except ET.ParseError as ex:
-            return print_warning(f"Failed to parse XML: {self.project_xml} ({ex})")
-        root = tree.getroot()
-        if self.name and self.name != root.get('name', 0):
-            root.set("name", self.name)
-            has_changes = True
-        else:
-            self.name = root.get('name', 0)
-            if not self.name:
-                return print(f"Failed to parse XML: {self.project_xml}. Could not return Name")
-        if self.display_name and self.display_name != root.get('displayName', 0):
-            root.set("displayName", self.display_name)
-            has_changes = True
-        else:
-            self.display_name = root.get('displayName', 0)
-            if not self.display_name:
-                return print(f"Failed to parse XML: {self.project_xml}. Could not return displayName")
-        datastore = root.find('./tagDatastore')
-        self.remote_database_name = datastore.get('remoteDatabaseName', '') if datastore is not None else ''
-        self.remote_server_name = datastore.get('remoteServerName', '') if datastore is not None else ''
-        image = root.find('./imagePath', 0)
-        if image is not None:
-            self.image_path = image.text or ""
-            
-        material = root.find('./defaultMaterial', 0)
-        if material is not None:
-            if self.default_material and self.default_material != material.text:
-                material.text = self.default_material
-                has_changes = True
-            else:
-                self.default_material = material.text or ""
-        else:
-            material = ET.SubElement(root, 'defaultMaterial')
-            if self.default_material:
-                material.text = self.default_material
-            else:
-                match game:
-                    case 'reach':
-                        material.text = r"shaders\invalid.shader"
-                    case 'halo4':
-                        material.text = r"shaders\invalid.material"
-                    case 'halo2a':
-                        material.text = r"shaders\invalid.material"
-                self.default_material = material.text or ""
-            has_changes = True
-        
-        water = root.find('./defaultWater', 0)
-        if water is not None:
-            if self.default_water and self.default_water != water.text:
-                water.text = self.default_water
-                has_changes = True
-            else:
-                self.default_water = water.text or ""
-        else:
-            water = ET.SubElement(root, 'defaultWater')
-            if self.default_water:
-                water.text = self.default_water
-            else:
-                match game:
-                    case 'reach':
-                        water.text = r"levels\solo\m50\shaders\water\m50_atrium_fountain_water.shader_water"
-                    case 'halo4':
-                        water.text = r"levels\multi\z11_valhalla\materials\valhalla_water_river.material"
-                    case 'halo2a':
-                        water.text = r"levels\sway\ca_sanctuary\materials\rocks\ca_sanctuary_rockflat_water.material"
-                self.default_water = water.text or ""
-            has_changes = True
-            
-        blender_path = root.find('./blenderPath', 0)
-        if blender_path is not None:
-            if blender_path.text != bpy.app.binary_path:
-                blender_path.text = bpy.app.binary_path
-                self.blender_path = blender_path.text
-                has_changes = True
-            else:
-                self.blender_path = blender_path.text
-        else:
-            blender_path = ET.SubElement(root, 'blenderPath')
-            blender_path.text = bpy.app.binary_path
-            self.blender_path = blender_path.text
-            has_changes = True
-            
-        last_scenario = root.find('./lastScenario', 0)
-        if last_scenario is not None:
-            if self.last_scenario and last_scenario.text != self.last_scenario:
-                last_scenario.text = self.last_scenario
-                has_changes = True
-            else:
-                self.last_scenario = last_scenario.text or ""
-        elif self.last_scenario:
-            last_scenario = ET.SubElement(root, 'lastScenario')
-            last_scenario.text = self.last_scenario
-            has_changes = True
-        
-        if has_changes:
-            try:
-                tree.write(self.project_xml, encoding='utf-8', xml_declaration=True)
-            except OSError as ex:
-                return print_warning(f"Failed to update project XML: {self.project_xml} ({ex})")
+            settings = read_kit_settings(self.project_json, Path(project_root).name, bpy.app.binary_path)
+            write_kit_settings(self.project_json, settings)
+        except (OSError, ValueError) as ex:
+            return print_warning(f"Failed to load Foundry project settings in {project_root}: {ex}")
+        self.name = settings['name']
+        self.display_name = settings['display_name']
+        self.blender_path = settings['blender_path']
         self.game = game
         return True
 
-def setup_projects_list(skip_registry_check=False, report=None):
-    projects_list = read_projects_list()
-    new_projects_list = []
+def setup_projects_list(report=None):
+    records = read_projects_list()
     prefs = get_prefs()
     prefs.projects.clear()
-    display_names = []
-    if projects_list is not None:
-        for i in projects_list:
-            xml = ProjectXML()
-            if xml.parse(i):
-                if xml.display_name in display_names:
-                    warning = f"{xml.display_name} already exists. Ensure new project has a unique project display name. This can be changed by editing the displayName field in {os.path.join(i, 'project.xml')}"
-                    print_warning(warning)
-                    if report is not None:
-                        report({'WARNING'}, warning)
-                    continue
-
-                display_names.append(xml.display_name)
-                new_projects_list.append(i)
-                p = prefs.projects.add()
-                p.project_path = i
-                p.tags_directory = str(Path(i, "tags"))
-                p.data_directory = str(Path(i, "data"))
-                p.project_xml = str(xml.project_xml)
-                p.project_name = xml.name
-                p.name = xml.display_name
-                p.remote_server_name = xml.remote_server_name
-                p.image_path = xml.image_path
-                p.game = xml.game
-                p.corinth = xml.game in {"halo4", "halo2a"}
-                p.default_material = xml.default_material
-                p.default_water = xml.default_water
-                p.last_scenario = xml.last_scenario
-    
-    if new_projects_list:
-        # Write new file to ensure sync
-        write_projects_list(new_projects_list)
+    if records is None:
+        return []
+    for record in records:
+        root = record['project_path']
+        metadata = ProjectJSON()
+        available = bool(metadata.parse(root))
+        if available:
+            for field in PROJECT_FIELDS:
+                value = str(getattr(metadata, 'name' if field == 'project_name' else field, '') or '')
+                if field == 'project_name':
+                    record[field] = value
+                else:
+                    record.setdefault(field, DEFAULT_PROJECT_IMAGE if field == 'image_path' else value)
+            record['game'] = metadata.game
+        if not record.get('name'):
+            record['name'] = unique_project_name(metadata.display_name if available else Path(root).name, prefs.projects)
+        project = prefs.projects.add()
+        project.project_id = record['id']
+        project.name = record['name']
+        project.project_path = root
+        project.project_json = str(Path(root, 'project.json'))
+        project.tags_directory = str(directory_path(root, record.get('tags_directory'), 'tags'))
+        project.data_directory = str(directory_path(root, record.get('data_directory'), 'data'))
+        for field in PROJECT_FIELDS:
+            setattr(project, field, record.get(field, ''))
+        project.use_project_thumbnail = record.get('use_project_thumbnail', False)
+        project.corinth = project.game in {'halo4', 'halo2a'}
+        project.available = available
+        if project.game not in CUSTOM_DIRECTORY_GAMES:
+            if (path_key(project.tags_directory) != path_key(Path(root, 'tags')) or
+                    path_key(project.data_directory) != path_key(Path(root, 'data'))):
+                project.available = False
+                print_warning(f'{project.name}: this game does not support custom tags/data folders')
+        if not available:
+            warning = f'{project.name}: editing kit unavailable at {root}. Edit this project to relink it'
+            print_warning(warning)
+            if report is not None:
+                report({'WARNING'}, warning)
+    if records:
+        write_projects_list(records)
+        # Refreshing the list is not a user selection; preserve the saved scene.
+        set_project_list_index(prefs, max(0, min(prefs.current_project_index, len(prefs.projects) - 1)))
         return prefs.projects
-    elif not skip_registry_check:
-        # Attempt to get the current project if no projects found
-        key_path = r"bonobo\shell\open\command"
-        try:
-            # Open the registry key
-            with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, key_path) as key:
-                # Read the default value (an empty string) of the key
-                value, _ = winreg.QueryValueEx(key, None)
-                
-            bonobo_path = value.rpartition('.exe"')[0].strip('"\' ')
-            project_root = os.path.dirname(bonobo_path)
-            if Path(project_root, "tool.exe").is_file():
-                write_projects_list([project_root])
-                return setup_projects_list(True, report)
-                    
-        except:
-            pass
-
     return []
 
 def update_tables_from_objects(context):
@@ -2543,6 +2505,8 @@ def is_camera(ob):
     return ob.type == 'CAMERA'
 
 def get_object_type(ob, get_ui_name=False):
+    if ob is None:
+        return 'None' if get_ui_name else '_connected_geometry_object_type_none'
     if is_mesh(ob):
         return 'Mesh' if get_ui_name else '_connected_geometry_object_type_mesh'
     elif is_light(ob):
@@ -2566,7 +2530,7 @@ def type_valid(m_type, asset_type=None, game_version=None):
     return asset_type in object_asset_validation.get(m_type, []) and game_version in object_game_validation.get(m_type, [])
 
 def get_shader_name(mat):
-    if not protected_material_name(mat.name):
+    if has_shader_path(mat):
         shader_name = get_valid_shader_name(mat.name)
         if shader_name != "":
             return shader_name
@@ -2626,35 +2590,53 @@ def set_origin_to_point(ob: bpy.types.Object, point: Vector):
     ob.matrix_world = ob.matrix_world @ translation_matrix.inverted_safe()
 
 def current_project_valid():
-    project = get_project(get_scene_props().scene_project)
+    project = get_project(get_scene_props().scene_project, use_external=False)
     
-    return bool(project)
+    return bool(project and getattr(project, 'available', True))
 
 def get_project(project_name=None, use_external=True):
     if use_external and _external_project is not None:
         return _external_project
-    if project_name is None:
-        project_name = get_scene_props().scene_project
-    
+    scene = get_scene_props()
     projects = get_prefs().projects
-    if projects:
-        for p in projects:
-            if p.name == project_name:
-                return p
-        
-        return projects[0]
+    if project_name is None or project_name == scene.scene_project:
+        return resolve_scene_project(
+            projects, getattr(scene, 'scene_project_id', ''), scene.scene_project,
+            getattr(scene, 'scene_project_snapshot', ''))
+    return resolve_scene_project(projects, name=project_name)
 
-def set_import_context_from_filepath(path: Path) -> None:
+
+def project_for_file(path, data=False):
+    scene = get_scene_props()
+    return matching_project(path, get_prefs().projects, data=data,
+                            preferred_id=getattr(scene, 'scene_project_id', ''))
+
+
+def source_tags_root(path, fallback=None):
+    if _external_project is not None and Path(path).resolve().is_relative_to(Path(_external_project.tags_directory).resolve()):
+        return Path(_external_project.tags_directory).resolve()
+    project = project_for_file(path)
+    if project is not None:
+        return Path(project.tags_directory).resolve()
+    if fallback and Path(path).resolve().is_relative_to(Path(fallback).resolve()):
+        return Path(fallback).resolve()
+    return next((parent for parent in Path(path).resolve().parents
+                 if parent.name.casefold() == 'tags'), None)
+
+def set_import_context_from_filepath(path: Path, tags_root=None, data_root=None) -> None:
     """Use a tag or GR2 asset's project without changing the scene project."""
     global _external_project
+    _external_project = None
     path = Path(path).resolve()
     source_asset = path.suffix.lower() == '.gr2' or path.name.lower() == 'sidecar.xml' or path.name.lower().endswith('.sidecar.xml')
-    for project in get_prefs().projects:
-        roots = [Path(project.tags_directory).resolve()]
-        if source_asset:
-            roots.append(Path(project.data_directory).resolve())
-        if not any(path.is_relative_to(root) for root in roots):
-            continue
+    if tags_root and path.is_file():
+        discover = external_project_from_source if source_asset else external_project_from_tag
+        _external_project = discover(path, tags_root, data_root)
+        return
+    project = project_for_file(path, data=source_asset)
+    if project is None and source_asset:
+        project = project_for_file(path)
+    if project is not None:
         # Hold the source kit for the complete import. Imports can switch Blender
         # scenes while building animations and materials; consulting the active
         # scene again would make referenced tags come from that scene's project.
@@ -2666,22 +2648,22 @@ def set_import_context_from_filepath(path: Path) -> None:
             data_directory=project.data_directory,
             game=project.game,
             corinth=project.corinth,
-            remote_server_name=getattr(project, 'remote_server_name', ''),
             image_path=getattr(project, 'image_path', ''),
+            use_project_thumbnail=project.use_project_thumbnail,
+            project_id=project.project_id,
         )
         print(f"Using {project.project_name} as import context for {path} ({project.game})")
         return
 
-    if not path.is_file() or not any(
-            parent.name.casefold() == 'tags' for parent in path.parents):
-        _external_project = None
+    if not path.is_file() or source_asset:
         return
-
-    _external_project = external_project_from_tag(path)
-    print(
-        f"Using {_external_project.project_name} as a temporary project to read {path} "
-        f"({_external_project.game})"
-    )
+    if tags_root or any(parent.name.casefold() == 'tags' for parent in path.parents):
+        _external_project = external_project_from_tag(path, tags_root, data_root)
+        print(f'Using {_external_project.project_name} as temporary import context ({_external_project.game})')
+    elif path.suffix.lower() not in {
+            '.jms', '.ass', '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw',
+            '.jmo', '.jmr', '.jmrx', '.wrl', '.fbx', '.xml'}:
+        raise ValueError('Choose Source Tags Folder in the Foundry import browser or register this tag set as a project')
 
 
 def clear_external_project() -> None:
@@ -2691,29 +2673,11 @@ def clear_external_project() -> None:
 def get_project_from_path(path: str):
     projects = get_prefs().projects
     if projects:
-        for p in projects:
-            if p.project_path == path:
-                return p
-    
-def material_read_only(path):
-    """Returns true if a material is read only aka in the project's protected list"""
-    # Return false immediately if user has disabled material protection
-    if not get_prefs().protect_materials: return False
-    # Ensure path is correctly sliced
-    path = path.strip(" .\"'")
-    if not path: return False
-    path = str(Path(relative_path(path)).with_suffix(""))
-    project = get_project(get_scene_props().scene_project)
-    protected_list = os.path.join(addon_root(), 'protected_tags', project.project_name, 'materials.txt')
-    if not os.path.exists(protected_list): return False
-    protected_materials = None
-    with open(protected_list, 'r') as f:
-        protected_materials = [line.rstrip('\n') for line in f]
-    if protected_materials is None: return False
-    for tag in protected_materials:
-        if path == tag:
-            return True
-    return False
+        candidates = [p for p in projects if path_key(p.project_path) == path_key(path)]
+        current = get_project(use_external=False)
+        if current in candidates:
+            return current
+        return candidates[0] if len(candidates) == 1 else None
 
 def stomp_scale_multi_user(objects):
     """Checks that at least one user of a mesh has a uniform scale of 1,1,1. If not, applies scale to all linked objects, using the object with the smallest scale as a basis"""
@@ -3115,7 +3079,7 @@ def copy_file(from_path, to_path):
 
 def imported_material_name(name: str, project=None) -> str:
     """Remove Tool naming conventions using the import source's collections."""
-    if protected_material_name(name):
+    if name.startswith('+sky') or name in special_material_names or name in convention_material_names:
         return name
     project = project or get_project()
     prefixes = set()
@@ -5159,7 +5123,7 @@ def project_game_icon(context, project=None):
     if project is None:
         project = get_project(get_scene_props().scene_project)
     if not project:
-        return get_icon_id('tag_test')
+        return get_icon_id(GAME_INFO['reach'][3])
     info = GAME_INFO.get(project.game)
     return get_icon_id(info[3] if info else 'tag_test')
         
@@ -5173,13 +5137,15 @@ def project_icon(context, project=None):
     if project is None:
         project = get_project(get_scene_props().scene_project)
     if not project:
-        return get_icon_id('tag_test')
+        return project_game_icon(context)
     
-    thumbnail = Path(project.project_path, project.image_path)
-    if thumbnail.is_file():
-        return get_icon_id_in_directory(str(thumbnail))
-    else:
-        return project_game_icon(context, project)
+    if getattr(project, 'use_project_thumbnail', False) and project.image_path:
+        thumbnail = Path(project.project_path, project.image_path)
+        if thumbnail.is_file():
+            icon = get_icon_id_in_directory(str(thumbnail))
+            if icon:
+                return icon
+    return project_game_icon(context, project)
     
 class Spinner:
     busy = False
@@ -5214,7 +5180,9 @@ class TagImportMover():
         self.temp_file = Path(tags_dir, "_temp", name + self.source_file.suffix)
         if not self.source_file.is_relative_to(Path(tags_dir)):
             print_warning(f"Tag [{self.source_file.name}] is from a different project and may fail to load")
-            self.potential_source_tag_dir = Path(any_partition(str(self.source_file), f'{os.sep}tags{os.sep}'), "tags")
+            self.potential_source_tag_dir = source_tags_root(self.source_file)
+            if self.potential_source_tag_dir is None:
+                raise ValueError('Choose the source tags folder or register this folder as a Foundry project before importing')
             self.needs_to_move = True
             self.tag_path = str(Path("_temp", name + self.source_file.suffix))
             if not self.temp_file.parent.exists():
@@ -5692,7 +5660,7 @@ def redraw_area(context, area_type):
                 region.tag_redraw()
                 
 def tag_to_xml(filepath: Path | str) -> None | Path:
-    """Exports the given tag to an xml using the local Tool.exe. This will recursively search parent folders to find Tool. Returns the xml Path if successful"""
+    """Export tag XML using its owning configuration's Tool and content roots."""
     if not isinstance(filepath, Path):
         filepath = Path(filepath)
         
@@ -5700,28 +5668,33 @@ def tag_to_xml(filepath: Path | str) -> None | Path:
         print_warning(f"{filepath} does not exist or is not absolute or is not a file")
         return
     
-    dir = filepath.parent
-    
-    while dir != dir.parent:
-        tool_path = Path(dir, "tool.exe")
-        if tool_path.exists():
-            break
-        dir = dir.parent
-    else:
-        print_warning(f"Failed to find Tool by searching backwards from {filepath}")
+    try:
+        project = project_for_file(filepath)
+        if project is None:
+            if _external_project is not None and filepath.resolve().is_relative_to(Path(_external_project.tags_directory).resolve()):
+                project = _external_project
+            else:
+                project = external_project_from_tag(filepath)
+    except (OSError, ValueError, RuntimeError) as error:
+        print_warning(str(error))
+        return
+    tool_path = Path(project.project_path, 'tool.exe')
+    if not tool_path.is_file():
+        print_warning(f'Tool not found: {tool_path}')
         return
     
     # H3/H2 needs the full path to the tag, CE needs the EK relative path
-    if Path(dir, "halo_tag_test.exe").exists():
-        final_filepath = str(filepath.relative_to(dir))
+    if project.game == 'halo1':
+        final_filepath = str(filepath.resolve().relative_to(Path(project.tags_directory).resolve()))
     else:
         final_filepath = str(filepath)
         
     output_path = f"{filepath}.xml"
-    os.chdir(tool_path.parent)
-    command = f'tool export-tag-to-xml "{final_filepath}" "{output_path}"'
+    command = [str(tool_path), *content_directory_args(project, tool_path),
+               'export-tag-to-xml', final_filepath, output_path]
     output_stream = foundry_output.child_stream()
-    subprocess.run(command, stdout=output_stream, stderr=output_stream, creationflags=_CREATE_NO_WINDOW if os.name == "nt" and output_stream is not None else 0)
+    subprocess.run(command, cwd=project.project_path, stdout=output_stream, stderr=output_stream,
+                   creationflags=_CREATE_NO_WINDOW if os.name == "nt" and output_stream is not None else 0)
     
     path_xml = Path(output_path)
     
@@ -6052,7 +6025,13 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True, *, spati
     try:
         bm.from_mesh(mesh)
         if preserve_normals and bm.faces:
-            save_loop_normals(bm, mesh)
+            # Edge splitting changes loop order and count. Face-indexed ln0,
+            # ln1, ... cannot follow those corners; a loop layer interpolates
+            # the inserted corner while retaining every existing corner normal.
+            normal_layer = bm.loops.layers.float_vector.new('.foundry_split_normal')
+            for face in bm.faces:
+                for loop, index in zip(face.loops, mesh.polygons[face.index].loop_indices):
+                    loop[normal_layer] = mesh.corner_normals[index].vector
         bm.verts.ensure_lookup_table()
         bm.edges.ensure_lookup_table()
         boundary_vertices = ({v for e in bm.edges if e.is_boundary for v in e.verts}
@@ -6141,7 +6120,15 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True, *, spati
         bm.free()
 
     if preserve_normals:
-        apply_loop_normals(mesh)
+        attribute = mesh.attributes.get('.foundry_split_normal')
+        if attribute is not None:
+            normals = np.empty((len(mesh.loops), 3), dtype=np.float32)
+            attribute.data.foreach_get('vector', normals.ravel())
+            lengths = np.linalg.norm(normals, axis=1)
+            valid = lengths > 0
+            normals[valid] /= lengths[valid, None]
+            mesh.normals_split_custom_set(normals)
+            mesh.attributes.remove(attribute)
 
 def set_two_sided(mesh, is_io=False, match_collision_patches=False):
     face_dict = {}
@@ -6234,12 +6221,17 @@ def set_two_sided(mesh, is_io=False, match_collision_patches=False):
         if preserve_normals:
             apply_loop_normals(mesh)
 
-def join_objects(objects: list[bpy.types.Object], *, cleanup_geometry=True, preserve_special_faces=False) -> bpy.types.Object:
+def join_objects(objects: list[bpy.types.Object], *, cleanup_geometry=True, preserve_special_faces=False,
+                 preserve_encoded_normals=False) -> bpy.types.Object:
     """Join into the first object, preserving materials and face properties.
 
     Disable cleanup_geometry when the caller must preserve exact coordinates
     and topology (e.g. reconstructed render/collision surface boundaries).
+    preserve_encoded_normals appends independent vertex fans without decoding
+    custom normals; it requires cleanup_geometry=False.
     """
+    if preserve_encoded_normals and cleanup_geometry:
+        raise ValueError('Encoded normals require unchanged vertex fans')
     active = objects[0]
     objects = objects[1:]
     # consolidate_face_attributes(active.data)
@@ -6280,11 +6272,13 @@ def join_objects(objects: list[bpy.types.Object], *, cleanup_geometry=True, pres
     # Join everything together
     bm = bmesh.new()
     bm.from_mesh(active.data)
-    save_loop_normals(bm, active.data)
+    if not preserve_encoded_normals:
+        save_loop_normals(bm, active.data)
     for ob in objects:
         ob_bm = bmesh.new()
         ob_bm.from_mesh(ob.data)
-        save_loop_normals(ob_bm, ob.data)
+        if not preserve_encoded_normals:
+            save_loop_normals(ob_bm, ob.data)
         ob_bm.to_mesh(ob.data)
         ob_bm.free()
         bm.from_mesh(ob.data)
@@ -6293,7 +6287,8 @@ def join_objects(objects: list[bpy.types.Object], *, cleanup_geometry=True, pres
     
     bm.to_mesh(active.data)
     bm.free()
-    apply_loop_normals(active.data)
+    if not preserve_encoded_normals:
+        apply_loop_normals(active.data)
     if cleanup_geometry:
         set_two_sided(active.data)
         loop_normal_magic(active.data)
@@ -6351,7 +6346,7 @@ def human_number(num: int | float):
     '''Converts an int or float to a string and adds commas'''
     return f"{num:,}"
 
-def material_add_shield(material: bpy.types.Material):
+def material_add_shield(material: bpy.types.Material, *, arrange_nodes=True):
     node_tree = material.node_tree
     
     if any(n.type == 'GROUP' and n.node_tree and n.node_tree.name == "Shield" for n in node_tree.nodes):
@@ -6385,7 +6380,8 @@ def material_add_shield(material: bpy.types.Material):
     if surf_in and new_out:
         node_tree.links.new(new_out, surf_in)
         
-    arrange(node_tree)
+    if arrange_nodes:
+        arrange(node_tree)
 
 INVISIBLE_FACE_MODES = {'collision_only', 'sphere_collision_only', 'lightmap_only'}
 
@@ -6406,14 +6402,14 @@ def setup_emissive_attributes(mesh, game=None):
     update_foundry_mesh(mesh, game)
 
 
-def update_classic_emissive_material(material, game):
+def update_classic_emissive_material(material, game, *, arrange_nodes=True):
     for mesh in {ob.data for ob in bpy.data.objects if ob.type == 'MESH'
                  and any(slot.material == material for slot in ob.material_slots)}:
-        update_foundry_mesh(mesh, game)
-    update_foundry_material(material, game)
+        update_foundry_mesh(mesh, game, arrange_nodes=arrange_nodes)
+    update_foundry_material(material, game, arrange_nodes=arrange_nodes)
 
 
-def material_add_visibility(material):
+def material_add_visibility(material, *, arrange_nodes=True):
     """Force a helper material invisible through the shared visibility group."""
     material.use_nodes = True
     tree = material.node_tree
@@ -6450,15 +6446,16 @@ def material_add_visibility(material):
     for link in tuple(invisible.links):
         tree.links.remove(link)
     invisible.default_value = True
-    arrange(tree)
+    if arrange_nodes:
+        arrange(tree)
     return node
 
 
-def update_foundry_material(material, game=None):
+def update_foundry_material(material, game=None, *, arrange_nodes=True):
     """Insert the shared Foundry Node and reset all material overrides."""
     if (getattr(material.nwo, 'SpecialMaterial', False)
             or getattr(material.nwo, 'ConventionMaterial', False)):
-        return material_add_visibility(material)
+        return material_add_visibility(material, arrange_nodes=arrange_nodes)
     if game is None:
         project = get_project()
         game = project.game if project else None
@@ -6535,11 +6532,12 @@ def update_foundry_material(material, game=None):
                 for link in tuple(socket.links):
                     tree.links.remove(link)
                 socket.default_value = True
-    arrange(tree)
+    if arrange_nodes:
+        arrange(tree)
     return node
 
 
-def update_foundry_mesh(mesh, game=None):
+def update_foundry_mesh(mesh, game=None, *, arrange_nodes=True):
     """Resolve face properties in order and delete unused preview attributes."""
     if game is None:
         project = get_project()
@@ -6585,7 +6583,7 @@ def update_foundry_mesh(mesh, game=None):
                 attribute.data.foreach_set('vector' if data.ndim == 2 else 'value', data.ravel())
         mesh.update()
         for material in {m for m in mesh.materials if m is not None}:
-            update_foundry_material(material, game)
+            update_foundry_material(material, game, arrange_nodes=arrange_nodes)
     finally:
         if was_edit_mode:
             bpy.ops.object.mode_set(mode='EDIT')
