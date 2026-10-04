@@ -400,26 +400,39 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             prop.material_lighting_attenuation_falloff = 0.0
             prop.material_lighting_attenuation_cutoff = 0.0
 
-    def _create_tag_portals(self, collection: bpy.types.Collection, records=None) -> list[bpy.types.Object]:
+    def _create_tag_portals(self, collection: bpy.types.Collection, records=None, *,
+                            collision_tree=None, preserve_indices=None) -> list[bpy.types.Object]:
         """Recover editable cutting surfaces for portals imported from tags."""
         records = self.portals() if records is None else records
         if not records:
             return []
         from .portal_reconstruction import (
             prepare_portal_import, dissolve_portal_seams, rectangularize_portal,
-            stabilize_portal_tessellation,
+            stabilize_portal_tessellation, structure_aligned_portal_indices,
         )
+        if collision_tree is None:
+            collision_tree = self.portal_collision_tree()
+        if preserve_indices is None:
+            if collision_tree:
+                vertices = collision_tree.get('vertices', ())
+            else:
+                structure = self.structure_collision()
+                vertices = structure.vertices if structure else ()
+            preserved = structure_aligned_portal_indices(records, vertices)
+        else:
+            preserved = set(preserve_indices)
         if self.game == 'halo1':
             from .halo1_bsp_blender import collision_point_is_solid
             is_solid = collision_point_is_solid(self)
         else:
             from .collision_solid import collision_query_from_tree
             try:
-                is_solid = collision_query_from_tree(self.portal_collision_tree())
+                is_solid = collision_query_from_tree(collision_tree)
             except (ValueError, TypeError, RecursionError) as error:
                 utils.print_warning(f'Could not certify portal wall volumes: {error}')
                 is_solid = None
-        groups, source_records = prepare_portal_import(records, self.game, is_solid)
+        groups, source_records = prepare_portal_import(
+            records, self.game, is_solid, preserve_indices=preserved)
         utils.print_step('Imported portals')
         # utils.print_step("Creating Portals")
         layer = utils.add_permutation("portals", utils.SetType.SCENARIO)
@@ -432,13 +445,16 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         objects = []
         for group in groups:
             record = group[0]
-            ob = Portal(record, group[1:]).create()
+            ob = Portal(record, group[1:], preserve_coordinates=record.index in preserved).create()
             scale = 100 * import_transform.scale_factor()
-            dissolve_portal_seams(ob.data, group, source_records, is_solid, scale)
             prefix = 'halo1_' if self.game == 'halo1' else 'tag_'
-            ob[prefix+'portal_rectangularized'] = rectangularize_portal(
-                ob.data, group, source_records, is_solid, scale)
-            stabilize_portal_tessellation(ob, scale)
+            ob[prefix+'portal_structure_aligned'] = record.index in preserved
+            ob[prefix+'portal_rectangularized'] = False
+            if record.index not in preserved:
+                dissolve_portal_seams(ob.data, group, source_records, is_solid, scale)
+                ob[prefix+'portal_rectangularized'] = rectangularize_portal(
+                    ob.data, group, source_records, is_solid, scale)
+                stabilize_portal_tessellation(ob, scale)
             # The compiled tag does not retain the authored exact flag.
             # Import ordinary portals rather than inventing that setting.
             ob[prefix+'source_portal_index'] = record.index
@@ -721,11 +737,9 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                         created_instance_indices.add(io.index)
             legacy_surface_triangle_mapping = []
             if collision is not None:
-                if self.game == 'reach':
-                    # The structure stream has the same back-to-back compiler
-                    # surfaces as instance collision (including sky-backed
-                    # trim). Transfer their sidedness before resolving maps.
-                    collision.mark_opposite_surfaces()
+                # Reach keeps the complete collision shell below. Inferring
+                # authoring sidedness here can turn a compiler sky back into
+                # an overlapping seam sealer and open the native shell.
                 if len(native_surface_mappings) > len(collision.surfaces):
                     raise ValueError('Structure surface mapping count exceeds collision surfaces')
                 legacy_surface_triangle_mapping = [
@@ -733,6 +747,18 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     for record in native_surface_mappings
                 ]
                 structure_surface_triangle_mapping = legacy_surface_triangle_mapping
+
+        # Compiled Reach render mappings identify related triangles, not an
+        # authoring collision shell. Recompiling those triangles drops thin
+        # faces and introduces open edges. Keep the complete native shell,
+        # as the preserved H1 import does, with render detail independent.
+        preserve_collision_shell = self.game == 'reach' and collision is not None
+        reconstruct_seamed_shell = preserve_collision_shell and any(
+            material.is_seam for material in collision_materials)
+        native_shell_ob = None
+        render_structure_objects = []
+        if preserve_collision_shell:
+            structure_surface_triangle_mapping = []
         
         
         num_clusters = len(clusters)
@@ -757,7 +783,26 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             
         # Create Structure Collision
         # self.structure_collision = None
-        if collision is not None:
+        if preserve_collision_shell:
+            from .classic_geometry import dissolve_source_collision_splits
+            for ob in structure_objects:
+                utils.add_face_prop(ob.data, 'face_mode').face_mode = 'render_only'
+            ob = collision.to_object()
+            native_shell_ob = ob
+            ob.name = f"{self.tag_path.ShortName}_collision"
+            mesh = ob.data
+            normal_mask = np.ones(len(mesh.polygons), dtype=np.int8)
+            for prop in mesh.nwo.face_props:
+                if prop.type == 'face_mode':
+                    attribute = mesh.attributes.get(prop.attribute_name)
+                    if attribute is not None:
+                        normal_mask &= np.asarray([not value.value for value in attribute.data], dtype=np.int8)
+            if normal_mask.any():
+                utils.add_face_prop(mesh, 'face_mode', normal_mask).face_mode = 'collision_only'
+            weld_classic_vertices(mesh)
+            dissolve_source_collision_splits(mesh)
+            structure_objects.append(ob)
+        elif collision is not None:
             if self.corinth:
                 utils.print_step("Creating Structure Sky")
             else:
@@ -832,12 +877,14 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
 
         def add_structure_object(ob: bpy.types.Object, seam_name: str | None = None, connect_edges=False):
             nonlocal seam_collection
+            if reconstruct_seamed_shell and ob is not native_shell_ob:
+                render_structure_objects.append(ob)
             if self.game == 'reach' and connect_edges and not for_cinematic:
                 # Reuse the H1 topology repair before stitching collision edges.
                 weld_classic_vertices(ob.data)
             if connect_edges and not for_cinematic:
                 utils.connect_verts_on_edge(ob.data, spatial_search=self.game == 'reach')
-            if self.game == 'reach' and not for_cinematic:
+            if self.game == 'reach' and not for_cinematic and ob is not native_shell_ob:
                 from .reach_geometry import repair_collision_triangulation
                 repair_collision_triangulation(ob.data, 0.025 * import_transform.scale_factor())
             objects.append(ob)
@@ -880,6 +927,16 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     utils.apply_loop_normals(seam_ob.data)
                 
                 seam_ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_seam'
+                # The separate solid shell adds collision-only to ordinary
+                # surfaces. Do not carry that generated override into the
+                # seam object, which needs its original normal seam mode.
+                for index in range(len(seam_ob.data.nwo.face_props)-1, -1, -1):
+                    prop = seam_ob.data.nwo.face_props[index]
+                    if prop.type == 'face_mode' and prop.face_mode == 'collision_only':
+                        attribute = seam_ob.data.attributes.get(prop.attribute_name)
+                        if attribute is not None:
+                            seam_ob.data.attributes.remove(attribute)
+                        seam_ob.data.nwo.face_props.remove(index)
                 seam_ob.nwo.seam_back_manual = True
                 seam_ob.name = seam_name or f"{ob.name}_seams"
                 objects.append(seam_ob)
@@ -892,6 +949,11 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 for ob in structure_objects:
                     add_structure_object(ob)
         else:
+            # A native collision shell stays separately editable; joining it
+            # to render faces would protect coincident faces from welding.
+            if preserve_collision_shell:
+                shell = structure_objects.pop()
+                add_structure_object(shell)
             main_structure_ob = None
             utils.print_step("Merging Structure")
             if len(structure_objects) > 1:
@@ -909,6 +971,25 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 add_structure_object(main_structure_ob, f"{self.tag_path.ShortName}_seams", merged_collision_geometry)
         
         utils.print_step("Removing Duplicate Material Slots")
+        if reconstruct_seamed_shell:
+            from .seam_render_detail import separate_seam_render_detail
+            seam_meshes = [ob.data for ob in objects if ob.type == 'MESH'
+                           and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_seam']
+            # Render-only structure still enters Tool's BSP plane builder.
+            # Isolate its seam boundaries while retaining ordinary render
+            # structure, which helps reproduce the original solid planes.
+            for ob in render_structure_objects:
+                detail = separate_seam_render_detail(
+                    ob, seam_meshes, f"{self.tag_path.ShortName}_edge_detail")
+                if detail is not None:
+                    objects.append(detail)
+                    structure_collection.objects.link(detail)
+            from .collision_outline import reconstruct_collision_outline
+            for ob in objects:
+                if (ob.type == 'MESH' and ob.data.nwo.mesh_type in
+                        {'_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_seam'}
+                        and ob.data.attributes.get('.foundry_collision_plane') is not None):
+                    reconstruct_collision_outline(ob.data)
         ob_meshes = {o.data for o in objects if o.type == 'MESH'}
         for me in ob_meshes:
             if self.game == 'reach':
@@ -922,15 +1003,23 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         # Create Portals
         if not for_cinematic:
             if native_portals:
+                collision_tree = self.portal_collision_tree()
+                from .portal_reconstruction import structure_aligned_portal_indices
+                portal_vertices = native_structure_collision.vertices if native_structure_collision else ()
+                if not portal_vertices and collision_tree:
+                    portal_vertices = collision_tree.get('vertices', ())
+                preserved = structure_aligned_portal_indices(native_portals, portal_vertices)
                 if self.game == 'reach':
                     from .reach_portals import reconstruct_reach_portals
                     try:
-                        native_portals = reconstruct_reach_portals(native_portals, self.portal_collision_tree())
+                        native_portals = reconstruct_reach_portals(
+                            native_portals, collision_tree, preserve_indices=preserved)
                     except (ValueError, RecursionError) as error:
                         from .portal_reconstruction import reconstruct_portals
                         utils.print_warning(f'Could not recover Reach portal volumes: {error}')
-                        native_portals, _ = reconstruct_portals(native_portals)
-                objects.extend(self._create_tag_portals(self.collection, native_portals))
+                        native_portals, _ = reconstruct_portals(native_portals, preserve_indices=preserved)
+                objects.extend(self._create_tag_portals(
+                    self.collection, native_portals, collision_tree=collision_tree, preserve_indices=preserved))
             
             if native_cookie_cutters:
                 utils.print_step("Creating Cookie Cutters")

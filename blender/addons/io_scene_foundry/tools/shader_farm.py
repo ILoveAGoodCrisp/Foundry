@@ -196,19 +196,30 @@ class NWO_FarmShaders(bpy.types.Operator):
                 bitmap_count = len(valid_bitmaps)
                 print(f"{bitmap_count} bitmaps in scope")
                 print(f"Bitmaps Directory = {utils.relative_path(self.bitmaps_data_dir)}\n")
+                skipped_bitmaps = 0
                 for idx, bitmap in enumerate(valid_bitmaps):
-                    bitmap = bitmap_export_image(bitmap)
-                    if bitmap.get('foundry_channel_conversion') or bitmap.get('foundry_cubemap_export'):
-                        # Use the same TIFF preparation and compile validation as
-                        # individual exports; Blender image access stays on this thread.
-                        path = export_bitmap(bitmap, bitmaps_data_dir=self.bitmaps_data_dir)
-                        if path:
-                            self.exported_bitmaps.append(str(path))
+                    try:
+                        bitmap = bitmap_export_image(bitmap)
+                        if bitmap.get('foundry_channel_conversion') or bitmap.get('foundry_cubemap_export'):
+                            # Blender image access stays on this thread.
+                            path = export_bitmap(bitmap, bitmaps_data_dir=self.bitmaps_data_dir)
+                            if path:
+                                self.exported_bitmaps.append(str(path))
+                            else:
+                                skipped_bitmaps += 1
+                            continue
+                        tiff_path = self.export_tiff_if_needed(bitmap)
+                    except (RuntimeError, OSError) as error:
+                        utils.print_warning(f"Skipping bitmap {bitmap.name}: {error}")
+                        skipped_bitmaps += 1
                         continue
-                    tiff_path = self.export_tiff_if_needed(bitmap)
                     if tiff_path:
                         self.thread_bitmap_export(bitmap)
-                self.report({'INFO'}, f"Exported {bitmap_count} Bitmaps")
+                    else:
+                        skipped_bitmaps += 1
+                self.report({'INFO'}, f"Exported {bitmap_count - skipped_bitmaps} Bitmaps")
+                if skipped_bitmaps:
+                    self.report({'WARNING'}, f"Skipped {skipped_bitmaps} Bitmaps; see Foundry Output for details")
 
                 # Wait for Bitmap export to finish
                 print("")
@@ -272,24 +283,26 @@ class NWO_FarmShaders(bpy.types.Operator):
         if user_path and user_path_contains_data_dir and user_path.exists():
             image.nwo.filepath = utils.relative_path(user_path)
             if image.nwo.reexport_tiff:
-                if image.has_data:
+                if image.has_data or image.source == 'SEQUENCE':
                     image.nwo.filepath = save_image_as(image, user_path.parent, tiff_name=image.nwo.source_name)
                 else:
                     utils.print_warning(f"{image.name} has no data. Cannot export Tif")
 
         elif Path(image.nwo.filepath.lower()).suffix in {".tif", ".tiff"} and Path(self.data_dir, image.nwo.filepath).exists():
             if image.nwo.reexport_tiff:
-                if image.has_data:
+                if image.has_data or image.source == 'SEQUENCE':
                     image.nwo.filepath = save_image_as(image, Path(self.data_dir, image.nwo.filepath).parent, tiff_name=image.nwo.source_name)
                 else:
                     utils.print_warning(f"{image.name} has no data. Cannot export Tif")
         else:
-            if image.has_data:
+            if image.has_data or image.source == 'SEQUENCE':
                 image.nwo.filepath = save_image_as(image, self.bitmaps_data_dir, tiff_name=image.nwo.source_name)
             else:
                 utils.print_warning(f"{image.name} has no data. Cannot export Tif")
                 
-        return image.nwo.filepath
+        if image.nwo.filepath and Path(self.data_dir, image.nwo.filepath).is_file():
+            return image.nwo.filepath
+        return ""
     
     def thread_bitmap_export(self, image):
         user_path = image.filepath_from_user()

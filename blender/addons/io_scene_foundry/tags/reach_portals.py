@@ -110,15 +110,20 @@ def _cluster_tree(data):
         supernode.cache_clear()
 
 
-def reconstruct_reach_portals(records, data):
+def reconstruct_reach_portals(records, data, *, preserve_indices=()):
     """Use cluster cuts for connected volumes and H1 repair for isolated holes.
 
     Return mesh records for the original connections, with convex polygons
     in ``polygons``. Preserve flagged footprints inside ordinary connections.
     Missing metadata retains the existing conservative reconstruction.
     """
+    preserved = set(preserve_indices)
+
+    def fallback(pieces):
+        return reconstruct_portals(pieces, preserve_indices=preserved)[0]
+
     if not data or any(r.plane_index < 0 or r.back_cluster < 0 or r.front_cluster < 0 for r in records):
-        return reconstruct_portals(records)[0]
+        return fallback(records)
     selected = set()
     for i, a in enumerate(records):
         for b in records[:i]:
@@ -126,8 +131,11 @@ def reconstruct_reach_portals(records, data):
                     sum((x - y) ** 2 for x, y in zip(p, q)) < .0025 ** 2
                     for p in a.vertices for q in b.vertices):
                 selected.update((a.plane_index, b.plane_index))
+    # Recovering an entire cluster cut can subsume a preserved footprint on
+    # that plane. Keep those cuts as native fragments, including their contacts.
+    selected.difference_update(r.plane_index for r in records if r.index in preserved)
     if not selected:
-        return reconstruct_portals(records)[0]
+        return fallback(records)
 
     owners = {}
     overlays = {}
@@ -149,7 +157,7 @@ def reconstruct_reach_portals(records, data):
             first = group[0]
             if any(any(getattr(first, name) != getattr(r, name) for name in flags)
                    or r.one_way and first.back_cluster != r.back_cluster for r in group[1:]):
-                return reconstruct_portals(records)[0]
+                return fallback(records)
             owners[key] = first
 
     tree = _cluster_tree(data)
@@ -218,7 +226,7 @@ def reconstruct_reach_portals(records, data):
                         inward /= length
                         constraint = np.append(inward, np.dot(inward, a))
                         if min(np.dot(p, inward)-constraint[3] for p in footprint) < -1e-4:
-                            return reconstruct_portals(records)[0]
+                            return fallback(records)
                         constraints.append(constraint)
                     outside = []
                     for piece in remaining:
@@ -236,8 +244,8 @@ def reconstruct_reach_portals(records, data):
                 recovered[record.index].extend(remaining)
 
     if any(not polygons for polygons in recovered.values()):
-        return reconstruct_portals(records)[0]
-    result = reconstruct_portals([r for r in records if r.plane_index not in selected])[0]
+        return fallback(records)
+    result = fallback([r for r in records if r.plane_index not in selected])
     output_records = list(owners.values()) + [r for group in overlays.values() for r in group]
     for record in output_records:
         vertices, faces = [], []

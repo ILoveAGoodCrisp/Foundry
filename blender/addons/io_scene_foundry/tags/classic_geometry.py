@@ -659,3 +659,61 @@ def weld_classic_vertices(mesh):
         utils.apply_loop_normals(mesh)
     mesh.update()
     return len(targets)
+
+
+def centre_distant_render_instance(ob, distance):
+    """Reduce local plane arithmetic errors without changing mesh placement.
+
+    The caller must exclude collision, physics and cookie-cutter proxies.
+    Copy the mesh so other placements of a shared definition keep their origin.
+    """
+    if ob.type != 'MESH' or not ob.data.vertices:
+        return False
+    if max(abs(value) for vertex in ob.data.vertices for value in vertex.co) <= distance:
+        return False
+    ob.data = ob.data.copy()
+    utils.set_origin_to_centre(ob)
+    return True
+
+
+def dissolve_source_collision_splits(mesh):
+    """Remove compiler subdivisions with the same original plane and flags.
+
+    Collision streams have no render UVs or corner normals. Plane provenance
+    lets us join a compiled split without guessing from rounded face normals.
+    Material and every authored face property must still agree, and junction
+    vertices stay in the boundary so adjacent surfaces remain connected.
+    """
+    attribute = mesh.attributes.get('.foundry_collision_plane')
+    if attribute is None:
+        return 0
+    bm = bmesh.new()
+    try:
+        bm.from_mesh(mesh)
+        plane = bm.faces.layers.int.get(attribute.name)
+        if plane is None:
+            return 0
+        layers = [bm.faces.layers.bool.get(prop.attribute_name)
+                  for prop in mesh.nwo.face_props]
+        layers = [layer for layer in layers if layer is not None]
+        edges = []
+        for edge in bm.edges:
+            if len(edge.link_faces) != 2 or not edge.is_contiguous:
+                continue
+            a, b = edge.link_faces
+            if (a[plane] >= 0 and a[plane] == b[plane]
+                    and a.material_index == b.material_index
+                    and all(a[layer] == b[layer] for layer in layers)):
+                edges.append(edge)
+        if not edges:
+            return 0
+        before = len(bm.faces)
+        bmesh.ops.dissolve_edges(bm, edges=edges, use_verts=False, use_face_split=True)
+        removed = before - len(bm.faces)
+        if removed:
+            bm.to_mesh(mesh)
+            mesh.update()
+            utils.calc_face_prop_counts(mesh)
+        return removed
+    finally:
+        bm.free()

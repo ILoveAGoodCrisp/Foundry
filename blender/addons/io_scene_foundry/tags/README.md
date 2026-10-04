@@ -125,6 +125,36 @@ bitmap and, when testing a staged wheel, `FOUNDRY_NATIVE_ROOT` to its extracted
 package directory. It checks native TIFF output and Foundry's material bitmap
 save method without modifying the source tag.
 
+## First-person weapon animations (Halo 1 through ODST)
+
+Create an Animation asset with its animation type set to First Person. New
+animations and the name editor use the first-person naming form for the selected
+project: `first-person reload-full` in H1 and `first_person reload_full` in
+H2/H3/ODST. H1 variants use `%N`; later games use `varN`. Dual-wield naming is
+available for H2 and later. Custom names remain literal, so use the target
+weapon's existing graph as the reference for its state names.
+
+Use base animations for weapon actions and overlays for movement/aim poses.
+The legacy exporter writes JMM/JMA/JMT/JMZ base sources, JMO overlays and JMR
+replacements, then applies Blender frame events to Tool's compiled graph.
+
+For H1, add a single Primary Keyframe or Secondary Keyframe event at the action
+frame (for example, the melee impact or reload completion). These write to
+`key frame index` and `second key frame index`, respectively, as zero-based
+30 Hz offsets from the animation's start. Left/right foot events use H1's
+one-based foot slots. H1 has one slot per event type and one sound per animation;
+keyframe/foot ranges and duplicate slots are rejected. H2/H3/ODST use frame-event
+blocks and support event ranges. Sound data can be attached to keyframes in all
+four games. Clearing authored events clears the exported animation's slots;
+animations outside a partial export retain their events.
+
+Run `tests/test_first_person_animation_blender.py` with Blender's
+`--background --factory-startup --python-exit-code 1 --python` options. It checks
+names, keyframes, sounds, ranges, partial updates and native tag save/reopen for
+all four games. Optionally append `-- BLEND TAG` with an H1 asset's absolute blend
+and model-animations paths to check its actual events against a temporary tag
+copy. The source blend and tag remain unchanged.
+
 ## Validation
 
 With the wheel installed, these suites run without Blender:
@@ -216,6 +246,52 @@ Structure seam import reads native final points and triangle indices, validates
 geometry before allocation and preserves Blender normal/orientation handling.
 Structure metadata imports effects, airprobes, light cones and object placements
 without ManagedBlam. The wrappers retain their existing import paths.
+
+Portal imports from H1, H2, H3, ODST, Reach, H4 and H2A share guarded fragment
+merging, seam removal, bounded plane correction and rectangular outline recovery.
+Merging preserves winding, the ordered cluster pair and portal flags. New outline
+area requires a complete solid-volume proof and must preserve other portal
+junctions. Missing collision data keeps the existing outline. Packed collision
+nodes and supernode roots are decoded per tag layout; later games use strict
+solid proofs rather than assuming collision leaves reproduce every visibility
+cluster. Reach retains its cluster-volume recovery before shared mesh cleanup.
+Fragile single-face outlines can receive an automatic triangulation modifier;
+their editable perimeter stays unchanged. Authored exact flags are not invented.
+Fragments with different known source plane indices remain separate even when
+their normals nearly agree; combining these cuts can erase a shallow partition.
+Portals with a vertex at an identical native structure vertex keep their complete
+source outline. The comparison uses tag coordinates before Blender scaling;
+nearby points do not trigger preservation. These contacts bypass expansion,
+cluster-volume recovery and later outline cleanup across all supported games.
+Preserved portals use the native structure's single coordinate transform so
+float32 rounding does not separate an exact contact during Blender conversion.
+
+Reach structure imports preserve the complete native collision shell separately
+from the render clusters, following the H1 shell-preservation approach. Render
+faces meeting compiled seam vertices within float32 rounding bounds become
+render-only instances. Render-only structure still enters Tool's plane builder
+and can reopen the independently reconstructed solid at those boundaries.
+Ordinary render structure remains to help reproduce the original planes. Collision
+faces retain their material and surface flags,
+and compiler subdivisions dissolve only when the original plane, material,
+winding and all face properties agree. Boundary and junction vertices remain.
+Known-plane collision outlines cancel zero-width compiler spurs and replace only
+triangulations with nearly collinear ears. The replacement maximizes the smallest
+triangle altitude inside the original outline, retains source vertex positions
+and face masks, and reconnects exposed junctions within float32 rounding bounds.
+Seam objects discard the inherited collision-only override and retain their
+normal seam mode.
+Native collision records retain plane provenance across H1, H2, H3, ODST, Reach,
+H4 and H2AMP; preserving a separate structure shell currently applies to Reach.
+The complete Reach shell skips the opposite-surface sidedness inference used
+for render/collision merging. Native instance proxies stitch only open
+boundaries; closed thin parts are excluded from proximity-based edge splitting.
+Native cookie cutters retain opposite face pairs as closed loops instead of
+collapsing them into two-sided face flags, which Tool does not use to close
+cookie-cutter volumes. Distant render-only instance meshes without collision,
+physics or cookie-cutter proxies use a centred private mesh. Placement, UVs,
+normals and authored face properties are retained; smaller local coordinates
+avoid Tool's plane-through-point assertion on large sky geometry.
 
 Authored PCA animation also reads native blocks and linked render-model metadata,
 then creates Blender shape keys and actions through the existing workflow. This

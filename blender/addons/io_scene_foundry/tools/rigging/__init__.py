@@ -234,13 +234,12 @@ class HaloRig:
         self.bones_with_fk_controllers = set()
     
     def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, aim_control_only=False, reverse_control=False, reach_fp_fix=False, constraints_only=False):
-        min_size, max_size = stable_armature_rest_aabb(self.rig_ob)
-        shape_scale = abs((max_size - min_size).length)
+        if pedestal is None:
+            pedestal = utils.get_pose_bone(self.rig_ob, pedestal_name)
+        elif isinstance(pedestal, str):
+            pedestal = self.rig_ob.pose.bones.get(pedestal)
+        shape_scale, pedestal_translation = root_control_shape_transform(self.rig_ob, pedestal, reach_fp_fix)
         if not aim_control_only:
-            if not pedestal:
-                pedestal: bpy.types.PoseBone = utils.get_pose_bone(self.rig_ob, pedestal_name)
-            else:
-                pedestal = self.rig_ob.pose.bones.get(pedestal)
             if pedestal is not None:
                 shape_ob = bpy.data.objects.get(pedestal_shape_name)
                 if shape_ob is None:
@@ -254,6 +253,8 @@ class HaloRig:
                 pedestal.color.palette = 'THEME04'
                 pedestal.custom_shape = shape_ob
                 pedestal.custom_shape_scale_xyz = Vector((1, 1, 1)) * shape_scale
+                pedestal.custom_shape_translation = pedestal_translation
+                pedestal.custom_shape_transform = None
                 pedestal.use_custom_shape_bone_size = False
                 
                 pedestal.custom_shape_rotation_euler = Vector((
@@ -261,7 +262,6 @@ class HaloRig:
                     0.0,
                     0.0,
                 ))
-                fit_root_control_shape(self.rig_ob, pedestal)
                 
                 # if wireframe:
                 #     self.rig_data.bones[pedestal.name].show_wire = True
@@ -2320,15 +2320,36 @@ def fit_shape_to_bounds(pbone: bpy.types.PoseBone, bounds: tuple[Vector, Vector]
     pbone.use_custom_shape_bone_size = False
     pbone.custom_shape_transform = None
 
-def fit_root_control_shape(arm: bpy.types.Object, pbone: bpy.types.PoseBone):
-    frame = pbone.bone.matrix_local @ Euler(pbone.custom_shape_rotation_euler).to_matrix().to_4x4()
+def root_control_shape_transform(arm: bpy.types.Object, pedestal: bpy.types.PoseBone | None = None, reach_fp_fix=False) -> tuple[float, Vector]:
+    """Derive a shared footprint-based multiplier for pedestal and aim shapes.
+
+    The pedestal template's circular portion has unit radius; its arrow extends
+    beyond that circle. Size the circle to 1.5 times the largest mesh half-extent
+    in its display plane, rather than fitting the arrow or using character height.
+    """
+    rotation = Euler((radians(-90) if reach_fp_fix else 0.0, 0.0, 0.0)).to_matrix()
+    frame = (pedestal.bone.matrix_local if pedestal is not None else Matrix.Identity(4)) @ rotation.to_4x4()
     inverse = frame.inverted_safe()
     bounds = {}
     for _, vertices, matrix in rig_mesh_vertices(arm):
         for vert in vertices:
             update_bounds(bounds, 'root', inverse @ matrix @ vert.co)
-    if 'root' in bounds:
-        fit_shape_to_bounds(pbone, bounds['root'], floor=True, padding=1.15)
+    if 'root' not in bounds:
+        for bone in arm.data.bones:
+            if bone.use_deform and not is_control_bone_name(bone.name):
+                update_bounds(bounds, 'root', inverse @ bone.head_local)
+                update_bounds(bounds, 'root', inverse @ bone.tail_local)
+    if 'root' not in bounds:
+        return 1.0, Vector((0.0, 0.0, 0.0))
+
+    minimum, maximum = bounds['root']
+    size = maximum - minimum
+    radius = max(size.x, size.y) * 0.5
+    if radius <= 1e-8:
+        radius = max(size.length, pedestal.bone.length if pedestal is not None else 1.0) * 0.5
+    center = (minimum + maximum) * 0.5
+    center.z = minimum.z - radius * 0.05
+    return radius * 1.5, rotation @ center
 
 def fit_control_shapes_to_mesh(arm: bpy.types.Object, deform_fk_mapping: dict[str, str], fk_ik_mapping: dict):
     frames = {}

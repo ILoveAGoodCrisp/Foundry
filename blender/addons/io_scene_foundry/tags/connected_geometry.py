@@ -91,7 +91,7 @@ class PortalType(Enum):
     _connected_geometry_portal_type_two_way = 2
 
 class Portal:
-    def __init__(self, record, fragments=()):
+    def __init__(self, record, fragments=(), *, preserve_coordinates=False):
         self.index = record.index
         self.type = PortalType._connected_geometry_portal_type_two_way
         if record.one_way:
@@ -103,17 +103,26 @@ class Portal:
         self.blocks_sounds = record.blocks_sounds
         self.is_door = record.is_door
         self.vertices = []
+        self.preserve_coordinates = preserve_coordinates
         self.polygons = []
         for piece in (record, *fragments):
             offset = len(self.vertices)
-            self.vertices.extend(Vector(vertex) * 100 for vertex in piece.vertices)
+            if preserve_coordinates:
+                self.vertices.extend(tuple(vertex) for vertex in piece.vertices)
+            else:
+                self.vertices.extend(Vector(vertex) * 100 for vertex in piece.vertices)
             faces = piece.polygons or (tuple(range(len(piece.vertices))),)
             self.polygons.extend(tuple(index+offset for index in face) for face in faces)
             
     def create(self) -> bpy.types.Object:
         mesh = bpy.data.meshes.new(f"portal:{self.index}")
         mesh.from_pydata(vertices=self.vertices, edges=[], faces=self.polygons)
-        mesh.transform(import_transform.mesh_matrix())
+        transform = import_transform.mesh_matrix()
+        if self.preserve_coordinates:
+            # Match the native structure shell's single transform. Scaling a
+            # float32 point twice can separate an exact tag-space contact.
+            transform = transform @ Matrix.Scale(100, 4)
+        mesh.transform(transform)
         mesh.nwo.mesh_type = "_connected_geometry_mesh_type_portal"
         ob = bpy.data.objects.new(mesh.name, mesh)
         ob.matrix_world = import_transform.rotation_matrix()
@@ -418,7 +427,7 @@ class InstanceDefinition:
                     self.blender_physics.append(phys)
                     
             if self.has_cookie:
-                self.blender_cookie = self.cookie_info.to_object()
+                self.blender_cookie = self.cookie_info.to_object(cookie_cutter=True)
                 self.blender_cookie.name = f"{self.blender_render.name}_proxy_cookie_cutter"
                 # self.blender_cookie.nwo.proxy_parent = self.blender_render.data
                 self.blender_cookie.nwo.proxy_type = "cookie_cutter"
@@ -438,7 +447,10 @@ class InstanceDefinition:
         if self.blender_render:
             objects.append(self.blender_render)
         if self.blender_collision:
-            utils.connect_verts_on_edge(self.blender_collision.data)
+            # Native proxy loops already share their closed edges. Connecting
+            # nearby interior vertices can join thin parts of a closed prop
+            # and turn a valid shell into non-manifold geometry.
+            utils.connect_verts_on_edge(self.blender_collision.data, boundary_only=True)
             objects.append(self.blender_collision)
         if self.blender_cookie:
             objects.append(self.blender_cookie)
@@ -523,12 +535,13 @@ class Instance:
         nwo.poop_imposter_transition_distance_auto = self.imposter_transition <= 0
         nwo.poop_lightmap_resolution_scale = self.lightmap_res
         
-        # Check that object origin is not too far away from instance
-        # This can cause the plane builder to fail
-        if False and self.world_bound_sphere_radius > 500:
-            ob.data = ob.data.copy() # so we don't break any other instances
-            utils.set_origin_to_centre(ob)
-            # utils.set_origin_to_floor(ob)
+        # Large render-only sky meshes can fail Tool's plane-through-point
+        # assertion at their original local coordinates. Keep placement and
+        # authored attributes, but use a centred private mesh for arithmetic.
+        if (self.render_only and not self.definition.has_collision
+                and not self.definition.has_cookie and not self.definition.has_physics):
+            from .classic_geometry import centre_distant_render_instance
+            centre_distant_render_instance(ob, import_transform.distance(500))
         
         
         return ob
@@ -1529,6 +1542,9 @@ class BSP:
         vertices, transform = self._blender_geometry()
         mesh.from_pydata(vertices=vertices, edges=[], faces=list(indices))
         mesh.transform(transform)
+        if hasattr(self, 'native_planes'):
+            attribute = mesh.attributes.new('.foundry_collision_plane', 'INT', 'FACE')
+            attribute.data.foreach_set('value', [s.plane_index for s in self.surfaces])
         any_ladder = any_breakable = any_slip = any_invisible = False
         # Check if we need to set any per face properties
         map_material, map_two_sided, map_ladder, map_breakable, map_slip, map_negated, map_invalid, map_invisible = [], [], [], [], [], [], [], []
@@ -1657,7 +1673,10 @@ class BSP:
         bm.to_mesh(mesh)
         bm.free()
         
-        utils.set_two_sided(mesh, match_collision_patches=isinstance(self, StructureCollision))
+        # Cookie cutters require closed volume loops. Collapsing a native pair
+        # of opposite faces into a sidedness flag gives Tool three open edges.
+        if not cookie_cutter:
+            utils.set_two_sided(mesh, match_collision_patches=isinstance(self, StructureCollision))
         
         utils.calc_face_prop_counts(mesh)
         
@@ -1709,6 +1728,7 @@ class InstanceCollision(BSP):
         result = cls.__new__(cls)
         result.name = name
         result.native_vertices = record.vertices
+        result.native_planes = getattr(record, 'planes', ())
         result.vertices = [SimpleNamespace(position=Vector(vertex) * 100)
                            for vertex in record.vertices]
         result.surfaces = []
@@ -1719,7 +1739,8 @@ class InstanceCollision(BSP):
                 index=surface.index, material=material, negated=surface.negated,
                 invalid=surface.invalid, ladder=surface.ladder,
                 breakable=surface.breakable, slip_surface=surface.slip_surface,
-                invisible=surface.invisible, two_sided=surface.two_sided))
+                invisible=surface.invisible, two_sided=surface.two_sided,
+                plane_index=getattr(surface, 'plane_index', -1)))
         result.native_polygons = record.polygons
         result.uses_materials = True
         result.sphere_collision_only = all(surface.invisible for surface in result.surfaces)
@@ -1762,6 +1783,7 @@ class StructureCollision(BSP):
         result = cls.__new__(cls)
         result.name = 'structure_collision'
         result.native_vertices = record.vertices
+        result.native_planes = getattr(record, 'planes', ())
         result.vertices = [SimpleNamespace(position=Vector(vertex) * 100)
                            for vertex in record.vertices]
         result.surfaces = []
@@ -1772,7 +1794,8 @@ class StructureCollision(BSP):
                 index=surface.index, material=material, negated=surface.negated,
                 invalid=surface.invalid, ladder=surface.ladder,
                 breakable=surface.breakable, slip_surface=surface.slip_surface,
-                invisible=surface.invisible, two_sided=surface.two_sided))
+                invisible=surface.invisible, two_sided=surface.two_sided,
+                plane_index=getattr(surface, 'plane_index', -1)))
         result.native_polygons = record.polygons
         result.uses_materials = True
         result.sphere_collision_only = all(surface.invisible for surface in result.surfaces)

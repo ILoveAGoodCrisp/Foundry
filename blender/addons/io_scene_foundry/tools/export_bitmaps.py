@@ -141,7 +141,7 @@ def export_bitmap(image: bpy.types.Image, report=None, *, bitmaps_data_dir=None)
         logging.log(logging.DEBUG, f"Image is TIFF and has user path and user path starts with {data_dir} and {user_path} exists")
         image.nwo.filepath = utils.relative_path(user_path)
         if image.nwo.reexport_tiff:
-            if image.has_data:
+            if image.has_data or image.source == 'SEQUENCE':
                 image.nwo.filepath = save_image_as(image, user_path.parent, tiff_name=image.nwo.source_name)
             else:
                 utils.print_warning(f"{image.name} has no data. Cannot export Tif")
@@ -152,7 +152,7 @@ def export_bitmap(image: bpy.types.Image, report=None, *, bitmaps_data_dir=None)
     elif Path(image.nwo.filepath.lower()).suffix in {".tif", ".tiff"} and Path(data_dir, image.nwo.filepath).exists():
         logging.log(logging.DEBUG, f"Image has nwo filepath and {Path(data_dir, image.nwo.filepath)} exists")
         if image.nwo.reexport_tiff:
-            if image.has_data:
+            if image.has_data or image.source == 'SEQUENCE':
                 image.nwo.filepath = save_image_as(image, Path(data_dir, image.nwo.filepath).parent, tiff_name=image.nwo.source_name)
             else:
                 utils.print_warning(f"{image.name} has no data. Cannot export Tif")
@@ -161,7 +161,7 @@ def export_bitmap(image: bpy.types.Image, report=None, *, bitmaps_data_dir=None)
                     return
     else:
         logging.log(logging.DEBUG, "We hit the else...")
-        if image.has_data:
+        if image.has_data or image.source == 'SEQUENCE':
             image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
             logging.log(logging.DEBUG, f"nwo filepath: {image.nwo.filepath}")
         else:
@@ -221,21 +221,32 @@ def export_bitmap(image: bpy.types.Image, report=None, *, bitmaps_data_dir=None)
         report({"INFO"}, "Bitmap Export Complete")
                 
 def save_image_as(image, dir, tiff_name=""):
-    # ensure image settings
     dir = Path(dir)
     data_dir = Path(utils.get_data_path())
-    temp_scene = bpy.data.scenes.new("temp_tiff_export_scene")
-    settings = temp_scene.render.image_settings
-    settings.file_format = "TIFF"
-    settings.color_mode = "RGBA" if image.alpha_mode != "NONE" else "RGB"
-    settings.color_depth = "8" if image.depth < 16 else "16"
-    settings.tiff_codec = "LZW"
     if not dir.is_absolute():
         return ""
-    if not dir.exists():
+    temp_scene = None
+    sequence_frame = None
+    try:
+        if image.source == 'SEQUENCE':
+            # save_render uses its own ImageUser, which can select a missing
+            # frame zero. Export the sequence's explicit source frame instead.
+            sequence_frame = image.copy()
+            sequence_frame.source = 'FILE'
+            sequence_frame.reload()
+            image = sequence_frame
+        temp_scene = bpy.data.scenes.new("temp_tiff_export_scene")
+        settings = temp_scene.render.image_settings
+        settings.file_format = "TIFF"
+        settings.color_mode = "RGBA" if image.alpha_mode != "NONE" else "RGB"
+        settings.color_depth = "8" if image.depth < 16 else "16"
+        settings.tiff_codec = "LZW"
         dir.mkdir(parents=True, exist_ok=True)
-    full_path = Path(dir, tiff_name)
-    image.save_render(filepath=str(full_path), scene=temp_scene)
-    bpy.data.scenes.remove(temp_scene)
-
-    return str(full_path.relative_to(data_dir))
+        full_path = Path(dir, tiff_name)
+        image.save_render(filepath=str(full_path), scene=temp_scene)
+        return str(full_path.relative_to(data_dir))
+    finally:
+        if temp_scene is not None:
+            bpy.data.scenes.remove(temp_scene)
+        if sequence_frame is not None:
+            bpy.data.images.remove(sequence_frame)

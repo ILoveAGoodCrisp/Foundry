@@ -327,6 +327,14 @@ def group_halo1_portals(records, source_records, tolerance=0.00025):
             for other in sorted(pending):
                 if keys[current] != keys[other] or normals[current].dot(normals[other]) < .99985:
                     continue
+                # Nearby compiler cuts can form a shallow crease. Tool treats
+                # each portal object as one cutting surface, so combining
+                # distinct source planes loses their original partition even
+                # when the normals are almost parallel and flags agree.
+                current_plane = getattr(records[current], 'plane_index', -1)
+                other_plane = getattr(records[other], 'plane_index', -1)
+                if current_plane >= 0 and other_plane >= 0 and current_plane != other_plane:
+                    continue
                 shared = [a for a in outlines[current]
                           if any((a-b).length <= tolerance for b in outlines[other])]
                 if not any((a-b).length > tolerance for a in shared for b in shared):
@@ -1065,7 +1073,19 @@ def _extend_solid_edges(record, is_solid, tolerance, margin):
     return replace(record, vertices=tuple(tuple(world(p)) for p in expanded))
 
 
-def reconstruct_portals(records, tolerance=0.00025, margin=0.01, is_solid=None):
+def structure_aligned_portal_indices(records, vertices):
+    """Keep portals with exact native structure contacts at their source positions.
+
+    Use tag coordinates, before Blender scaling and float32 mesh conversion.
+    A partial contact also constrains the portal: expanding the whole outline
+    would move that corner away from the structure. Nearby points do not count.
+    """
+    structure = {tuple(point) for point in vertices}
+    return {record.index for record in records
+            if any(tuple(point) in structure for point in record.vertices)}
+
+
+def reconstruct_portals(records, tolerance=0.00025, margin=0.01, is_solid=None, *, preserve_indices=()):
     """Return records and the number of source fragments successfully rebuilt."""
     points = [[Vector(v) for v in r.vertices] for r in records]
     normals = [_normal(p) if len(p) >= 3 else Vector() for p in points]
@@ -1073,19 +1093,22 @@ def reconstruct_portals(records, tolerance=0.00025, margin=0.01, is_solid=None):
               r.front_cluster, r.back_cluster)
              for r in records]
     pending = set(range(len(records)))
+    preserved = set(preserve_indices)
     candidates = []
     while pending:
         first = min(pending)
         pending.remove(first)
         group = {first}
         normal = normals[first]
-        if normal.length < .5:
+        if normal.length < .5 or records[first].index in preserved:
             candidates.append((group, None))
             continue
         todo = [first]
         while todo:
             current = todo.pop()
             for other in sorted(pending):
+                if records[other].index in preserved:
+                    continue
                 if flags[first] != flags[other] or normal.dot(normals[other]) < .99999:
                     continue
                 if any(abs(normal.dot(p-points[first][0])) > tolerance for p in points[other]):
@@ -1137,6 +1160,8 @@ def reconstruct_portals(records, tolerance=0.00025, margin=0.01, is_solid=None):
     if is_solid is not None:
         originals = {r.index: r for r in records}
         for i, record in enumerate(result):
+            if record.index in preserved:
+                continue
             if record.vertices == originals[record.index].vertices:
                 extended = _extend_solid_edges(record, is_solid, tolerance, margin)
                 if extended is not record:
@@ -1145,7 +1170,9 @@ def reconstruct_portals(records, tolerance=0.00025, margin=0.01, is_solid=None):
     # Clipping and retained compiler fragments can both leave unnecessary
     # points along straight edges. Clean these only after reconstruction so
     # they still participate in the original fragment adjacency tests.
-    return simplify_portals(sorted(result, key=lambda r: r.index), tolerance), rebuilt
+    simplified = simplify_portals([r for r in result if r.index not in preserved], tolerance)
+    simplified.extend(r for r in result if r.index in preserved)
+    return sorted(simplified, key=lambda r: r.index), rebuilt
 
 
 # Keep the H1 entry points used by existing callers and validation scripts.
@@ -1155,7 +1182,7 @@ dissolve_portal_seams = dissolve_halo1_portal_seams
 rectangularize_portal = rectangularize_halo1_portal
 
 
-def prepare_portal_import(records, game, is_solid=None):
+def prepare_portal_import(records, game, is_solid=None, *, preserve_indices=()):
     """Prepare compatible fragment groups without changing their semantics.
 
     H1 retains its validated reconstruction and wall-overlap behavior. Other
@@ -1164,9 +1191,13 @@ def prepare_portal_import(records, game, is_solid=None):
     Recovered Reach face loops remain intact until seam cleanup on the mesh.
     """
     sources = list(records)
+    preserved = set(preserve_indices)
     if game == 'halo1':
-        records, _ = reconstruct_portals(sources, is_solid=is_solid)
+        records, _ = reconstruct_portals(sources, is_solid=is_solid, preserve_indices=preserved)
     else:
-        records = simplify_portals(sources)
+        records = simplify_portals([r for r in sources if r.index not in preserved])
+    records = [r for r in records if r.index not in preserved]
     records = stabilize_halo1_portals(records, is_solid if game == 'halo1' else None, sources)
-    return group_halo1_portals(records, sources), sources
+    groups = group_halo1_portals(records, sources)
+    groups.extend((r,) for r in sources if r.index in preserved)
+    return sorted(groups, key=lambda group: group[0].index), sources

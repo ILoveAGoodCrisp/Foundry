@@ -13,6 +13,9 @@ import numpy as np
 from .bitmap_tiff import rgba_tiff_bytes
 
 
+LINEAR_TEXTURE_SPACES = {'Non-Color', 'Raw', 'Linear', 'Linear Rec.709'}
+
+
 def _input(socket):
     return socket.links[0].from_socket if socket.is_linked else socket.default_value
 
@@ -26,7 +29,7 @@ def _srgb(rgb):
 
 
 def _to_linear(rgb, space):
-    if space in {'Non-Color', 'Raw', 'Linear Rec.709'}:
+    if space in LINEAR_TEXTURE_SPACES:
         return rgb
     if space == 'sRGB':
         return _linear(rgb)
@@ -188,7 +191,7 @@ class DataTextureBaker:
             node = value.node
             if node.type == 'TEX_IMAGE':
                 space = node.image.colorspace_settings.name
-                if value.name != 'Alpha' and space not in {'Non-Color', 'Raw'}:
+                if value.name != 'Alpha' and space not in LINEAR_TEXTURE_SPACES:
                     if not color:
                         raise ValueError(f'Unsupported texture color space: {space}')
                 pixels = image_pixels(node)

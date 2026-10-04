@@ -6040,8 +6040,12 @@ def consolidate_face_attributes(mesh: bpy.types.Mesh, *, preserve_special_faces=
         if preserve_normals:
             apply_loop_normals(mesh)
         
-def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True, *, spatial_search=False):
-    """Split edges so that stray verts become connected"""
+def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True, *, spatial_search=False, boundary_only=False):
+    """Split edges so that stray verts become connected.
+
+    Collision import can restrict this to open boundaries. Closed thin parts
+    must not be joined merely because their vertices lie near another edge.
+    """
 
     bm = bmesh.new()
     preserve_normals = mesh.has_custom_normals
@@ -6051,6 +6055,10 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True, *, spati
             save_loop_normals(bm, mesh)
         bm.verts.ensure_lookup_table()
         bm.edges.ensure_lookup_table()
+        boundary_vertices = ({v for e in bm.edges if e.is_boundary for v in e.verts}
+                             if boundary_only else None)
+        if boundary_only and not boundary_vertices:
+            return
 
         tol=0.005
 
@@ -6066,7 +6074,7 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True, *, spati
             vertex_tree.balance()
 
         for e in bm.edges:
-            if not e.is_valid:
+            if not e.is_valid or (boundary_only and not e.is_boundary):
                 continue
             a, b = e.verts
             seg = b.co - a.co
@@ -6092,6 +6100,8 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True, *, spati
                 candidates = (vertices[index] for index in sorted(hit[1] for hit in nearby))
             for v in candidates:
                 if not v.is_valid or v in e.verts:
+                    continue
+                if boundary_only and (v not in boundary_vertices or any(v in f.verts for f in e.link_faces)):
                     continue
 
                 c = v.co

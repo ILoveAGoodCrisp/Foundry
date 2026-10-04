@@ -136,6 +136,7 @@ class StructureBspCollisionSurface:
     slip_surface: bool
     invisible: bool
     two_sided: bool
+    plane_index: int = -1
 
 
 @dataclass(frozen=True)
@@ -143,6 +144,7 @@ class StructureBspCollision:
     vertices: tuple[tuple[float, float, float], ...]
     surfaces: tuple[StructureBspCollisionSurface, ...]
     polygons: tuple[tuple[int, ...], ...]
+    planes: tuple[tuple[float, float, float, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -632,6 +634,9 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
         )
         surfaces: list[StructureBspCollisionSurface] = []
         polygons: list[tuple[int, ...]] = []
+        planes = tuple((p.i, p.j, p.k, p.d)
+                       for row in self.block(collision, 'planes')
+                       for p in (self.value(row, 'plane'),))
         for surface_index, surface in enumerate(self.block(collision, 'surfaces')):
             first = int(self.value(surface, 'first edge')) & mask
             current, visited, polygon = first, set(), []
@@ -677,9 +682,13 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 invisible=invisible,
                 two_sided=(flags.get_flag('two sided') and
                            not (breakable or invisible)),
+                plane_index=(int(self.value(surface, 'plane')) &
+                             (0x7fffffff if self.game == 'halo1' else 0x7fff)
+                             if self.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
+                             else int(self.value(surface, 'plane index'))),
             ))
             polygons.append(tuple(polygon))
-        return StructureBspCollision(vertices, tuple(surfaces), tuple(polygons))
+        return StructureBspCollision(vertices, tuple(surfaces), tuple(polygons), planes)
 
     def portal_collision_tree(self):
         """Read portal collision data, including packed nodes and supernode roots.
@@ -744,7 +753,7 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 bounds = [(min(p[i] for p in vertices) - 1, max(p[i] for p in vertices) + 1)
                           for i in range(3)]
                 return dict(planes=planes, nodes=nodes, supernodes=supernodes,
-                            clusters=clusters, bounds=bounds)
+                            clusters=clusters, bounds=bounds, vertices=vertices)
         return None
 
     def structure_collision(self) -> StructureBspCollision | None:

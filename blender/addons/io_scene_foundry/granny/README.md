@@ -10,6 +10,12 @@ and color layers, materials and shader paths, bones, skin weights, rigid bone
 parents, markers, and sampled skeletal actions. Exported object and face
 properties are mapped back to Foundry properties. Unknown metadata remains in
 custom properties; numeric face annotations remain as exportable attributes.
+Collision, physics, portal, seam, cookie-cutter, fog, lightmap-region, boundary,
+and volume meshes receive Foundry's corresponding display materials after their
+properties are restored, including collision-proxy and boundary/volume subtypes.
+Source material bindings and topology groups remain in `gr2_material_bindings`
+and `gr2_material_groups` custom properties. Shader materials on render geometry
+retain their source assignments.
 The file's BungieExportInfo tables determine native enum and region values.
 Older Max exports with nested Bungie property containers, enum tables, and
 material attributes are supported too. Meshes with topology material groups
