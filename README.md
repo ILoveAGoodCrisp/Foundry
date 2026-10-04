@@ -22,8 +22,7 @@ Foundry only needs to be installed once. Thereafter, you can use Blender to down
 - I recommend checking the **Check for Updates on Startup** box, but this is optional
 -  Now click **Create** to link the remote repository to Blender <div align="left"> <img src="img/install2.png"> </div>
 - Enter `Foundry` into the search box and you should see the **Foundry** addon show up with an option to install <div align="left"> <img src="img/install3.png"> </div>
-- Once installed, you should have a **Launch Foundry** button show in the top right of the 3D viewport. Click this button to load the addon <div align="left"> <img src="img/install4.png"> </div>
-- To use Foundry you'll need at least one project loaded (Editing Kit). When launching Foundry for the first time you'll be prompted to select a project. Use the file dialog that opened to navigate to the folder containing either your HREK, H4EK, or H2AMP editing kit and then hit the Add Project button. Should you wish to add more projects, or reopen the project dialog, new projects can be added from either Foundry preferences or the Foundry Scene Properties panel <div align="left"> <img src="img/install5.png"> </div>
+- Once installed, see the Foundry N Panel in the 3D viewport for guidance on the next steps <div align="left">
 
 ## Standalone Installation
 
@@ -58,10 +57,6 @@ Testing and reporting bugs:
 - DunkODST
 - [Echo-482](https://www.youtube.com/@echo-482)
 - [SOI_7](https://www.youtube.com/@soi_7915)
-
-## Acknowledgements
-This project includes code from [node-arrange](https://github.com/Leonardo-Pike-Excell/node-arrange)  
-by Leonardo Pike-Excell, licensed under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html).
 
 ## Support
 
