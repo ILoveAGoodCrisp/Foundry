@@ -285,8 +285,7 @@ class InstanceDefinition:
                 definition.collision_info = InstanceCollision.from_native(
                     record.collision, f'instance_collision:{record.index}',
                     collision_materials)
-                if getattr(utils.get_project(), 'game', None) == 'reach':
-                    definition.collision_info.mark_opposite_surfaces()
+                definition.collision_info.mark_opposite_surfaces()
                 if not record.collision_is_proxy:
                     definition.surface_triangle_mapping = [
                         SurfaceMapping.from_native(mapping, surface)
@@ -338,12 +337,11 @@ class InstanceDefinition:
                     elif self.collision_only_surface_indices:
                         collision_mesh = self.collision_info.to_object(mesh_only=True, surface_indices=self.collision_only_surface_indices)
                         self.mesh.remove_render_duplicate_faces(collision_mesh, self.blender_render.data)
-                        if getattr(utils.get_project(), 'game', None) == 'reach':
-                            from .classic_geometry import align_collision_boundary, dissolve_collision_edge_slivers
-                            align_collision_boundary(self.blender_render.data, collision_mesh,
-                                                     0.0025 * import_transform.scale_factor())
-                            dissolve_collision_edge_slivers(self.blender_render.data, collision_mesh,
-                                                            0.025 * import_transform.scale_factor())
+                        from .classic_geometry import align_collision_boundary, dissolve_collision_edge_slivers
+                        align_collision_boundary(self.blender_render.data, collision_mesh,
+                                                 0.0025 * import_transform.scale_factor())
+                        dissolve_collision_edge_slivers(self.blender_render.data, collision_mesh,
+                                                        0.025 * import_transform.scale_factor())
                         merged_collision = len(collision_mesh.polygons) > 0
 
                         if merged_collision:
@@ -433,17 +431,17 @@ class InstanceDefinition:
                 self.blender_cookie.nwo.proxy_type = "cookie_cutter"
                 self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_cookie
 
-        if (render_valid and self.has_collision and not self.collision_is_proxy
-                and getattr(utils.get_project(), 'game', None) == 'reach'):
+        if render_valid and self.has_collision and not self.collision_is_proxy:
             from .classic_geometry import weld_classic_vertices
-            from .reach_geometry import (preserve_two_sided_sealers, retriangulate_render_slivers,
-                                         repair_collision_triangulation)
-            from .bsp_import_geometry import reconnect_collinear_triangles
+            from .bsp_import_geometry import (reconnect_collinear_triangles, retriangulate_render_slivers,
+                                              repair_collision_triangulation)
             weld_classic_vertices(self.blender_render.data)
             reconnect_collinear_triangles(self.blender_render.data)
             if retriangulate_render_slivers(self.blender_render.data, 0.025 * import_transform.scale_factor()):
                 weld_classic_vertices(self.blender_render.data)
-            preserve_two_sided_sealers(self.blender_render.data)
+            if getattr(utils.get_project(), 'game', None) == 'reach':
+                from .reach_geometry import preserve_two_sided_sealers
+                preserve_two_sided_sealers(self.blender_render.data)
             repair_collision_triangulation(self.blender_render.data, 0.025 * import_transform.scale_factor())
 
         if self.blender_render:
@@ -3344,9 +3342,8 @@ class Mesh:
         if tolerance is None:
             # Matching runs after conversion to the scene's import scale.
             # A fixed 0.005 Blender-unit tolerance can mistake nearby render
-            # detail for a different native collision surface on Reach props.
-            tolerance = (0.0025 * import_transform.scale_factor()
-                         if getattr(utils.get_project(), 'game', None) == 'reach' else 0.005)
+            # detail for a different native collision surface on BSP props.
+            tolerance = 0.0025 * import_transform.scale_factor()
         collision_normal = self._polygon_normal(collision_coords)
         collision_area = self._polygon_area(collision_coords)
         if collision_normal is None or collision_area <= 0.0:

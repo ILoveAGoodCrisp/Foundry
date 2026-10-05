@@ -130,14 +130,16 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
         for element in field.as_block():
             flags = self.required_field(element, 'flags')
             color = self.value(element, 'emissive color')
+            # Older H3/ODST tags omit focus from their embedded material layout.
+            focus = element.field('emissive focus')
             bounce = element.field('bounce ratio') or element.field('frustum blend')
             records.append(SimpleNamespace(
                 power=float(self.value(element, 'emissive power')),
                 color=(float(color.red), float(color.green), float(color.blue)),
                 quality=float(self.value(element, 'emissive quality')),
-                focus=float(self.value(element, 'emissive focus')),
+                focus=0.0 if focus is None else float(focus.value),
                 power_per_unit_area=flags.get_flag('power per unit area'),
-                use_shader_gel=flags.get_flag('use shader gel'),
+                use_shader_gel='use shader gel' in flags.options().names and flags.get_flag('use shader gel'),
                 attenuation_falloff=float(self.value(element, 'attenuation falloff')),
                 attenuation_cutoff=float(self.value(element, 'attenuation cutoff')),
                 bounce_ratio=0.0 if bounce is None else float(bounce.value),

@@ -422,6 +422,14 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             preserved = structure_aligned_portal_indices(records, vertices)
         else:
             preserved = set(preserve_indices)
+        if self.game != 'halo1':
+            from .reach_portals import reconstruct_portal_volumes
+            try:
+                records = reconstruct_portal_volumes(records, collision_tree, preserve_indices=preserved)
+            except (ValueError, RecursionError) as error:
+                from .portal_reconstruction import reconstruct_portals
+                utils.print_warning(f'Could not recover BSP portal volumes: {error}')
+                records, _ = reconstruct_portals(records, preserve_indices=preserved)
         if self.game == 'halo1':
             from .halo1_bsp_blender import collision_point_is_solid
             is_solid = collision_point_is_solid(self)
@@ -529,6 +537,13 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     apply_shader_transparency(self, classic_objects)
                     if not for_cinematic:
                         objects.extend(create_helpers(self, collection))
+                if self.game == 'halo2':
+                    from .bsp_import_geometry import recover_folded_patch_boundaries, repair_collision_triangulation
+                    for mesh in {ob.data for ob in classic_objects if ob.type == 'MESH'}:
+                        weld_classic_vertices(mesh)
+                        recover_folded_patch_boundaries(mesh, 0.025 * import_transform.scale_factor())
+                        repair_collision_triangulation(mesh, 0.025 * import_transform.scale_factor())
+                        utils.calc_face_prop_counts(mesh)
                 if not for_cinematic:
                     objects.extend(self._create_tag_portals(collection, structure_objects=classic_objects))
             if always_get_structure_collision:
@@ -789,8 +804,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             
             collision_only_indices = [idx for idx, mapping in enumerate(structure_surface_triangle_mapping) if mapping.collision_only]
             remainder = None
-            if self.game == 'reach' and structure_objects:
-                from .reach_geometry import recover_mapped_collision
+            if structure_objects:
+                from .bsp_import_geometry import recover_mapped_collision
                 mapped_indices = [idx for idx, mapping in enumerate(structure_surface_triangle_mapping)
                                   if not mapping.collision_only]
                 if mapped_indices:
@@ -807,7 +822,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 if remainder is not None and remainder != ob:
                     utils.join_objects([ob, remainder], cleanup_geometry=False, preserve_special_faces=True)
                 collision_mesh = ob.data
-                if self.game == 'reach' and structure_objects:
+                if structure_objects:
                     from .classic_geometry import align_collision_boundary
                     align_collision_boundary(
                         structure_objects[0].data, collision_mesh,
@@ -856,8 +871,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
 
         def add_structure_object(ob: bpy.types.Object, seam_name: str | None = None, connect_edges=False):
             nonlocal seam_collection
-            if self.game == 'reach' and not for_cinematic:
-                # Reuse the H1 topology repair before stitching collision edges.
+            if not for_cinematic:
+                # Reconnect exact splits before stitching collision edges.
                 weld_classic_vertices(ob.data)
             if not for_cinematic:
                 from .bsp_import_geometry import recover_folded_patch_boundaries
@@ -865,9 +880,9 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 if repaired:
                     utils.print_step(f"Recovered {repaired} folded source boundaries")
             if connect_edges and not for_cinematic:
-                utils.connect_verts_on_edge(ob.data, spatial_search=self.game == 'reach')
-            if self.game == 'reach' and not for_cinematic:
-                from .reach_geometry import repair_collision_triangulation
+                utils.connect_verts_on_edge(ob.data, spatial_search=True)
+            if not for_cinematic:
+                from .bsp_import_geometry import repair_collision_triangulation
                 repair_collision_triangulation(ob.data, 0.025 * import_transform.scale_factor())
             objects.append(ob)
             # utils.unlink(ob)
@@ -935,10 +950,10 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             if len(structure_objects) > 1:
                 main_structure_ob, remaining_structure_obs = structure_objects[0], structure_objects[1:]
                 main_structure_ob.name = f"{self.tag_path.ShortName}_structure"
-                # A distance weld can collapse thin Reach triangles, especially
+                # A distance weld can collapse thin compiled triangles, especially
                 # at Blender scale. Reconnect exact vertices below instead.
                 utils.join_objects([main_structure_ob] + remaining_structure_obs,
-                                   cleanup_geometry=self.game != 'reach', preserve_special_faces=self.game == 'reach')
+                                   cleanup_geometry=False, preserve_special_faces=True)
 
             elif structure_objects:
                 main_structure_ob = structure_objects[0]
@@ -960,12 +975,11 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         stabilize_seam_boundaries(objects)
         ob_meshes = {o.data for o in objects if o.type == 'MESH'}
         for me in ob_meshes:
-            if self.game == 'reach':
-                # Reconnect UV/normal splits in merged or separate clusters,
-                # shared instance definitions, collision proxies and water.
-                # Process shared meshes once rather than once per placement.
-                weld_classic_vertices(me)
-            utils.consolidate_face_attributes(me, preserve_special_faces=self.game == 'reach')
+            # Reconnect UV/normal splits in merged or separate clusters,
+            # shared instance definitions, collision proxies and water.
+            # Process shared meshes once rather than once per placement.
+            weld_classic_vertices(me)
+            utils.consolidate_face_attributes(me, preserve_special_faces=True)
             utils.consolidate_materials(me)
                 
         # Create Portals
@@ -977,15 +991,6 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 if not portal_vertices and collision_tree:
                     portal_vertices = collision_tree.get('vertices', ())
                 preserved = structure_aligned_portal_indices(native_portals, portal_vertices)
-                if self.game == 'reach':
-                    from .reach_portals import reconstruct_reach_portals
-                    try:
-                        native_portals = reconstruct_reach_portals(
-                            native_portals, collision_tree, preserve_indices=preserved)
-                    except (ValueError, RecursionError) as error:
-                        from .portal_reconstruction import reconstruct_portals
-                        utils.print_warning(f'Could not recover Reach portal volumes: {error}')
-                        native_portals, _ = reconstruct_portals(native_portals, preserve_indices=preserved)
                 objects.extend(self._create_tag_portals(
                     self.collection, native_portals, collision_tree=collision_tree,
                     preserve_indices=preserved, structure_objects=objects))

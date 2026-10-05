@@ -1,4 +1,4 @@
-"""Recover connected Reach portal volumes from BSP leaf cluster boundaries.
+"""Recover connected portal volumes from decoded BSP leaf cluster boundaries.
 
 Compiled portal outlines are visibility bounds, not necessarily sealed authoring
 polygons. The collision tree and its leaf cluster table retain the actual cuts.
@@ -110,7 +110,7 @@ def _cluster_tree(data):
         supernode.cache_clear()
 
 
-def reconstruct_reach_portals(records, data, *, preserve_indices=()):
+def reconstruct_portal_volumes(records, data, *, preserve_indices=()):
     """Use cluster cuts for connected volumes and H1 repair for isolated holes.
 
     Return mesh records for the original connections, with convex polygons
@@ -122,7 +122,7 @@ def reconstruct_reach_portals(records, data, *, preserve_indices=()):
     def fallback(pieces):
         return reconstruct_portals(pieces, preserve_indices=preserved)[0]
 
-    if not data or any(r.plane_index < 0 or r.back_cluster < 0 or r.front_cluster < 0 for r in records):
+    if not data or not data.get('clusters') or any(r.plane_index < 0 or r.back_cluster < 0 or r.front_cluster < 0 for r in records):
         return fallback(records)
     selected = set()
     for i, a in enumerate(records):
@@ -260,3 +260,7 @@ def reconstruct_reach_portals(records, data, *, preserve_indices=()):
             vertices.extend(tuple(map(float, p)) for p in polygon)
         result.append(replace(record, vertices=tuple(vertices), polygons=tuple(faces)))
     return sorted(result, key=lambda r: r.index)
+
+
+# The reconstruction consumes normalized tree data for any supported game.
+reconstruct_reach_portals = reconstruct_portal_volumes

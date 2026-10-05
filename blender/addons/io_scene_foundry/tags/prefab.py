@@ -787,6 +787,8 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
     def surface_triangle_mappings(self) -> list[StructureBspSurfaceMapping]:
         root = self.tag.root()
         surfaces_field = root.field('large structure surfaces')
+        if surfaces_field is None:
+            surfaces_field = root.field('structure surfaces')
         mappings_field = root.field('structure surface to triangle mapping')
         if surfaces_field is None or mappings_field is None:
             return []

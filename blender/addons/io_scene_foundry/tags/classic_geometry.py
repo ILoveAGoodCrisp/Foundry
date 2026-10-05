@@ -615,7 +615,7 @@ def align_collision_boundary(render_mesh, collision_mesh, tolerance, *, other_re
     return moved
 
 
-def weld_classic_vertices(mesh):
+def weld_classic_vertices(mesh, *, preserve_deformation=False):
     """Reconnect exact shared vertices after surface reconstruction.
 
     Tag meshes split vertices for UVs/normals, and clipping creates new vertices
@@ -625,6 +625,8 @@ def weld_classic_vertices(mesh):
     Keep render-only overlays topologically distinct from solid faces: Blender's
     triangulation removes duplicate triangles sharing the same vertex IDs,
     even when one is render-only and the other supplies collision.
+    Optionally keep coincident vertices distinct when their skin weights or
+    shape-key positions differ, so editable model imports retain animation.
     """
     bm = bmesh.new()
     try:
@@ -658,9 +660,13 @@ def weld_classic_vertices(mesh):
         by_position = defaultdict(list)
         by_face = defaultdict(list)
         protected = set()
+        shape_layers = tuple(bm.verts.layers.shape.values()) if preserve_deformation else ()
+        deform_layer = bm.verts.layers.deform.active if preserve_deformation else None
         for vertex in bm.verts:
             role = bool(vertex.link_faces) and all(f in noncollision for f in vertex.link_faces)
-            by_position[tuple(vertex.co), role].append(vertex)
+            shapes = tuple(tuple(vertex[layer]) for layer in shape_layers)
+            weights = tuple(sorted(vertex[deform_layer].items())) if deform_layer is not None else ()
+            by_position[tuple(vertex.co), role, shapes, weights].append(vertex)
         for face in bm.faces:
             coords = frozenset(tuple(v.co) for v in face.verts)
             # Cross-role overlays are already protected by the weld key.
