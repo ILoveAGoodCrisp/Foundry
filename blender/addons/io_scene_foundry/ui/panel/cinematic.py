@@ -1379,6 +1379,27 @@ class NWO_OT_GetSoundClasses(bpy.types.Operator):
         event.script_text = self.sound_class
         return {'FINISHED'}
     
+def get_event_object_tag_path(event):
+    if event.actor is None:
+        return ""
+
+    attachment_key = event.script_attachment
+    if attachment_key and attachment_key != "NONE":
+        for index, attachment in enumerate(event.actor.nwo.attachments):
+            if (
+                attachment.attachment_type.strip()
+                and (
+                    attachment_key == str(index + 1)
+                    or attachment_key == f"ATTACHMENT_{index}"
+                    or attachment_key == attachment.name
+                    or (attachment_key == "0" and index == 0)
+                )
+            ):
+                return utils.relative_path(attachment.attachment_type)
+
+    return utils.relative_path(event.actor.nwo.cinematic_object)
+
+
 class GetCinematicBase(bpy.types.Operator):
     bl_options = {"UNDO"}
     
@@ -1393,7 +1414,7 @@ class GetCinematicBase(bpy.types.Operator):
         global permutations
         scene_nwo = context.scene.nwo # scene specific
         event = scene_nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
-        relative_tag_path = self.get_event_object_tag_path(event)
+        relative_tag_path = get_event_object_tag_path(event)
         if not relative_tag_path:
             return []
         match self.get_type:
@@ -1413,7 +1434,6 @@ class GetCinematicBase(bpy.types.Operator):
             model_path = obj.get_model_tag_path()
             with ModelTag(path=model_path) as model:
                 if self.get_type == 'script_variant':
-                    print(model.get_model_variants())
                     for v in model.get_model_variants():
                         items.append((v, v, ""))
                 else:
@@ -1436,26 +1456,6 @@ class GetCinematicBase(bpy.types.Operator):
 
         return items
 
-    def get_event_object_tag_path(self, event):
-        if event.actor is None:
-            return ""
-
-        attachment_key = event.script_attachment
-        if attachment_key and attachment_key != "NONE":
-            for index, attachment in enumerate(event.actor.nwo.attachments):
-                if (
-                    attachment.attachment_type.strip()
-                    and (
-                        attachment_key == str(index + 1)
-                        or attachment_key == f"ATTACHMENT_{index}"
-                        or attachment_key == attachment.name
-                        or (attachment_key == "0" and index == 0)
-                    )
-                ):
-                    return utils.relative_path(attachment.attachment_type)
-
-        return utils.relative_path(event.actor.nwo.cinematic_object)
-    
     item: bpy.props.EnumProperty(
         name="Item",
         items=items,
