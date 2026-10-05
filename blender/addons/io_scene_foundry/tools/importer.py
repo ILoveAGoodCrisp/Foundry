@@ -85,6 +85,7 @@ from ..constants import (
 from ..tags.connected_material import GameFunctionType, game_functions
 from .. import utils
 from .model_to_instance import ModelInstance
+from .import_mesh import make_mesh_editable
 from functools import partial
 
 def _hand_marker_names(marker_names, side):
@@ -100,6 +101,13 @@ def set_imported_face_prop_colors(starting_meshes):
             continue
         for index, prop in enumerate(mesh.nwo.face_props, start=1):
             prop.color = utils.random_color(index)
+
+
+def make_imported_meshes_editable(starting_meshes):
+    """Process each new mesh once, including proxies and collection instances."""
+    for mesh in bpy.data.meshes:
+        if mesh not in starting_meshes:
+            make_mesh_editable(mesh)
 
 
 def _matching_marker_name(preferred, fallback, marker_names):
@@ -1980,6 +1988,12 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
 
+    make_meshes_editable: bpy.props.BoolProperty(
+        name="Import Fixup",
+        description="Merges coincident vertices and replaces custom normals with sharp and smooth edges. Shading may differ from the imported normals",
+        default=False,
+    )
+
     gr2_convert_scale: bpy.props.BoolProperty(
         name="Convert GR2 Scale",
         description="Convert GR2 source units and apply Foundry's scene scale multiplier. Disable to preserve original source dimensions without either scale conversion. Axis conversion is always applied",
@@ -2881,6 +2895,8 @@ class NWO_Import(bpy.types.Operator):
                 for op in deferred_ops:
                     op()
 
+                if self.make_meshes_editable:
+                    make_imported_meshes_editable(starting_meshes)
                 set_imported_face_prop_colors(starting_meshes)
                     
                 # # Clamp lights
@@ -3052,6 +3068,10 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'source_data_directory')
         scope_items = set(self.scope.split(',')) if self.scope else set()
         corinth = project.corinth if project is not None else corinth
+        if not scope_items or scope_items.difference({'bitmap', 'camera_track', 'animation', 'jma'}):
+            box = layout.box()
+            box.label(text="Mesh Settings")
+            box.prop(self, "make_meshes_editable")
         if (utils.get_scene_props().asset_type != 'cinematic' and 'cinematic' not in scope_items
                 and (not scope_items or any(item not in {'sidecar', 'gr2', 'jms', 'jma', 'wrl'} for item in scope_items))):
             box = layout.box()
@@ -4138,6 +4158,7 @@ class NWOImporter:
             prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
             prop.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
             prop.material_lighting_emissive_focus = jms_mat.emissive_focus
+            prop.material_lighting_bounce_ratio = getattr(jms_mat, 'emissive_bounce_ratio', 0.0)
             prop.material_lighting_attenuation_falloff = 0.0 if self.game == 'halo1' else jms_mat.emissive_attenuation_falloff
             prop.material_lighting_attenuation_cutoff = 0.0 if self.game == 'halo1' else jms_mat.emissive_attenuation_cutoff
         
@@ -6283,6 +6304,8 @@ class NWOImporter:
             else:
                 objects.extend(reader(self, path, legacy_type, parent_collection=parent_collection,
                                       allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths))
+        self.emissive_meshes.update(ob.data for ob in objects if ob.type == 'MESH'
+                                    and any(prop.type == 'emissive' for prop in ob.data.nwo.face_props))
         return objects
 
 
@@ -6957,6 +6980,12 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         default=True,
     )
     
+    make_meshes_editable: bpy.props.BoolProperty(
+        name="Make Meshes Editable",
+        description="Merges coincident vertices and replaces custom normals with sharp and smooth edges. Shading may differ from the imported normals",
+        default=False,
+    )
+
     @classmethod
     def poll(cls, context):
         return NWO_Import.poll(context)
@@ -7112,6 +7141,9 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         layout.use_property_split = True
         draw_import_summary(self, layout)
         corinth = utils.is_corinth(context)
+        if self.import_type not in {'bitmap', 'camera_track', 'model_animation_graph', 'model_animations',
+                                    'jmm', 'jma', 'jmt', 'jmz', 'jmv', 'jmw', 'jmo', 'jmr', 'jmrx'}:
+            layout.prop(self, "make_meshes_editable")
         if self.import_type not in {"gr2", "sidecar", "cinematic", "jms", "ass", "jmm", "jma", "jmt", "jmz", "jmv", "jmw", "jmo", "jmr", "jmrx"} and utils.get_scene_props().asset_type != 'cinematic':
             layout.prop(self, "use_import_info")
         match self.import_type:
