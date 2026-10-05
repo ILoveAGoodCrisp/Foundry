@@ -1,5 +1,6 @@
 """Scenario Object export, refresh and child-scenario selection."""
 from pathlib import Path
+from math import pi
 from types import SimpleNamespace
 import bpy
 from mathutils import Euler, Matrix, Vector
@@ -13,6 +14,16 @@ from ...tags.scenario_objects import (ObjectExport, object_types, object_fields,
 from .targets import scenario_targets
 
 SCENARIO_OBJECT = '_connected_geometry_marker_type_scenario_object'
+
+
+def scenario_object_orientation(matrix, game, *, importing=False):
+    if game not in {'halo3', 'halo3odst'}:
+        return matrix
+    # H3/ODST scenario headings need a quarter turn to align with imported object geometry.
+    # Rotate the heading around the placement itself, preserving its world position.
+    result = Matrix.Rotation(pi / 2 if importing else -pi / 2, 4, 'Z') @ matrix
+    result.translation = matrix.translation
+    return result
 
 
 def gather_scenario_objects(context):
@@ -30,7 +41,7 @@ def gather_scenario_objects(context):
 
 
 def object_placement(ob, game, scenario):
-    matrix = utils.halo_transforms_matrix(ob.matrix_world, marker=True)
+    matrix = scenario_object_orientation(utils.halo_transforms_matrix(ob.matrix_world, marker=True), game)
     scale = ob.matrix_world.to_scale()
     if game != 'halo1' and max(abs(value) for value in scale) - min(abs(value) for value in scale) > 0.0001:
         raise ValueError(f'{ob.name}: scenario objects require uniform scale')
@@ -48,7 +59,7 @@ def object_placement(ob, game, scenario):
     if parent_name:
         if not parent.nwo.scenario_object_unique_name:
             raise ValueError(f'{ob.name}: the parent Scenario Object must have Unique Name enabled')
-        parent_matrix = utils.halo_transforms_matrix(parent.matrix_world, marker=True)
+        parent_matrix = scenario_object_orientation(utils.halo_transforms_matrix(parent.matrix_world, marker=True), game)
         parent_position, parent_rotation, _ = parent_matrix.decompose()
         parent_sign = -1 if parent.matrix_world.determinant() < 0 else 1
         parent_placement = Matrix.LocRotScale(parent_position, parent_rotation,
@@ -244,7 +255,7 @@ def refresh_scenario_objects(context, *, scenario_path=None, tags_root=None, gam
                             raise ValueError(f'{point.block}: cannot import {field.path}: {value!r}') from exc
                 variant = next((value for path, value in point.options.items() if path[-1] == 'variant name'), '')
                 nwo.marker_game_instance_tag_variant_name = variant
-                world = native_world(point, parent_index)
+                world = scenario_object_orientation(native_world(point, parent_index), game, importing=True)
                 world.translation *= 100
                 ob.matrix_world = import_transform.marker_matrix(world)
                 collection.objects.link(ob)
