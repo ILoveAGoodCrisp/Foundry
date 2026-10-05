@@ -1422,10 +1422,12 @@ def draw_foundry_nodes_toolbar(self, context):
     foundry_nodes_toolbar(self.layout, context)
 
 def draw_project_selection_toolbar(row, context):
+    selection = row.row(align=True)
+    selection.ui_units_x = 9
     if utils.get_prefs().projects:
-        row.menu('NWO_MT_ProjectChooser', text='Select Project', icon_value=utils.project_game_icon(context))
+        selection.menu('NWO_MT_ProjectChooser', text='Select Project', icon_value=utils.project_game_icon(context))
     else:
-        row.operator('nwo.project_add', text='Add First Project').set_scene_project = True
+        selection.operator('nwo.project_add', text='Add First Project').set_scene_project = True
     row.operator('nwo.reload_icons', text='', icon='FILE_REFRESH')
     row.prop(utils.get_scene_props(), 'toolbar_expanded', text='', icon_value=get_icon_id('foundry'))
 
