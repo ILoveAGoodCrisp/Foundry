@@ -6,6 +6,7 @@ from .cinematic_lighting import CinematicLightingTag
 
 from .cinematic import CinematicCameraDocument, CinematicSceneDataTag
 from .blender import BlenderTag
+from .cinematic_script import encode_script_data
 from .. import utils
 from ..props.scene import NWO_CinematicEvent
 from .. import import_transform
@@ -356,11 +357,13 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
         script = self.required_field(root, name).as_struct()
         if script is None:
             raise TypeError(f'{self.path}: {name!r} is not a script structure')
-        self._set_value(script, 'script', text.encode('utf-8'))
+        self._set_value(script, 'script', encode_script_data(text))
 
     def write_export_header(self, name, reset_object_lighting, header, footer,
                             data_path=None):
         root = self.tag.root()
+        if self.game in {'halo3', 'halo3odst'}:
+            self._set_value(root, 'version', 1)
         self._set_value(root, 'name', name)
         self._set_value(root, 'anchor', f'{name}_anchor')
         if root.field('reset object lighting') is not None:

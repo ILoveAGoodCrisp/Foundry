@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .cinematic_script import script_from_text
+from .cinematic_script import encode_script_data, script_from_text
 
 from .cinematic import CinematicSceneDataTag
 
@@ -159,7 +159,7 @@ class CinematicTag(BlenderTag, TagDocument):
         script_struct = self.required_field(root, name).as_struct()
         if script_struct is None:
             raise ValueError(f'{self.path}: {name!r} is not a structure')
-        self._set_value(script_struct, 'script', text.encode('utf-8'))
+        self._set_value(script_struct, 'script', encode_script_data(text))
     
     def create(self, name: str, cinematic_scenes, scenario_path: Path | None = None, zone_set: str = "cinematic", scene_nwo=None):
         scene_nwo = scene_nwo or self.scene_nwo
@@ -174,13 +174,14 @@ class CinematicTag(BlenderTag, TagDocument):
         if not self.corinth:
             channel_type_value = min(4, channel_type_value)
         self._set_value(root, 'channel type', channel_type_value)
-        self._set_value(root, 'easing in time', scene_nwo.cinematic_easing_in_time)
-        self._set_value(root, 'easing out time', scene_nwo.cinematic_easing_out_time)
+        self._set_value(root, 'easing in time', int(scene_nwo.cinematic_easing_in_time * 30))
+        self._set_value(root, 'easing out time', int(scene_nwo.cinematic_easing_out_time * 30))
         if self.game in {'halo3', 'halo3odst'}:
             for direction in ('in', 'out'):
                 color = self.required_field(root, f'fade {direction} color')
                 color.set(type(color.value)(*getattr(scene_nwo, f'cinematic_fade_{direction}_color')))
-                self._set_value(root, f'fade {direction} time', getattr(scene_nwo, f'cinematic_fade_{direction}_time'))
+                fade_frames = round(getattr(scene_nwo, f'cinematic_fade_{direction}_time') * 30)
+                self._set_value(root, f'fade {direction} time', fade_frames)
         else:
             if scene_nwo.cinematic_transition_settings.strip():
                 transition = Path(utils.relative_path(scene_nwo.cinematic_transition_settings)).with_suffix(".cinematic_transition")

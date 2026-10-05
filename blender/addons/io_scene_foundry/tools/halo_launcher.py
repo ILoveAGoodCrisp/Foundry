@@ -574,19 +574,18 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
     if scene_nwo.asset_type == 'model' and prefs.debug_menu_on_launch:
         update_debug_menu(asset_path, asset_name)
     
+    asset_type = scene_nwo.asset_type
+    if asset_type in {"scenario", "cinematic"} and settings.game_default == "asset":
+        if asset_type == "scenario":
+            new_filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
+            if new_filepath:
+                filepath = new_filepath
+        else:
+            cin_scen_path = Path(get_tags_path(), relative_path(scene_nwo.cinematic_scenario))
+            if cin_scen_path.exists() and cin_scen_path.is_file() and cin_scen_path.is_absolute():
+                filepath = str(cin_scen_path)
+
     if not legacy_sapien:
-        asset_type = scene_nwo.asset_type
-        
-        if asset_type in {"scenario", "cinematic"} and settings.game_default == "asset":
-            if asset_type == "scenario":
-                new_filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
-                if new_filepath:
-                    filepath = new_filepath
-            else:
-                cin_scen_path = Path(get_tags_path(), relative_path(scene_nwo.cinematic_scenario))
-                if cin_scen_path.exists() and cin_scen_path.is_file() and cin_scen_path.is_absolute():
-                    filepath = str(cin_scen_path)
-        
         if not filepath or not Path(filepath).exists() or Path(filepath).suffix.lower() != ".scenario" or settings.game_default == "last":
             filepath = project.last_scenario
             if not filepath:
@@ -833,6 +832,13 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
                 report({'WARNING'}, f'Could not save last scenario: {error}')
 
     run_ek_cmd(args, True)
+    if legacy_sapien and prefs.copy_scenario_path_on_sapien_launch and filepath:
+        scenario_path = Path(filepath)
+        if scenario_path.is_file() and scenario_path.suffix.lower() == ".scenario":
+            full_path = str(scenario_path.resolve())
+            bpy.context.window_manager.clipboard = full_path
+            if report:
+                report({'INFO'}, f"Copied scenario tag path to clipboard: {full_path}")
 
 def open_file_explorer_default(is_tags, tags_dir, data_dir):
     if is_tags:
@@ -1135,7 +1141,7 @@ class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
         description="Select whether to open Sapien / Tag Test and select a scenario, open the current scenario asset if it exists, or load the last scenario launched",
         default="asset",
         options=set(),
-        items=[("default", "Browse", "Opens a file browser. If no valid scenario is selected, fallsback to the last scenario launched"), ("asset", "Asset", "Loads the asset scenario where supported, or starts legacy Sapien's browser in its folder. Otherwise opens the file browser"), ("last", "Last", "Loads to the last scenario launched for the current project")],
+        items=[("default", "Browse", "Opens a file browser. If no valid scenario is selected, fallsback to the last scenario launched"), ("asset", "Asset", "Loads the asset scenario where supported, or copies its path for legacy Sapien when enabled in preferences. Otherwise opens the file browser"), ("last", "Last", "Loads to the last scenario launched for the current project")],
     )
 
     open_model: bpy.props.BoolProperty(

@@ -1055,6 +1055,11 @@ def convert(src: str, corinth: bool) -> str:
     return corinth_to_lisp(src)
 
 
+def encode_script_data(text: str) -> bytes:
+    """Terminate nonempty tag script text so the editor preserves its final byte."""
+    return text.encode('utf-8') + b'\x00' if text else b''
+
+
 def script_from_text(corinth: bool, raw_text: str = "", text_file: bpy.types.Text = None, use_text_file: bool | None = None):
     """Returns valid halo script from raw text, or the optional text file."""
 

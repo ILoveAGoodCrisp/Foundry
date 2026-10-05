@@ -3,6 +3,7 @@ from math import degrees, isfinite
 from types import SimpleNamespace
 from .backend import TagDocument
 from .blender import BlenderTag
+from .cinematic_script import encode_script_data
 
 
 class CinematicCameraDocument(TagDocument):
@@ -20,7 +21,7 @@ class CinematicCameraDocument(TagDocument):
         script = self.required_field(element, name).as_struct()
         if script is None:
             raise TypeError(f'{self.path}: {name!r} is not a script structure')
-        self._write_value(script, 'script', text.encode('utf-8'))
+        self._write_value(script, 'script', encode_script_data(text))
 
     def _write_vector(self, element, name, value):
         field = self.required_field(element, name)
