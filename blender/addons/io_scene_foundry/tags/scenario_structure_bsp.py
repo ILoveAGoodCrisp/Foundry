@@ -472,14 +472,14 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             ob[prefix+'source_bsp'] = self.path
             portals_collection.objects.link(ob)
             objects.append(ob)
-        if recovered_outline_count:
-            utils.print_step(f'Recovered {recovered_outline_count} portal outlines through solid structure')
+        # if recovered_outline_count:
+        #     utils.print_step(f'Recovered {recovered_outline_count} portal outlines through solid structure')
         # Align to the actual shared authoring mesh after all portal expansion
         # and reconstruction. A tag-space native contact can differ from the
         # recovered renderer; the finished mesh is what ordinary export uses.
         snapped = snap_portal_vertices(objects, structure_objects, 0.01 * 100 * import_transform.scale_factor())
-        if snapped:
-            utils.print_step(f'Aligned {snapped} portal vertices to structure')
+        # if snapped:
+        #     utils.print_step(f'Aligned {snapped} portal vertices to structure')
         return objects
 
     _create_classic_portals = _create_tag_portals

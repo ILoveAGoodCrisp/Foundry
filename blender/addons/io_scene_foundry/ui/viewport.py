@@ -461,7 +461,13 @@ class NWO_MT_PIE_ApplyTypeMarker(bpy.types.Menu):
         layout = self.layout
 
         pie = layout.menu_pie()
-        pie.operator_enum("nwo.mesh_to_marker", "marker_type")
+        from ..tools.mesh_to_marker import NWO_MeshToMarker
+        items = NWO_MeshToMarker.items_marker_type(None, context)
+        for index, (identifier, label, _, icon, _) in enumerate(items):
+            if index == 7 and len(items) > 8:
+                overflow = pie.column(align=True)
+            target = overflow if len(items) > 8 and index >= 7 else pie
+            target.operator('nwo.mesh_to_marker', text=label, icon_value=icon).marker_type = identifier
 
 
 class NWO_PIE_ApplyTypeMarker(bpy.types.Operator):
@@ -550,6 +556,12 @@ class NWO_OT_ApplyTypeMarker(bpy.types.Operator):
                 index += 1
                 items.append(utils.nwo_enum("lightcone", "Light Cone", "", "light_cone", index)),
 
+        if asset_type in {'scenario', 'resource'}:
+            for kind, label, icon in (('decal', 'Decal', 'marker'), ('decorator', 'Decorator', 'decorator'),
+                                      ('player_start', 'Player Starting Location', 'marker'), ('cutscene_flag', 'Cutscene Flag', 'marker'),
+                                      ('scenario_object', 'Scenario Object', 'game_object')):
+                index += 1
+                items.append(utils.nwo_enum(kind, label, '', icon, index))
         return items
 
     m_type: bpy.props.EnumProperty(
@@ -587,6 +599,9 @@ class NWO_OT_ApplyTypeMarker(bpy.types.Operator):
                 display = 'SPHERE'
             case "game_instance":
                 marker_type = "_connected_geometry_marker_type_game_instance"
+            case 'decal' | 'decorator' | 'player_start' | 'cutscene_flag' | 'scenario_object':
+                marker_type = '_connected_geometry_marker_type_' + self.m_type
+                display = 'ARROWS'
             case "airprobe":
                 marker_type = "_connected_geometry_marker_type_airprobe"
                 display = 'SPHERE'
@@ -599,7 +614,7 @@ class NWO_OT_ApplyTypeMarker(bpy.types.Operator):
 
     def execute(self, context):
         prefix_setting = utils.get_prefs().apply_prefix
-        marker_type = ""
+        marker_type, display_type = self.get_marker_type()
         original_selection = context.selected_objects
         original_active = context.object
 

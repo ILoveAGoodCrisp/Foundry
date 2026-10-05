@@ -5,6 +5,7 @@ import bpy
 from .decorator_exporter import NWO_OT_DecoratorCloudToInstances, NWO_OT_ExportDecorators, NWO_OT_GetDecoratorTypes
 from .airprobe_exporter import NWO_OT_ExportAirprobes
 from .decal_exporter import NWO_OT_ExportDecals
+from .scenario.objects import NWO_OT_RefreshScenarioObjects, NWO_OT_SelectChildScenario
 
 from .scenario.wetness import NWO_OT_GenerateWetnessData
 from .scenario.decal_export import NWO_OT_ExportHalo1DecalPlacements
@@ -268,6 +269,8 @@ classes = (
     NWO_OT_ExportDecorators,
     NWO_OT_ExportAirprobes,
     NWO_OT_ExportDecals,
+    NWO_OT_RefreshScenarioObjects,
+    NWO_OT_SelectChildScenario,
     NWO_OT_GetDecoratorTypes,
     NWO_OT_DecoratorCloudToInstances,
     NWO_OT_InstancerToInstance,

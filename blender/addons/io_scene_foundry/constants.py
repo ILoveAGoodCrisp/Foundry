@@ -154,6 +154,8 @@ object_asset_validation = {
     '_connected_geometry_marker_type_physics_constraint': ('model', 'resource', 'multi_model'),
     '_connected_geometry_marker_type_target': ('model', 'resource', 'multi_model'),
     '_connected_geometry_marker_type_game_instance': ('scenario', 'prefab', 'resource', 'multi_prefab'),
+    **{f'_connected_geometry_marker_type_{kind}': ('scenario', 'resource')
+       for kind in ('decal', 'decorator', 'player_start', 'cutscene_flag', 'scenario_object')},
     '_connected_geometry_marker_type_airprobe': ('scenario', 'prefab', 'resource', 'multi_prefab'),
     '_connected_geometry_marker_type_envfx': ('scenario', 'prefab', 'resource', 'multi_prefab'),
     '_connected_geometry_marker_type_lightCone': ('scenario', 'prefab', 'resource', 'multi_prefab'),
@@ -189,6 +191,8 @@ object_game_validation = {
     '_connected_geometry_marker_type_physics_constraint': ('reach', 'corinth'),
     '_connected_geometry_marker_type_target': ('reach', 'corinth'),
     '_connected_geometry_marker_type_game_instance': ('reach', 'corinth'),
+    **{f'_connected_geometry_marker_type_{kind}': ('reach', 'corinth')
+       for kind in ('decal', 'decorator', 'player_start', 'cutscene_flag', 'scenario_object')},
     '_connected_geometry_marker_type_airprobe': ('reach', 'corinth'),
     '_connected_geometry_marker_type_envfx': ('corinth',),
     '_connected_geometry_marker_type_lightCone': ('corinth',),

@@ -522,7 +522,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 # self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
                 self.draw_rig_ui(self.context, nwo)
                 
-            elif nwo.asset_type == 'sky':
+            elif nwo.asset_type == 'sky' and project.game not in {'halo1', 'halo2'}:
                 box = self.box.box()
                 col = box.column()
                 col.use_property_split = True
@@ -551,10 +551,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 self.draw_expandable_box(self.box.box(), nwo, 'lighting')
                 project = utils.get_project(nwo.scene_project)
                 game = utils.get_game(nwo.scene_project, use_external=False)
-                if game == 'halo1':
-                    self.draw_expandable_box(self.box.box(), nwo, 'decals')
-                if game == 'reach' or self.h4:
-                    self.draw_expandable_box(self.box.box(), nwo, 'decorators')
+                self.draw_expandable_box(self.box.box(), nwo, 'decals')
+                self.draw_expandable_box(self.box.box(), nwo, 'decorators')
+                self.box.prop(nwo, 'player_starts_from_blender')
+                self.box.prop(nwo, 'camera_points_from_blender')
+                self.draw_expandable_box(self.box.box(), nwo, 'scenario_objects')
                 if game == 'reach':
                     self.draw_expandable_box(self.box.box(), nwo, 'airprobes')
                 # self.draw_expandable_box(self.box.box(), nwo, 'objects')
@@ -878,6 +879,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.prop(prop_group, text_prop if getattr(prop_group, use_text_prop) else script_prop)
         row.prop(prop_group, use_text_prop, text="", icon='TEXT', toggle=True)
     
+    def draw_scenario_objects(self, box: bpy.types.UILayout, nwo):
+        from ...tags.scenario_objects import object_types, authoring_property
+        project = utils.get_project(nwo.scene_project)
+        for block, *_ in object_types(project.game if project else 'reach'):
+            box.prop(nwo, authoring_property(block))
+        box.operator('nwo.refresh_scenario_objects', icon='FILE_REFRESH')
+
     def draw_scenario(self, box: bpy.types.UILayout, nwo):
         tag_path = utils.get_asset_tag(".scenario")
         if tag_path:
@@ -916,7 +924,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         box_decorators.label(text="Decorators")
         box_decorators.prop(nwo, "decorators_from_blender")
         if self.h4:
-            box_decorators.prop(nwo, "decorators_from_blender_child_scenario")
+            row = box_decorators.row(align=True)
+            row.prop(nwo, "decorators_from_blender_child_scenario")
+            row.operator('nwo.select_child_scenario', text='', icon='VIEWZOOM').scene_property = 'decorators_from_blender_child_scenario'
         if not nwo.decorators_from_blender:
             return
         box_decorators.operator("nwo.export_decorators", icon='EXPORT')
@@ -1264,13 +1274,16 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         draw_tag_path(col, nwo, "template_model_animation_graph")
         col.separator()
         draw_tag_path(col, nwo, "parent_animation_graph", set_row_split=True)
+        project = utils.get_project(nwo.scene_project)
         row = col.row()
         row.use_property_split = True
-        row.prop(nwo, "forced_animation_compression")
-        row = col.row()
-        row.use_property_split = True
-        row.enabled = nwo.forced_animation_compression == 'none'
-        row.prop(nwo, "default_animation_compression", text="Default Animation Compression")
+        if project and project.game == 'halo1':
+            row.prop(nwo, "compress_all_animations")
+            row = col.row()
+            row.use_property_split = True
+            row.prop(nwo, "force_idle_compression")
+        else:
+            row.prop(nwo, "forced_animation_compression")
         row = col.row()
         row.use_property_split = True
         row.prop(nwo, "frame_events_from_blender")
@@ -1817,6 +1830,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if (self.h4 and utils.poll_ui(('model', 'scenario', 'multi_model'))) or utils.poll_ui(('scenario', 'prefab', 'resource', 'multi_prefab')):
             grid.prop(nwo, "connected_geometry_marker_type_airprobe_visible", text="", icon_value=get_icon_id("airprobe") if nwo.connected_geometry_marker_type_airprobe_visible else get_icon_id("airprobe_off"), emboss=False)
         if asset_type == 'scenario':
+            grid.prop(nwo, 'connected_geometry_marker_type_scenario_object_visible', text='', icon_value=get_icon_id('scenario'), emboss=False)
             grid.prop(nwo, "connected_geometry_marker_type_game_instance_visible", text="", icon_value=get_icon_id("game_object") if nwo.connected_geometry_marker_type_game_instance_visible else get_icon_id("game_object_off"), emboss=False)
             if self.h4:
                 grid.prop(nwo, "connected_geometry_marker_type_envfx_visible", text="", icon_value=get_icon_id("environment_effect") if nwo.connected_geometry_marker_type_envfx_visible else get_icon_id("environment_effect_off"), emboss=False)
@@ -2362,6 +2376,26 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     
             box.label(text=txt)
         
+        if ob.type == 'CAMERA' and self.asset_type == 'scenario':
+            from ...tags.scenario_markers import block_fields
+            camera_box = box.box()
+            camera_box.label(text='Cutscene Camera Point', icon='CAMERA_DATA')
+            camera_box.prop(self.scene_nwo, 'camera_points_from_blender')
+            from ...tools.scenario.objects import draw_child_scenario
+            draw_child_scenario(camera_box, nwo, project.game if project else 'reach')
+            fields = block_fields(project.game if project else 'reach', 'cutscene camera points')
+            col = camera_box.column()
+            col.enabled = self.scene_nwo.camera_points_from_blender and nwo.export_this
+            col.prop(nwo, 'camera_point_name')
+            if 'type' in fields:
+                col.prop(nwo, 'camera_point_type')
+                col.prop(nwo, 'camera_point_edit_as_relative')
+            if 'zone set' in fields:
+                col.prop(nwo, 'camera_point_zone_set')
+            if 'field of view' in fields:
+                col.prop(ob.data, 'angle', text='Field of View')
+            return
+
         instanced = ob.is_instancer and ob.instance_collection and ob.instance_collection.all_objects
         if instanced:
             box.prop(nwo, "marker_instance")
@@ -2385,6 +2419,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if bpy.ops.nwo.get_cinematic_model_variants.poll():
                     row.operator_menu_enum("nwo.get_cinematic_model_variants", "variant", icon="DOWNARROW_HLT", text="")
 
+                col.prop(nwo, "cinematic_animation_compression")
                 col.operator("nwo.update_actor", icon='FILE_REFRESH')
                 if not nwo.attachments:
                     armature_col.operator("nwo.actor_attachment_add", text="New Attachment", icon='ADD')
@@ -2958,6 +2993,17 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.use_property_split = True
                 self.draw_table_menus(col, nwo, ob)
 
+            if nwo.marker_type in {'_connected_geometry_marker_type_scenario_object', '_connected_geometry_marker_type_decal',
+                                  '_connected_geometry_marker_type_decorator', '_connected_geometry_marker_type_player_start',
+                                  '_connected_geometry_marker_type_cutscene_flag'}:
+                from ...tools.scenario.objects import draw_child_scenario
+                draw_child_scenario(col, nwo, project.game if project else 'reach')
+
+            if nwo.marker_type == '_connected_geometry_marker_type_scenario_object':
+                from ...tools.scenario.objects import draw_scenario_object
+                draw_scenario_object(col, nwo, project.game if project else 'reach')
+                return
+
             if nwo.marker_type in (
                 "_connected_geometry_marker_type_model",
                 "_connected_geometry_marker_type_garbage",
@@ -3001,23 +3047,66 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                             row.label(text="No permutations in include list", icon="ERROR")
 
 
+            elif nwo.marker_type == '_connected_geometry_marker_type_decal':
+                draw_tag_path(col, nwo, 'marker_decal_tag_name')
+                project = utils.get_project()
+                game = project.game if project else 'reach'
+                if game in {'halo3', 'halo3odst'}:
+                    col.prop(nwo, 'scenario_bsp_index')
+                elif game not in {'halo1', 'halo2'}:
+                    col.prop(nwo, 'decal_manual_bsps')
+                    if h4:
+                        col.prop(nwo, 'decal_force_planar')
+                        col.prop(nwo, 'decal_cull_angle')
+            elif nwo.marker_type == '_connected_geometry_marker_type_decorator':
+                draw_tag_path(col, nwo, 'marker_decorator_tag_name')
+                project = utils.get_project()
+                game = project.game if project else 'reach'
+                if game == 'halo1':
+                    col.prop(nwo, 'scenario_bsp_index')
+                    col.prop(nwo, 'detail_object_sprite_index')
+                elif game in {'halo3', 'halo3odst'}:
+                    col.prop(nwo, 'scenario_bsp_index', text='Editor Bound to BSP')
+                row = col.row(align=True)
+                row.prop(
+                    nwo,
+                    "marker_game_instance_tag_variant_name",
+                    text="Decorator Type",
+                )
+                if bpy.ops.nwo.get_decorator_types.poll():
+                    row.operator_menu_enum("nwo.get_decorator_types", "decorator_type", icon="DOWNARROW_HLT", text="")
+                col.separator()
+                if game == 'halo2':
+                    col.prop(nwo, 'decorator_permutation_index')
+                    col.prop(nwo, 'decorator_cluster_index')
+                elif game != 'halo1':
+                    col.prop(nwo, "decorator_motion_scale")
+                    col.prop(nwo, "decorator_ground_tint")
+                col.prop(nwo, "decorator_tint")
+                if game != 'halo1':
+                    col.operator('nwo.import_game_instance_tag', icon='IMPORT')
+            elif nwo.marker_type == '_connected_geometry_marker_type_player_start':
+                from ...tags.scenario_markers import PLAYER_FIELDS, block_fields, enum_options
+                project = utils.get_project()
+                game = project.game if project else 'reach'
+                fields = block_fields(game, 'player starting locations')
+                for prop, field in PLAYER_FIELDS.items():
+                    if field in fields:
+                        col.prop(nwo, prop)
+                if 'flags' in fields:
+                    col.prop(nwo, 'player_start_survival')
+                    if len(enum_options(game, 'player starting locations', 'flags')) > 1:
+                        col.prop(nwo, 'player_start_survival_elite')
+            elif nwo.marker_type == '_connected_geometry_marker_type_cutscene_flag':
+                col.prop(nwo, 'cutscene_flag_name')
+                if utils.get_project() and utils.get_project().game not in {'halo1', 'halo2'}:
+                    col.prop(nwo, 'scenario_editor_folder')
+                if h4:
+                    col.prop(nwo, 'scenario_bsp_index', text='Source BSP')
             elif nwo.marker_type == "_connected_geometry_marker_type_game_instance":
                 draw_tag_path(col, nwo, "marker_game_instance_tag_name")
                 tag_name = Path(nwo.marker_game_instance_tag_name).suffix.lower()
-                if tag_name == ".decorator_set":
-                    row = col.row(align=True)
-                    row.prop(
-                        nwo,
-                        "marker_game_instance_tag_variant_name",
-                        text="Decorator Type",
-                    )
-                    if bpy.ops.nwo.get_decorator_types.poll():
-                        row.operator_menu_enum("nwo.get_decorator_types", "decorator_type", icon="DOWNARROW_HLT", text="")
-                    col.separator()
-                    col.prop(nwo, "decorator_motion_scale")
-                    col.prop(nwo, "decorator_ground_tint")
-                    col.prop(nwo, "decorator_tint")
-                elif not tag_name in (".prefab", ".cheap_light", ".light", ".leaf", ".decal"):
+                if tag_name not in (".prefab", ".cheap_light", ".light", ".leaf"):
                     row = col.row(align=True)
                     row.prop(
                         nwo,
@@ -3944,9 +4033,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(animation, 'animation_movement_data')     
             elif animation.animation_type == 'replacement':
                 row.prop(animation, 'animation_space', expand=True)
-            row = col.row()
-            row.use_property_split = True
-            row.prop(animation, "compression", text="Compression")
+            if not project or project.game != 'halo1':
+                row = col.row()
+                row.use_property_split = True
+                row.prop(animation, "compression", text="Compression")
             col.separator()
             row = col.row(align=False)
             row.use_property_split = False

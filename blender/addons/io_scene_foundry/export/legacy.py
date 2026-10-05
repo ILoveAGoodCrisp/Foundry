@@ -24,7 +24,7 @@ from blam_tags import RealRgbColor
 from mathutils import Matrix, Quaternion, Vector
 
 from .process import ExportScene
-from .cinematic import CinematicScene
+from .cinematic import CinematicScene, set_actor_animation_compression
 from .legacy_materials import material_variant
 from .cleanup import ANIMATION_EXTENSIONS, prune_intermediates
 from .shader_collections import ShaderCollections
@@ -196,6 +196,7 @@ class LegacyExportScene(ExportScene):
         self.granny_textures = False
         self.warned_shader_paths = set()
         self.shader_name_cache = {}
+        self.halo1_two_sided_shaders = set()
         self.skipped_legacy_animations = set()
 
     def export_legacy(self, single_animation=False):
@@ -376,6 +377,8 @@ class LegacyExportScene(ExportScene):
                         self.skipped_legacy_animations.add(animation.name)
                         continue
                     outputs.append((Path(self.asset_path, 'animations', filename(animation.name.replace(':', ' ')) + self.animation_extension(animation)), animation_text))
+                    if animation.suspension:
+                        self.suspension_animations[animation.name.replace(' ', ':')] = animation
             utils.update_job_count(process, '', preparation_count, preparation_count)
         if self.external_animations:
             self.warnings.append('Legacy export of external animation files is not implemented. Skipping external animations')
@@ -580,7 +583,12 @@ class LegacyExportScene(ExportScene):
             path.is_file() and path.suffix.lower().startswith('.jm')
             for path in animation_dir.iterdir()))
         import_animations = (single_animation or self.has_blend_animations()) and has_animation_sources
+        graph_extension = ('model_animations' if self.target_game == 'halo1'
+                           else 'model_animation_graph')
+        graph_path = Path(self.tags_dir, self.asset_path_relative,
+                          self.asset_name).with_suffix('.' + graph_extension)
         if import_animations:
+            self.write_animation_compression(graph_path, single_animation)
             command = 'animations' if self.target_game == 'halo1' else 'model-animations'
             animation_tool_options = dict(halo1_tool_options)
             if self.target_game == 'halo1':
@@ -590,17 +598,44 @@ class LegacyExportScene(ExportScene):
             utils.run_tool([command, self.asset_path_relative],
                            event_level=self.export_settings.event_level,
                            **animation_tool_options)
-        graph_extension = ('model_animations' if self.target_game == 'halo1'
-                           else 'model_animation_graph')
-        graph_path = Path(self.tags_dir, self.asset_path_relative,
-                          self.asset_name).with_suffix('.' + graph_extension)
+            # New animations only acquire tag entries on the first import.
+            # Compile again if their requested compression differs from Tool's default.
+            if self.write_animation_compression(graph_path, single_animation):
+                utils.run_tool([command, self.asset_path_relative],
+                               event_level=self.export_settings.event_level,
+                               **animation_tool_options)
+        elif self.target_game == 'halo1' and graph_path.is_file():
+            self.write_animation_compression(graph_path, single_animation)
         if import_animations or (self.scene_settings.blend_screens_from_blender
                                  and graph_path.is_file()):
             self.write_classic_animation_events()
         if self.target_game == 'halo1' and import_animations:
+            self.write_vehicle_suspension(graph_path)
             self.validate_halo1_animation_skeleton()
         if self.asset_type.name in {'MODEL', 'SKY'}:
             self.write_object_tags()
+
+    def write_animation_compression(self, graph_path: Path, single_animation=False) -> bool:
+        if self.target_game != 'halo1' and not graph_path.is_file():
+            return False
+        with AnimationGraphTag(graph_path, tag_must_exist=False) as graph:
+            if self.target_game == 'halo1':
+                graph.set_halo1_compression(self.scene_settings.compress_all_animations,
+                                           self.scene_settings.force_idle_compression)
+            else:
+                if single_animation:
+                    animations = [SimpleNamespace(name=Path(bpy.data.filepath).stem,
+                                                  compression='Medium')]
+                else:
+                    animations = list(self.scene_settings.animations)
+                    if self.export_settings.export_animations == 'ACTIVE':
+                        index = self.scene_settings.active_animation_index
+                        animations = animations[index:index + 1] if index >= 0 else []
+                    animations = [animation for animation in animations
+                                  if animation.export_this
+                                  and animation.name not in self.skipped_legacy_animations]
+                graph.set_compression(animations, self.scene_settings.forced_animation_compression)
+            return graph.tag_has_changes
 
     def has_blend_animations(self):
         """Disk intermediates alone must never opt an asset into animation import."""
@@ -814,6 +849,18 @@ class LegacyExportScene(ExportScene):
         if self.target_game != 'halo1':
             return
         shader_root = Path(self.tags_dir, self.asset_path_relative)
+
+        def enable_two_sided(path):
+            # Model JMS has no face-side flags. Promote the shared asset shader
+            # if any of its faces require two-sided rendering.
+            if (shader_type != 'shader_model' or path.suffix.lower() != '.shader_model'
+                    or path.stem.casefold() not in self.halo1_two_sided_shaders):
+                return
+            with TagDocument(path, tags_root=self.tags_dir, game='halo1', must_exist=True) as shader:
+                properties = shader.required_field(shader.tag.root(), 'properties').as_struct()
+                shader.required_field(properties, 'flags').set_flag('two sided', True)
+                shader.tag_has_changes = True
+
         if not self.shader_collections.halo1_names_reserved:
             self.shader_collections.reserve_halo1_paths(
                 slot.material.nwo.shader_path for ob in self.ob_halo_data
@@ -844,7 +891,9 @@ class LegacyExportScene(ExportScene):
                     r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+',
                     '',
                     material.name,
-                ).strip().rstrip("%#?!@*$^-&=.;><|~({]}[' ")
+                ).strip()
+                if shader_type != 'shader_model':
+                    name = name.rstrip("%#?!@*$^-&=.;><|~({]}[' ")
                 if not name or name.startswith('+'):
                     continue
                 name = filename(name)
@@ -879,8 +928,12 @@ class LegacyExportScene(ExportScene):
                         materials[name.casefold()] = {
                             mat.name: (mat, destination) for mat, _ in candidates}
                         existing.add(name.casefold())
+                        enable_two_sided(destination)
                         continue
                 if name.casefold() in existing:
+                    for path in shader_root.rglob('*'):
+                        if path.is_file() and path.stem.casefold() == name.casefold():
+                            enable_two_sided(path)
                     if candidates:
                         fallback = next((path for path in shader_root.rglob('*')
                                          if path.is_file() and path.stem.casefold() == name.casefold()
@@ -904,6 +957,7 @@ class LegacyExportScene(ExportScene):
                             RealRgbColor(channel, channel, channel))
                         shader.tag_has_changes = True
                 existing.add(name.casefold())
+                enable_two_sided(destination)
                 for mat, _ in candidates:
                     mat.nwo.shader_path = utils.relative_path(destination)
                 print(f'--- Created {destination}')
@@ -1255,7 +1309,11 @@ class LegacyExportScene(ExportScene):
             if self.target_game == 'halo1' and props.get('bungie_mesh_type') == 13:
                 if node.ob.nwo.is_property_set('portal_exact'):
                     props['foundry_portal_exact'] = node.ob.nwo.portal_exact
-            name, lighting = material_variant(shader, props, gm, ass_version, self.target_game)
+            halo1_model = self.target_game == 'halo1' and not self.supports_bsp
+            if halo1_model and node.tag_type == 'render' and props.get('bungie_face_sides') in {2, 3, 4, 5, 6, 7}:
+                self.halo1_two_sided_shaders.add(shader.casefold())
+            name, lighting = material_variant(shader, props, gm, ass_version, self.target_game,
+                                             model=halo1_model)
             if props.get('foundry_weather_polyhedron') and self.target_game != 'halo1':
                 name = '+weather'
             if node.tag_type in {'collision', 'physics'}:
@@ -1388,6 +1446,23 @@ class LegacyExportScene(ExportScene):
         cache = {}
         for node in nodes:
             foundry_output._raise_if_cancel_requested()
+            if self.target_game == 'halo1' and node.tag_type == 'physics':
+                # H1 Tool builds mass points from JMS markers, not triangles.
+                # Collision meshes share this folder and still need geometry.
+                if node.props.get('bungie_mesh_primitive_type') != '_connected_geometry_primitive_type_sphere':
+                    raise ExportCancelled(f'{node.name}: Halo 1 physics mass points must be spheres')
+                parent = self.parent_index(node, implied_root=True)
+                matrix = node.matrix_world
+                if parent != -1 and self.bones:
+                    matrix = self.bones[parent].matrix_world.inverted() @ matrix
+                if not asset.regions:
+                    # Tool requires a region even for a marker-only physics JMS.
+                    asset.regions.append('default')
+                asset.markers.append(jms.Marker(
+                    node.name.lstrip('$'), -1, parent,
+                    transform(matrix, self.to_halo_scale),
+                    float(node.props['bungie_mesh_primitive_sphere_radius'])))
+                continue
             materials = self.face_materials(node, asset, cache)
             if folder == 'physics' and self.jms_version >= 8206:
                 if len({m[0] for m in materials.values()}) > 1:
@@ -1519,6 +1594,10 @@ class LegacyExportScene(ExportScene):
                 marker_name = f'({name} {region}){node.name}' if nwo.marker_uses_regions and self.jms_version >= 8205 else node.name
                 asset.markers.append(jms.Marker(marker_name, asset.regions.index(region) if nwo.marker_uses_regions else -1,
                     parent, transform(matrix, self.to_halo_scale), node.props.get('bungie_mesh_primitive_sphere_radius', 1)))
+        if self.target_game == 'halo1' and folder == 'physics' and asset.markers and not asset.materials:
+            # Tool also requires a material to build its intermediate model,
+            # even though mass points do not reference any faces or shaders.
+            asset.materials.append(jms.Material('default', '<none>'))
         if self.asset_type.name in {'PARTICLE_MODEL', 'DECORATOR_SET'}:
             asset_label = self.asset_type.name.lower().replace('_', '-')
             vertex_bones = []
@@ -1786,6 +1865,10 @@ class LegacyExportScene(ExportScene):
             return
         for graph_path, actor in self.cinematic_graph_actors.items():
             source_dir = Path(graph_path).parent
+            destination = Path(self.tags_dir, graph_path)
+            if destination.is_file():
+                with AnimationGraphTag(path=graph_path) as graph:
+                    set_actor_animation_compression(graph, actor)
             print(f'--- Compiling cinematic animation graph: {actor.name}')
             utils.run_tool(['model-animations', source_dir], event_level=self.export_settings.event_level)
             destination = Path(self.tags_dir, graph_path)
@@ -1800,6 +1883,12 @@ class LegacyExportScene(ExportScene):
                     raise ExportCancelled(f'{actor.name}: Tool did not compile cinematic animations: {", ".join(sorted(missing))}')
                 if graph.get_nodes() != list(actor.node_order or ()):
                     raise ExportCancelled(f'{actor.name}: compiled cinematic skeleton does not match the render model')
+                compression_changed = set_actor_animation_compression(graph, actor)
+            if compression_changed:
+                # New shot animations only acquire entries on the first compilation.
+                utils.run_tool(['model-animations', source_dir], event_level=self.export_settings.event_level)
+                with AnimationGraphTag(path=graph_path) as graph:
+                    set_actor_animation_compression(graph, actor)
 
     def jma_text(self, animation, *, bones=None, bone_parents=None):
         bones = self.bones if bones is None else bones
@@ -1970,6 +2059,7 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
             elif classic_scenario:
                 export.update_scenario_skies()
                 export.export_scenario_decals()
+                export.export_scenario_marker_tags()
             if (project.game in {'halo1', 'halo2'} and scene_settings.asset_type == 'scenario' and
                     export_settings.lightmap_structure):
                 scenario_path = Path(export.asset_path_relative, export.asset_name)

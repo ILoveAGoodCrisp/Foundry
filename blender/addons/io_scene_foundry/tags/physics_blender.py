@@ -1,6 +1,7 @@
 """Native physics import; unsupported shapes fail before object allocation."""
 from .blender import BlenderTag
 from .physics import PhysicsDocument, PhysicsShapesUnsupported
+from .render_model import RenderModelMetadataTag
 from .model_permutations import select_model_records
 from .connected_geometry import Constraint, Sphere, Box, Pill, Polyhedron, RigidBody, HavokCollision
 from mathutils import Matrix
@@ -26,10 +27,7 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
             records = self.primitive_bodies(include_serialized=True)
             records = select_model_records(records, variant)
             if self.game == 'halo1' and armature is not None:
-                bones = list(armature.pose.bones)
-                for record in records:
-                    if 0 <= record.node_index < len(bones):
-                        record.bone = bones[record.node_index].name
+                self._resolve_halo1_bones(records, armature)
             shapes = []
             for record in records:
                 if record.kind == 'serialized':
@@ -74,6 +72,23 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
             collection.objects.link(ob)
             objects.append(ob)
         return objects
+
+    def _resolve_halo1_bones(self, records, armature):
+        # Mass-point indices refer to the model tag's node block. Blender's
+        # bone collection is reordered by hierarchy and may include controls.
+        assigned = [record for record in records if record.node_index != -1]
+        if not assigned:
+            return
+        source = armature.nwo.node_order_source.strip()
+        if not source:
+            raise ValueError('Halo 1 physics requires the armature model tag for node order')
+        with RenderModelMetadataTag(path=self.tags_root / source) as model:
+            model.read_only = True
+            nodes = model.get_nodes()
+        for record in assigned:
+            if not 0 <= record.node_index < len(nodes):
+                raise ValueError(f'Halo 1 physics mass point {record.name!r} model node index is out of range')
+            record.bone = nodes[record.node_index]
 
     def _parent_constraint(self, constraint, ob, armature):
         bone = constraint.bone_parent

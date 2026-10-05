@@ -903,7 +903,7 @@ class Sidecar:
         for actor, animations in cin_scene.actor_animations.items():
             actor_content_object = ET.SubElement(content, "ContentObject", Name=actor.name, Type="model_animation_graph", Sidecar=actor.sidecar)
             for animation in animations:
-                network = ET.SubElement(actor_content_object, "ContentNetwork", Name=animation.name, Type="Base", ShotId=str(animation.shot_index + 1), ModelAnimationMovementData="None")
+                network = ET.SubElement(actor_content_object, "ContentNetwork", Name=animation.name, Type="Base", ShotId=str(animation.shot_index + 1), ModelAnimationMovementData="None", Compression=actor.compression)
                 if self.corinth:
                     network.attrib["PCA"] = str(animation.is_pca).capitalize()
                 ET.SubElement(network, "IntermediateFile").text = animation.gr2_path

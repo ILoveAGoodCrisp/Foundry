@@ -117,7 +117,15 @@ def extensions_from_type(list_type):
         case "marker_game_instance_tag_name":
             return (".crate", ".scenery", ".effect_scenery", ".device_control", ".device_machine", ".device_terminal",
                         ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment",
-                        ".prefab", ".light", ".cheap_light", ".leaf", ".decorator_set", ".decal")
+                        ".prefab", ".light", ".cheap_light", ".leaf")
+        case 'marker_decal_tag_name':
+            return ('.decal',) if project and project.game in {'halo1', 'halo2'} else ('.decal_system',)
+        case 'marker_decorator_tag_name':
+            return ('.detail_object_collection',) if halo1 else ('.decorator_set',)
+        case 'scenario_object_tag_name':
+            from ..tags.scenario_objects import object_types
+            return tuple('.' + row[2] for row in object_types(project.game if project else 'reach')
+                         if row[0] == bpy.context.object.nwo.scenario_object_type)
         case 'marker_looping_effect':
             return (".effect")
         case 'marker_light_cone_tag':
@@ -330,7 +338,13 @@ def get_glob_from_prop(prop):
         case 'sky_path':
             return '*.sky;*.scenery'
         case 'marker_game_instance_tag_name':
-            return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light;dec*_set;*.decal"
+            return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light"
+        case 'marker_decal_tag_name':
+            return '*.decal' if project and project.game in {'halo1', 'halo2'} else '*.decal_system'
+        case 'marker_decorator_tag_name':
+            return '*.detail_object_collection' if halo1 else '*.decorator_set'
+        case 'scenario_object_tag_name':
+            return ';'.join('*' + extension for extension in extensions_from_type(prop))
         case 'attachment_type':
             return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light;dec*_set"
         case 'fog_appearance_tag':

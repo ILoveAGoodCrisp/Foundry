@@ -41,6 +41,7 @@ from .project_config import (
     write_kit_settings, write_project_records,
 )
 from . import foundry_output
+from .tool_process import check_tool_process, shader_prompt_error, MonitoredToolProcess
 from .tools.node_layout import layout_nodes as arrange
 from .constants import OBJECT_TAG_EXTS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR
 from .tools.materials import special_materials, convention_materials
@@ -145,6 +146,15 @@ frame_event_types = {
 # shader exts #
 shader_exts = (
     ".shader",
+    ".shader_environment",
+    ".shader_model",
+    ".shader_transparent_chicago",
+    ".shader_transparent_chicago_extended",
+    ".shader_transparent_generic",
+    ".shader_transparent_glass",
+    ".shader_transparent_meter",
+    ".shader_transparent_plasma",
+    ".shader_transparent_water",
     ".shader_cortana",
     ".shader_custom",
     ".shader_decal",
@@ -563,19 +573,21 @@ def _run_prepared_tool(command, project_dir, output_stream, tool_type, stage,
                        input_data, log_warnings, tmp_log):
     
     if in_background:
+        def launch_background(command, cwd, **kwargs):
+            return MonitoredToolProcess(_popen_tool, command, cwd, **kwargs)
         if log_file:
             foundry_output.watch_file(getattr(log_file, "name", None), f"{tool_type}: {stage}")
-            return _popen_tool(command, project_dir, stdout=log_file, stderr=log_file, tool_patches=tool_patches)
+            return launch_background(command, project_dir, stdout=log_file, stderr=log_file, tool_patches=tool_patches)
         elif null_output:
-            return _popen_tool(command, project_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, tool_patches=tool_patches)
+            return launch_background(command, project_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, tool_patches=tool_patches)
         elif log_warnings:
             file = open(tmp_log, "w")
             try:
-                return _popen_tool(command, project_dir, stdout=output_stream, stderr=file, tool_patches=tool_patches)
+                return launch_background(command, project_dir, stdout=output_stream, stderr=file, tool_patches=tool_patches)
             finally:
                 file.close()
         else:
-            return _popen_tool(command, project_dir, stdout=output_stream, stderr=output_stream, tool_patches=tool_patches)
+            return launch_background(command, project_dir, stdout=output_stream, stderr=output_stream, tool_patches=tool_patches)
     else:
         if null_output:
             return _check_call_tool(command, project_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, tool_patches=tool_patches, input_data=input_data)
@@ -592,25 +604,32 @@ def _run_prepared_tool(command, project_dir, output_stream, tool_type, stage,
 
 def _check_call_tool(command, cwd, stdout=None, stderr=None, tool_patches=None, input_data=None):
     if input_data is None:
-        process = _popen_tool(command, cwd, stdout=stdout, stderr=stderr, tool_patches=tool_patches)
-        returncode = process.wait()
+        return check_tool_process(_popen_tool, command, cwd, stdout, stderr,
+                                  tool_patches, stdin=subprocess.DEVNULL)
     else:
-        # Preload input without capturing output: Tool can buffer its prompt
-        # when redirected to the output window, making prompt detection hang.
+        # Preload known responses rather than waiting for a potentially
+        # buffered prompt. Shader-creation prompts still abort the command.
         with tempfile.TemporaryFile() as input_stream:
             input_stream.write(input_data)
             input_stream.seek(0)
-            process = _popen_tool(command, cwd, stdout=stdout, stderr=stderr,
-                                  tool_patches=tool_patches, stdin=input_stream)
-            returncode = process.wait()
-    if returncode:
-        raise subprocess.CalledProcessError(returncode, command)
-    return 0
+            return check_tool_process(_popen_tool, command, cwd, stdout, stderr,
+                                      tool_patches, stdin=input_stream)
         
 def _tool_output_reader(pipe, q, source):
+    pending = b''
     try:
-        for line in iter(pipe.readline, b''):
-            q.put((source, line))
+        while data := os.read(pipe.fileno(), 4096):
+            pending += data
+            if shader_prompt_error(pending):
+                q.put((source, pending))
+                pending = b''
+            else:
+                lines = pending.split(b'\n')
+                pending = lines.pop()
+                for line in lines:
+                    q.put((source, line + b'\n'))
+        if pending:
+            q.put((source, pending))
     finally:
         q.put((source, None))
 
@@ -1158,6 +1177,11 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
                 continue
 
             line = item.decode(errors="replace").rstrip("\r\n")
+            prompt_error = shader_prompt_error(item)
+            if prompt_error:
+                p.kill()
+                p.wait(timeout=5)
+                raise prompt_error
             line = _tool_structured_output_text(line)
             watchdog.observe(line, now)
             if ('failed to construct composite triangulation' in line.lower()
@@ -2075,7 +2099,7 @@ def get_tag_editor_icon_id():
     if get_prefs().tag_editor == "baboon":
         icon = "baboon"
     elif project_game_for_mcc(None) in {"HaloReach", "Halo4", "Halo2A"}:
-        icon = "foundation"
+        icon = "bonobo"
     else:
         icon = "Guerilla"
     return get_icon_id(icon)
@@ -2402,6 +2426,16 @@ def library_instanced_collection(ob):
 
 def get_marker_display(mesh_type, ob):
     match mesh_type:
+        case '_connected_geometry_marker_type_decal':
+            return 'Decal', get_icon_id('marker')
+        case '_connected_geometry_marker_type_decorator':
+            return 'Decorator', get_icon_id('decorator')
+        case '_connected_geometry_marker_type_player_start':
+            return 'Player Starting Location', get_icon_id('marker')
+        case '_connected_geometry_marker_type_cutscene_flag':
+            return 'Cutscene Flag', get_icon_id('marker')
+        case '_connected_geometry_marker_type_scenario_object':
+            return 'Scenario Object', get_icon_id('game_object')
         case '_connected_geometry_marker_type_effects':
             return 'Effects', get_icon_id('effects')
         case '_connected_geometry_marker_type_garbage':
@@ -4179,6 +4213,10 @@ class DebugMenuType(Enum):
 CAMERA_SYNC_DEBUG_NAME = "foundry_camera_sync"
     
 def update_debug_menu(asset_dir="", asset_name="", update_type=DebugMenuType.DEFAULT, bsp_names=[]):
+    project = get_project()
+    if project and project.game == "halo1":
+        return
+
     menu_commands: list[DebugMenuCommand] = []
     match update_type:
         case DebugMenuType.DEFAULT:
@@ -6144,6 +6182,12 @@ def set_two_sided(mesh, is_io=False, match_collision_patches=False):
 
     to_remove = set()
     two_sided = np.zeros(len(mesh.polygons), dtype=np.int8)
+    render_only = set()
+    for prop in mesh.nwo.face_props:
+        if prop.type == 'face_mode' and prop.face_mode == 'render_only':
+            attribute = mesh.attributes.get(prop.attribute_name)
+            if attribute is not None:
+                render_only.update(i for i, value in enumerate(attribute.data) if value.value)
     if match_collision_patches:
         from .tags.collision_patches import opposite_patches
         # Face overrides are part of the identity, not just the shader slot.
@@ -6165,8 +6209,16 @@ def set_two_sided(mesh, is_io=False, match_collision_patches=False):
                 if f2.index in to_remove:
                     continue
                 if f1.material_index == f2.material_index and {verts[v].co.to_tuple() for v in f1.vertices} == {verts[v].co.to_tuple() for v in reversed(f2.vertices)}:
+                    # A compiler-generated render backside may overlap the
+                    # real mapped solid boundary. Retain that physical face's
+                    # winding, UVs and properties instead of turning the first
+                    # (possibly render-only) face into a non-manifold sheet.
+                    if (f1.index in render_only) != (f2.index in render_only):
+                        to_remove.add(f1.index if f1.index in render_only else f2.index)
+                        break
                     to_remove.add(f2.index)
-                    two_sided[f1.index] = True
+                    if f1.normal.dot(f2.normal) < -0.98:
+                        two_sided[f1.index] = True
                     break
 
     if match_collision_patches:
@@ -6203,7 +6255,7 @@ def set_two_sided(mesh, is_io=False, match_collision_patches=False):
             add_face_prop(mesh, "face_sides")
         elif is_io:
             return
-        else:
+        elif two_sided.any():
             add_face_prop(mesh, "face_sides", two_sided)
         
         preserve_normals = mesh.has_custom_normals

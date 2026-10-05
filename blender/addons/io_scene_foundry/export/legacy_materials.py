@@ -4,7 +4,7 @@ from math import degrees
 
 
 def material_variant(shader, props, global_material='default', ass_version=None,
-                     target_game=None):
+                     target_game=None, model=False):
     def get(name, default=0):
         return props.get('bungie_' + name, default)
 
@@ -53,7 +53,10 @@ def material_variant(shader, props, global_material='default', ass_version=None,
         flags[9] = bool(get('mesh_portal_ai_deafening'))
         # Later games' symbols are not H1 material flags.
         flags = [flag and symbol in '%#!@*$^-&' for flag, symbol in zip(flags, suffixes)]
-    name += ''.join(s for flag, s in zip(flags, suffixes) if flag)
+    # CE's model compiler resolves these characters as part of the shader
+    # filename. Only its BSP compiler interprets material flag suffixes.
+    if not (target_game == 'halo1' and model):
+        name += ''.join(s for flag, s in zip(flags, suffixes) if flag)
     if water_surface:
         name += "'"
     legacy_resolution = target_game in {'halo1', 'halo2', 'halo3', 'halo3odst'}

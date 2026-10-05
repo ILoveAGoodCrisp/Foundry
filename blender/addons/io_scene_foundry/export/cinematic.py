@@ -3,6 +3,7 @@ from collections import defaultdict
 from enum import Enum
 from math import degrees, isfinite
 from pathlib import Path
+from types import SimpleNamespace
 import bpy
 from mathutils import Euler
 
@@ -12,6 +13,7 @@ from ..tags.cinematic_script import script_from_text
 from ..tags.object_blender import ObjectTag
 from ..tags.model_blender import ModelTag
 from ..tags.animation_graph import AnimationGraphTag
+from ..tags.animation_compression import export_animation_compression
 from ..tags.cinematic_scene import CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicMusic, CinematicObjectFunctionKeyframe, NativeCinematicSceneTag
 from ..tags.cinematic import CinematicSceneDataTag
 
@@ -228,6 +230,12 @@ class ActorLighting(Enum):
     PERSIST = 1
     PER_SHOT = 2
 
+def set_actor_animation_compression(graph: AnimationGraphTag, actor) -> bool:
+    graph.set_compression(
+        (SimpleNamespace(name=name, compression=actor.compression)
+         for name in graph.animation_names()), 'none')
+    return graph.tag_has_changes
+
 class Actor:
     def __init__(self, ob: bpy.types.Object, scene_name: str, asset_path: str, child_asset_name="", export_name=""):
         self.ob = ob
@@ -256,6 +264,8 @@ class Actor:
         self.shots_high_res = []
         self.node_order = None
         self.variant = ob.nwo.cinematic_variant
+        self.compression = export_animation_compression(
+            'Uncompressed', ob.nwo.cinematic_animation_compression)
         self.validation_complete = False
         self.lighting = ActorLighting[ob.nwo.cinematic_lighting]
         self.lighting_marker = utils.clean_text(ob.nwo.cinematic_lighting_marker)
@@ -320,6 +330,7 @@ class Frame:
         self.forward = forward.normalized().to_tuple()
         # (game aperture from globals * blender focal length) / blender sensor width
         self.focal_length = (film_aperture * data.lens) / max(data.sensor_width, 0.000001)
+        # print(film_aperture, data.lens, data.sensor_width, self.focal_length)
         self.depth_of_field = int(dof.enabled)
 
         self.near_focal_plane_distance = dof.near_focal_plane_distance

@@ -114,31 +114,53 @@ class CinematicScenarioDocument(TagDocument):
         if not self.path_exists(reference):
             return
         with TagDocument(reference, tags_root=self.tags_root, game=self.game,
+                         definitions=self.definitions,
                          must_exist=True) as resource:
             destination = resource.tag.root()
+            if destination.field('cinematics') is None:
+                # Serialized older resources have no cinematics field, even
+                # when the current editing kit exposes it. Upgrade the layout
+                # before adding entries, preserving all existing shared data.
+                schema = resource.definitions / resource.definitions_profile / 'scenario_cinematics_resource.json'
+                upgraded = resource.api.TagFile.new(schema)
+                self._copy_resource_fields(destination, upgraded.root())
+                resource._tag = upgraded
+                destination = resource.tag.root()
             # Older H3/ODST resources contain only flags, camera points and
             # recorded animations. Their flags also use fixed strings instead
             # of string IDs and omit editor folders. Copy values into the
             # resource's own layout rather than assuming identical blocks.
             for target_name, source_name in (('cinematics', 'cinematics'),
                                              ('flags', 'cutscene flags')):
-                if target_name == 'cinematics' and destination.field(target_name) is None:
-                    continue
                 target = resource.block(destination, target_name)
                 source = self.block(root, source_name)
                 target.clear()
                 for entry in source:
                     element = target[target.add()]
-                    for field in element.fields():
-                        source_field = entry.field(field.name) if field.name else None
-                        if source_field is not None:
-                            if field.type_name in {'byte flags', 'word flags', 'long flags'}:
-                                source_names = source_field.options().names
-                                for name in field.options().names:
-                                    field.set_flag(name, name in source_names and source_field.get_flag(name))
-                            else:
-                                field.set(source_field.value)
+                    self._copy_resource_fields(entry, element)
             resource.tag_has_changes = True
+
+    @classmethod
+    def _copy_resource_fields(cls, source, destination):
+        for field in destination.fields():
+            source_field = source.field(field.name) if field.name else None
+            if source_field is None:
+                continue
+            if field.type_name == 'block':
+                target = field.as_block()
+                for entry in source_field.as_block():
+                    cls._copy_resource_fields(entry, target[target.add()])
+            elif field.type_name == 'struct':
+                cls._copy_resource_fields(source_field.as_struct(), field.as_struct())
+            elif field.type_name == 'array':
+                for entry, target in zip(source_field.as_array(), field.as_array()):
+                    cls._copy_resource_fields(entry, target)
+            elif field.type_name in {'byte flags', 'word flags', 'long flags'}:
+                source_names = source_field.options().names
+                for name in field.options().names:
+                    field.set_flag(name, name in source_names and source_field.get_flag(name))
+            else:
+                field.set(source_field.value)
 
     def scenario_type(self):
         return self.value(self.tag.root(), 'type')

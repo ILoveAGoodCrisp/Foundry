@@ -89,16 +89,7 @@ class NWO_ScenarioSkiesUpdate(bpy.types.Operator):
     bl_description = 'Write the ordered Blender skies list to the scenario tag'
 
     def execute(self, context):
-        tags_root = Path(utils.get_tags_path()).resolve()
-        paths = []
-        for index, item in enumerate(utils.get_scene_props().scenario_skies):
-            path = Path(item.path)
-            resolved = (tags_root / path).resolve()
-            if (not item.path or path.suffix.lower() not in {'.sky', '.scenery'}
-                    or not resolved.is_relative_to(tags_root) or not resolved.is_file()):
-                self.report({'ERROR'}, f'Sky {index + 1} must be an existing sky or scenery tag inside the tags folder')
-                return {'CANCELLED'}
-            paths.append(str(resolved.relative_to(tags_root)))
+        paths = [item.path for item in utils.get_scene_props().scenario_skies]
         try:
             with ScenarioMetadataTag() as scenario:
                 scenario.set_skies(paths)

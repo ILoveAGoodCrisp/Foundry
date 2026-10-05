@@ -7,10 +7,12 @@ from math import cos, isfinite, pi, sin, sqrt
 from pathlib import Path
 import shutil
 import struct
+import warnings
 from typing import TYPE_CHECKING
 
 from .backend import TagDocument, TagPathInput, TagReference
 from .blender import BlenderTag
+from .scenario_markers import block_definition, block_fields
 
 if TYPE_CHECKING:
     import blam_tags
@@ -55,6 +57,9 @@ class ScenarioDecalPlacement:
     palette_index: int = -1
     yaw: int = 0
     pitch: int = 0
+    flags: int = 0
+    cull_angle: float = 0.0
+    bsp_index: int = -1
 
 
 @dataclass(frozen=True)
@@ -63,6 +68,31 @@ class ScenarioDecalExport:
     position: tuple[float, float, float]
     yaw: int
     pitch: int
+    rotation: tuple[float, float, float, float] = (0., 0., 0., 1.)
+    scale: tuple[float, float] = (1., 1.)
+    bsps: frozenset[int] = frozenset()
+    flags: int = 0
+    cull_angle: float = 0.0
+    bsp_index: int = -1
+
+
+@dataclass(frozen=True)
+class ScenarioMarkerPlacement:
+    name: str
+    position: tuple[float, float, float]
+    rotation: tuple[float, float, float]
+    options: dict[str, int]
+
+
+@dataclass(frozen=True)
+class ScenarioCameraPoint:
+    name: str
+    position: tuple[float, float, float]
+    orientation: tuple[float, float, float]
+    field_of_view: float
+    camera_type: int = 0
+    edit_as_relative: bool = False
+    zone_set_index: int = -1
 
 
 @dataclass(frozen=True)
@@ -87,6 +117,10 @@ class ScenarioDecoratorPlacement:
     motion_scale: int
     ground_tint: int
     tint: tuple[float, float, float]
+    permutation_index: int = 0
+    cluster_index: int = -1
+    bsp_index: int = -1
+    sprite_index: int = 0
 
 
 @dataclass(frozen=True)
@@ -100,20 +134,89 @@ class ScenarioDocument(TagDocument):
     """Game-independent scenario operations used by import and export."""
 
     def _set_value(self, struct, name: str, value: object) -> None:
-        self.required_field(struct, name).set(value)
+        field = self.required_field(struct, name)
+        options = field.options()
+        if options is not None and options.is_flags and isinstance(value, int):
+            for bit, flag, _ in options.flags:
+                field.set_flag(flag, bool(value & (1 << bit)))
+        else:
+            field.set(value)
+        self.tag_has_changes = True
+
+    def camera_points(self) -> list[ScenarioCameraPoint]:
+        fields = block_fields(self.game, 'cutscene camera points')
+        points = []
+        for row in self.block(self.tag.root(), 'cutscene camera points'):
+            orientation = self.value(row, 'orientation')
+            flags = row.field('flags')
+            points.append(ScenarioCameraPoint(str(self.value(row, 'name')),
+                tuple(self.value(row, 'position').to_array()),
+                (orientation.yaw, orientation.pitch, orientation.roll),
+                float(self.value(row, 'field of view')) if 'field of view' in fields else 0.,
+                self.required_field(row, 'type').options().current if 'type' in fields else 0,
+                any(name == 'edit as relative' and enabled for _, name, enabled in flags.options().flags) if flags is not None else False,
+                int(self.value(row, 'zone set')) if 'zone set' in fields else -1))
+        return points
+
+    def replace_camera_points(self, points: Iterable[ScenarioCameraPoint]) -> None:
+        """Replace the camera points block after validating every authored camera."""
+        from .scenario_markers import enum_options
+        from .scenario_objects import context_block
+        points = list(points)
+        block_name = 'cutscene camera points'
+        fields = block_fields(self.game, block_name)
+        if len(points) > block_definition(self.game, block_name)['max_count']:
+            raise ValueError('Too many cutscene camera points')
+        if len({point.name for point in points}) != len(points):
+            raise ValueError('Cutscene camera point names must be unique')
+        root = self.tag.root()
+        for point in points:
+            if not point.name.strip() or len(point.name.encode('utf-8')) > 31:
+                raise ValueError(f'Invalid cutscene camera point name: {point.name!r} (maximum 31 UTF-8 bytes)')
+            if len(point.position) != 3 or len(point.orientation) != 3:
+                raise ValueError(f'{point.name}: invalid camera transform')
+            try:
+                values = struct.unpack('<6f', struct.pack('<6f', *point.position, *point.orientation))
+            except (OverflowError, struct.error) as exc:
+                raise ValueError(f'{point.name}: camera transform is outside the supported range') from exc
+            if not all(isfinite(value) for value in values):
+                raise ValueError(f'{point.name}: invalid camera transform')
+            if 'field of view' in fields and not 0 < point.field_of_view < pi:
+                raise ValueError(f'{point.name}: invalid camera field of view')
+            if 'type' in fields and not 0 <= point.camera_type < len(enum_options(self.game, block_name, 'type')):
+                raise ValueError(f'{point.name}: invalid camera point type')
+            if ('zone set' in fields and point.zone_set_index != -1 and
+                    not 0 <= point.zone_set_index < len(context_block(self, 'zone sets'))):
+                raise ValueError(f'{point.name}: invalid camera point zone set')
+        self.block(root, block_name).clear()
+        for point in points:
+            index = self.block(root, block_name).add()
+            row = self.block(root, block_name)[index]
+            self._set_value(row, 'name', point.name)
+            for name, values in (('position', point.position), ('orientation', point.orientation)):
+                field = self.required_field(row, name)
+                field.set(type(field.value)(*values))
+            if 'field of view' in fields:
+                self._set_value(row, 'field of view', point.field_of_view)
+            if 'type' in fields:
+                self._set_value(row, 'type', point.camera_type)
+                self._set_value(row, 'flags', int(point.edit_as_relative))
+            if 'zone set' in fields:
+                self._set_value(row, 'zone set', point.zone_set_index)
         self.tag_has_changes = True
 
     def replace_decals(self, placements: Iterable[ScenarioDecalExport]) -> None:
         """Rebuild palette and placements, including clearing an empty export."""
-        if self.game != 'halo1':
-            raise ValueError('Scenario decal export is currently supported for Halo 1')
         placements = list(placements)
-        if len(placements) > 65536:
-            raise ValueError('Halo 1 supports at most 65536 decal placements')
+        from .scenario_objects import bsp_references
+        bsp_refs = bsp_references(self)
+        if len(placements) > block_definition(self.game, 'decals')['max_count']:
+            raise ValueError('Too many scenario decal placements')
         definitions = {}
         for placement in placements:
             path = placement.definition.replace('\\', '/')
-            if (not path or Path(path).suffix.lower() != '.decal' or
+            extension = '.decal' if self.game in {'halo1', 'halo2'} else '.decal_system'
+            if (not path or Path(path).suffix.lower() != extension or
                     Path(path).is_absolute() or '..' in Path(path).parts):
                 raise ValueError(f'Invalid decal tag path: {placement.definition!r}')
             if not (self.tags_root / path).is_file():
@@ -128,9 +231,20 @@ class ScenarioDocument(TagDocument):
                 raise ValueError('Decal position is outside the supported range')
             if not all(isinstance(v, int) and -128 <= v <= 127 for v in (placement.yaw, placement.pitch)):
                 raise ValueError('Invalid decal angle bytes')
+            if not all(isfinite(v) for v in (*placement.rotation, *placement.scale, placement.cull_angle)):
+                raise ValueError('Invalid decal rotation, scale or cull angle')
+            bsp_count = len(bsp_refs)
+            if any(not 0 <= i < bsp_count for i in placement.bsps):
+                raise ValueError('Invalid decal manual BSP index')
+            if self.game == 'reach' and any(i >= 16 for i in placement.bsps):
+                raise ValueError('Reach decals support manual BSP indices 0 through 15')
+            if self.game in {'halo4', 'halo2a'} and len(placement.bsps) > 32:
+                raise ValueError('Decals support at most 32 manual BSP references')
+            if placement.bsp_index != -1 and not 0 <= placement.bsp_index < bsp_count:
+                raise ValueError('Invalid decal BSP index')
             definitions.setdefault(path.casefold(), path)
-        if len(definitions) > 32767:
-            raise ValueError('Halo 1 supports at most 32767 decal palette entries')
+        if len(definitions) > block_definition(self.game, 'decal palette')['max_count']:
+            raise ValueError('Too many scenario decal palette entries')
         root = self.tag.root()
         self.block(root, 'decals').clear()
         self.block(root, 'decal palette').clear()
@@ -145,14 +259,120 @@ class ScenarioDocument(TagDocument):
             rows = self.block(root, 'decals')
             index = rows.add()
             row = self.block(root, 'decals')[index]
-            self._set_value(row, 'decal type', indices[placement.definition.replace('\\', '/').casefold()])
+            self._set_value(row, 'decal type' if self.game in {'halo1', 'halo2'} else 'decal palette index',
+                            indices[placement.definition.replace('\\', '/').casefold()])
             point = self.required_field(row, 'position')
             point.set(type(point.value)(*placement.position))
-            yaw = row.field('yaw[-127,127]')
-            pitch = row.field('pitch[-127,127]')
-            (yaw if yaw is not None else self.required_field(row, 'yaw')).set(placement.yaw)
-            (pitch if pitch is not None else self.required_field(row, 'pitch')).set(placement.pitch)
+            if self.game in {'halo1', 'halo2'}:
+                yaw = row.field('yaw[-127,127]')
+                pitch = row.field('pitch[-127,127]')
+                (yaw if yaw is not None else self.required_field(row, 'yaw')).set(placement.yaw)
+                (pitch if pitch is not None else self.required_field(row, 'pitch')).set(placement.pitch)
+            else:
+                rotation = self.required_field(row, 'rotation')
+                rotation.set(type(rotation.value)(*placement.rotation))
+                if row.field('scale x') is not None:
+                    self._set_value(row, 'scale x', placement.scale[0])
+                    self._set_value(row, 'scale y', placement.scale[1])
+                else:
+                    self._set_value(row, 'scale', placement.scale[0])
+                bound = row.field('editing bound to bsp')
+                if bound is not None:
+                    bound.set(placement.bsp_index)
+                manual = row.field('manual bsp flags')
+                if manual is not None:
+                    flags_struct = manual.as_struct()
+                    if flags_struct is None:
+                        manual.set(sum(1 << i for i in placement.bsps))
+                    else:
+                        refs = self.block(flags_struct, 'references block')
+                        for bsp_index in sorted(placement.bsps):
+                            index = refs.add()
+                            refs = self.block(flags_struct, 'references block')
+                            self.set_reference(refs[index], 'structure design', bsp_refs[bsp_index])
+                        mask = (1 << len(placement.bsps)) - 1
+                        self._set_value(flags_struct, 'flags', mask if mask < 0x80000000 else mask - 0x100000000)
+                if row.field('flags') is not None:
+                    self._set_value(row, 'flags', placement.flags)
+                    self._set_value(row, 'cull angle', placement.cull_angle)
         self.tag_has_changes = True
+
+    def marker_placements(self, block_name: str) -> list[ScenarioMarkerPlacement]:
+        """Read authored player starts and cutscene flags without runtime fields."""
+        from .scenario_markers import PLAYER_FIELDS
+        fields = block_fields(self.game, block_name)
+        result = []
+        for index, row in enumerate(self.block(self.tag.root(), block_name)):
+            point = self.value(row, 'position').to_array()
+            facing = self.value(row, 'facing')
+            if block_name == 'player starting locations':
+                rotation = (float(facing), float(self.value(row, 'pitch')) if 'pitch' in fields else 0., 0.)
+                options = {name: self.required_field(row, name).options().current if 'enum' in fields[name]['type']
+                           else int(self.value(row, name)) for name in PLAYER_FIELDS.values() if name in fields}
+                if 'flags' in fields:
+                    options['flags'] = sum(1 << bit for bit, _, enabled in self.required_field(row, 'flags').options().flags if enabled)
+                name = f'player_start_{index}'
+            else:
+                rotation = (facing.yaw, facing.pitch, getattr(facing, 'roll', 0.))
+                options = {name: int(self.value(row, name)) for name in ('editor folder', 'source bsp') if name in fields}
+                name = str(self.value(row, 'name'))
+            result.append(ScenarioMarkerPlacement(name, tuple(point), rotation, options))
+        return result
+
+    def write_marker_placements(self, block_name: str, placements: Iterable[ScenarioMarkerPlacement]) -> None:
+        """Replace opted-in starts; merge named flags to preserve cinematic anchors."""
+        placements = list(placements)
+        if block_name not in {'player starting locations', 'cutscene flags'}:
+            raise ValueError(f'Unsupported scenario marker block: {block_name}')
+        fields = block_fields(self.game, block_name)
+        root = self.tag.root()
+        rows = self.block(root, block_name)
+        names = {str(self.value(row, 'name')): index for index, row in enumerate(rows)} if block_name == 'cutscene flags' else {}
+        if block_name == 'cutscene flags' and len({p.name for p in placements}) != len(placements):
+            raise ValueError('Cutscene flag names must be unique')
+        count = len(names.keys() | {p.name for p in placements}) if names else len(placements)
+        if count > block_definition(self.game, block_name)['max_count']:
+            raise ValueError(f'Too many {block_name}')
+        for placement in placements:
+            if not all(isfinite(v) for v in (*placement.position, *placement.rotation)):
+                raise ValueError(f'{placement.name}: invalid marker transform')
+            if block_name == 'cutscene flags' and (not placement.name.strip() or
+                    self.game in {'halo1', 'halo2'} and len(placement.name.encode('utf-8')) > 31):
+                raise ValueError(f'Invalid cutscene flag name: {placement.name!r}')
+            for name, value in placement.options.items():
+                if name not in fields:
+                    raise ValueError(f'{self.game} does not support {name} for {block_name}')
+                field = fields[name]
+                if 'enum' in field['type']:
+                    from .scenario_markers import enum_options
+                    if not 0 <= value < len(enum_options(self.game, block_name, name)):
+                        raise ValueError(f'Invalid {name}: {value}')
+                target = 'editor folders' if name == 'editor folder' else 'structure bsps' if name in {'bsp index', 'source bsp'} else None
+                if target is not None and value != -1 and not 0 <= value < len(self.block(root, target)):
+                    raise ValueError(f'Invalid {name}: {value}')
+        if block_name == 'player starting locations':
+            rows.clear()
+        for placement in placements:
+            rows = self.block(root, block_name)
+            index = names.get(placement.name)
+            if index is None:
+                index = rows.add()
+            row = self.block(root, block_name)[index]
+            position = self.required_field(row, 'position')
+            position.set(type(position.value)(*placement.position))
+            yaw, pitch, roll = placement.rotation
+            facing = self.required_field(row, 'facing')
+            if block_name == 'cutscene flags':
+                self._set_value(row, 'name', placement.name)
+                facing.set(type(facing.value)(*((yaw, pitch, roll) if fields['facing']['type'] == 'real_euler_angles_3d' else (yaw, pitch))))
+            else:
+                facing.set(yaw)
+                if 'pitch' in fields:
+                    self._set_value(row, 'pitch', pitch)
+            for name, value in placement.options.items():
+                self._set_value(row, name, value)
+        if placements or block_name == 'player starting locations':
+            self.tag_has_changes = True
 
     def update_halo1_decal_placements(self, updates: Iterable[ScenarioDecalUpdate]) -> int:
         """Update existing placements, rejecting stale rows before any mutation.
@@ -934,8 +1154,24 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                     scale = (uniform_scale, uniform_scale)
             bsps = set()
             flags = element.field('manual bsp flags')
-            if flags is not None and not self.corinth:
-                bsps.update(self._active_indices(flags.value, 32))
+            if flags is not None:
+                manual = flags.as_struct()
+                if manual is None:
+                    bsps.update(self._active_indices(flags.value, 32))
+                else:
+                    refs = self.block(manual, 'references block')
+                    mask = int(self.value(manual, 'flags')) & 0xffffffff
+                    scenario_bsps = [self.reference(row, 'structure bsp') for row in self.block(root, 'structure bsps')]
+                    for ref_index, row in enumerate(refs):
+                        reference_bsp = self.reference(row, 'structure design')
+                        if mask & (1 << ref_index) and reference_bsp in scenario_bsps:
+                            bsps.add(scenario_bsps.index(reference_bsp))
+            bound = element.field('editing bound to bsp')
+            bound_index = int(bound.value) if bound is not None else -1
+            if bound_index >= 0:
+                bsps.add(bound_index)
+            placement_flags = element.field('flags')
+            cull = element.field('cull angle')
             placements.append(ScenarioDecalPlacement(
                 name=reference.ShortName if reference is not None else 'decal',
                 definition=definition,
@@ -951,6 +1187,9 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 palette_index=int(palette_index),
                 yaw=yaw if classic else 0,
                 pitch=pitch if classic else 0,
+                flags=sum(1 << bit for bit, _, enabled in placement_flags.options().flags if enabled) if placement_flags is not None else 0,
+                cull_angle=float(cull.value) if cull is not None else 0.,
+                bsp_index=bound_index,
             ))
         return placements
 
@@ -988,6 +1227,7 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                     motion_scale=motion_scale,
                     ground_tint=ground_tint,
                     tint=(tint.x, tint.y, tint.z),
+                    bsp_index=int(self.value(placement, 'editor bound to bsp')) if placement.field('editor bound to bsp') is not None else -1,
                 ))
             result.append(ScenarioDecoratorSet(
                 definition=reference.RelativePathWithExtension,
@@ -1186,6 +1426,8 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                     ground_tint=255,
                     tint=self._halo2_decorator_tint(
                         self.value(placement, 'tint color')),
+                    permutation_index=permutation_index,
+                    cluster_index=int(self.value(group, 'cluster')),
                 ))
         result = []
         for set_index, placements in placements_by_set.items():
@@ -1291,36 +1533,53 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
         return sky_name, sky_index
 
     def set_skies(self, paths):
-        """Replace the ordered skies block while preserving other object-name indices."""
-        paths = list(paths)
+        """Replace skies, retaining empty/invalid slots so sky indices stay stable."""
+        sky_paths = []
+        sky_extension = '.sky' if self.game in {'halo1', 'halo2'} else '.scenery'
         for path in paths:
-            if not path or Path(path).suffix.lower() not in {'.sky', '.scenery'} or Path(path).is_absolute() or '..' in Path(path).parts:
-                raise ValueError(f'Invalid sky tag path: {path!r}')
+            if not path or str(path).strip() in {'', '.'}:
+                sky_paths.append('')
+                continue
+            tag_path = Path(path)
+            resolved = (self.tags_root / tag_path).resolve()
+            if (tag_path.suffix.lower() != sky_extension
+                    or tag_path.drive or tag_path.is_absolute() or '..' in tag_path.parts
+                    or not resolved.is_relative_to(self.tags_root)):
+                warnings.warn(f'Invalid sky tag path: {path!r}; leaving sky slot empty',
+                              RuntimeWarning, stacklevel=2)
+                sky_paths.append('')
+                continue
+            sky_paths.append(str(tag_path.with_suffix(tag_path.suffix.lower())))
+        paths = sky_paths
         root = self.tag.root()
         skies = self.block(root, 'skies')
         has_name = self.game not in {'halo1', 'halo2'}
         if has_name:
             object_names = self.block(root, 'object names')
             name_indices = [self.value(element, 'name') for element in skies]
-        if len(skies):
+        if len(skies) or paths:
             self.tag_has_changes = True
         skies.clear()
         for sky_index, path in enumerate(paths):
             skies = self.block(root, 'skies')
             skies.add()
             skies = self.block(root, 'skies')
-            self.set_reference(skies[sky_index], 'sky', path)
+            self.set_reference(skies[sky_index], 'sky', path or None)
             if has_name:
+                if not path:
+                    self._set_value(skies[sky_index], 'name', -1)
+                    continue
                 name_index = name_indices[sky_index] if sky_index < len(name_indices) else -1
                 if not isinstance(name_index, int) or not 0 <= name_index < len(object_names):
                     name_index = object_names.add()
                     object_names = self.block(root, 'object names')
                 self._set_value(object_names[name_index], 'name', Path(path).stem)
                 self._set_value(skies[sky_index], 'name', name_index)
-        if self.corinth and paths:
+        first_sky = next((index for index, path in enumerate(paths) if path), None)
+        if self.corinth and first_sky is not None:
             for element in self.block(root, 'structure bsps'):
                 if self.value(element, 'default sky') == -1:
-                    self._set_value(element, 'default sky', 0)
+                    self._set_value(element, 'default sky', first_sky)
 
     def set_bsp_default_sky(self, bsp_name, sky_index):
         element = self._bsp(bsp_name)
@@ -1396,3 +1655,10 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
         shutil.copy2(self.system_path, destination)
         with ScenarioMetadataTag(destination) as copy:
             copy.set_scenario_type(0)
+            resources_field = copy.tag.root().field('scenario resources')
+            if resources_field is not None:
+                for resource in resources_field.as_block():
+                    split_field = resource.field('new split resources')
+                    if split_field is not None:
+                        split_field.as_block().clear()
+                        copy.tag_has_changes = True

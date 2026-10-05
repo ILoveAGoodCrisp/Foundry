@@ -436,7 +436,7 @@ class InstanceDefinition:
             from .bsp_import_geometry import (reconnect_collinear_triangles, retriangulate_render_slivers,
                                               repair_collision_triangulation)
             weld_classic_vertices(self.blender_render.data)
-            reconnect_collinear_triangles(self.blender_render.data)
+            reconnect_collinear_triangles(self.blender_render.data, 0.025 * import_transform.scale_factor())
             if retriangulate_render_slivers(self.blender_render.data, 0.025 * import_transform.scale_factor()):
                 weld_classic_vertices(self.blender_render.data)
             if getattr(utils.get_project(), 'game', None) == 'reach':
@@ -1807,6 +1807,7 @@ class StructureCollision(BSP):
         result.sphere_collision_only = all(surface.invisible for surface in result.surfaces)
         result.some_sphere_collision = any(surface.invisible for surface in result.surfaces)
         result.sky_index = sky_index
+        result.mark_opposite_surfaces()
         return result
 
     def get_surface_vertex_indices(self, surface):
@@ -3069,7 +3070,8 @@ class Mesh:
     def from_native(cls, record: 'StructureBspRenderMesh',
                     materials: list['Material'], corinth: bool,
                     geometry_record: 'StructureBspRenderMesh | None' = None,
-                    reverse_winding: bool = False, preserve_source: bool = False):
+                    reverse_winding: bool = False, preserve_source: bool = False,
+                    preserve_overlapping_faces: bool = False):
         geometry = record if geometry_record is None else geometry_record
         mesh = cls.__new__(cls)
         mesh.tag_path = None
@@ -3090,6 +3092,7 @@ class Mesh:
         mesh.valid = bool(mesh.parts and mesh.subparts)
         mesh.does_not_need_parts = False
         mesh.from_vert_normals = False
+        mesh.preserve_overlapping_faces = preserve_overlapping_faces
         mesh.corinth = corinth
         mesh.is_pca = False
         mesh.uncompressed = False
@@ -3954,7 +3957,10 @@ class Mesh:
 
         if source_geometry is None and not mesh.nwo.from_vert_normals:
             utils.save_loop_normals_mesh(mesh)
-            utils.set_two_sided(mesh, is_io)
+            # H1 model sidedness belongs to the shader. Retain compiled LOD
+            # faces instead of replacing overlaps with geometry face flags.
+            if not getattr(self, 'preserve_overlapping_faces', False):
+                utils.set_two_sided(mesh, is_io)
             utils.apply_loop_normals(mesh)
             # utils.loop_normal_magic(mesh)
             

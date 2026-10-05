@@ -57,6 +57,14 @@ class DecoratorSetTag(BlenderTag, TagDocument):
         self.tag_has_changes = True
         
     def get_decorator_types(self) -> list[DecoratorType]:
+        if self.game == 'halo1':
+            result = []
+            for index, row in enumerate(self.block(self.tag.root(), 'types')):
+                item = DecoratorType()
+                item.decorator_type_index = index
+                item.decorator_type_name = str(self.value(row, 'name')) or str(index)
+                result.append(item)
+            return result
         if self.game == 'halo2':
             decorator_types = []
             for index, element in enumerate(self.block(self.tag.root(), 'classes')):

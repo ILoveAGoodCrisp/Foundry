@@ -5,6 +5,7 @@ import bpy
 from ..constants import VALID_MESHES
 
 from ..tools.halo_export import export_quick, export
+from ..tools.game_launcher_options import LEGACY_PRUNING_COMMANDS, LEGACY_SETTINGS
 
 from ..tags.lightmapper_globals import LightmapperGlobalsTag
 
@@ -121,7 +122,7 @@ class NWO_OT_ProjectChooser(bpy.types.Operator):
     bl_idname = "nwo.project_select"
     bl_description = "Select the project this asset is rooted under"
     bl_property = "project_name"
-    bl_options = set()
+    bl_options = {'UNDO'}
 
     @classmethod
     def poll(self, context):
@@ -191,6 +192,14 @@ class NWO_HaloLauncherGameSettings(bpy.types.Panel):
         draw_game_launcher_settings(scene_nwo_halo_launcher, col)
 
 def draw_game_launcher_settings(scene_nwo_halo_launcher, col):
+    game = utils.project_game_for_mcc(bpy.context)
+    if game in LEGACY_SETTINGS:
+        # Use the selected project, rather than the Reach/H4 engine split.
+        for prop in ("use_play", "insertion_point_index", "initial_zone_set",
+                     "custom_functions", "show_debugging", "run_game_scripts", "forge"):
+            if prop in LEGACY_SETTINGS[game]:
+                col.prop(scene_nwo_halo_launcher, prop)
+        return
     row = col.row()
     row.prop(scene_nwo_halo_launcher, "use_play")
     col.separator()
@@ -225,6 +234,10 @@ class NWO_HaloLauncherGamePruneSettings(bpy.types.Panel):
     bl_parent_id = "NWO_PT_HaloLauncherGameSettings"
     bl_region_type = "HEADER"
 
+    @classmethod
+    def poll(cls, context):
+        return game_launcher_has_pruning(context)
+
     def draw(self, context):
         layout = self.layout
         scene_nwo_halo_launcher = utils.get_launcher_props()
@@ -241,7 +254,20 @@ class NWO_HaloLauncherGamePruneSettings(bpy.types.Panel):
         col = flow.column()
         draw_game_launcher_pruning(scene_nwo_halo_launcher, col)
                 
+def game_launcher_has_pruning(context):
+    game = utils.project_game_for_mcc(context)
+    return game not in LEGACY_PRUNING_COMMANDS or bool(LEGACY_PRUNING_COMMANDS[game])
+
+
 def draw_game_launcher_pruning(scene_nwo_halo_launcher, col):
+    game = utils.project_game_for_mcc(bpy.context)
+    if game in LEGACY_PRUNING_COMMANDS:
+        for prop in LEGACY_PRUNING_COMMANDS[game]:
+            if prop == "prune_scenario_for_environment_editing_keep_cinematics":
+                if not scene_nwo_halo_launcher.prune_scenario_for_environment_editing:
+                    continue
+            col.prop(scene_nwo_halo_launcher, prop)
+        return
     col.prop(scene_nwo_halo_launcher, "prune_globals")
     col.prop(scene_nwo_halo_launcher, "prune_globals_keep_playable")
     if utils.is_corinth():
@@ -525,13 +551,16 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return utils.poll_ui(('model', 'scenario', 'prefab', 'animation', 'cinematic', 'multi_model', 'multi_prefab'))
+        return utils.poll_ui(('model', 'scenario', 'prefab', 'animation', 'cinematic', 'multi_model', 'multi_prefab', 'camera_track_set'))
 
     def draw(self, context):
         layout = self.layout
         scene = context.scene
         scene_nwo_export = utils.get_export_props()
         scene_nwo = utils.get_scene_props()
+        if scene_nwo.asset_type == 'camera_track_set':
+            layout.prop(scene_nwo_export, "camera_track_scope", expand=True)
+            return
         project = utils.get_project(scene_nwo.scene_project)
         game = project.game if project else 'reach'
 
@@ -1161,6 +1190,16 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     ################################
     # Detailed settings
     ###############################
+    camera_track_scope: bpy.props.EnumProperty(
+        name="Camera Track Scope",
+        description="Choose which camera animations to export as camera track tags",
+        default="ACTIVE",
+        items=[
+            ("ACTIVE", "Active Animation", "Export the currently active camera animation"),
+            ("ALL", "All Animations", "Export all camera animations as separate camera track tags"),
+        ],
+        options=set(),
+    )
     export_animations: bpy.props.EnumProperty(
         name="Animations",
         description="",

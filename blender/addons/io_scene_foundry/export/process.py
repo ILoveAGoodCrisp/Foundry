@@ -19,6 +19,7 @@ from ..tags.globals import GlobalsTag
 
 from ..tags.frame_event_list import dump_frame_animation_events
 from ..tags.animation_graph import AnimationGraphTag, VehicleSuspensionUpdate
+from ..tags.animation_compression import export_animation_compression
 
 from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 
@@ -33,7 +34,7 @@ from ..tags.object_blender import ObjectTag
 from ..tags.cinematic_root import CinematicTag
 from ..tags.scenario import ScenarioDocument, ScenarioMetadataTag
 
-from .cinematic import QUA, Actor, CinematicScene
+from .cinematic import QUA, Actor, CinematicScene, set_actor_animation_compression
 
 from ..props.scene import NWO_Animation_ListItems
 
@@ -42,6 +43,8 @@ from ..tools.scenario.lightmap import run_lightmapper
 from ..tools.light_exporter import export_lights
 from ..tools.decorator_exporter import export_decorators
 from ..tools.decal_exporter import export_decals
+from ..tools.scenario.markers import export_scenario_markers, export_camera_points
+from ..tools.scenario.objects import export_scenario_objects
 from ..tools.airprobe_exporter import export_airprobes
 
 # from ..tools.scenario.zone_sets import write_zone_sets_to_scenario
@@ -334,6 +337,7 @@ class ExportScene:
         self.local_views = set()
         self.decorators = []
         self.decals = []
+        self.scenario_markers = []
         self.hidden_objects = {}
         self.marker_instancers = []
         self.used_game_object_names = set()
@@ -512,7 +516,7 @@ class ExportScene:
         else:    
             self.export_objects = [ob for ob in proxy_export_objects if ob.nwo.export_this and ob.type in valid_objects]
 
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.scene_settings.default_animation_compression, self.rotation_correction, self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.scene_settings.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context, self.halo_transform_scale, self.scene_settings)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.rotation_correction, self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.scene_settings.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context, self.halo_transform_scale, self.scene_settings)
         self.has_no_virtual_scene = False
 
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
@@ -892,6 +896,10 @@ class ExportScene:
         if ob.type in VALID_MESHES:
             return ObjectType.mesh
         elif ob.type == 'EMPTY' and ob.empty_display_type != "IMAGE":
+            if ob.nwo.marker_type in {'_connected_geometry_marker_type_decal', '_connected_geometry_marker_type_decorator',
+                                      '_connected_geometry_marker_type_player_start', '_connected_geometry_marker_type_cutscene_flag',
+                                      '_connected_geometry_marker_type_scenario_object'}:
+                return ObjectType.marker
             if ob in self.objects_with_children:
                 return ObjectType.frame
             else:
@@ -923,6 +931,9 @@ class ExportScene:
         perm_name = self.perm_name
 
         warnings_append = self.warnings.append
+
+        if getattr(ob, 'ob', ob).get('nwo_decorator_placement_cloud'):
+            return
 
         object_type = self._get_object_type(ob)
         if object_type == ObjectType.none:
@@ -1420,6 +1431,17 @@ class ExportScene:
                 props["bungie_marker_velocity"] = utils.vector(nwo.marker_velocity)
         
         elif self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB, AssetType.MULTI_PREFAB}:
+            if marker_type == '_connected_geometry_marker_type_scenario_object':
+                return
+            if marker_type == '_connected_geometry_marker_type_decal':
+                self.decals.append(ob)
+                return
+            if marker_type == '_connected_geometry_marker_type_decorator':
+                self.decorators.append(ob)
+                return
+            if marker_type in {'_connected_geometry_marker_type_player_start', '_connected_geometry_marker_type_cutscene_flag'}:
+                self.scenario_markers.append(ob)
+                return
             if marker_type == "_connected_geometry_marker_type_game_instance":
                 rnd = random.Random()
                 unique_name = self.make_unique_name(ob.name)
@@ -1429,13 +1451,9 @@ class ExportScene:
                 tag_name = nwo.marker_game_instance_tag_name.lower()
                 props["bungie_marker_game_instance_tag_name"] = tag_name
                 
-                if tag_name.strip().endswith(".decal"):
-                    self.decals.append(ob)
-                    return # Decals are written directly to the scenario
-
-                if tag_name.endswith(".decorator_set"):
-                    self.decorators.append(ob)
-                    return # Decorators handled through MB
+                if Path(tag_name.strip()).suffix in {'.decal', '.decal_system', '.decorator_set', '.detail_object_collection'}:
+                    self.warnings.append(f'{ob.name}: use a Decal or Decorator marker for {tag_name}')
+                    return
                 
                 if self.corinth and tag_name.endswith(
                     ".prefab"
@@ -2572,7 +2590,10 @@ class ExportScene:
             else:
                 blend_path = Path(granny_path.parent.parent.parent, "animations", granny_path.with_suffix("").name).with_suffix(".blend")
             print(f"--- {granny_path.with_suffix('').name}")
-            self.sidecar.add_animation_file_data(granny_path, blend_path, animation.name, animation.compression, animation.animation_type, animation.animation_movement_data, animation.animation_space, animation.pose_overlay, animation.has_pca)
+            compression = export_animation_compression(
+                animation.compression, self.scene_settings.forced_animation_compression,
+                self.project_game)
+            self.sidecar.add_animation_file_data(granny_path, blend_path, animation.name, compression, animation.animation_type, animation.animation_movement_data, animation.animation_space, animation.pose_overlay, animation.has_pca)
 
         self.sidecar.composite_blend_axis_values.update(self.virtual_scene.composite_blend_axis_values)
                 
@@ -2842,7 +2863,7 @@ class ExportScene:
 
             if self.exported_animations:
                 if self.virtual_scene and self.virtual_scene.animations:
-                    self.print_pre(f"--- Validating animation compression for {len(self.exported_animations)} animations: Default Compression = {self.scene_settings.default_animation_compression}")
+                    self.print_pre(f"--- Setting animation compression for {len(self.exported_animations)} animations")
                     with AnimationGraphTag(tag_must_exist=False) as animation:
                         animation.set_compression(
                             self.exported_animations,
@@ -2930,9 +2951,28 @@ class ExportScene:
         )
         self.print_post("--- Adding Single Animation Frame Events")
         with AnimationGraphTag(path=graph_path) as graph:
+            graph.clear_forced_compression()
             graph.events_from_blender({name: animation})
 
+    def apply_sidecar_graph_compression(self, sidecar_path):
+        sidecar = ET.parse(Path(self.data_dir, sidecar_path))
+        actors_by_graph = {
+            Path(self.tags_dir, actor.graph).with_suffix('.model_animation_graph'): actor
+            for scene in self.cinematic_scenes for actor in scene.actor_animations
+        }
+        for output in sidecar.findall(".//OutputTag[@Type='model_animation_graph']"):
+            if output.text and output.text.strip():
+                graph_path = Path(self.tags_dir, output.text.strip()).with_suffix('.model_animation_graph')
+                if graph_path.is_file():
+                    with AnimationGraphTag(graph_path) as graph:
+                        actor = actors_by_graph.get(graph_path)
+                        if actor is None:
+                            graph.clear_forced_compression()
+                        else:
+                            set_actor_animation_compression(graph, actor)
+
     def tool_import_simple(self, sidecar_path):
+        self.apply_sidecar_graph_compression(sidecar_path)
         import_failed, error = utils.run_tool_sidecar(
             [
                 "import",
@@ -2956,6 +2996,7 @@ class ExportScene:
                 print("")
                 print("+" * len(dev_message))
             raise ExportCancelled("Export failed due to Tool assertion. See above")
+        self.apply_sidecar_graph_compression(sidecar_path)
     
     def invoke_tool_import(self):
         if self.has_no_virtual_scene:
@@ -2984,6 +3025,7 @@ class ExportScene:
         if self.corinth and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             sidecar_importer.save_lighting_infos()
         sidecar_importer.setup_templates()
+        self.apply_sidecar_graph_compression(self.sidecar_path)
         
         memory_tool_patches = self._memory_tool_patches()
         
@@ -3016,6 +3058,8 @@ class ExportScene:
                 print("")
                 print("+" * len(dev_message))
             raise ExportCancelled("Export failed due to Tool assertion. See above")
+
+        self.apply_sidecar_graph_compression(self.sidecar_path)
 
         if (self.asset_type == AssetType.SCENARIO
                 and self.project_game in {'halo3', 'halo3odst'}
@@ -3060,17 +3104,51 @@ class ExportScene:
         if (self.asset_type == AssetType.SCENARIO and self.export_settings.export_structure and
                 self.scene_settings.decals_from_blender):
             game = utils.get_project(self.scene_settings.scene_project).game
-            if game == 'halo1':
-                self.print_post(f"--- Writing {len(self.decals)} decal placements")
-                export_decals(self.decals,
-                              scenario_path=Path(self.asset_path_relative, self.asset_name).with_suffix('.scenario'),
-                              tags_root=self.tags_dir, game=game)
-            else:
-                self.warnings.append('Scenario decal export is currently supported for Halo 1')
+            self.print_post(f"--- Writing {len(self.decals)} decal placements")
+            export_decals(self.decals,
+                          scenario_path=Path(self.asset_path_relative, self.asset_name).with_suffix('.scenario'),
+                          tags_root=self.tags_dir, game=game)
+
+    def export_scenario_marker_tags(self):
+        if self.asset_type != AssetType.SCENARIO or not self.export_settings.export_structure:
+            return
+        game = utils.get_project(self.scene_settings.scene_project).game
+        export_scenario_objects(context=self.context,
+                                scenario_path=Path(self.asset_path_relative, self.asset_name).with_suffix('.scenario'),
+                                tags_root=self.tags_dir, game=game)
+        export_scenario_markers(self.scenario_markers,
+                                scenario_path=Path(self.asset_path_relative, self.asset_name).with_suffix('.scenario'),
+                                tags_root=self.tags_dir, game=game,
+                                clear_player_starts=self.scene_settings.player_starts_from_blender)
+        if self.scene_settings.camera_points_from_blender:
+            export_camera_points(context=self.context,
+                                 scenario_path=Path(self.asset_path_relative, self.asset_name).with_suffix('.scenario'),
+                                 tags_root=self.tags_dir, game=game)
+        if self.scene_settings.decorators_from_blender:
+            export_decorators(self.corinth)
+
+    def write_vehicle_suspension(self, path=''):
+        if not self.suspension_animations:
+            return
+        self.print_post(f"--- Writing vehicle suspension data for {len(self.suspension_animations)} suspension animation{'s' if len(self.suspension_animations) > 1 else ''}")
+        updates = {
+            label: VehicleSuspensionUpdate(
+                marker_name=value.suspension_marker.nwo.marker_model_group,
+                extension_depth=value.suspension_extension_depth,
+                compression_depth=value.suspension_compression_depth,
+                destroyed_region_name=value.suspension_destroyed_region_name,
+                destroyed_extension_depth=value.suspension_destroyed_extension_depth,
+                destroyed_compression_depth=value.suspension_destroyed_compression_depth,
+            )
+            for label, value in self.suspension_animations.items()
+        }
+        with AnimationGraphTag(path) as animation:
+            animation.update_vehicle_suspension(updates)
 
     def postprocess_tags(self):
         """Tag edits to run after Tool import is called."""
         self.export_scenario_decals()
+        self.export_scenario_marker_tags()
         # if not self.is_child_asset:
         self._setup_model_overrides()
         
@@ -3089,20 +3167,7 @@ class ExportScene:
                 animation.set_world_animations(self.reach_world_animations)
 
         if self.has_animations and self.suspension_animations:
-            self.print_post(f"--- Writing vehicle suspension data for {len(self.suspension_animations)} suspension animation{'s' if len(self.suspension_animations) > 1 else ''}")
-            updates = {
-                label: VehicleSuspensionUpdate(
-                    marker_name=value.suspension_marker.nwo.marker_model_group,
-                    extension_depth=value.suspension_extension_depth,
-                    compression_depth=value.suspension_compression_depth,
-                    destroyed_region_name=value.suspension_destroyed_region_name,
-                    destroyed_extension_depth=value.suspension_destroyed_extension_depth,
-                    destroyed_compression_depth=value.suspension_destroyed_compression_depth,
-                )
-                for label, value in self.suspension_animations.items()
-            }
-            with AnimationGraphTag() as animation:
-                animation.update_vehicle_suspension(updates)
+            self.write_vehicle_suspension()
 
         if self.has_animations and self.anims_for_tag_info:
             with AnimationGraphTag() as animation:
@@ -3182,10 +3247,6 @@ class ExportScene:
                     # else:
                     export_lights(self.asset_path_relative, self.asset_name, {}, bsps, self.lightmap_regions)
                         
-        if self.export_settings.export_structure and self.scene_settings.decorators_from_blender and self.asset_type == AssetType.SCENARIO:
-            if self.decorators:
-                self.print_post(f"--- Writing {len(self.decorators)} decorator placement{'s' if len(self.decorators) > 1 else ''}")
-                export_decorators(self.corinth, self.decorators)
 
         if self.export_settings.export_structure and self.scene_settings.airprobes_from_blender and not self.corinth and self.asset_type == AssetType.SCENARIO:
             self.print_post(f"--- Writing {len(self.airprobes)} airprobe{'s' if len(self.airprobes) != 1 else ''}")

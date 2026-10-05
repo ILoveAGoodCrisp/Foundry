@@ -175,7 +175,9 @@ class RenderModelTag(RenderModelMetadataTag):
         arm.ob.select_set(True)
         utils.set_active_object(arm.ob)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        for node in self.nodes: arm.create_bone(node)
+        for node in self.nodes:
+            arm.create_bone(node)
+            node.bone['foundry_tag_node_name'] = node.name
         for node in self.nodes: arm.parent_bone(node)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         # Set render_model ref for node order
@@ -271,7 +273,8 @@ class RenderModelTag(RenderModelMetadataTag):
                         if not allowed_region_permutations or (region.name, permutation.clone_name) in allowed_region_permutations:
                             mesh = Mesh.from_native(
                                 native_render_meshes[mesh_index],
-                                materials_by_index, self.corinth)
+                                materials_by_index, self.corinth,
+                                preserve_overlapping_faces=self.game == 'halo1')
                             mesh.permutation = permutation
                             clone_meshes.append(mesh)
                             continue
@@ -281,7 +284,8 @@ class RenderModelTag(RenderModelMetadataTag):
 
                     mesh = Mesh.from_native(
                         native_render_meshes[mesh_index], materials_by_index,
-                        self.corinth, geometry_record)
+                        self.corinth, geometry_record,
+                        preserve_overlapping_faces=self.game == 'halo1')
                     mesh.permutation = permutation
                     mesh.from_vert_normals = from_vert_normals
                     mesh.tag_path = self.tag_path.RelativePathWithExtension
@@ -326,7 +330,8 @@ class RenderModelTag(RenderModelMetadataTag):
         if self.instances:
             instance_mesh = Mesh.from_native(
                 native_render_meshes[self.instance_mesh_index],
-                materials_by_index, self.corinth)
+                materials_by_index, self.corinth,
+                preserve_overlapping_faces=self.game == 'halo1')
             instance_mesh.from_vert_normals = from_vert_normals
             instance_mesh.tag_path = self.tag_path.RelativePathWithExtension
             ios = instance_mesh.create(

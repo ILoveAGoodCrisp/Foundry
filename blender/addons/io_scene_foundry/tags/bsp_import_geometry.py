@@ -10,10 +10,11 @@ from mathutils import kdtree
 from .. import utils
 
 
-def reconnect_collinear_triangles(mesh):
+def reconnect_collinear_triangles(mesh, tolerance=0):
     """Replace zero-width compiler triangles by a real boundary junction.
 
-    A mapped triangle may consist of three points on one straight mesh edge.
+    A mapped triangle may consist of three points on one straight mesh edge,
+    within the import caller's physical position tolerance.
     Tool discards it, leaving an otherwise closed instance open. Insert its
     middle vertex into the face across the long edge and remove the zero-width
     triangle. Keep positions and every surviving corner's data; the new corner
@@ -60,7 +61,7 @@ def reconnect_collinear_triangles(mesh):
                 continue
             fraction = (c.co - a.co).dot(delta) / delta.length_squared
             magnitude = max(delta.length, *(abs(value) for v in face.verts for value in v.co))
-            epsilon = float(np.spacing(np.float32(magnitude))) * 4
+            epsilon = max(float(np.spacing(np.float32(magnitude))) * 4, tolerance)
             if not 0 < fraction < 1 or (c.co - (a.co + fraction * delta)).length > epsilon:
                 continue
             if other.calc_area() <= max(face.calc_area() * 100, epsilon * epsilon):
@@ -341,7 +342,8 @@ def recover_mapped_collision(collision_mesh, render_meshes, tolerance):
     _replace_faces(collision_mesh, partitions, False)
     return recovered
 
-def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False):
+def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False,
+                                relative_tolerance=0, respect_shading=True):
     """Replace bad diagonals without moving vertices or crossing data seams.
 
     Compiled render triangles can be nearly collinear, even though
@@ -349,7 +351,9 @@ def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False):
     triangles on reimport. Keep every boundary vertex and change only an
     internal diagonal between compatible triangles. At UV or normal seams,
     retain the original shared geometry rather than generating overlapping
-    render-only and collision-only alternatives.
+    render-only and collision-only alternatives. Non-rendered seam surfaces
+    may ignore shading discontinuities with respect_shading=False; their
+    existing corner data and perimeter still survive the diagonal replacement.
     """
     bm = bmesh.new()
     changed = 0
@@ -391,9 +395,9 @@ def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False):
             old_altitude = altitude([v.co for v in face.verts])
             # Tool also loses normals on very long, narrow helper triangles:
             # normalized float edges can round to parallel despite large area.
-            relative_tolerance = (max(e.calc_length() for e in face.edges) * .0002
-                                  if collision_only else 0)
-            if old_altitude > max(tolerance, relative_tolerance):
+            relative_width = max(e.calc_length() for e in face.edges) * max(
+                relative_tolerance, .0002 if collision_only else 0)
+            if old_altitude > max(tolerance, relative_width):
                 continue
             choices = []
             for loop in face.loops:
@@ -425,9 +429,9 @@ def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False):
                 for l in face.loops:
                     previous = loops.get(l.vert)
                     if previous is not None:
-                        if not collision_only and any((l[layer].uv-previous[layer].uv).length > 1e-5 for layer in uv_layers):
+                        if respect_shading and not collision_only and any((l[layer].uv-previous[layer].uv).length > 1e-5 for layer in uv_layers):
                             compatible = False
-                        if not collision_only and preserve_normals and (normal(l)-normal(previous)).length > 1e-3:
+                        if respect_shading and not collision_only and preserve_normals and (normal(l)-normal(previous)).length > 1e-3:
                             compatible = False
                     else:
                         loops[l.vert] = l

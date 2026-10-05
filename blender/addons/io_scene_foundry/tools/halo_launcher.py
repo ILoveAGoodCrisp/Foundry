@@ -7,7 +7,8 @@ from pathlib import Path
 import bpy
 import xml.etree.ElementTree as ET
 from .halo1_guerilla import prepare_guerilla_config
-from ..ui.bar import draw_game_launcher_pruning, draw_game_launcher_settings
+from ..ui.bar import draw_game_launcher_pruning, draw_game_launcher_settings, game_launcher_has_pruning
+from .game_launcher_options import LEGACY_SETTINGS, legacy_init_commands
 from ..tags.scenario import ScenarioMetadataTag
 from ..utils import (
     save_project_settings,
@@ -566,8 +567,10 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
     asset_path = scene_nwo.asset_directory
     asset_name = scene_nwo.asset_name
     project = get_project()
+    game = project_game_for_mcc(bpy.context, project)
     legacy_game = bool(project and project.game in LEGACY_SAPIEN_GAMES)
     legacy_sapien = is_sapien and legacy_game
+    use_play = settings.use_play and (not legacy_game or "use_play" in LEGACY_SETTINGS[game])
     
     prefs = get_prefs()
     
@@ -603,7 +606,7 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
             filepath = str(last_scenario_fp)
     
     if is_sapien:
-        if not ignore_play and settings.use_play:
+        if not ignore_play and use_play:
             args = [get_exe("sapien_play")]
         else:
             args = [get_exe("sapien")]
@@ -613,7 +616,7 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
             args.append(filepath)
         
     else:
-        if not ignore_play and settings.use_play:
+        if not ignore_play and use_play:
             args = [get_exe("tag_play")]
         else:
             args = [get_exe("tag_test")]
@@ -637,167 +640,192 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
     if init != "":
         h4_plus = is_corinth()
         with open(init, "w") as file:
-            if settings.prune_globals:
-                if h4_plus:
-                    file.write("prune_globals 1\n")
-                else:
-                    file.write("prune_global 1\n")
-
-            if settings.prune_globals_keep_playable:
-                if h4_plus:
-                    file.write("prune_globals_keep_playable 1\n")
-                else:
-                    file.write("prune_global_keep_playable 1\n")
-            if settings.prune_scenario_for_environment_editing:
-                file.write("prune_scenario_for_environment_editing 1\n")
-                if settings.prune_scenario_for_environment_editing:
-                    if settings.prune_scenario_for_environment_editing_keep_cinematics:
-                        file.write(
-                            "prune_scenario_for_environment_editing_keep_cinematics 1\n"
-                        )
-                    if settings.prune_scenario_for_environment_editing_keep_scenery:
-                        file.write(
-                            "prune_scenario_for_environment_editing_keep_scenery 1\n"
-                        )
-                    if settings.prune_scenario_for_environment_editing_keep_decals:
-                        file.write(
-                            "prune_scenario_for_environment_editing_keep_decals 1\n"
-                        )
-                    if settings.prune_scenario_for_environment_editing_keep_crates:
-                        file.write(
-                            "prune_scenario_for_environment_editing_keep_crates 1\n"
-                        )
-                    if settings.prune_scenario_for_environment_editing_keep_creatures:
-                        file.write(
-                            "prune_scenario_for_environment_editing_keep_creatures 1\n"
-                        )
-                    if settings.prune_scenario_for_environment_editing_keep_pathfinding:
-                        if h4_plus:
-                            file.write(
-                                "prune_scenario_for_environment_editing_keep_pathfinding 1\n"
-                            )
-                        else:
-                            file.write("prune_scenario_for_environment_pathfinding 1\n")
-
-                    if (
-                        settings.prune_scenario_for_environment_editing_keep_new_decorator_block
-                    ):
-                        file.write(
-                            "prune_scenario_for_environmnet_editing_keep_new_decorator_block 1\n"
-                        )
-            if settings.prune_scenario_all_lightmaps:
-                if h4_plus:
-                    file.write("prune_scenario_all_lightmaps 1\n")
-                else:
-                    file.write("prune_scenario_lightmaps 1\n")
-
-            if settings.prune_all_materials_use_gray_shader:
-                if h4_plus:
-                    file.write("prune_all_materials_use_gray_shader 1\n")
-                else:
-                    file.write("prune_scenario_use_gray_shader 1\n")
-            if settings.prune_all_material_effects:
-                if h4_plus:
-                    file.write("prune_all_material_effects 1\n")
-                else:
-                    file.write("prune_global_material_effects 1\n")
-
-            if settings.prune_all_dialog_sounds:
-                if h4_plus:
-                    file.write("prune_all_dialog_sounds 1\n")
-                else:
-                    file.write("prune_global_dialog_sounds 1\n")
-
-            if settings.prune_all_error_geometry:
-                if h4_plus:
-                    file.write("prune_all_error_geometry 1\n")
-                else:
-                    file.write("prune_error_geometry 1\n")
-            # H4+ only
-            if h4_plus:
-                if settings.prune_globals_use_empty:
-                    file.write("prune_globals_use_empty 1\n")
-                if settings.prune_models_enable_alternate_render_models:
-                    file.write("prune_models_enable_alternate_render_models 1\n")
-                if settings.prune_scenario_keep_scriptable_objects:
-                    file.write("prune_scenario_keep_scriptable_objects 1\n")
-                if settings.prune_all_materials_use_default_textures:
-                    file.write("prune_all_materials_use_default_textures 1\n")
-                if settings.prune_all_materials_use_default_textures_fx_textures:
-                    file.write(
-                        "prune_all_materials_use_default_textures_keep_fx_textures 1\n"
-                    )
-                if settings.prune_facial_animations:
-                    file.write("prune_facial_animations 1\n")
-                if settings.prune_first_person_animations:
-                    file.write("prune_first_person_animations 1\n")
-                if settings.prune_low_quality_animations:
-                    file.write("prune_low_quality_animations 1\n")
-                if settings.prune_use_imposters:
-                    file.write("prune_use_imposters 1\n")
-                if settings.prune_cinematic_effects:
-                    file.write("prune_cinematic_effects 1\n")
-            # Reach Only
+            if legacy_game:
+                zone_set_index = None
+                if "initial_zone_set" in LEGACY_SETTINGS[game] and settings.initial_zone_set.strip():
+                    zone_set = settings.initial_zone_set.strip()
+                    try:
+                        zone_set_index = int(zone_set)
+                    except ValueError:
+                        with ScenarioMetadataTag(path=filepath) as scenario:
+                            names = scenario.zone_set_names()
+                        if zone_set in names:
+                            zone_set_index = names.index(zone_set)
+                        elif report:
+                            report({'WARNING'}, f"Zone set not found: {zone_set}")
+                multiplayer = False
+                firefight = False
+                if not is_sapien:
+                    if game == "Halo3" and settings.forge:
+                        multiplayer = scenario_is_multiplayer(filepath)
+                    elif game == "Halo3ODST":
+                        firefight = scenario_is_firefight(filepath)
+                for command in legacy_init_commands(
+                        game, settings, is_sapien=is_sapien, zone_set_index=zone_set_index,
+                        multiplayer=multiplayer, firefight=firefight):
+                    file.write(command + "\n")
             else:
-                if settings.prune_scenario_force_solo_mode:
-                    file.write("prune_scenario_force_solo_mode 1\n")
+                if settings.prune_globals:
+                    if h4_plus:
+                        file.write("prune_globals 1\n")
+                    else:
+                        file.write("prune_global 1\n")
+
+                if settings.prune_globals_keep_playable:
+                    if h4_plus:
+                        file.write("prune_globals_keep_playable 1\n")
+                    else:
+                        file.write("prune_global_keep_playable 1\n")
                 if settings.prune_scenario_for_environment_editing:
-                    if settings.prune_scenario_for_environment_finishing:
-                        file.write("prune_scenario_for_environment_finishing 1\n")
-                if settings.prune_scenario_force_single_bsp_zone_set:
-                    file.write("prune_scenario_force_single_bsp_zone_set 1\n")
-                if settings.prune_scenario_force_single_bsp_zones:
-                    file.write("prune_scenario_add_single_bsp_zones 1\n")
-                if settings.prune_keep_scripts:
-                    file.write("pruning_keep_scripts 1\n")
+                    file.write("prune_scenario_for_environment_editing 1\n")
+                    if settings.prune_scenario_for_environment_editing:
+                        if settings.prune_scenario_for_environment_editing_keep_cinematics:
+                            file.write(
+                                "prune_scenario_for_environment_editing_keep_cinematics 1\n"
+                            )
+                        if settings.prune_scenario_for_environment_editing_keep_scenery:
+                            file.write(
+                                "prune_scenario_for_environment_editing_keep_scenery 1\n"
+                            )
+                        if settings.prune_scenario_for_environment_editing_keep_decals:
+                            file.write(
+                                "prune_scenario_for_environment_editing_keep_decals 1\n"
+                            )
+                        if settings.prune_scenario_for_environment_editing_keep_crates:
+                            file.write(
+                                "prune_scenario_for_environment_editing_keep_crates 1\n"
+                            )
+                        if settings.prune_scenario_for_environment_editing_keep_creatures:
+                            file.write(
+                                "prune_scenario_for_environment_editing_keep_creatures 1\n"
+                            )
+                        if settings.prune_scenario_for_environment_editing_keep_pathfinding:
+                            if h4_plus:
+                                file.write(
+                                    "prune_scenario_for_environment_editing_keep_pathfinding 1\n"
+                                )
+                            else:
+                                file.write("prune_scenario_for_environment_pathfinding 1\n")
+
+                        if (
+                            settings.prune_scenario_for_environment_editing_keep_new_decorator_block
+                        ):
+                            file.write(
+                                "prune_scenario_for_environmnet_editing_keep_new_decorator_block 1\n"
+                            )
+                if settings.prune_scenario_all_lightmaps:
+                    if h4_plus:
+                        file.write("prune_scenario_all_lightmaps 1\n")
+                    else:
+                        file.write("prune_scenario_lightmaps 1\n")
+
+                if settings.prune_all_materials_use_gray_shader:
+                    if h4_plus:
+                        file.write("prune_all_materials_use_gray_shader 1\n")
+                    else:
+                        file.write("prune_scenario_use_gray_shader 1\n")
+                if settings.prune_all_material_effects:
+                    if h4_plus:
+                        file.write("prune_all_material_effects 1\n")
+                    else:
+                        file.write("prune_global_material_effects 1\n")
+
+                if settings.prune_all_dialog_sounds:
+                    if h4_plus:
+                        file.write("prune_all_dialog_sounds 1\n")
+                    else:
+                        file.write("prune_global_dialog_sounds 1\n")
+
+                if settings.prune_all_error_geometry:
+                    if h4_plus:
+                        file.write("prune_all_error_geometry 1\n")
+                    else:
+                        file.write("prune_error_geometry 1\n")
+                # H4+ only
+                if h4_plus:
+                    if settings.prune_globals_use_empty:
+                        file.write("prune_globals_use_empty 1\n")
+                    if settings.prune_models_enable_alternate_render_models:
+                        file.write("prune_models_enable_alternate_render_models 1\n")
+                    if settings.prune_scenario_keep_scriptable_objects:
+                        file.write("prune_scenario_keep_scriptable_objects 1\n")
+                    if settings.prune_all_materials_use_default_textures:
+                        file.write("prune_all_materials_use_default_textures 1\n")
+                    if settings.prune_all_materials_use_default_textures_fx_textures:
+                        file.write(
+                            "prune_all_materials_use_default_textures_keep_fx_textures 1\n"
+                        )
+                    if settings.prune_facial_animations:
+                        file.write("prune_facial_animations 1\n")
+                    if settings.prune_first_person_animations:
+                        file.write("prune_first_person_animations 1\n")
+                    if settings.prune_low_quality_animations:
+                        file.write("prune_low_quality_animations 1\n")
+                    if settings.prune_use_imposters:
+                        file.write("prune_use_imposters 1\n")
+                    if settings.prune_cinematic_effects:
+                        file.write("prune_cinematic_effects 1\n")
+                # Reach Only
+                else:
+                    if settings.prune_scenario_force_solo_mode:
+                        file.write("prune_scenario_force_solo_mode 1\n")
+                    if settings.prune_scenario_for_environment_editing:
+                        if settings.prune_scenario_for_environment_finishing:
+                            file.write("prune_scenario_for_environment_finishing 1\n")
+                    if settings.prune_scenario_force_single_bsp_zone_set:
+                        file.write("prune_scenario_force_single_bsp_zone_set 1\n")
+                    if settings.prune_scenario_force_single_bsp_zones:
+                        file.write("prune_scenario_add_single_bsp_zones 1\n")
+                    if settings.prune_keep_scripts:
+                        file.write("pruning_keep_scripts 1\n")
                     
             
-            if not is_sapien:
-                if scenario_is_multiplayer(filepath):
-                    if settings.forge:
-                        file.write('game_multiplayer sandbox\n')
+                if not is_sapien:
+                    if scenario_is_multiplayer(filepath):
+                        if settings.forge:
+                            file.write('game_multiplayer sandbox\n')
+                        else:
+                            file.write('game_multiplayer megalo\n')
+                        if settings.megalo_variant:
+                            file.write(f'game_set_variant {settings.megalo_variant}\n')
+                    elif scenario_is_firefight(filepath):
+                        file.write('game_multiplayer survival\n')
+                        if settings.megalo_variant:
+                            file.write(f'game_set_variant {settings.megalo_variant}\n')
+                
+                    file.write(
+                        f'run_game_scripts {"1" if settings.run_game_scripts else "0"}\n'
+                    )
+                
+                if not settings.show_debugging:
+                    file.write('error_geometry_hide_all\n')
+                    file.write('events_enabled 0\n')
+                    file.write('ai_hide_actor_errors 1\n')
+                    file.write('terminal_render 0\n')
+                    file.write('console_status_string_render 0\n')
+                    file.write('events_debug_spam_render 0\n')
+
+                if settings.initial_zone_set != "":
+                    file.write(f"game_initial_zone_set {settings.initial_zone_set}\n")
+                elif settings.initial_bsp != "" and h4_plus:
+                    file.write(f"game_initial_BSP {settings.initial_bsp}\n")
+
+                if settings.insertion_point_index > -1:
+                    file.write(
+                        f"game_insertion_point_set {settings.insertion_point_index}\n"
+                    )
+
+                if settings.enable_firefight and h4_plus:
+                    file.write(f"game_firefight {settings.enable_firefight}\n")
+                    if settings.firefight_mission == "":
+                        file.write(f'game_set_variant "midnight_firefight_firefight"\n')
                     else:
-                        file.write('game_multiplayer megalo\n')
-                    if settings.megalo_variant:
-                        file.write(f'game_set_variant {settings.megalo_variant}\n')
-                elif scenario_is_firefight(filepath):
-                    file.write('game_multiplayer survival\n')
-                    if settings.megalo_variant:
-                        file.write(f'game_set_variant {settings.megalo_variant}\n')
-                
-                file.write(
-                    f'run_game_scripts {"1" if settings.run_game_scripts else "0"}\n'
-                )
-                
-            if not settings.show_debugging:
-                file.write('error_geometry_hide_all\n')
-                file.write('events_enabled 0\n')
-                file.write('ai_hide_actor_errors 1\n')
-                file.write('terminal_render 0\n')
-                file.write('console_status_string_render 0\n')
-                file.write('events_debug_spam_render 0\n')
-
-            if settings.initial_zone_set != "":
-                file.write(f"game_initial_zone_set {settings.initial_zone_set}\n")
-            elif settings.initial_bsp != "" and h4_plus:
-                file.write(f"game_initial_BSP {settings.initial_bsp}\n")
-
-            if settings.insertion_point_index > -1:
-                file.write(
-                    f"game_insertion_point_set {settings.insertion_point_index}\n"
-                )
-
-            if settings.enable_firefight and h4_plus:
-                file.write(f"game_firefight {settings.enable_firefight}\n")
-                if settings.firefight_mission == "":
-                    file.write(f'game_set_variant "midnight_firefight_firefight"\n')
-                else:
-                    file.write(f'game_set_variant "{settings.firefight_mission}"\n')
+                        file.write(f'game_set_variant "{settings.firefight_mission}"\n')
                     
-            if settings.never_instance_imposter:
-                file.write(f"render_debug_instance_imposter_never 1\n")
-            if settings.never_object_imposter:
-                file.write(f"render_debug_object_imposter_never 1\n")
+                if settings.never_instance_imposter:
+                    file.write(f"render_debug_instance_imposter_never 1\n")
+                if settings.never_object_imposter:
+                    file.write(f"render_debug_object_imposter_never 1\n")
 
             if settings.custom_functions != "":
                 try:
@@ -1059,9 +1087,10 @@ class NWO_HaloLauncher_Sapien(bpy.types.Operator):
         layout = self.layout
         scene_nwo_launcher = get_launcher_props()
         draw_game_launcher_settings(scene_nwo_launcher, layout)
-        box = layout.box()
-        box.label(text="Pruning")
-        draw_game_launcher_pruning(scene_nwo_launcher, box)
+        if game_launcher_has_pruning(context):
+            box = layout.box()
+            box.label(text="Pruning")
+            draw_game_launcher_pruning(scene_nwo_launcher, box)
         
 
 class NWO_HaloLauncher_TagTest(bpy.types.Operator):
@@ -1112,9 +1141,10 @@ class NWO_HaloLauncher_TagTest(bpy.types.Operator):
         layout = self.layout
         scene_nwo_launcher = get_launcher_props()
         draw_game_launcher_settings(scene_nwo_launcher, layout)
-        box = layout.box()
-        box.label(text="Pruning")
-        draw_game_launcher_pruning(scene_nwo_launcher, box)
+        if game_launcher_has_pruning(context):
+            box = layout.box()
+            box.label(text="Pruning")
+            draw_game_launcher_pruning(scene_nwo_launcher, box)
 
 
 class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
@@ -1397,7 +1427,7 @@ class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
     prune_all_dialog_sounds: bpy.props.BoolProperty(
         options=set(),
         description="Removes all dialog sounds referenced in the globals tag",
-        name="Prune Material Effects",
+        name="Prune Dialog Sounds",
     )
 
     prune_all_error_geometry: bpy.props.BoolProperty(

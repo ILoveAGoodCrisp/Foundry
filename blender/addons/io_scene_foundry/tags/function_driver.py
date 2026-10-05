@@ -5,7 +5,7 @@ import hashlib
 
 
 def set_scalar_driver_expression(owner, curve, expression):
-    """Split large expressions before Blender's 256-character driver limit."""
+    """Write only simple expressions, splitting at Blender's driver limit."""
     bindings = {var.name: (var.targets[0].id_type, var.targets[0].id, var.targets[0].data_path)
                 for var in curve.driver.variables}
     prefix = '_foundry_driver_' + hashlib.sha1(curve.data_path.encode()).hexdigest()[:10]
@@ -29,6 +29,11 @@ def set_scalar_driver_expression(owner, curve, expression):
             var.targets[0].id = target
             var.targets[0].data_path = path
         driver.expression = text
+        if not driver.is_simple_expression:
+            # Never leave a Python-only expression attached, even if a future
+            # function generator accidentally introduces unsupported syntax.
+            driver.expression = '0.0'
+            raise ValueError(f'Scalar driver requires Python execution: {text}')
 
     def shorten(node):
         nonlocal counter
@@ -95,17 +100,22 @@ def periodic_expression(name, value):
     if name == 'cosine':
         return f'(0.5-0.5*cos(2*pi*({value})))'
     if name == 'diagonal wave':
-        return f'(1-abs(2*(({value})%1)-1))'
+        return f'(1-abs(2*{fraction_expression(value)}-1))'
     if name == 'slide':
-        return f'(({value})%1)'
+        return fraction_expression(value)
     # Deterministic previews for the stochastic waveform types. These remain
     # editable through the imported function's input properties.
-    noise = f'((sin(floor(({value})*30)*12.9898)*43758.5453)%1)'
+    noise = fraction_expression(f'sin(floor(({value})*30)*12.9898)*43758.5453')
     if name in {'noise', 'jitter', 'wander'}:
         return noise
     if name == 'spark':
         return f'({noise}>0.95)'
     raise ValueError(f'Unsupported periodic function: {name}')
+
+
+def fraction_expression(value):
+    """Positive fractional part, including negative phases, without Python %."""
+    return f'(({value})-floor({value}))'
 
 
 @dataclass
@@ -153,11 +163,11 @@ class Halo1Function:
         mapping = str(v['map to'])
         if mapping in {'early', 'very early', 'late', 'very late'}:
             power = {'early': 0.5, 'very early': 1/3, 'late': 2, 'very late': 3}[mapping]
-            value = f'(max({value},0)**{power:.9g})'
+            value = f'pow(max({value},0),{power:.9g})'
         elif mapping == 'cosine':
             value = f'(0.5-0.5*cos(pi*{value}))'
         if int(v['sawtooth count']) > 1:
-            value = f'(({value}*{int(v["sawtooth count"])})%1)'
+            value = fraction_expression(f'{value}*{int(v["sawtooth count"])}')
         value = f'({value}+{source("add", "0.0")})'
         lower, upper = v['bounds']
         # Loose HEK tags leave both values at zero for the default 0..1 bounds.

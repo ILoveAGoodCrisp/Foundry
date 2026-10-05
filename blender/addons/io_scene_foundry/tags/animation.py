@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import ExitStack, nullcontext
+from dataclasses import replace
 from enum import Enum, IntEnum
 from math import degrees
 from pathlib import Path
@@ -15,6 +16,7 @@ from ..tags.frame_event_list import AnimationEvent
 from ..tags.field_view import NativeTagStruct as _NativeStruct
 from ..tags.animation_graph import (
     AnimationGraphImportMetadata,
+    AnimationGraphNode,
     AnimationGraphTag,
     AnimationImportSettings,
 )
@@ -25,6 +27,7 @@ from ..tags.animation_names import (
     convert_animation_name_for_project,
     normalized_animation_graph_path,
 )
+from .animation_compression import import_animation_compression
 
 from ..tags.animation_resource import (
     AnimationCodecType,
@@ -212,6 +215,22 @@ class Compression(Enum):
     reach_medium_compression = 4
     reach_rough_compression = 5
 
+class LegacyCompression(Enum):
+    best_score = 0
+    best_compression = 1
+    best_accuracy = 2
+    best_fullframe = 3
+    best_small_keyframe = 4
+    best_large_keyframe = 5
+
+    def to_reach(self) -> Compression:
+        # Conversion policy: codec families have no exact Reach equivalent.
+        return {
+            'Medium': Compression.medium_compression,
+            'Rough': Compression.rough_compression,
+            'Uncompressed': Compression.uncompressed,
+        }[import_animation_compression(self.value, 'halo2')]
+
 class Animation:
     def __init__(self):
         self.name = ""
@@ -254,7 +273,8 @@ class Animation:
                               shared_element.SelectField('type') is not None):
             self.animation_type = AnimationType(shared_element.SelectField("type").Value + 1)
             self.frame_info_type = FrameInfoType(shared_element.SelectField("frame info type").Value)
-            self.compression = Compression.medium_compression
+            self.compression = LegacyCompression(
+                shared_element.SelectField('desired compression').Value).to_reach()
             self.element = element
             self.shared_element = shared_element
             playback_flags = element.SelectField("playback flags")
@@ -272,7 +292,10 @@ class Animation:
         self.animation_type = AnimationType(
             animation_type_value + 1 if game in {'halo3', 'halo3odst'} else animation_type_value)
         self.frame_info_type = FrameInfoType(shared_element.SelectField("frame info type").Value)
-        self.compression = Compression(shared_element.SelectField("desired compression").Value)
+        compression_value = shared_element.SelectField("desired compression").Value
+        self.compression = (LegacyCompression(compression_value).to_reach()
+                            if game in {'halo3', 'halo3odst'}
+                            else Compression(compression_value))
         self.resource_group = shared_element.SelectField("resource_group").Data
         self.resource_group_member = shared_element.SelectField("resource_group_member").Data
         self.element = element
@@ -428,6 +451,29 @@ class AnimationTag(AnimationGraphTag):
                 return path
 
         return None
+
+    def _model_skeleton_fallback(self, metadata, model):
+        """Supply missing graph nodes on a detached, read-only decoding copy."""
+        if metadata.nodes:
+            return metadata
+        model_nodes = model.nodes()
+        if not model_nodes:
+            raise ValueError('Animation graph and its model both have no skeleton nodes')
+        nodes = tuple(AnimationGraphNode(node.name, node.parent_index) for node in model_nodes)
+        # The native decoder reads its own skeleton, independently of metadata.
+        # Keep this copy alive for decoding without modifying the source tag.
+        with AnimationGraphTag(path=self.tag_path) as graph:
+            graph.read_only = True
+            block = graph.block(graph._definitions(),
+                                'nodes' if self.game == 'halo1' else 'skeleton nodes')
+            parent_field = 'parent node' if self.game == 'halo1' else 'parent node index'
+            for node in nodes:
+                element = block[block.add()]
+                graph.required_field(element, 'name').set(node.name)
+                graph.required_field(element, parent_field).set(node.parent_index)
+            self._skeleton_decode_source = graph.tag
+        utils.print_bullet(f'Animation graph has no nodes; using {len(nodes)} model nodes')
+        return replace(metadata, nodes=nodes)
 
     def _build_default_animation_nodes(
         self,
@@ -3761,7 +3807,8 @@ class AnimationTag(AnimationGraphTag):
         cached = getattr(self, '_authoring_decode_source', None)
         if cached is not None:
             return cached
-        cloned = type(self.tag).read_from_bytes(self.tag.write_to_bytes())
+        source = getattr(self, '_skeleton_decode_source', None) or self.tag
+        cloned = type(source).read_from_bytes(source.write_to_bytes())
         root = cloned.root()
         for prefix in ('definitions', 'resources'):
             field = root.field_path(f'{prefix}/animations')
@@ -3831,6 +3878,38 @@ class AnimationTag(AnimationGraphTag):
                 'The source channel masks and reconstruction diagnostics have been retained.')
         return pose
 
+    def _halo1_animation_movement(self, index: int) -> MovementData | None:
+        """Frame-info floats follow the tag byte order, not the compressed pose.
+
+        CE tags can retain a little-endian compressed stream inside a big-endian
+        tag. The bundled native decoder uses that stream's order for movement
+        too, so read the independent frame-info blob with the tag's order here.
+        """
+        from blam_tags import Endian
+
+        element = self.tag.root().field('animations').as_block()[index]
+        kind = FrameInfoType(element.field('frame info type').options().current)
+        components = {FrameInfoType.DX_DY: 2, FrameInfoType.DX_DY_DYAW: 3,
+                      FrameInfoType.DX_DY_DZ_DYAW: 4}.get(kind)
+        if kind == FrameInfoType.NONE:
+            return None
+        if components is None:
+            raise ValueError(f'Unsupported Halo 1 movement type: {kind.name}')
+        data = element.field('frame info').value
+        stride = components * 4
+        count = min(len(data) // stride, max(1, element.field('frame count').value))
+        if not count:
+            return None
+        fmt = ('>' if self.tag.endian == Endian.Be else '<') + 'f' * components
+        translations, rotations = [], []
+        for frame in range(count):
+            values = struct.unpack_from(fmt, data, frame * stride)
+            dz = values[2] if kind == FrameInfoType.DX_DY_DZ_DYAW else 0.0
+            translations.append(Vector((values[0], values[1], dz)) * 100.0)
+            rotations.append(Euler((0.0, 0.0, values[-1])).to_quaternion()
+                             if components > 2 else Quaternion((1.0, 0.0, 0.0, 0.0)))
+        return MovementData(kind, translations, rotations)
+
     def _native_animation_movement(
         self, pose: dict[str, object],
     ) -> MovementData | None:
@@ -3862,7 +3941,8 @@ class AnimationTag(AnimationGraphTag):
         if index in animation_cache:
             return animation_cache[index]
         pose_method = 'animation_pose_classic' if self.game == 'halo1' else 'animation_pose'
-        animation_pose = getattr(self.tag, pose_method, None)
+        decode_tag = getattr(self, '_skeleton_decode_source', None) or self.tag
+        animation_pose = getattr(decode_tag, pose_method, None)
         if animation_pose is None:
             raise RuntimeError(
                 'The loaded blam-tags binding predates native animation decoding. '
@@ -3928,7 +4008,8 @@ class AnimationTag(AnimationGraphTag):
         animation_data = self._animation_data_from_native_pose(native_pose)
         if tag_animation.animation_type in (AnimationType.NONE, AnimationType.BASE):
             append_final_frame(animation_data)
-            movement = self._native_animation_movement(native_pose)
+            movement = (self._halo1_animation_movement(index) if self.game == 'halo1'
+                        else self._native_animation_movement(native_pose))
             if movement is not None:
                 if getattr(self, '_reach_pedestal_node', None) is not None:
                     self._reach_unmoved_roots[id(animation_data)] = [
@@ -4063,6 +4144,13 @@ class AnimationTag(AnimationGraphTag):
     ):
         if metadata is None:
             raise ValueError('Native animation graph metadata is required')
+        self._skeleton_decode_source = None
+        render_model_path = self._resolve_render_model_path(render_model, armature)
+        if not metadata.nodes and self.block_animations.Elements.Count:
+            if render_model_path is None:
+                raise ValueError('Animation graph has no skeleton nodes and no model tag was found')
+            with RenderModelTag(path=render_model_path) as model:
+                metadata = self._model_skeleton_fallback(metadata, model)
         self._native_node_usages = metadata.node_usages
         self._imported_authoring_metadata = {}
         self.scale_animations_to_skeleton = scale_animations_to_skeleton
@@ -4090,7 +4178,6 @@ class AnimationTag(AnimationGraphTag):
         node_usages = metadata.node_usages
         
         model_context = nullcontext(None)
-        render_model_path = self._resolve_render_model_path(render_model, armature)
         if render_model_path is not None:
             model_context = RenderModelTag(path=render_model_path)
         elif render_model:

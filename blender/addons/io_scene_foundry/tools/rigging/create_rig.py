@@ -1326,7 +1326,12 @@ def control_rig_bone_category(bone_name: str) -> str | None:
     return None
 
 
-def remove_control_rig_transform_fcurves(action: bpy.types.Action, arm: bpy.types.Object, categories: set[str]) -> tuple[int, int]:
+def remove_control_rig_transform_fcurves(
+    action: bpy.types.Action,
+    arm: bpy.types.Object,
+    categories: set[str],
+    bone_names: set[str] | None = None,
+) -> tuple[int, int]:
     fcurves = utils.get_fcurves(action, arm)
     if not fcurves:
         return 0, 0
@@ -1339,6 +1344,8 @@ def remove_control_rig_transform_fcurves(action: bpy.types.Action, arm: bpy.type
             continue
 
         bone_name = match.group(1)
+        if bone_names is not None and bone_name not in bone_names:
+            continue
         if control_rig_bone_category(bone_name) not in categories:
             continue
         if fcurve.data_path not in pose_bone_transform_paths(bone_name):
@@ -1377,6 +1384,11 @@ class NWO_OT_ClearControlRigKeyframes(bpy.types.Operator):
         description="Clear transform keyframes from other CTRL_ control bones",
         default=True,
     )
+    selected_only: bpy.props.BoolProperty(
+        name="Selected Bones Only",
+        description="Only clear transform keyframes from selected bones of the enabled control types",
+        default=False,
+    )
 
     @classmethod
     def poll(cls, context):
@@ -1400,6 +1412,8 @@ class NWO_OT_ClearControlRigKeyframes(bpy.types.Operator):
         col.prop(self, "clear_fk")
         col.prop(self, "clear_other")
         layout.separator()
+        layout.prop(self, "selected_only")
+        layout.separator()
         layout.label(text=f'Current animation: {context.object.animation_data.action.name}', icon='ACTION')
 
     def execute(self, context):
@@ -1419,7 +1433,14 @@ class NWO_OT_ClearControlRigKeyframes(bpy.types.Operator):
             self.report({'WARNING'}, "Select at least one control type")
             return {'CANCELLED'}
 
-        removed_keyframes, removed_curves = remove_control_rig_transform_fcurves(action, arm, categories)
+        bone_names = None
+        if self.selected_only:
+            bone_names = {bone.name for bone in context.selected_pose_bones or []}
+            if not bone_names:
+                self.report({'WARNING'}, "Select at least one control bone in Pose Mode")
+                return {'CANCELLED'}
+
+        removed_keyframes, removed_curves = remove_control_rig_transform_fcurves(action, arm, categories, bone_names)
         if removed_curves == 0:
             self.report({'INFO'}, f'No selected control rig keyframes found in "{action.name}"')
             return {'CANCELLED'}

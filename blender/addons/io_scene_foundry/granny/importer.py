@@ -35,6 +35,60 @@ def properties(props):
     return result
 
 
+def light_attenuation(props):
+    """Find usable distance falloff, preferring Halo values over DCC metadata."""
+    def normalized(key):
+        return re.sub(r'[^a-z0-9]', '', key.casefold())
+
+    def number(value):
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return None
+        return value if isfinite(value) and value >= 0 else None
+
+    halo = {normalized(key): value for key, value in props.items() if key.startswith('bungie_light_')}
+    for key, value in halo.items():
+        if 'inversesquare' in key or key == 'bungielightphysicallycorrect':
+            if str(value).strip().casefold() in {'true', 'yes', 'on'} or (number(value) or 0) > 0:
+                return None
+
+    def bounds(values, pairs):
+        for start_key, end_key in pairs:
+            end = number(values.get(end_key))
+            if end is not None and end > 0:
+                start = number(values.get(start_key)) or 0
+                return min(start, end), end
+        return None
+
+    result = bounds(halo, [('bungielightfarattenuationstart', 'bungielightfarattenuationend')])
+    if result is not None:
+        return result
+
+    # Restrict generic names to light-related containers; a mesh's attenuation
+    # or camera clipping distances must not become a light's cutoff.
+    def containers(values, light_related=False):
+        if light_related:
+            yield {normalized(key): value for key, value in values.items() if not isinstance(value, dict)}
+        for key, value in values.items():
+            if isinstance(value, dict):
+                yield from containers(value, light_related or 'light' in normalized(key))
+    pairs = [('farattenuationstart', 'farattenuationend'),
+             ('lightfarattenuationstart', 'lightfarattenuationend'),
+             ('distanceattenuationstart', 'distanceattenuationend'),
+             ('attenuationstart', 'attenuationend'),
+             ('falloffstart', 'falloffend'), ('attenuationnearradius', 'attenuationfarradius')]
+    for values in containers(props):
+        result = bounds(values, pairs)
+        if result is not None:
+            return result
+    # Some exporters flatten their light-specific fields into ExtendedData.
+    return bounds({normalized(key): value for key, value in props.items()
+                   if 'light' in normalized(key) and not key.startswith('bungie_')},
+                  [('lightfarattenuationstart', 'lightfarattenuationend'),
+                   ('lightattenuationstart', 'lightattenuationend')])
+
+
 def array_literal(value):
     if isinstance(value, (list, tuple)):
         return list(value)
@@ -294,6 +348,8 @@ class GR2Importer:
                 # "default"; the GR2 enum uses "default" and "poop" respectively.
                 mesh_type = {'_connected_geometry_mesh_type_default': '_connected_geometry_mesh_type_structure',
                              '_connected_geometry_mesh_type_poop': '_connected_geometry_mesh_type_default'}.get(mesh_type, mesh_type)
+            if mesh_type == '_connected_geometry_mesh_type_poop':
+                mesh_type = '_connected_geometry_mesh_type_default'
             self.set_property(ob.data.nwo, 'mesh_type', mesh_type)
         if has_value(props.get('bungie_marker_type')):
             marker_type = self.enum('marker_type', props['bungie_marker_type'], prefix='_connected_geometry_marker_type_')
@@ -759,6 +815,13 @@ class GR2Importer:
                 light.spot_size = radians(falloff)
                 if falloff > 0:
                     light.spot_blend = max(0, min(1, 1 - float(props.get('bungie_light_hotspot_size', 45)) / falloff))
+            attenuation = light_attenuation(props)
+            if light_type != 'SUN' and attenuation is not None:
+                start, end = attenuation
+                scalar = import_transform.scale_factor(self.scene_nwo)
+                self.set_property(light.nwo, 'light_far_attenuation_end', end * scalar)
+                self.set_property(light.nwo, 'light_far_attenuation_start', start * scalar)
+                utils.make_halo_light(light)
         ob.matrix_world = import_transform.object_matrix(world, self.scene_nwo)
         return ob
 

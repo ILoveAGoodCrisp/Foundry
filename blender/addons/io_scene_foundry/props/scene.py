@@ -1327,11 +1327,11 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
         description="Level of compression to apply to animations",
         options=set(),
         items=[
-            ("Default", "Default", "Animation compression is determined by the value set in the asset editor panel"),
-            ("Uncompressed", "Uncompressed", "No compression"),
-            ("Medium", "Medium", "Medium compression"),
-            ("Rough", "Rough", "Highest level of compression"),
+            ("Uncompressed", "Uncompressed", "No compression", 1),
+            ("Medium", "Medium", "Medium compression", 2),
+            ("Rough", "Rough", "Highest level of compression", 3),
         ],
+        default="Medium",
     )
             
     animation_type: bpy.props.EnumProperty(
@@ -1750,7 +1750,8 @@ class NWO_CinematicShot(bpy.types.PropertyGroup):
 
 class NWO_ScenarioSky(PropertyGroup):
     def clean_path(self, context):
-        self['path'] = utils.relative_path(self.path.strip('"'))
+        path = self.path.strip().strip('"').strip()
+        self['path'] = utils.relative_path(path) if path and path != '.' else ''
 
     path: bpy.props.StringProperty(name="Sky Tag", description="Tag-relative path to a sky or scenery tag", update=clean_path, options=set())
 
@@ -3444,6 +3445,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     lighting_expanded: bpy.props.BoolProperty(default=False, options=set())
     decals_expanded: bpy.props.BoolProperty(default=False, options=set())
     decorators_expanded: bpy.props.BoolProperty(default=False, options=set())
+    scenario_objects_expanded: bpy.props.BoolProperty(default=False, options=set())
     airprobes_expanded: bpy.props.BoolProperty(default=False, options=set())
     # zone_sets_expanded: bpy.props.BoolProperty(default=False, options=set())
     objects_expanded: bpy.props.BoolProperty(default=False, options=set())
@@ -3887,21 +3889,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     keyframe_sync_active: bpy.props.BoolProperty(options=set())
     
     
-    default_animation_compression: bpy.props.EnumProperty(
-        name="Default Animation Compression",
-        description="The default animation the game applies to animations",
-        options=set(),
-        items=[
-            ("Automatic", "Automatic", "Compression is determined by the game during animation import"),
-            ("Uncompressed", "Uncompressed", "No compression"),
-            ("Medium", "Medium", "Medium compression"),
-            ("Rough", "Rough", "Highest level of compression"),
-        ]
-    )
-    
     forced_animation_compression: bpy.props.EnumProperty(
         name="Forced Animation Compression",
-        description="The forced animation the game applies to animations. Overrides any per animation compression setting",
+        description="Override every exported animation's compression without changing its Blender properties",
         options=set(),
         items=[
             ("none", "None", "No override"),
@@ -3909,6 +3899,18 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             ("medium", "Medium", "Force medium compression for all animations"),
             ("rough", "Rough", "Force rough compression for all animations"),
         ]
+    )
+
+    compress_all_animations: bpy.props.BoolProperty(
+        name="Compress All Animations",
+        description="Compress all animations when compiling the Halo 1 graph",
+        options=set(),
+    )
+
+    force_idle_compression: bpy.props.BoolProperty(
+        name="Force Idle Compression",
+        description="Force idle animation compression when compiling the Halo 1 graph",
+        options=set(),
     )
     
     # def get_parent_animation_graph(self):
@@ -4016,7 +4018,17 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     connected_geometry_marker_type_pathfinding_sphere_visible: bpy.props.BoolProperty(default=True, options=set(), name="Pathfinding Sphere", update=update_connected_geometry_marker_type_pathfinding_sphere_visible)
     connected_geometry_marker_type_physics_constraint_visible: bpy.props.BoolProperty(default=True, options=set(), name="Physics Constraint", update=update_connected_geometry_marker_type_physics_constraint_visible)
     connected_geometry_marker_type_target_visible: bpy.props.BoolProperty(default=True, options=set(), name="Target", update=update_connected_geometry_marker_type_target_visible)
+    def update_connected_geometry_marker_type_decal_visible(self, context): bpy.ops.nwo.hide_object_type(object_type='_connected_geometry_marker_type_decal')
+    connected_geometry_marker_type_decal_visible: bpy.props.BoolProperty(default=True, options=set(), name="Decal", update=update_connected_geometry_marker_type_decal_visible)
+    def update_connected_geometry_marker_type_decorator_visible(self, context): bpy.ops.nwo.hide_object_type(object_type='_connected_geometry_marker_type_decorator')
+    connected_geometry_marker_type_decorator_visible: bpy.props.BoolProperty(default=True, options=set(), name="Decorator", update=update_connected_geometry_marker_type_decorator_visible)
+    def update_connected_geometry_marker_type_player_start_visible(self, context): bpy.ops.nwo.hide_object_type(object_type='_connected_geometry_marker_type_player_start')
+    connected_geometry_marker_type_player_start_visible: bpy.props.BoolProperty(default=True, options=set(), name="Player Start", update=update_connected_geometry_marker_type_player_start_visible)
+    def update_connected_geometry_marker_type_cutscene_flag_visible(self, context): bpy.ops.nwo.hide_object_type(object_type='_connected_geometry_marker_type_cutscene_flag')
+    connected_geometry_marker_type_cutscene_flag_visible: bpy.props.BoolProperty(default=True, options=set(), name="Cutscene Flag", update=update_connected_geometry_marker_type_cutscene_flag_visible)
     connected_geometry_marker_type_game_instance_visible: bpy.props.BoolProperty(default=True, options=set(), name="Game Object", update=update_connected_geometry_marker_type_game_instance_visible)
+    def update_scenario_object_visible(self, context): bpy.ops.nwo.hide_object_type(object_type='_connected_geometry_marker_type_scenario_object')
+    connected_geometry_marker_type_scenario_object_visible: bpy.props.BoolProperty(default=True, options=set(), name="Scenario Object", update=update_scenario_object_visible)
     connected_geometry_marker_type_airprobe_visible: bpy.props.BoolProperty(default=True, options=set(), name="Airpobe", update=update_connected_geometry_marker_type_airprobe_visible)
     connected_geometry_marker_type_envfx_visible: bpy.props.BoolProperty(default=True, options=set(), name="Environment Effect", update=update_connected_geometry_marker_type_envfx_visible)
     connected_geometry_marker_type_lightCone_visible: bpy.props.BoolProperty(default=True, options=set(), name="Lightcone", update=update_connected_geometry_marker_type_lightCone_visible)
@@ -4227,7 +4239,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     decals_from_blender: bpy.props.BoolProperty(
         name="Decals Authored From Blender",
         options=set(),
-        description="On export the scenario decal palette and placements will be replaced by exported game object markers referencing decal tags",
+        description="On export the scenario decal palette and placements will be replaced by exported Decal markers",
         default=False,
     )
 
@@ -4256,6 +4268,15 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="On export, animation frame events will be updated from Blender",
         default=True,
     )
+
+    player_starts_from_blender: bpy.props.BoolProperty(
+        name="Player Starts Authored From Blender", options=set(), default=False,
+        description="Replace player starts even when there are no exported Player Start markers. Exported Player Start markers always replace the block",
+    )
+    camera_points_from_blender: bpy.props.BoolProperty(
+        name="Camera Points Authored From Blender", options=set(), default=False,
+        description="On structure export, replace the scenario cutscene camera points with exported Blender cameras at the current frame. Camera object names are used unless a point name is set",
+    )
     blend_screens_from_blender: bpy.props.BoolProperty(
         name="Blend Screens Authored From Blender",
         description="Replace classic animation graph blend screens with the screens stored in this blend file on export",
@@ -4266,3 +4287,10 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     last_bsp_split_was_layer: bpy.props.BoolProperty(
         options={'HIDDEN'},
     )
+
+
+from ..tags.scenario_objects import OBJECT_TYPES, authoring_property
+for _block, *_ in OBJECT_TYPES:
+    NWO_ScenePropertiesGroup.__annotations__[authoring_property(_block)] = bpy.props.BoolProperty(
+        name=f"{_block.title()} Authored From Blender", default=False, options=set(),
+        description=f"On structure export, replace {_block} placements and their palette with Blender Scenario Objects, including clearing empty exports")

@@ -13,17 +13,26 @@ def create_collections(context, ops, data, coll_type, coll_name, move_objects):
     full_name = get_full_name(coll_type, coll_name)
     collection_index = get_coll_if_exists(data, full_name)
     if move_objects:
-        if collection_index == -1:
-            ops.object.move_to_collection(
-                collection_index=0, is_new=True, new_collection_name=full_name
-            )
+        # Outliner selections are independent of the viewport selection and can
+        # include collections or other IDs as well as objects.
+        if context.area and context.area.type == 'OUTLINER':
+            objects = [item for item in context.selected_ids if isinstance(item, bpy.types.Object)]
         else:
-            for ob in context.selected_objects:
-                for coll in ob.users_collection:
-                    coll.objects.unlink(ob)
-                data.collections[collection_index].objects.link(ob)
+            objects = list(context.selected_objects)
 
-        new_collection = bpy.data.collections[full_name]
+        if collection_index == -1:
+            new_collection = data.collections.new(full_name)
+            context.scene.collection.children.link(new_collection)
+        else:
+            new_collection = data.collections[collection_index]
+
+        for ob in objects:
+            # Link first so an object never temporarily loses every collection.
+            if ob.name not in new_collection.objects:
+                new_collection.objects.link(ob)
+            for coll in tuple(ob.users_collection):
+                if coll != new_collection:
+                    coll.objects.unlink(ob)
     else:
         new_collection = bpy.data.collections.new(full_name)
         if selected_collection:

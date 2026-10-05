@@ -68,7 +68,7 @@ Info**, which governs source payloads embedded in tags.
 
 This is an initial reconstruction of exported data. It does not recover original
 modifiers, quads, authoring control rigs, metadata-only physics
-primitives, source lights, or morph/PCA animation. Source vertices stay split at
+primitives or morph/PCA animation. Source vertices stay split at
 export seams. Tag lighting and physics can still use the existing tag importer.
 Graph conversion, PCA, and skeleton-rescaling options retain compiled motion.
 Sidecar composites, material clones, full cinematic shot assembly, and referenced
@@ -103,3 +103,11 @@ The original Reach `40_boat.gr2` checks all 159 meshes and 49,998 triangles,
 including empty object-type metadata and untyped static mesh transforms.
 The original Reach Powerhouse `room01.gr2` checks its 165 drawable meshes and
 86,771 triangles, plus its three geometryless line nodes retained as empties.
+
+Imported non-directional lights with usable distance attenuation become Halo
+lights. Halo far-attenuation values take priority; otherwise light-related
+metadata such as Max LightInfo or Maya distance-attenuation fields supplies the
+falloff start and end. Distances follow the selected GR2 scene scale setting.
+Lights without usable distance falloff, and lights with Halo inverse-square
+falloff enabled, remain normal Blender lights. Cone angles and target distances
+are not treated as distance attenuation.

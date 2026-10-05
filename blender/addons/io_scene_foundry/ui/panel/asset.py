@@ -32,7 +32,7 @@ import xml.etree.ElementTree as ET
 class NWO_OT_CopyScenario(bpy.types.Operator):
     bl_idname = "nwo.copy_scenario"
     bl_label = "Copy Scenario"
-    bl_description = "Copies the referenced scenario into the cinematic tags folder and updates the scenario reference. This process always sets the scenario type to solo for the copied scenario"
+    bl_description = "Copies the referenced scenario beside the original, updates the scenario reference, sets the copy to solo, and removes its new split resources"
     bl_options = set()
     
     @classmethod
@@ -52,7 +52,9 @@ class NWO_OT_CopyScenario(bpy.types.Operator):
             self.report({'WARNING'}, f"Scenario does not exist: {scenario}")
             return {'CANCELLED'}
         
-        new_scenario = Path(utils.get_asset_tag(".scenario", True, True))
+        new_scenario = scenario.with_name(Path(utils.get_asset_tag(".scenario", True, True)).name)
+        if new_scenario.resolve() == scenario.resolve():
+            new_scenario = scenario.with_stem(f'{scenario.stem}_cinematic')
         new_scenario_rel = utils.relative_path(new_scenario)
         
         if not new_scenario.parent.exists():

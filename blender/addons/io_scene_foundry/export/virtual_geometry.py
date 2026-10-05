@@ -25,6 +25,7 @@ from .export_info import AdditionalCompression, ExportInfo, FaceDrawDistance, Fa
 from ..props.mesh import NWO_MeshPropertiesGroup
 
 from .. import utils
+from ..tags.animation_compression import export_animation_compression
 
 from ..tools.asset_types import AssetType
 
@@ -524,7 +525,8 @@ class VirtualAnimation:
         if is_scene_anim:
             self.name = Path(bpy.data.filepath).with_suffix("").name
             self.anim = animation
-            self.compression = 'Default'
+            self.compression = export_animation_compression(
+                'Medium', scene.scene_nwo.forced_animation_compression, scene.game)
             self.animation_type = None
             self.movement = None
             self.space = None
@@ -534,10 +536,8 @@ class VirtualAnimation:
         else:
             self.name = animation.name
             
-            if scene.default_animation_compression != "Automatic" and animation.compression == "Default":
-                self.compression = scene.default_animation_compression
-            else:
-                self.compression = animation.compression
+            self.compression = export_animation_compression(
+                animation.compression, scene.scene_nwo.forced_animation_compression, scene.game)
                 
             self.animation_type = animation.animation_type
             self.movement = animation.animation_movement_data
@@ -2615,7 +2615,7 @@ class VirtualModel:
             self.matrix: Matrix = ob.matrix_world.copy()
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, time_step: float, animation_compression: str, rotation: float, maintain_marker_axis: bool, granny_textures: bool, project, light_scale: float, unit_factor: float, atten_scalar: int, context: bpy.types.Context, halo_transform_scale: float = None, scene_nwo=None):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, time_step: float, rotation: float, maintain_marker_axis: bool, granny_textures: bool, project, light_scale: float, unit_factor: float, atten_scalar: int, context: bpy.types.Context, halo_transform_scale: float = None, scene_nwo=None):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.meshes_linked: dict[VirtualMesh] = {}
@@ -2651,7 +2651,6 @@ class VirtualScene:
         self.animations = []
         self.composite_blend_axis_values = {}
         self.shots = []
-        self.default_animation_compression = animation_compression
         
         self.object_parent_dict: dict[bpy.types.Object: bpy.types.Object] = {}
         self.object_halo_data: dict[bpy.types.Object: tuple[dict, str, str, list]] = {}

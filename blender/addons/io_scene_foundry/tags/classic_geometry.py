@@ -711,6 +711,18 @@ def centre_distant_render_instance(ob, distance):
         return False
     ob.data = ob.data.copy()
     utils.set_origin_to_centre(ob)
+    # Recentering cannot reduce a very wide sky mesh. Tool calculates its
+    # instance planes in local float coordinates, then checks them against a
+    # fixed distance tolerance. Use an exact power-of-two local scale and its
+    # inverse in the ordinary object transform, keeping world geometry intact.
+    extent = max(abs(value) for vertex in ob.data.vertices for value in vertex.co)
+    factor = 1
+    while extent / factor > distance:
+        factor *= 2
+    if factor > 1:
+        from mathutils import Matrix
+        ob.data.transform(Matrix.Scale(1 / factor, 4))
+        ob.scale *= factor
     return True
 
 

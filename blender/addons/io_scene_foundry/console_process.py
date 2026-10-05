@@ -6,6 +6,7 @@ import subprocess
 import threading
 
 from . import foundry_output
+from .tool_process import shader_prompt_error
 
 
 _PSEUDOCONSOLE_ATTRIBUTE = 0x00020016
@@ -66,6 +67,7 @@ def run_console_command(command, cwd, output_stream):
                                   ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p)
     kernel32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
     kernel32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+    kernel32.TerminateProcess.argtypes = (wintypes.HANDLE, wintypes.UINT)
     kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
     kernel32.DeleteProcThreadAttributeList.argtypes = (ctypes.c_void_p,)
 
@@ -78,6 +80,7 @@ def run_console_command(command, cwd, output_stream):
     attributes_ready = False
     process_info = _ProcessInfo()
     reader = None
+    prompt_errors = []
     try:
         if not kernel32.CreatePipe(ctypes.byref(input_read), ctypes.byref(input_write), None, 0):
             raise ctypes.WinError(ctypes.get_last_error())
@@ -118,7 +121,13 @@ def run_console_command(command, cwd, output_stream):
         def read_output():
             data = ctypes.create_string_buffer(4096)
             count = wintypes.DWORD()
+            tail = b''
             while kernel32.ReadFile(output_read, data, len(data), ctypes.byref(count), None):
+                tail = (tail + data.raw[:count.value])[-8192:]
+                error = shader_prompt_error(tail)
+                if error and not prompt_errors:
+                    prompt_errors.append(error)
+                    kernel32.TerminateProcess(process_info.process, 1)
                 if count.value and output_stream is not None:
                     output_stream.write(data.raw[:count.value])
 
@@ -131,6 +140,8 @@ def run_console_command(command, cwd, output_stream):
         kernel32.ClosePseudoConsole(pseudo_console)
         pseudo_console = ctypes.c_void_p()
         reader.join()
+        if prompt_errors:
+            raise prompt_errors[0]
         if exit_code.value:
             raise subprocess.CalledProcessError(exit_code.value, command)
         return 0

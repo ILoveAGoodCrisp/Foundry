@@ -3,10 +3,37 @@ from math import radians
 import random
 import uuid
 import bpy
+from functools import lru_cache
 
 from ..constants import VALID_OBJECTS, face_prop_descriptions
 
 from .. import utils
+from ..tags.scenario_markers import enum_options
+
+
+@lru_cache(maxsize=None)
+def player_start_items(game, field):
+    options = enum_options(game, 'player starting locations', field)
+    return [(str(i), name.title(), '', i) for i, name in enumerate(options)] or [('0', 'Default', '', 0)]
+
+
+def player_start_enum(field):
+    def items(self, context):
+        project = utils.get_project()
+        game = project.game if project else 'reach'
+        return player_start_items(game, field)
+    return items
+
+
+@lru_cache(maxsize=7)
+def camera_point_type_items(game):
+    options = enum_options(game, 'cutscene camera points', 'type')
+    return [(str(i), name.title(), '', i) for i, name in enumerate(options)] or [('0', 'Normal', '', 0)]
+
+
+def camera_point_types(self, context):
+    project = utils.get_project()
+    return camera_point_type_items(project.game if project else 'reach')
 
 class IgnoreReason(Enum):
     none = 0
@@ -247,6 +274,19 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set()
     )
     
+    cinematic_animation_compression: bpy.props.EnumProperty(
+        name="Animation compression",
+        description="Compression applied to every animation in this actor's exported cinematic graph",
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+        items=[
+            ('uncompressed', "Uncompressed", "Use the highest quality animation setting"),
+            ('medium', "Medium", "Medium animation compression"),
+            ('rough', "Rough", "Highest level of animation compression"),
+        ],
+        default='uncompressed',
+    )
+
     cinematic_lighting: bpy.props.EnumProperty(
         name="Cinematic Lighting",
         options=set(),
@@ -672,6 +712,23 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
 
     marker_type_help: bpy.props.IntProperty(options=set(), override={'LIBRARY_OVERRIDABLE'})
+
+    from .scenario_objects import scenario_object_types
+    scenario_object_type: bpy.props.EnumProperty(name="Object Type", items=scenario_object_types, options=set())
+    scenario_child_scenario: bpy.props.StringProperty(name="Child Scenario", options=set(),
+        description="Scenario file name in the asset scenario folder; leave empty to author in the asset scenario")
+    scenario_object_unique_name: bpy.props.BoolProperty(name="Unique Name", default=True, options=set(),
+        description="Use the Blender object name in the scenario object names block, for scripting and attachments")
+    scenario_object_manual_bsps: bpy.props.StringProperty(name="Manual BSP Indices", options=set(),
+        description="Comma separated BSP indices for manual BSP placement")
+    scenario_object_attach_bsps: bpy.props.StringProperty(name="Can Attach to BSP Indices", options=set(),
+        description="Comma separated BSP indices to which this object can attach")
+    def get_scenario_object_tag(self):
+        return self.marker_game_instance_tag_name
+    def set_scenario_object_tag(self, value):
+        self.marker_game_instance_tag_name = value
+    scenario_object_tag_name: bpy.props.StringProperty(name="Object Tag", options=set(),
+        get=get_scenario_object_tag, set=set_scenario_object_tag)
     
     # frame_override: bpy.props.BoolProperty(
     #     name="Frame Override",
@@ -1334,7 +1391,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
 
     marker_game_instance_tag_name: bpy.props.StringProperty(
         name="Marker Game Instance Tag",
-        description="Reference to the object, decorator set, or decal tag that should be placed at this marker in your scenario. Decals project along local +X",
+        description="Reference to the object tag that should be placed at this marker in your scenario",
         update=game_instance_clean_tag_path,
         override={'LIBRARY_OVERRIDABLE'},
     )
@@ -1354,6 +1411,51 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
     
     # Decorators
+
+    def decorator_tag_get(self):
+        return self.marker_game_instance_tag_name
+
+    def decorator_tag_set(self, value):
+        self.marker_game_instance_tag_name = value
+
+    marker_decorator_tag_name: bpy.props.StringProperty(
+        name="Decorator Tag", get=decorator_tag_get, set=decorator_tag_set,
+        description="Decorator set, or Halo 1 detail object collection",
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+
+    def decal_clean_tag_path(self, context):
+        self['marker_decal_tag_name'] = utils.clean_tag_path(self.marker_decal_tag_name).strip('"')
+
+    marker_decal_tag_name: bpy.props.StringProperty(
+        name="Decal Tag", update=decal_clean_tag_path,
+        description="Decal tag (Halo 1/2) or decal system (Halo 3 and later). Classic decals project along local +X",
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+    decal_force_planar: bpy.props.BoolProperty(name="Force Planar", options=set())
+    decal_cull_angle: bpy.props.FloatProperty(name="Cull Angle", min=0, subtype='ANGLE', options=set())
+    decal_manual_bsps: bpy.props.StringProperty(name="Manual BSPs", description="Comma-separated scenario BSP indices; empty uses automatic assignment")
+    scenario_bsp_index: bpy.props.IntProperty(name="BSP Index", default=-1, min=-1, max=32767, options=set())
+    scenario_editor_folder: bpy.props.IntProperty(name="Editor Folder", default=-1, min=-1, max=32767, options=set())
+    player_start_team: bpy.props.IntProperty(name="Team Index", min=0, max=32767, options=set())
+    player_start_team_designator: bpy.props.EnumProperty(name="Team", items=player_start_enum('team designator'))
+    player_start_type_0: bpy.props.EnumProperty(name="Game Type 0", items=player_start_enum('type 0'))
+    player_start_type_1: bpy.props.EnumProperty(name="Game Type 1", items=player_start_enum('type 1'))
+    player_start_type_2: bpy.props.EnumProperty(name="Game Type 2", items=player_start_enum('type 2'))
+    player_start_type_3: bpy.props.EnumProperty(name="Game Type 3", items=player_start_enum('type 3'))
+    player_start_spawn_type_0: bpy.props.EnumProperty(name="Spawn Type 0", items=player_start_enum('spawn type 0'))
+    player_start_spawn_type_1: bpy.props.EnumProperty(name="Spawn Type 1", items=player_start_enum('spawn type 1'))
+    player_start_spawn_type_2: bpy.props.EnumProperty(name="Spawn Type 2", items=player_start_enum('spawn type 2'))
+    player_start_spawn_type_3: bpy.props.EnumProperty(name="Spawn Type 3", items=player_start_enum('spawn type 3'))
+    player_start_campaign_player: bpy.props.EnumProperty(name="Campaign Player", items=player_start_enum('campaign player type'))
+    player_start_insertion_point: bpy.props.IntProperty(name="Insertion Point Index", min=-1, max=32767, options=set())
+    player_start_survival: bpy.props.BoolProperty(name="Survival Mode", options=set())
+    player_start_survival_elite: bpy.props.BoolProperty(name="Survival Mode Elite", options=set())
+    cutscene_flag_name: bpy.props.StringProperty(name="Flag Name", description="Script name of this flag; empty uses the object name")
+    camera_point_name: bpy.props.StringProperty(name="Point Name", description="Script name of this camera point; empty uses the camera object name")
+    camera_point_type: bpy.props.EnumProperty(name="Camera Point Type", items=camera_point_types)
+    camera_point_edit_as_relative: bpy.props.BoolProperty(name="Edit as Relative", options=set())
+    camera_point_zone_set: bpy.props.IntProperty(name="Zone Set Index", default=-1, min=-1, max=32767, options=set())
     
     decorator_motion_scale: bpy.props.FloatProperty(
         name="Motion Scale",
@@ -1365,6 +1467,10 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         override={'LIBRARY_OVERRIDABLE'},
     )
+
+    detail_object_sprite_index: bpy.props.IntProperty(name="Sprite Index", min=0, max=15, options=set())
+    decorator_permutation_index: bpy.props.IntProperty(name="Permutation Index", min=0, max=63, options=set())
+    decorator_cluster_index: bpy.props.IntProperty(name="Cluster Index", default=-1, min=-1, max=32767, options=set())
     
     decorator_ground_tint: bpy.props.FloatProperty(
         name="Ground Tint Influence",
@@ -2218,3 +2324,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="This light will be exported as cinematic light",
         options=set()
     )
+
+from .scenario_objects import add_object_properties
+add_object_properties(NWO_ObjectPropertiesGroup)

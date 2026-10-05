@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
 from ..animation_events import HALO1_FRAME_EVENT_SLOTS, canonical_frame_event
+from .animation_compression import export_animation_compression, import_animation_compression
 from .backend import RelativeTagPath, TagDocument, TagPathInput, TagReference
 from .blender import BlenderTag
 from .animation_names import (
@@ -1728,9 +1729,16 @@ class AnimationGraphTag(BlenderTag, TagDocument):
 
     def set_compression(self, animations: Iterable[AnimationCompressionInput],
                         forced: str) -> None:
-        requested = {animation.name.replace(' ', ':'): animation.compression
+        if self.game == 'halo1':
+            return
+        requested = {animation.name.replace(' ', ':'): export_animation_compression(
+                        animation.compression, forced, self.game)
                      for animation in animations}
         compression_values = {'Medium': 0, 'Rough': 1, 'Uncompressed': 2}
+        if self.game in {'halo2', 'halo3', 'halo3odst'}:
+            # Best score, best compression, best fullframe respectively.
+            # Fullframe is the export policy for Uncompressed, not a lossless guarantee.
+            compression_values = {'Medium': 0, 'Rough': 1, 'Uncompressed': 3}
         for element in self.block(self._definitions(), 'animations'):
             compression = requested.get(str(self.value(element, 'name')))
             target = compression_values.get(compression)
@@ -1749,23 +1757,56 @@ class AnimationGraphTag(BlenderTag, TagDocument):
                 field.set(target)
                 self.tag_has_changes = True
 
-        self.set_forced_compression(forced)
+        self.clear_forced_compression()
 
-    def set_forced_compression(self, forced: str | int) -> None:
-        forced_values = {'none': 0, 'medium': 1, 'rough': 2, 'uncompressed': 3}
-        target = forced_values.get(forced) if isinstance(forced, str) else forced
-        if target not in forced_values.values():
-            raise ValueError(f'Unknown forced animation compression: {forced!r}')
+    def clear_forced_compression(self) -> None:
         field = self._definitions().field('force compression setting')
-        if field is None:
-            if target != 0:
-                raise NotImplementedError(
-                    f'{self.path}: forced compression is unavailable in this graph layout')
+        if field is not None:
+            options = field.options()
+            current = int(field.value) if options is None else options.current
+            if current != 0:
+                field.set(0)
+                self.tag_has_changes = True
+
+    def halo1_compression_to_blender(self) -> None:
+        if self.game != 'halo1':
             return
-        options = field.options()
-        if options is None or options.current != target:
-            field.set(target)
-            self.tag_has_changes = True
+        flags = self.required_field(self.tag.root(), 'flags')
+        self.scene_nwo.compress_all_animations = flags.get_flag('compress all animations')
+        self.scene_nwo.force_idle_compression = flags.get_flag('force idle compression')
+
+    def compression_to_blender(self) -> None:
+        self.halo1_compression_to_blender()
+        self.scene_nwo.forced_animation_compression = {
+            0: 'none', 1: 'medium', 2: 'rough', 3: 'uncompressed',
+        }[self.forced_compression()]
+
+    def animation_compressions(self) -> dict[str, str]:
+        if self.game == 'halo1':
+            return {}
+        result = {}
+        for element in self.block(self._definitions(), 'animations'):
+            shared_field = element.field('shared animation data')
+            shared = None if shared_field is None else shared_field.as_block()
+            if shared is not None and not len(shared):
+                continue
+            data = element if shared is None else shared[0]
+            field = self.required_field(data, 'desired compression')
+            options = field.options()
+            value = int(field.value) if options is None else options.current
+            name = str(self.value(element, 'name')).replace(':', ' ').casefold()
+            result[name] = import_animation_compression(value, self.game)
+        return result
+
+    def set_halo1_compression(self, compress_all: bool, force_idle: bool) -> None:
+        if self.game != 'halo1':
+            return
+        flags = self.required_field(self.tag.root(), 'flags')
+        for name, enabled in (('compress all animations', compress_all),
+                              ('force idle compression', force_idle)):
+            if flags.get_flag(name) != enabled:
+                flags.set_flag(name, enabled)
+                self.tag_has_changes = True
 
     def forced_compression(self) -> int:
         """Read the export preference without rewriting native animation resources."""
@@ -1914,11 +1955,34 @@ class AnimationGraphTag(BlenderTag, TagDocument):
 
     def update_vehicle_suspension(
             self, updates: dict[str, VehicleSuspensionUpdate]) -> None:
+        updates = {name.replace(' ', ':'): update for name, update in updates.items()}
+        if self.game == 'halo1':
+            # CE suspension entries reference local animations rather than labels.
+            # Their mass-point indices are authored in physics and must be preserved.
+            names = self.animation_names()
+            for vehicle in self.block(self.tag.root(), 'vehicles'):
+                for element in self.block(vehicle, 'suspension animations'):
+                    index = int(self.value(element, 'animation'))
+                    if index < 0:
+                        continue
+                    if index >= len(names):
+                        raise ValueError(
+                            f'{self.path}: suspension animation index {index} is '
+                            f'outside the {len(names)} local animations')
+                    update = updates.get(names[index].replace(' ', ':'))
+                    if update is None:
+                        continue
+                    self.required_field(element, 'full extension ground depth').set(
+                        update.extension_depth)
+                    self.required_field(element, 'full compression ground depth').set(
+                        update.compression_depth)
+                    self.tag_has_changes = True
+            return
         content = self.required_field(self.tag.root(), 'content').as_struct()
         if content is None:
             raise TypeError(f'{self.path}: content is not a structure')
         for element in self.block(content, 'vehicle suspension'):
-            update = updates.get(str(self.value(element, 'label')))
+            update = updates.get(str(self.value(element, 'label')).replace(' ', ':'))
             if update is None:
                 continue
             self.required_field(element, 'marker name').set(update.marker_name)

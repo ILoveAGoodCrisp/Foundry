@@ -144,6 +144,11 @@ class NWO_MeshToMarker(bpy.types.Operator):
                     )
                 )
 
+        if utils.poll_ui('scenario'):
+            for index, (kind, label, icon) in enumerate((('decal', 'Decal', 'marker'), ('decorator', 'Decorator', 'decorator'),
+                                                        ('player_start', 'Player Starting Location', 'marker'), ('cutscene_flag', 'Cutscene Flag', 'marker'),
+                                                        ('scenario_object', 'Scenario Object', 'game_object')), 5):
+                items.append(('_connected_geometry_marker_type_' + kind, label, '', get_icon_id(icon), index))
         return items
     
     marker_type: bpy.props.EnumProperty(
@@ -216,6 +221,9 @@ class NWO_MeshToMarker(bpy.types.Operator):
                     ob.empty_display_type = 'SPHERE'
                 case '_connected_geometry_marker_type_game_instance':
                     ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+                    ob.empty_display_type = 'ARROWS'
+                case '_connected_geometry_marker_type_decal' | '_connected_geometry_marker_type_decorator' | '_connected_geometry_marker_type_player_start' | '_connected_geometry_marker_type_cutscene_flag' | '_connected_geometry_marker_type_scenario_object':
+                    ob.nwo.marker_type = self.marker_type
                     ob.empty_display_type = 'ARROWS'
                 case '_connected_geometry_marker_type_envfx':
                     ob.nwo.marker_type = '_connected_geometry_marker_type_envfx'

@@ -590,6 +590,9 @@ class NWO_ExportScene(Operator, ExportHelper):
         col.prop(scene_nwo_export, "export_mode", text="")
         col.prop(scene_nwo_export, "event_level", text="")
         if scene_nwo.asset_type == 'camera_track_set':
+            box = layout.box()
+            box.label(text="Scope")
+            box.prop(scene_nwo_export, "camera_track_scope", expand=True)
             return
         scenario = scene_nwo.asset_type == "scenario"
         render = utils.poll_ui(("model", "sky"))
@@ -825,14 +828,15 @@ def _schedule_scene_restore(window: bpy.types.Window, scene: bpy.types.Scene):
     bpy.app.timers.register(restore_scene, first_interval=0.0)
 
 def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth, single_animation, for_cache_build, collection_view_layer=None):
+    asset_type = scene_settings.asset_type
+    if asset_type == 'camera_track_set':
+        # Camera tracks write native tags for every engine, without intermediates.
+        return export_current_action_as_camera_track(context, asset_path, export_settings.camera_track_scope)
     if utils.uses_legacy_export(scene_settings.scene_project):
         from .legacy import export_legacy_asset
         return export_legacy_asset(context, asset_name, asset_path, scene_settings, export_settings,
                                    single_animation, collection_view_layer)
-    asset_type = scene_settings.asset_type
     child_animation = _is_child_animation_export(scene_settings)
-    if asset_type == 'camera_track_set':
-        return export_current_action_as_camera_track(context, asset_path) # Return early if this is a camera track export
     if asset_type == 'polyart':
         if export_settings.export_mode == 'GRANNY':
             raise ExportCancelled("Polyart assets do not produce GR2 files. Use Full or Tags export mode")

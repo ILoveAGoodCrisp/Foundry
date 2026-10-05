@@ -19,6 +19,7 @@ DECORATOR_ATTR_NORMAL = "normal"
 DECORATOR_ATTR_INFO = "decorator_info"
 DECORATOR_ATTR_SCALE = "decorator_scale"
 DECORATOR_ATTR_TINT = "decorator_tint"
+DECORATOR_ATTR_SOURCE = "decorator_source"
 
 class NWO_OT_GetDecoratorTypes(bpy.types.Operator):
     bl_idname = "nwo.get_decorator_types"
@@ -37,7 +38,7 @@ class NWO_OT_GetDecoratorTypes(bpy.types.Operator):
             return False
         
         tag_path = Path(utils.get_tags_path(), utils.relative_path(context.object.nwo.marker_game_instance_tag_name))
-        return tag_path.is_absolute() and tag_path.exists() and tag_path.is_file() and tag_path.suffix.lower() == ".decorator_set"
+        return tag_path.is_absolute() and tag_path.is_file() and tag_path.suffix.lower() in {'.decorator_set', '.detail_object_collection'}
     
     
     def type_items(self, context):
@@ -74,15 +75,21 @@ class NWO_OT_ExportDecorators(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return utils.valid_nwo_asset(context)
+        return (utils.valid_nwo_asset(context) and context.scene.nwo.asset_type == 'scenario'
+                and context.scene.nwo.decorators_from_blender)
 
     def execute(self, context):
         current_selection = context.selected_objects[:]
         current_object = context.object
-        export_decorators(utils.is_corinth(context))
+        try:
+            count = export_decorators(utils.is_corinth(context))
+        except Exception as exc:
+            self.report({'ERROR'}, str(exc))
+            return {'CANCELLED'}
         for ob in current_selection:
             ob.select_set(True)
         context.view_layer.objects.active = current_object
+        self.report({'INFO'}, f'Exported {count} decorator placements')
         return {"FINISHED"}
 
 class NWO_OT_DecoratorCloudToInstances(bpy.types.Operator):
@@ -114,7 +121,7 @@ class NWO_OT_DecoratorCloudToInstances(bpy.types.Operator):
         return {'FINISHED'}
 
 def _is_decorator_instance(nwo):
-    return nwo.marker_type == '_connected_geometry_marker_type_game_instance' and nwo.marker_game_instance_tag_name.lower().endswith(".decorator_set")
+    return nwo.marker_type == '_connected_geometry_marker_type_decorator'
 
 def _decorator_cloud_marker_data(ob):
     tag_path = ob.get(DECORATOR_TAG_PROP) or ob.nwo.marker_game_instance_tag_name
@@ -126,7 +133,7 @@ def _is_decorator_cloud(ob):
         return False
     
     tag_path, _ = _decorator_cloud_marker_data(ob)
-    return isinstance(tag_path, str) and tag_path.lower().endswith(".decorator_set")
+    return isinstance(tag_path, str) and tag_path.lower().endswith((".decorator_set", ".detail_object_collection"))
 
 def gather_decorators(context):
     print("--- Start decorator gather")
@@ -150,7 +157,8 @@ def gather_decorators(context):
                 parent = inst.parent
 
             if _is_decorator_cloud(original):
-                proxies.extend(_decorator_cloud_proxies(original, inst.matrix_world))
+                if not utils.ignore_for_export_fast(original, collection_map, parent):
+                    proxies.extend(_decorator_cloud_proxies(original, inst.matrix_world))
                 continue
             
             if not (original.type == 'EMPTY' and _is_decorator_instance(nwo)):
@@ -213,6 +221,8 @@ def _decorator_cloud_proxies(ob, matrix_world):
     info = _color_attribute(mesh, DECORATOR_ATTR_INFO, (0.0, ob.nwo.decorator_ground_tint, ob.nwo.decorator_motion_scale, 1.0))
     scales = _color_attribute(mesh, DECORATOR_ATTR_SCALE, (1.0, 1.0, 1.0, 1.0))
     tints = _color_attribute(mesh, DECORATOR_ATTR_TINT, (*ob.nwo.decorator_tint, 1.0))
+    sources = _color_attribute(mesh, DECORATOR_ATTR_SOURCE, (ob.nwo.scenario_bsp_index, ob.nwo.detail_object_sprite_index,
+        ob.nwo.decorator_permutation_index, ob.nwo.decorator_cluster_index))
     tag_path, variant = _decorator_cloud_marker_data(ob)
     
     proxies = []
@@ -225,7 +235,10 @@ def _decorator_cloud_proxies(ob, matrix_world):
 
         nwo = types.SimpleNamespace()
         nwo.marker_game_instance_tag_name = tag_path
+        nwo.scenario_child_scenario = ob.nwo.scenario_child_scenario
+        nwo.marker_decorator_tag_name = tag_path
         nwo.marker_game_instance_tag_variant_name = variant
+        nwo.scenario_bsp_index, nwo.detail_object_sprite_index, nwo.decorator_permutation_index, nwo.decorator_cluster_index = (round(float(v)) for v in sources[idx])
         nwo.decorator_motion_scale = float(info[idx][2])
         nwo.decorator_ground_tint = float(info[idx][1])
         nwo.decorator_tint = tuple(float(v) for v in tints[idx][:3])
@@ -253,7 +266,7 @@ def _decorator_cloud_instance_collection(ob):
 
 def decorator_cloud_to_instances(ob, collection=None, remove_cloud=False):
     instance_collection, source = _decorator_cloud_instance_collection(ob)
-    if instance_collection is None:
+    if instance_collection is None and not _decorator_cloud_marker_data(ob)[0].endswith('.detail_object_collection'):
         raise ValueError(f"Decorator cloud {ob.name} has no instanced collection source")
     
     collection = collection or (ob.users_collection[0] if ob.users_collection else bpy.context.scene.collection)
@@ -263,15 +276,19 @@ def decorator_cloud_to_instances(ob, collection=None, remove_cloud=False):
         new_ob = bpy.data.objects.new(proxy.name, None)
         new_ob.empty_display_type = 'ARROWS'
         new_ob.matrix_world = proxy.matrix_world
-        new_ob.instance_type = 'COLLECTION'
-        new_ob.instance_collection = instance_collection
-        new_ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+        if instance_collection is not None:
+            new_ob.instance_type = 'COLLECTION'
+            new_ob.instance_collection = instance_collection
+        new_ob.nwo.marker_type = '_connected_geometry_marker_type_decorator'
         new_ob.nwo.marker_game_instance_tag_name = proxy.nwo.marker_game_instance_tag_name
         new_ob.nwo.marker_game_instance_tag_variant_name = proxy.nwo.marker_game_instance_tag_variant_name
         new_ob.nwo.marker_instance = True
+        new_ob.nwo.scenario_child_scenario = proxy.nwo.scenario_child_scenario
         new_ob.nwo.decorator_motion_scale = proxy.nwo.decorator_motion_scale
         new_ob.nwo.decorator_ground_tint = proxy.nwo.decorator_ground_tint
         new_ob.nwo.decorator_tint = proxy.nwo.decorator_tint
+        for name in ('scenario_bsp_index', 'detail_object_sprite_index', 'decorator_permutation_index', 'decorator_cluster_index'):
+            setattr(new_ob.nwo, name, getattr(proxy.nwo, name))
         collection.objects.link(new_ob)
         created.append(new_ob)
     
@@ -290,67 +307,47 @@ def _decorator_type_indices(decorator_types):
 def _byte_value(value):
     return max(0, min(255, int(value)))
 
-def _decorator_byte_value(value, corinth):
-    value = _byte_value(value)
-    if corinth:
-        # Match ManagedBlam's CharInteger coercion in the old field-by-field writer.
-        return min(value, 127)
-    
-    return value
-
-def _write_decorator_placements(scenario, placements, decorator_objects, decorator_types, corinth):
-    placements.clear()
-    type_indices = _decorator_type_indices(decorator_types)
-    for ob in decorator_objects:
-        index = placements.add()
-        placement = placements[index]
-        matrix = utils.halo_transforms_matrix(ob.matrix_world)
-        position = scenario.required_field(placement, 'position')
-        position.set(type(position.value)(*matrix.translation))
-        q = matrix.to_quaternion()
-        rotation = scenario.required_field(placement, 'rotation')
-        rotation.set(type(rotation.value)(q[1], q[2], q[3], q[0]))
-        scenario.required_field(placement, 'scale').set(max(ob.matrix_world.to_scale().to_tuple()))
-        
-        variant = ob.nwo.marker_game_instance_tag_variant_name.strip().lower()
-        if variant:
-            scenario.required_field(placement, 'type index').set(type_indices.get(variant, 0))
-        
-        motion_scale = _decorator_byte_value(ob.nwo.decorator_motion_scale * 255, corinth)
-        ground_tint = _decorator_byte_value(ob.nwo.decorator_ground_tint * 255, corinth)
-        if not corinth:
-            motion_scale = utils.signed_int8(motion_scale)
-            ground_tint = utils.signed_int8(ground_tint)
-        scenario.required_field(placement, 'motion scale').set(motion_scale)
-        scenario.required_field(placement, 'ground tint').set(ground_tint)
-        tint = scenario.required_field(placement, 'tint color')
-        tint.set(type(tint.value)(*(utils.linear_to_srgb(c) for c in ob.nwo.decorator_tint)))
-
-        bsp = placement.field('bsp index') or placement.field('runtime bsp index')
-        if bsp is not None:
-            bsp.set(-1)
-        scenario.required_field(placement, 'cluster index').set(-1)
-        decorator_set_index = placement.field('cluster decorator set index')
-        if decorator_set_index is not None:
-            decorator_set_index.set(-1)
-    scenario.tag_has_changes = True
-    
 def export_decorators(corinth, decorator_objects = None):
-    scenario_path = utils.get_asset_tag(".scenario", True)
     scene_nwo = utils.get_scene_props()
-    if corinth and scene_nwo.decorators_from_blender_child_scenario.strip():
-        scenario_path = str(Path(scenario_path).with_name(scene_nwo.decorators_from_blender_child_scenario).with_suffix(".scenario"))
-    
-    tags_dir = utils.get_tags_path()
+    if not scene_nwo.decorators_from_blender:
+        return 0
+    scenario_path = utils.get_asset_tag(".scenario", True)
     context = bpy.context
     if decorator_objects is None:
         decorator_objects = gather_decorators(context)
+
+    game = utils.get_project(scene_nwo.scene_project).game
+    from .scenario.targets import scenario_targets
+    default_child = scene_nwo.decorators_from_blender_child_scenario if corinth else ''
+    count = 0
+    with scenario_targets(decorator_objects, scenario_path=scenario_path, tags_root=utils.get_tags_path(),
+            game=game, default_child=default_child, include_existing_children=True) as targets:
+        if game == 'halo1':
+            # H1 detail instances live in shared BSP tags. Write each BSP once,
+            # with one consistent palette across the parent and child scenarios.
+            parent = targets[0][0]
+            count = export_detail_objects(parent, decorator_objects)
+            palette = parent.block(parent.tag.root(), 'detail object collection palette')
+            for child, _ in targets[1:]:
+                child.block(child.tag.root(), 'detail object collection palette').clear()
+                for i in range(len(palette)):
+                    child.block(child.tag.root(), 'detail object collection palette').paste(i, palette.snapshot(i))
+                child.tag_has_changes = True
+            return count
+        for scenario, objects in targets:
+            count += _export_decorators_to_scenario(scenario, objects)
+    return count
+
+
+def _export_decorators_to_scenario(scenario, decorator_objects):
+    game = scenario.game
     
+    from ..tags.scenario import ScenarioDecoratorPlacement, ScenarioDecoratorSet
+    from ..tags.scenario_decorators import replace_decorators
     decorator_sets = {}
-    MAX_SETS = 48
     MAX_PLACEMENTS_PER_SET = 262_144
     for ob in decorator_objects:
-        tag_path = utils.relative_path(ob.nwo.marker_game_instance_tag_name.lower())
+        tag_path = utils.relative_path(ob.nwo.marker_decorator_tag_name)
         index = 0
 
         while True:
@@ -360,33 +357,67 @@ def export_decorators(corinth, decorator_objects = None):
                 break
             index += 1
 
-            if len(decorator_sets) > MAX_SETS:
-                for k in list(decorator_sets.keys())[:-MAX_SETS]:
-                    del decorator_sets[k]
-                    
+    records = []
+    for (path, _), objects in decorator_sets.items():
+        with DecoratorSetTag(path=path) as definition:
+            types_by_name = _decorator_type_indices(definition.get_decorator_types())
+        placements = []
+        for ob in objects:
+            variant = ob.nwo.marker_game_instance_tag_variant_name.strip().lower()
+            if not types_by_name or variant and variant not in types_by_name:
+                raise ValueError(f'{ob.name}: invalid decorator type {variant!r}')
+            type_index = types_by_name[variant] if variant else next(iter(types_by_name.values()))
+            matrix = utils.halo_transforms_matrix(ob.matrix_world)
+            q = matrix.to_quaternion()
+            placements.append(ScenarioDecoratorPlacement(tuple(matrix.translation), (q.x, q.y, q.z, q.w),
+                max(ob.matrix_world.to_scale()), type_index,
+                _byte_value(ob.nwo.decorator_motion_scale * 255), _byte_value(ob.nwo.decorator_ground_tint * 255),
+                tuple(utils.linear_to_srgb(c) for c in ob.nwo.decorator_tint),
+                ob.nwo.decorator_permutation_index, ob.nwo.decorator_cluster_index, ob.nwo.scenario_bsp_index))
+        records.append(ScenarioDecoratorSet(path, Path(path).stem, tuple(placements)))
+
     print("--- Writing decorators to Tag")
     start = time.perf_counter()
-    with ScenarioMetadataTag(path=scenario_path) as scenario:
-        root = scenario.tag.root()
-        decorator_block = scenario.block(root, 'decorators')
-        if not len(decorator_block):
-            decorator_block.add()
-            decorator_block = scenario.block(root, 'decorators')
-        sets_block = scenario.block(decorator_block[0], 'sets')
-        sets_block.clear()
-        # print("Max sets size", sets_block.MaximumElementCount)
-        
-        for key, value in decorator_sets.items():
-            path = key[0]
-            if path and Path(tags_dir, path).exists():
-                with DecoratorSetTag(path=path) as decorator_set:
-                    decorator_types = decorator_set.get_decorator_types()
-                    decorator_path = decorator_set.tag_path
-                index = sets_block.add()
-                element = sets_block[index]
-                scenario.set_reference(element, 'decorator set', decorator_path)
-                placements = scenario.block(element, 'placements')
-                _write_decorator_placements(scenario, placements, value, decorator_types, corinth)
+    replace_decorators(scenario, records)
+    if game == 'halo2' and records:
+        utils.print_warning('Halo 2 decorator source placements exported. Rebuild decorator caches in Sapien (decorator_rebuild_all).')
     print("--- Completed decorators tag write in", utils.human_time(time.perf_counter() - start, True))
+    return sum(len(record.placements) for record in records)
+
+
+def export_detail_objects(scenario_path, objects):
+    from contextlib import nullcontext
+    from ..tags.halo1_detail_objects import DetailObjectPlacement, replace_detail_objects
+    from ..tags.scenario import ScenarioDocument
+    tags_root = utils.get_tags_path()
+    document = nullcontext(scenario_path) if isinstance(scenario_path, ScenarioDocument) else ScenarioDocument(scenario_path, tags_root=tags_root, game='halo1', must_exist=True)
+    with document as scenario:
+        if scenario.read_only:
+            raise RuntimeError('Cannot export detail objects during a read-only tag operation')
+        bsps = [scenario.reference(row, 'structure bsp') for row in scenario.block(scenario.tag.root(), 'structure bsps')]
+        placements = []
+        type_cache = {}
+        for ob in objects:
+            path = utils.relative_path(ob.nwo.marker_decorator_tag_name)
+            if path not in type_cache:
+                with DecoratorSetTag(path=path) as collection:
+                    type_cache[path] = _decorator_type_indices(collection.get_decorator_types())
+            variant = ob.nwo.marker_game_instance_tag_variant_name.strip().lower()
+            types = type_cache[path]
+            if not types or variant and variant not in types:
+                raise ValueError(f'{ob.name}: invalid detail object type {variant!r}')
+            type_index = types[variant] if variant else next(iter(types.values()))
+            bsp_index = ob.nwo.scenario_bsp_index
+            if bsp_index < 0:
+                region = utils.true_region(ob.nwo)
+                bsp_index = next((i for i, ref in enumerate(bsps) if ref is not None and ref.ShortName == region), 0 if len(bsps) == 1 else -1)
+            if bsp_index < 0:
+                raise ValueError(f'{ob.name}: select the BSP for this detail object')
+            color = [max(0, min(255, round(utils.linear_to_srgb(c) * 255))) for c in ob.nwo.decorator_tint]
+            packed_color = (color[0] >> 3) << 11 | (color[1] >> 2) << 5 | color[2] >> 3
+            placements.append(DetailObjectPlacement(path, tuple(utils.halo_transforms_matrix(ob.matrix_world).translation),
+                type_index, ob.nwo.detail_object_sprite_index, packed_color, bsp_index))
+        replace_detail_objects(scenario, placements)
+    return len(placements)
                             
                     

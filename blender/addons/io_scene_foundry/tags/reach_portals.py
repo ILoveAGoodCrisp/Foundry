@@ -110,8 +110,8 @@ def _cluster_tree(data):
         supernode.cache_clear()
 
 
-def reconstruct_portal_volumes(records, data, *, preserve_indices=()):
-    """Use cluster cuts for connected volumes and H1 repair for isolated holes.
+def reconstruct_portal_volumes(records, data, *, preserve_indices=(), recover_all=True):
+    """Recover cluster cuts, including isolated visibility footprints.
 
     Return mesh records for the original connections, with convex polygons
     in ``polygons``. Preserve flagged footprints inside ordinary connections.
@@ -125,6 +125,14 @@ def reconstruct_portal_volumes(records, data, *, preserve_indices=()):
     if not data or not data.get('clusters') or any(r.plane_index < 0 or r.back_cluster < 0 or r.front_cluster < 0 for r in records):
         return fallback(records)
     selected = set()
+    if recover_all:
+        # A single stored portal can be a visibility bound over several cuts,
+        # including gaps whose two sides belong to the same cluster. Recover
+        # ordinary isolated cuts too; touching another portal is not evidence
+        # that a visibility footprint needs reconstruction. Flagged footprints
+        # retain their extent unless an ordinary cut can own the connection.
+        selected.update(r.plane_index for r in records if not any(
+            getattr(r, flag) for flag in ('one_way', 'no_way', 'ai_deafening', 'blocks_sounds', 'is_door')))
     for i, a in enumerate(records):
         for b in records[:i]:
             if a.plane_index != b.plane_index and any(

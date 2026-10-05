@@ -23,6 +23,9 @@ def is_frame_name(name):
 
 def canonical_bone_name(name):
     # Classic JMS exporters may spell a tag bone's word separators as spaces.
+    # Halo 2's compiler strips the bare frame prefix to an empty node name.
+    if name.casefold() == 'frame':
+        return ''
     return re.sub(r'[\s_]+', '_', utils.remove_node_prefix(name).casefold())
 
 
@@ -190,7 +193,10 @@ class JMSImporter:
             bones = self.tag_armature.data.bones
             by_base_name = defaultdict(list)
             for bone in bones:
-                by_base_name[canonical_bone_name(bone.name)].append(bone.name)
+                # Blender assigns a default name to unnamed tag nodes. Use the
+                # original name when available, including an empty string.
+                tag_name = bone.get('foundry_tag_node_name', bone.name)
+                by_base_name[canonical_bone_name(tag_name)].append(bone.name)
             used = set()
             for index, node in enumerate(self.jms.nodes):
                 exact = bones.get(node.name)

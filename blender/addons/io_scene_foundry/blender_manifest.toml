@@ -3,11 +3,9 @@ schema_version = "1.0.0"
 id = "io_scene_foundry"
 version = "2.0.0"
 name = "Foundry"
-tagline = "An import & export pipeline for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer"
+tagline = "An import and export pipeline for the Halo: The Masterchief Collection games"
 maintainer = "Crisp"
 type = "add-on"
-
-permissions = ["files", "clipboard"]
 
 website = "https://c20.reclaimers.net/general/community-tools/foundry/"
 
@@ -18,10 +16,13 @@ blender_version_min = "5.2.0"
 license = ["SPDX:GPL-3.0-or-later"]
 
 wheels = [
-  "./wheels/networkx-3.4.2-py3-none-any.whl",
   "./wheels/coacd-1.0.11-cp39-abi3-win_amd64.whl",
   "./wheels/blam_tags-0.1.10-cp38-abi3-win_amd64.whl"
 ]
+
+[permissions]
+files = "Import and export Halo tags and asset files"
+clipboard = "Copy tag paths and asset references"
 
 [build]
 paths_exclude_pattern = [

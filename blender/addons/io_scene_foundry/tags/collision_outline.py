@@ -163,7 +163,11 @@ def _merge_collapsed_seam_triangles(mesh):
                 continue
             longest = max(edge.calc_length() for edge in face.edges)
             epsilon = max(abs(c) for v in face.verts for c in v.co) * 2**-22
-            if longest == 0 or 2 * face.calc_area() / longest > epsilon * 4:
+            # Tool normalizes both edges before their cross product. Long
+            # slivers can fail that test even above coordinate-rounding width.
+            # The neighbour-plane check below still limits geometric changes
+            # to rounding error; no seam perimeter vertex is moved or removed.
+            if longest == 0 or 2 * face.calc_area() / longest > max(epsilon * 4, longest * .0002):
                 continue
             candidates = []
             for edge in face.edges:
@@ -211,6 +215,14 @@ def stabilize_seam_boundaries(objects):
     for ob in objects:
         if ob.type != 'MESH' or not ob.data.nwo.mesh_type.endswith('_seam'):
             continue
+        # Mapped render seams can carry corner normals, so the native-outline
+        # dissolve below cannot edit them. Repair their internal diagonals while
+        # retaining corner data and every perimeter vertex. Seam surfaces have
+        # no rendered shading boundary to constrain this geometric recovery.
+        from .bsp_import_geometry import retriangulate_render_slivers
+        magnitude = max((abs(c) for v in ob.data.vertices for c in v.co), default=0)
+        retriangulate_render_slivers(ob.data, magnitude * 2**-22 * 8,
+                                    relative_tolerance=.0002, respect_shading=False)
         repaired, count = _merge_collapsed_seam_triangles(ob.data)
         merged += count
         if repaired:

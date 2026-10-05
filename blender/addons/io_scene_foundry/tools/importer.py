@@ -333,6 +333,7 @@ IMPORT_TEMPLATE_VALUES = {
         "tag_bsp_import_havok": True,
         "tag_import_design": True,
         "tag_scenario_import_objects": True,
+        "tag_scenario_import_markers": True,
         "tag_scenario_import_decals": True,
         "tag_scenario_import_decorators": True,
     },
@@ -356,6 +357,7 @@ IMPORT_TEMPLATE_VALUES = {
         "tag_bsp_import_havok": True,
         "tag_import_design": True,
         "tag_scenario_import_objects": False,
+        "tag_scenario_import_markers": True,
         "tag_scenario_import_decals": False,
         "tag_scenario_import_decorators": False,
     },
@@ -379,6 +381,7 @@ IMPORT_TEMPLATE_VALUES = {
         "tag_bsp_import_havok": False,
         "tag_import_design": False,
         "tag_scenario_import_objects": True,
+        "tag_scenario_import_markers": True,
         "tag_scenario_import_decals": True,
         "tag_scenario_import_decorators": True,
     },
@@ -671,9 +674,10 @@ def draw_scenario_import_sections(operator, layout, corinth, show_template=True,
         view_box.prop(operator, "tag_sky")
     if show_scenario_content:
         view_box.prop(operator, "tag_scenario_import_objects")
+        view_box.prop(operator, "tag_scenario_import_markers")
         view_box.prop(operator, "tag_scenario_import_decals")
+        view_box.prop(operator, "tag_scenario_import_decorators")
         if game != 'halo1':
-            view_box.prop(operator, "tag_scenario_import_decorators")
             row = view_box.row()
             row.enabled = operator.tag_scenario_import_decorators
             row.prop(operator, "decorator_lod")
@@ -765,6 +769,8 @@ def _decorator_records_to_clouds(placements, path, name, types, collection, bvh=
         tint = np.ones((len(records), 4), dtype=np.float32)
         tint[:, :3] = np.asarray([record.tint for record in records], dtype=np.float32) ** 2.2
         _set_color_point_attribute(mesh, DECORATOR_ATTR_TINT, tint)
+        _set_color_point_attribute(mesh, 'decorator_source', [(getattr(record, 'bsp_index', -1), getattr(record, 'sprite_index', 0),
+            getattr(record, 'permutation_index', 0), getattr(record, 'cluster_index', -1)) for record in records])
         mesh.transform(import_transform.mesh_matrix())
         mesh.update()
 
@@ -804,7 +810,7 @@ def _decorator_instance_source_empty(cloud: bpy.types.Object, game_object_collec
     source.instance_collection = game_object_collection
     source.matrix_world = Matrix.Identity(4)
     tag_path, variant = _decorator_cloud_marker_data(cloud)
-    source.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+    source.nwo.marker_type = '_connected_geometry_marker_type_decorator'
     source.nwo.marker_game_instance_tag_name = tag_path
     source.nwo.marker_game_instance_tag_variant_name = variant
     source.nwo.marker_instance = True
@@ -1422,7 +1428,7 @@ def bind_sequence_drivers(scene, ob, slot_index):
                 digit.targets[0].data_path = '["Tether Distance"]' if tether else '["Ammo"]'
                 place = {'ones': 1, 'tens': 10, 'hundreds': 100}.get(name.rpartition('_')[2], 1)
                 length = material.node_tree.path_resolve(curve.data_path.removesuffix('.frame_offset')).frame_duration
-                digit_driver.expression = f'(floor(var/{place})%10)/{max(length-1, 1)}'
+                digit_driver.expression = f'(floor(var/{place})-10*floor(var/{place*10}))/{max(length-1, 1)}'
     return material
         
 
@@ -1834,6 +1840,11 @@ class NWO_Import(bpy.types.Operator):
         description="Select a specific cinematic scene to import, or all (default)",
     )
     
+    tag_scenario_import_markers: bpy.props.BoolProperty(
+        name="Import Player Starts and Cutscene Flags", default=True,
+        description="Import editable scenario Player Start and Cutscene Flag markers",
+    )
+
     tag_scenario_import_objects: bpy.props.BoolProperty(
         name="Import Scenario Objects",
         description="Imports scenario objects. Added to an exclude collection by default",
@@ -2379,6 +2390,7 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_import_lights = self.tag_import_lights
                     importer.tag_import_design = self.tag_import_design
                     importer.tag_scenario_import_objects = self.tag_scenario_import_objects
+                    importer.tag_scenario_import_markers = self.tag_scenario_import_markers
                     importer.tag_scenario_import_decals = self.tag_scenario_import_decals
                     importer.tag_scenario_import_decorators = self.tag_scenario_import_decorators
                     importer.decorator_lod = int(self.decorator_lod)
@@ -2572,6 +2584,7 @@ class NWO_Import(bpy.types.Operator):
                             importer.tag_bsp_render_only = True
                             importer.tag_import_lights = self.tag_import_lights
                             importer.tag_scenario_import_objects = self.tag_scenario_import_objects
+                            importer.tag_scenario_import_markers = self.tag_scenario_import_markers
                             importer.tag_scenario_import_decals = self.tag_scenario_import_decals
                             importer.tag_scenario_import_decorators = self.tag_scenario_import_decorators
                             importer.tag_sky = self.tag_sky
@@ -3196,6 +3209,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, "tag_import_lights")
             box.prop(self, "tag_sky")
             box.prop(self, "tag_scenario_import_objects")
+            box.prop(self, "tag_scenario_import_markers")
             box.prop(self, "tag_scenario_import_decals")
             box.prop(self, "tag_scenario_import_decorators")
             box.prop(self, "setup_as_asset")
@@ -3470,6 +3484,7 @@ class NWOImporter:
         self.tag_import_lights = False
         self.tag_import_design = False
         self.tag_scenario_import_objects = False
+        self.tag_scenario_import_markers = True
         self.tag_scenario_import_decals = False
         self.tag_scenario_import_decorators = False
         self.decorator_lod = 0
@@ -5292,10 +5307,13 @@ class NWOImporter:
         # an import-info JMA is available for this graph.
         if source_files and not convert_style:
             blend_screen_choices = {}
+            compression_choices = {}
             if self.game in LEGACY_GAMES:
                 with utils.TagImportMover(self.tags_dir, file) as mover:
                     with AnimationGraphTag(path=mover.tag_path) as graph:
                         blend_screen_choices = graph.blend_screens_to_blender()
+                        graph.compression_to_blender()
+                        compression_choices = graph.animation_compressions()
             imported_animation_start = len(self.scene_nwo.animations)
             actions = self.import_jma_files(source_files, armature)
             animations = list(self.scene_nwo.animations[imported_animation_start:])
@@ -5304,6 +5322,9 @@ class NWOImporter:
                 for name, screen in blend_screen_choices.items()
             }
             for animation in animations:
+                compression = compression_choices.get(animation.name.replace(':', ' ').casefold())
+                if compression is not None:
+                    animation.compression = compression
                 if animation.animation_type == 'overlay':
                     animation.blend_screen = choices_by_name.get(
                         animation.name.replace(':', ' ').casefold(), '')
@@ -5317,11 +5338,10 @@ class NWOImporter:
         self.context.scene.render.fps = 30
         self.context.scene.render.fps_base = 1
         with utils.TagImportMover(self.tags_dir, file) as mover:
-            forced_compression_value = 0
             graph_metadata = None
             blend_screen_choices = {}
             with AnimationGraphTag(path=mover.tag_path) as graph:
-                forced_compression_value = graph.forced_compression()
+                graph.compression_to_blender()
                 graph_metadata = graph.import_metadata()
                 convert_to_reach = (self.convert_animations and graph.game in LEGACY_GAMES
                                     and self.target_game in REACH_PLUS_GAMES)
@@ -5345,16 +5365,6 @@ class NWOImporter:
                         utils.print_bullet("Importing IK Chains")
                         count = graph.ik_chains_to_blender(armature)
                         utils.print_bullet(f"Added / Updated {count} IK Chains")
-                match forced_compression_value:
-                    case 0:
-                        self.scene_nwo.forced_animation_compression = 'none'
-                    case 3:
-                        self.scene_nwo.forced_animation_compression = 'uncompressed'
-                    case 1:
-                        self.scene_nwo.forced_animation_compression = 'medium'
-                    case 2:
-                        self.scene_nwo.forced_animation_compression = 'rough'
-                        
             with AnimationTag(path=mover.tag_path) as graph:
                 utils.print_section(f"Importing Animation Graph: {graph.tag_path.ShortNameWithExtension}")
                 if self.graph_import_animations:
@@ -5625,6 +5635,9 @@ class NWOImporter:
                     material_cache[key] = material
                 control, ob = create_preview(placement, preview_cache[key], material_cache[key],
                                              collection, scenario.path, projection_bvh, tags_root=scenario.tags_root)
+                control.nwo.marker_type = '_connected_geometry_marker_type_decal'
+                control.nwo.marker_decal_tag_name = placement.definition
+                ob.nwo.export_this = False
                 # Partial BSP imports should not accumulate decals from other
                 # areas. Preserve unfitted controls for complete scenario imports.
                 if partial_bsp_import and projection_bvh is not None and not ob['halo1_decal_surface_fitted']:
@@ -5678,11 +5691,44 @@ class NWOImporter:
             if material is not None:
                 mesh.materials.append(material)
             collection.objects.link(ob)
-            objects.append(ob)
+            control = bpy.data.objects.new(f'{placement.name} placement', None)
+            control.empty_display_type = 'ARROWS'
+            control.nwo.marker_type = '_connected_geometry_marker_type_decal'
+            control.nwo.marker_decal_tag_name = placement.definition
+            control.nwo.decal_force_planar = bool(placement.flags & 1)
+            control.nwo.decal_cull_angle = placement.cull_angle
+            control.nwo.decal_manual_bsps = ','.join(str(i) for i in sorted(placement.bsps)) if scenario.game in {'reach', 'halo4', 'halo2a'} else ''
+            control.nwo.scenario_bsp_index = placement.bsp_index
+            control.matrix_world = import_transform.object_matrix(Matrix.LocRotScale(position, rotation,
+                Vector((placement.scale[0], placement.scale[1], 1.)) if scenario.game not in {'halo1', 'halo2'} else Vector.Fill(3, 1.)))
+            collection.objects.link(control)
+            preview_matrix = ob.matrix_world.copy()
+            ob.parent = control
+            ob.matrix_world = preview_matrix
+            ob.nwo.export_this = False
+            objects.extend((control, ob))
         return objects
 
     def _scenario_decorators_to_blender(self, scenario, parent_collection=None, bvh=None):
         start_time = time.perf_counter()
+        if scenario.game == 'halo1':
+            from ..tags.halo1_detail_objects import read_detail_objects
+            from ..tags.scenario import ScenarioDecoratorPlacement
+            records = read_detail_objects(scenario)
+            objects = []
+            grouped = defaultdict(list)
+            for record in records:
+                tint = (((record.color >> 11) & 31) / 31, ((record.color >> 5) & 63) / 63, (record.color & 31) / 31)
+                grouped[record.definition].append(ScenarioDecoratorPlacement(record.position, (0., 0., 0., 1.), 1.,
+                    record.type_index, 255, 255, tint, bsp_index=record.bsp_index, sprite_index=record.sprite_index))
+            collection = bpy.data.collections.new(f'{scenario.tag_path.ShortName}_detail_objects')
+            (parent_collection or bpy.context.scene.collection).children.link(collection)
+            for path, placements in grouped.items():
+                with DecoratorSetTag(path=path) as definition:
+                    types = {item.decorator_type_index: item for item in definition.get_decorator_types()}
+                clouds, _ = _decorator_records_to_clouds(placements, path, Path(path).stem, types, collection, bvh)
+                objects.extend(clouds)
+            return objects
         decorator_sets = scenario.decorator_sets()
         if not decorator_sets:
             return []
@@ -5753,7 +5799,7 @@ class NWOImporter:
                         case 2:
                             self.tag_model_override_type = RenderModelOverrideType.mainmenu
                     
-                    do_raycasting = len(bsps) != len(all_bsps) and (self.tag_scenario_import_decals or self.tag_scenario_import_decorators or self.tag_scenario_import_objects)
+                    do_raycasting = len(bsps) != len(all_bsps) and (self.tag_scenario_import_decals or self.tag_scenario_import_decorators or self.tag_scenario_import_objects or self.tag_scenario_import_markers)
                     scenario_name = f"scenario_{scenario.tag_path.ShortName}"
                     scenario_collection = bpy.data.collections.get(scenario_name)
                     if scenario_collection is None:
@@ -5843,6 +5889,10 @@ class NWOImporter:
                                     ob.instance_collection = game_object_collection
                                     ob.nwo.marker_instance = True
                                     
+                        if self.tag_scenario_import_markers:
+                            from .scenario.markers import markers_to_blender
+                            imported_objects.extend(markers_to_blender(child_scenario, child_collection, structure_collision, bsp_indices))
+
                         if self.tag_scenario_import_decals:
                             imported_objects.extend(self._scenario_decals_to_blender(
                                 child_scenario,
@@ -5857,6 +5907,8 @@ class NWOImporter:
                                 print("Importing Decorator Set Geometry")
                                 imported_objects.extend(decorator_objects)
                                 for ob in decorator_objects:
+                                    if child_scenario.game == 'halo1':
+                                        continue
                                     is_decorator_cloud = ob.get(DECORATOR_CLOUD_PROP)
                                     if is_decorator_cloud:
                                         tag_path, variant = _decorator_cloud_marker_data(ob)
@@ -5886,6 +5938,7 @@ class NWOImporter:
                                             
                     import_content = (
                         self.tag_scenario_import_objects
+                        or self.tag_scenario_import_markers
                         or self.tag_scenario_import_decals
                         or self.tag_scenario_import_decorators
                     )
@@ -6751,6 +6804,11 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         items=items_cinematic_scene,
     )
     
+    tag_scenario_import_markers: bpy.props.BoolProperty(
+        name="Import Player Starts and Cutscene Flags", default=True,
+        description="Import editable scenario Player Start and Cutscene Flag markers",
+    )
+
     tag_scenario_import_objects: bpy.props.BoolProperty(
         name="Import Objects",
         description="Imports scenario objects. Added to an exclude collection by default",
@@ -7243,6 +7301,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_import_lights")
                 layout.prop(self, "tag_sky")
                 layout.prop(self, "tag_scenario_import_objects")
+                layout.prop(self, "tag_scenario_import_markers")
                 layout.prop(self, "tag_scenario_import_decals")
                 layout.prop(self, "tag_scenario_import_decorators")
                 layout.prop(self, "setup_as_asset")
