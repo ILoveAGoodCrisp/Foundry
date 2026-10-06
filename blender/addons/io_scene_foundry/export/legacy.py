@@ -13,6 +13,7 @@ from math import degrees
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 import io
+import json
 import os
 import re
 import subprocess
@@ -32,6 +33,7 @@ from ..legacy import jms_format as jms
 from ..legacy import ass_format as ass
 from ..legacy.mirror import mirror_ass, mirror_jms, mirror_transform
 from ..legacy.mesh_geometry import clean_ass_mesh
+from ..legacy.lighting import jms_emissive_unsupported
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, legacy_bone_order, node_checksum, write_jms, write_ass
 from ..tags.backend import TagDocument
 from ..tags.sky import SkyDocument, SkyLightRecord, MAX_SKY_LIGHTS
@@ -57,6 +59,10 @@ def legacy_instance_name(name: str, props: dict, mesh_type: int,
     base_name = name.lstrip('%@$')
     if mesh_type != 4:
         return prefix + base_name
+
+    # Imported names already contain the source policy symbols. Rebuild them
+    # from the current properties once, so editing a policy can clear it too.
+    base_name = base_name.lstrip('+-!?*>&^<|')
 
     pathfinding = {0: '-', 2: '+'}.get(props.get('bungie_mesh_poop_pathfinding'), '')
     lighting = {1: '>', 2: '!', 3: '?'}.get(props.get('bungie_mesh_poop_lighting'), '')
@@ -110,7 +116,10 @@ def write_outputs(outputs, *, maya_order=False):
                     if isinstance(asset, jms.JMS):
                         write_jms(asset, stream, maya_order=maya_order)
                     elif isinstance(asset, ass.ASS):
-                        write_ass(asset, stream)
+                        # Match the Max ASS writer's fixed decimal precision.
+                        # Significant-digit formatting truncates large BSP
+                        # translations and changes portal-plane arithmetic.
+                        write_ass(asset, stream, decimal_places=10)
                     else:
                         stream.write(asset)
                 if index < len(outputs):
@@ -196,6 +205,14 @@ class LegacyExportScene(ExportScene):
         self.granny_textures = False
         self.warned_shader_paths = set()
         self.shader_name_cache = {}
+        self.jms_source_nodes = {col['jms_source_key']:json.loads(col['jms_nodes'])
+                                 for col in bpy.data.collections
+                                 if col.get('jms_source_key') and col.get('jms_nodes')}
+        self.ass_source_materials = {col['ass_source_key']:json.loads(col['ass_materials'])
+                                    for col in bpy.data.collections
+                                    if col.get('ass_source_key') and col.get('ass_materials')}
+        from ..legacy.source_preservation import unchanged_collections
+        self.unchanged_ass_sources = unchanged_collections(bpy.data.collections, bpy.data.objects, self.scene_settings, self.target_game)
         self.halo1_two_sided_shaders = set()
         self.skipped_legacy_animations = set()
 
@@ -209,7 +226,26 @@ class LegacyExportScene(ExportScene):
                 b.name: skeleton.skeleton.bones[b.parent_index].name if b.parent_index >= 0 else None
                 for b in self.bones
             }
-            self.bones = [by_name[name] for name in legacy_bone_order(parents)]
+            if (self.target_game in {'halo2', 'halo3', 'halo3odst'}
+                    and all('legacy_source_node_index' in b.bone.bone for b in self.bones)):
+                self.bones.sort(key=lambda b: b.bone.bone['legacy_source_node_index'])
+            else:
+                self.bones = [by_name[name] for name in legacy_bone_order(parents)]
+        self.source_bone_transforms = {}
+        for bone in self.bones:
+            data = bone.bone.bone
+            armature = bone.bone.id_data
+            if (self.target_game in {'halo2', 'halo3', 'halo3odst'}
+                    and data.get('legacy_source_node') and data.get('legacy_import_matrix')
+                    and armature.get('legacy_import_matrix')
+                    and data.matrix_local == Matrix(json.loads(data['legacy_import_matrix']))
+                    and armature.matrix_world == Matrix(json.loads(armature['legacy_import_matrix']))):
+                authored = json.loads(data['legacy_source_node'])
+                value = authored['transform']
+                self.source_bone_transforms[bone.name] = jms.Transform(tuple(value['rotation']), tuple(value['translation']))
+                x,y,z,w = value['rotation']
+                bone.matrix_world = Quaternion((w,x,y,z)).to_matrix().to_4x4()
+                bone.matrix_world.translation = Vector(value['translation']) / self.to_halo_scale
         self.bone_index = {b.name: i for i, b in enumerate(self.bones)}
         self.bone_world = {b.name: b.matrix_world for b in self.bones}
         self.bone_parents = {}
@@ -252,6 +288,15 @@ class LegacyExportScene(ExportScene):
                 folder = {'render': 'models', 'collision': 'physics',
                           'physics': 'physics'}.get(folder, folder)
             name = node.region if folder == 'structure' else node.permutation or 'default'
+            if folder == 'collision' and self.target_game in {'halo3', 'halo3odst'}:
+                # H3 collision import info can share vertices between several
+                # permutations in one JMS. Splitting files changes Tool's weld
+                # candidates and can move clipped collision boundaries.
+                name = 'default'
+            if self.target_game == 'halo2' and folder == 'render' and node.props.get('bungie_mesh_type') != 11:
+                # Tool consumes LOD labels per material, but still requires
+                # separate source meshes/files to avoid overlapping strips.
+                name = node.ob.nwo.mesh_lod + '_' + name
             if self.target_game == 'halo1' and folder == 'models':
                 # H1 Tool takes the LOD from the JMS filename, not materials.
                 lod_names = {'L1': 'superlow', 'L2': 'low', 'L3': 'medium',
@@ -334,6 +379,8 @@ class LegacyExportScene(ExportScene):
                     asset_name = name
                     if self.target_game == 'halo1' and folder == 'models':
                         asset_name = (nodes[0].permutation or 'default') if nodes else 'default'
+                    elif self.target_game == 'halo2' and folder == 'render' and nodes:
+                        asset_name = nodes[0].permutation or 'default'
                     asset = (self.ass_asset(
                         name, nodes, ass_markers, lights)
                         if use_ass else self.jms_asset(asset_name, nodes, markers, folder))
@@ -1281,7 +1328,7 @@ class LegacyExportScene(ExportScene):
             ob = ob.parent
         return 0 if self.bones or implied_root else -1
 
-    def face_materials(self, node, asset, cache):
+    def face_materials(self, node, asset, cache, source_material_order=None):
         mesh = node.mesh
         materials = {}
         regions = {v: k for k, v in self.virtual_scene.regions.items()}
@@ -1312,18 +1359,63 @@ class LegacyExportScene(ExportScene):
             halo1_model = self.target_game == 'halo1' and not self.supports_bsp
             if halo1_model and node.tag_type == 'render' and props.get('bungie_face_sides') in {2, 3, 4, 5, 6, 7}:
                 self.halo1_two_sided_shaders.add(shader.casefold())
+            if (ass_version is None and self.target_game in {'halo3', 'halo3odst'}
+                    and jms_emissive_unsupported(props)):
+                warning = f'{node.name}: JMS can store emissive power, but full colour, focus, attenuation and frustum settings require ASS'
+                if warning not in self.warnings:
+                    self.warnings.append(warning)
             name, lighting = material_variant(shader, props, gm, ass_version, self.target_game,
                                              model=halo1_model)
             if props.get('foundry_weather_polyhedron') and self.target_game != 'halo1':
                 name = '+weather'
-            if node.tag_type in {'collision', 'physics'}:
-                name = gm  # Physics/collision material names are surface types, not display shaders.
-            definition = f'{permutation} {region}' + (f' {lod}' if lod else '')
+            if node.tag_type == 'collision':
+                # Surface-type names still carry collision sidedness flags.
+                # Dropping % loses the opposite side of sheet collision.
+                name, _ = material_variant(gm, props, 'default', None, self.target_game)
+            elif node.tag_type == 'physics':
+                name = gm
+            # H2 Tool expects LOD before permutation/region, after an optional
+            # Max sub-material ID. An end-of-line LOD is not equivalent.
+            definition = (f'{lod} ' if lod else '') + f'{permutation} {region}'
+            material_slot = props.get('foundry_legacy_material_slot', -1)
+            if material_slot >= 0:
+                # Max sub-material IDs keep separate compiler strip/tangent
+                # sections even when shader paths and face flags are identical.
+                definition = f'({material_slot}) ' + definition
             key = (name, definition, lighting)
+            source_slot = props.get('foundry_legacy_ass_material_index', -1)
+            source_key = ''
+            if source_slot >= 0:
+                source = getattr(node.ob, 'ob', node.ob)
+                source_key = source.get('ass_source_key', '')
+            original_materials = getattr(self, 'ass_source_materials', {}).get(source_key, ())
+            if ass_version is not None and 0 <= source_slot < len(original_materials):
+                originals = {r.split()[0]:r for r in original_materials[source_slot]['lighting'] if r.split()}
+                restored = []
+                for record in lighting:
+                    kind,*values = record.split()
+                    original = originals.get(kind)
+                    if original and kind != 'BM_FLAGS':
+                        authored = original.split()[1:]
+                        if len(values) == len(authored) and all(abs(float(a)-float(b)) <= 1e-6 for a,b in zip(values,authored)):
+                            # Preserve explicitly authored zero overrides and
+                            # RGB rounding at Tool's packed-colour boundaries.
+                            record = original
+                    restored.append(record)
+                known = {'BM_FLAGS','BM_LMRES','BM_LIGHTING_BASIC','BM_LIGHTING_ATTEN','BM_LIGHTING_FRUS'}
+                restored.extend(r for kind,r in originals.items() if kind not in known)
+                lighting = tuple(restored)
+                key = (name, definition, lighting)
+            if source_material_order is not None and source_key and source_slot >= 0:
+                # Distinct source material slots can control Tool's processing
+                # order even when their authored properties happen to agree.
+                key += (source_key, source_slot)
             if key not in cache:
                 cache[key] = len(asset.materials)
                 asset.materials.append(ass.Material(name, definition, lighting) if ass_version is not None
                                        else jms.Material(name, definition, region, permutation, lod.lower()))
+                if source_material_order is not None and source_key and source_slot >= 0:
+                    source_material_order[cache[key]] = (source_key, source_slot)
             return cache[key], region
 
         for mat, _, (start, count) in mesh.groups:
@@ -1342,9 +1434,14 @@ class LegacyExportScene(ExportScene):
                 if signature not in variants:
                     variants[signature] = resolve(face, shader)
                 materials[face] = variants[signature]
+        unassigned = getattr(node.mesh, 'legacy_no_material', None)
+        if unassigned is not None:
+            for face, no_material in enumerate(unassigned):
+                if no_material:
+                    materials[face] = (-1, materials[face][1])
         return materials
 
-    def vertices(self, node, matrix, weighted=True, implied_root=False):
+    def vertices(self, node, matrix, weighted=True, implied_root=False, *, ass_uvs=False, ass_positions=False):
         mesh = node.mesh
         normal_matrix = matrix.to_3x3().inverted().transposed()
         vertices = []
@@ -1352,7 +1449,6 @@ class LegacyExportScene(ExportScene):
         palette = tuple(self.bone_index.get(name) for name in mesh.bone_bindings) if skinned else ()
         rigid_influences = ((self.parent_index(node, implied_root), 1),) if (
             weighted and not skinned and (self.bones or implied_root)) else ()
-        flip_uv = self.target_game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
         # Convert array rows in bounded batches, avoiding NumPy scalar iteration
         # without retaining a second full Python copy of the mesh attributes.
         for start in range(0, len(mesh.positions), 1024):
@@ -1361,7 +1457,7 @@ class LegacyExportScene(ExportScene):
             positions = mesh.positions[start:end].tolist()
             normals = mesh.normals[start:end].tolist() if mesh.normals is not None else [(0, 0, 1)] * len(positions)
             colors = mesh.vertex_colors[0][start:end, :3].tolist() if mesh.vertex_colors else None
-            uv_layers = [uv[start:end, :2].tolist() for uv in mesh.texcoords]
+            uv_layers = [uv[start:end, :3 if ass_uvs else 2].tolist() for uv in mesh.texcoords]
             indices = mesh.bone_indices[start:end].tolist() if skinned else None
             weights = mesh.bone_weights[start:end].tolist() if skinned else None
             for i, position in enumerate(positions):
@@ -1378,10 +1474,18 @@ class LegacyExportScene(ExportScene):
                     total = sum(w for _, w in influences)
                     influences = tuple((b, w / total) for b, w in influences)
                 normal = normal_matrix @ Vector(normals[i])
-                normal.normalize()
-                # VirtualMesh flips V for Granny; legacy files use Blender V.
-                texcoords = tuple((uv[i][0], 1.0 - uv[i][1]) if flip_uv else tuple(uv[i]) for uv in uv_layers)
-                vertices.append(jms.Vertex(tuple((matrix @ Vector(position)) * self.to_halo_scale), tuple(normal),
+                # Authored unit normals need not be normalized a second time
+                # in float32. Preserve their precision at rigid transforms.
+                if abs(normal.length_squared - 1.0) > 1e-5:
+                    normal.normalize()
+                # Native text export keeps V in its authoring convention.
+                # A float32 1-V round trip destroys small UV components.
+                texcoords = tuple(tuple(uv[i]) for uv in uv_layers)
+                output_position = tuple((matrix @ Vector(position)) * self.to_halo_scale)
+                if (ass_positions and getattr(mesh, 'legacy_positions', None) is not None
+                        and mesh.legacy_position_mask[start + i]):
+                    output_position = tuple(float(c) for c in mesh.legacy_positions[start + i])
+                vertices.append(jms.Vertex(output_position, tuple(normal),
                     influences, texcoords, tuple(colors[i]) if colors is not None else None))
         return vertices
 
@@ -1437,13 +1541,33 @@ class LegacyExportScene(ExportScene):
                 matrix = bone.matrix_world
                 if asset.version < 8205 and parent != -1:
                     matrix = self.bones[parent].matrix_world.inverted() @ matrix
-                asset.nodes.append(jms.Node(bone.name, parent, transform(matrix, self.to_halo_scale, asset.version < 8205)))
+                authored = self.source_bone_transforms.get(bone.name)
+                name = bone.name
+                data = bone.bone.bone
+                if authored is not None and bone.name == data.get('legacy_import_name'):
+                    name = json.loads(data['legacy_source_node'])['name']
+                asset.nodes.append(jms.Node(name, parent, authored or transform(matrix, self.to_halo_scale, asset.version < 8205)))
         else:
             asset.nodes.append(jms.Node(
                 'implied_root_node', -1,
                 jms.Transform((0, 0, 0, 1), (0, 0, 0))))
+        if folder == 'collision' and self.bones and len(self.source_bone_transforms) == len(self.bones):
+            from ..legacy.jms_importer import canonical_bone_name
+            keys = {getattr(node.ob, 'ob', node.ob).get('jms_source_key') for node in nodes}
+            source_nodes = self.jms_source_nodes.get(next(iter(keys))) if len(keys) == 1 else None
+            if (source_nodes and len(source_nodes) == len(asset.nodes)
+                    and all(canonical_bone_name(a.name) == canonical_bone_name(b['name']) and a.parent == b['parent']
+                            for a,b in zip(asset.nodes,source_nodes))):
+                # Render and collision sources can have slightly different
+                # bind transforms. Retain this file's own unchanged header,
+                # rather than the first render file's transforms on the rig.
+                asset.nodes = [jms.Node(n['name'],n['parent'],jms.Transform(tuple(n['transform']['rotation']),
+                                     tuple(n['transform']['translation']))) for n in source_nodes]
         asset.checksum = self.legacy_node_checksum(asset.nodes)
         cache = {}
+        collision_vertex_order = []
+        collision_face_order = []
+        preserve_collision_order = folder == 'collision' and self.target_game in {'halo2','halo3','halo3odst'}
         for node in nodes:
             foundry_output._raise_if_cancel_requested()
             if self.target_game == 'halo1' and node.tag_type == 'physics':
@@ -1509,16 +1633,50 @@ class LegacyExportScene(ExportScene):
                         jms.Transform((0, 0, 0, 1), (0, 0, 0)), vertices=points))
                 continue
             offset = len(asset.vertices)
-            vertices = self.vertices(node, node.matrix_world, implied_root=True)
+            source = getattr(node.ob, 'ob', node.ob)
+            imported_matrix = source.get('legacy_import_matrix')
+            preserve_points = bool(imported_matrix and node.ob.matrix_world == Matrix(json.loads(imported_matrix)))
+            vertices = self.vertices(node, node.matrix_world, implied_root=True, ass_positions=preserve_points)
             asset.vertices.extend(vertices)
+            identities = getattr(node.mesh, 'legacy_vertex_ids', None)
+            source_faces = getattr(node.mesh, 'legacy_face_order', None)
+            starts = getattr(node.mesh, 'legacy_face_starts', None)
+            if preserve_collision_order:
+                if identities is None or source_faces is None:
+                    preserve_collision_order = False
+                else:
+                    collision_vertex_order.extend(int(i) for i in identities)
             for face, triangle in enumerate(node.mesh.indices.reshape((-1, 3))):
                 material, region = materials[face]
                 if region not in asset.regions:
                     asset.regions.append(region)
                 indices = tuple(int(i) + offset for i in triangle)
+                if preserve_collision_order:
+                    collision_face_order.append(int(source_faces[face]))
+                    if starts is not None:
+                        for corner,index in enumerate(triangle):
+                            if identities[index] == starts[face]:
+                                indices = indices[corner:] + indices[:corner]
+                                break
                 if node.negative_scaling:
                     indices = indices[0], indices[2], indices[1]
                 asset.triangles.append(jms.Triangle(material, indices, asset.regions.index(region)))
+        if preserve_collision_order and collision_vertex_order:
+            order = sorted(range(len(asset.vertices)), key=lambda i: collision_vertex_order[i])
+            remap, unique, vertices = {}, {}, []
+            for index in order:
+                vertex = asset.vertices[index]
+                key = (collision_vertex_order[index], vertex.position, vertex.normal,
+                       vertex.influences, vertex.uvs, vertex.color)
+                if key not in unique:
+                    unique[key] = len(vertices)
+                    vertices.append(vertex)
+                remap[index] = unique[key]
+            asset.vertices = vertices
+            for triangle in asset.triangles:
+                triangle.vertices = tuple(remap[i] for i in triangle.vertices)
+            order = sorted(range(len(asset.triangles)), key=lambda i: collision_face_order[i])
+            asset.triangles = [asset.triangles[i] for i in order]
         if folder == 'physics' and self.jms_version >= 8206:
             for node in markers:
                 marker_type = node.props.get('bungie_marker_type')
@@ -1535,13 +1693,19 @@ class LegacyExportScene(ExportScene):
                         f'{node.name}: physics constraint endpoints must name '
                         'bones in the exported skeleton')
                 parent_matrix = self.bones[parent].matrix_world.inverted() @ node.matrix_world
-                child_matrix = self.bones[child].matrix_world.inverted() @ node.matrix_world
+                source = getattr(node.ob, 'ob', node.ob)
+                relative_child = source.get('jms_constraint_child_relative')
+                child_world = node.matrix_world
+                if relative_child:
+                    child_world = child_world @ Matrix(json.loads(relative_child))
+                child_matrix = self.bones[child].matrix_world.inverted() @ child_world
+                imported_limits = json.loads(source.get('jms_constraint', '{}')).get('limits', ())
                 use_limits = bool(node.props.get(
                     'bungie_physics_constraint_use_limits', 0))
                 if marker_type.endswith('hinge_constraint'):
                     kind = 'hinge'
                     limits = (
-                        int(use_limits), 0.0,
+                        int(use_limits), float(imported_limits[1]) if len(imported_limits) > 1 else 0.0,
                         float(node.props.get('bungie_physics_constraint_hinge_min', 0.0)),
                         float(node.props.get('bungie_physics_constraint_hinge_max', 0.0)),
                     )
@@ -1550,13 +1714,13 @@ class LegacyExportScene(ExportScene):
                     limits = (
                         float(node.props.get('bungie_physics_constraint_twist_start', 0.0)),
                         float(node.props.get('bungie_physics_constraint_twist_end', 0.0)),
-                        0.0,
+                        float(imported_limits[2]) if len(imported_limits) > 2 else 0.0,
                         float(node.props.get('bungie_physics_constraint_cone_angle', 0.0)),
                         float(node.props.get('bungie_physics_constraint_plane_min', 0.0)),
                         float(node.props.get('bungie_physics_constraint_plane_max', 0.0)),
                     ) if use_limits else (0.0,) * 6
                     if self.jms_version >= 8213:
-                        limits += (0.0,)  # H3/ODST ragdolls add friction.
+                        limits += (float(imported_limits[6]) if len(imported_limits) > 6 else 0.0,)
                 asset.constraints.append(jms.Constraint(
                     kind, node.name.lstrip('$'), parent, child,
                     transform(parent_matrix, self.to_halo_scale),
@@ -1629,8 +1793,16 @@ class LegacyExportScene(ExportScene):
         return asset
 
     def ass_asset(self, name, nodes, markers=(), lights=()):
+        if self.supports_bsp and not self.limit_bsps_to_selection and not self.limit_perms_to_selection:
+            keys = {getattr(node.ob, 'ob', node.ob).get('ass_source_key') for node in nodes}
+            if len(keys) == 1:
+                original = self.unchanged_ass_sources.get(next(iter(keys)))
+                if original:
+                    return ass.ASS.read(io.StringIO(original), name)
         asset = ass.ASS(name=name, version=self.ass_version)
         cache, geometries = {}, {}
+        source_material_order = {}
+        source_geometry_order = {}
         node_instances = {}
         asset.instances.append(ass.Instance(-1, 'frame', -1, -1, 0, ass.Transform(), ass.Transform()))
         for bone in self.bones:
@@ -1644,30 +1816,184 @@ class LegacyExportScene(ExportScene):
         # Proxy meshes refer to their render instance by parent index, so emit
         # ordinary nodes first even if the virtual-scene dictionary order was
         # changed by evaluation.
-        ordered_nodes = sorted(nodes, key=lambda node: node.proxy_parent is not None)
+        def ass_node_order(node):
+            source = getattr(node.ob, 'ob', node.ob)
+            if source.get('ass_source_key') and source.get('ass_source_index') is not None:
+                return (0, source['ass_source_key'], source['ass_source_index'], node.proxy_parent is not None)
+            return (1, '', int(node.proxy_parent is not None), 0)
+        ordered_nodes = sorted(nodes, key=ass_node_order)
+        source_instances = {}
+        source_frames = {}
+        preserved_sources = {}
+        if self.supports_bsp:
+            for node in ordered_nodes:
+                source = getattr(node.ob, 'ob', node.ob)
+                if (node.proxy_parent is None and source.get('ass_instance') and source.get('ass_source_key')
+                        and source.get('ass_import_matrix')
+                        and node.ob.matrix_world == Matrix(json.loads(source['ass_import_matrix']))):
+                    instance = json.loads(source['ass_instance'])
+                    ancestry = json.loads(source.get('ass_source_ancestry', '[]'))
+                    if all(max(t['scale']) - min(t['scale']) < 1e-5
+                           for item in [instance, *ancestry] for t in (item['local'], item['pivot'])):
+                        preserved_sources[id(node)] = (source['ass_source_key'], source['ass_source_index'], instance, ancestry)
+
+        def source_transform(value):
+            return ass.Transform(tuple(value['rotation']), tuple(value['translation']), tuple(value['scale']))
+
+        def source_parent(key, parent, ancestry):
+            if parent == -1:
+                return 0
+            identity = key, parent
+            if identity in source_instances:
+                return source_instances[identity]
+            if identity in source_frames:
+                return source_frames[identity]
+            item = next(i for i in ancestry if i['index'] == parent)
+            ancestor = source_parent(key, item['parent'], ancestry)
+            index = len(asset.instances)
+            asset.instances.append(ass.Instance(-1, item['name'] if item['name'].lower().startswith(('frame','bip')) else 'frame ' + item['name'],
+                                               item['unique_id'], ancestor, item['inheritance'],
+                                               source_transform(item['local']), ass.Transform()))
+            source_frames[identity] = index
+            return index
+
+        def original_proxy_parts(node, materials):
+            source = getattr(node.ob, 'ob', node.ob)
+            mesh = node.mesh
+            owner = preserved_sources.get(id(node.proxy_parent))
+            if (owner is None or not source.get('ass_proxy_sources')
+                    or getattr(mesh, 'legacy_proxy_source_instances', None) is None
+                    or getattr(mesh, 'legacy_vertex_ids', None) is None
+                    or getattr(mesh, 'legacy_face_order', None) is None
+                    or getattr(mesh, 'legacy_position_mask', None) is None
+                    or not mesh.legacy_position_mask.all()):
+                return None
+            faces = mesh.indices.reshape((-1, 3))
+            ids = mesh.legacy_vertex_ids
+            orders = mesh.legacy_face_order
+            exported = self.vertices(node, Matrix.Identity(4), False, ass_uvs=self.ass_version >= 5, ass_positions=True)
+            parts = []
+            for item in json.loads(source['ass_proxy_sources']):
+                original = item['geometry']
+                selected = [i for i,group in enumerate(mesh.legacy_proxy_source_instances) if group == item['index']]
+                selected.sort(key=lambda i: int(orders[i]))
+                geometry = ass.Geometry('MESH', xref_path=original['xref_path'], xref_name=original['xref_name'],
+                    vertices=[jms.Vertex(**v) for v in original['vertices']])
+                normal_matrix = Matrix(item['relative']).to_3x3().inverted().transposed()
+                for face in selected:
+                    ordinal = int(orders[face])
+                    if not 0 <= ordinal < len(original['triangles']):
+                        return None
+                    triangle = original['triangles'][ordinal]
+                    identities = tuple(int(ids[i]) for i in faces[face])
+                    corners = tuple(triangle['vertices'])
+                    if not any(identities == corners[k:] + corners[:k] for k in range(3)):
+                        return None  # topology was edited
+                    for index,identity in zip(faces[face],identities):
+                        actual,expected = exported[index],geometry.vertices[identity]
+                        normal = normal_matrix @ Vector(expected.normal)
+                        normal.normalize()
+                        if (max(abs(a-b) for a,b in zip(actual.normal,normal)) > 1e-4
+                                or len(actual.uvs) != len(expected.uvs)
+                                or any(len(a) != len(b) or max(abs(x-y) for x,y in zip(a,b)) > 1e-6
+                                       for a,b in zip(actual.uvs,expected.uvs))
+                                or (actual.color is None) != (expected.color is None)
+                                or (actual.color is not None and max(abs(a-b) for a,b in zip(actual.color,expected.color)) > 1e-6)):
+                            return None  # edited corner data must use evaluated geometry
+                    geometry.triangles.append(jms.Triangle(materials[face][0], corners))
+                if not geometry.triangles:
+                    return None
+                parts.append((item,geometry))
+            return parts
+
         for node in ordered_nodes:
             foundry_output._raise_if_cancel_requested()
-            materials = self.face_materials(node, asset, cache)
+            materials = self.face_materials(node, asset, cache, source_material_order)
+            proxy_parts = original_proxy_parts(node, materials) if node.proxy_parent is not None else None
+            if proxy_parts is not None:
+                owner_index = node_instances[id(node.proxy_parent)]
+                for item,geometry in proxy_parts:
+                    original = item['instance']
+                    geometry_index = len(asset.geometries)
+                    asset.geometries.append(geometry)
+                    source_geometry_order[geometry_index] = (preserved_sources[id(node.proxy_parent)][0], original['geometry'])
+                    instance_index = len(asset.instances)
+                    asset.instances.append(ass.Instance(geometry_index, original['name'], original['unique_id'],
+                        owner_index, original['inheritance'], source_transform(original['local']),
+                        source_transform(original['pivot'])))
+                continue
             matrix = (Matrix.Identity(4) if node.proxy_parent is not None
                       else node.matrix_world)
+            source = getattr(node.ob, 'ob', node.ob)
+            get = getattr(source, 'get', lambda _name, default=None: default)
+            preserved_matrix = None
+            if node.proxy_parent is None and get('ass_source_matrix') and get('ass_import_matrix'):
+                imported = Matrix(json.loads(get('ass_import_matrix')))
+                current = node.ob.matrix_world
+                if current == imported:
+                    original = Matrix(json.loads(get('ass_source_matrix')))
+                    original_loc, original_rot, original_scale = original.decompose()
+                    original_rebuilt = Matrix.LocRotScale(original_loc, original_rot, original_scale)
+                    if (abs(original_scale[0]) > 0 and max(original_scale) - min(original_scale) < 1e-5
+                            and max(abs(original[r][c] - original_rebuilt[r][c])
+                                    for r in range(4) for c in range(4)) < 1e-5):
+                        preserved_matrix = original
+                        matrix = original
             loc, rot, scale = matrix.decompose()
-            uniform = max(scale) - min(scale) < 1e-5 and min(scale) > 0
+            uniform = max(scale) - min(scale) < 1e-5 and abs(scale[0]) > 0
             rebuilt = Matrix.LocRotScale(loc, rot, scale)
             uniform = uniform and max(abs(matrix[r][c] - rebuilt[r][c]) for r in range(4) for c in range(4)) < 1e-5
-            local = ass.Transform((rot.x, rot.y, rot.z, rot.w), tuple(loc * self.to_halo_scale), tuple(scale)) if uniform else ass.Transform()
+            local = ass.Transform((rot.x, rot.y, rot.z, rot.w),
+                                  tuple(loc) if preserved_matrix is not None else tuple(loc * self.to_halo_scale),
+                                  tuple(scale)) if uniform else ass.Transform()
+            source_instance = preserved_sources.get(id(node))
+            pivot = ass.Transform()
+            if source_instance is not None:
+                source_key, source_index, original_instance, ancestry = source_instance
+                local = source_transform(original_instance['local'])
+                pivot = source_transform(original_instance['pivot'])
+                # Uniform local ASS transforms remain representable as a
+                # hierarchy even if accumulated float matrices acquire skew.
+                # Baking those points and then retaining the hierarchy applies
+                # the placement twice.
+                uniform = True
             key = (id(node.mesh), tuple(m[0] for m in materials.values()), node.negative_scaling)
             geometry_index = geometries.get(key) if uniform else None
             if geometry_index is None:
                 geometry = ass.Geometry('MESH')
-                geometry.vertices = self.vertices(node, Matrix.Identity(4) if uniform else matrix, bool(self.bones))
+                geometry.xref_path = str(get('ass_xref_path', '') or '')
+                geometry.xref_name = str(get('ass_xref_name', '') or '')
+                geometry.vertices = self.vertices(node, Matrix.Identity(4) if uniform else matrix, bool(self.bones),
+                                                  ass_uvs=self.ass_version >= 5, ass_positions=uniform)
+                identities = getattr(node.mesh, 'legacy_vertex_ids', None)
+                vertex_remap = None
+                if identities is not None:
+                    # Tool's positional weld chooses between close source
+                    # vertices in input order. Preserve that order after the
+                    # virtual mesh has collected vertices by first-used corner.
+                    vertex_order = sorted(range(len(geometry.vertices)), key=lambda i: int(identities[i]))
+                    vertex_remap = {old:new for new,old in enumerate(vertex_order)}
+                    geometry.vertices = [geometry.vertices[i] for i in vertex_order]
                 palette = sorted({b for vertex in geometry.vertices for b, _ in vertex.influences})
                 palette_map = {b: i for i, b in enumerate(palette)}
                 for vertex in geometry.vertices:
                     vertex.influences = tuple((palette_map[b], weight) for b, weight in vertex.influences)
                 geometry.node_indices = list(range(len(palette)))
-                for face, triangle in enumerate(node.mesh.indices.reshape((-1, 3))):
+                triangles = node.mesh.indices.reshape((-1, 3))
+                source_order = getattr(node.mesh, 'legacy_face_order', None)
+                face_order = sorted(range(len(triangles)), key=lambda i: int(source_order[i])) if source_order is not None else range(len(triangles))
+                for face in face_order:
+                    triangle = triangles[face]
                     indices = tuple(int(i) for i in triangle)
-                    if node.negative_scaling:
+                    starts = getattr(node.mesh, 'legacy_face_starts', None)
+                    if starts is not None and identities is not None:
+                        for corner,index in enumerate(indices):
+                            if identities[index] == starts[face]:
+                                indices = indices[corner:] + indices[:corner]
+                                break
+                    if vertex_remap is not None:
+                        indices = tuple(vertex_remap[i] for i in indices)
+                    if node.negative_scaling and not (uniform and scale[0] < 0):
                         indices = indices[0], indices[2], indices[1]
                     geometry.triangles.append(jms.Triangle(materials[face][0], indices))
                 try:
@@ -1682,29 +2008,48 @@ class LegacyExportScene(ExportScene):
                 #         f'and recovered {repaired} invalid vertex normals')
                 geometry_index = len(asset.geometries)
                 asset.geometries.append(geometry)
+                if get('ass_source_key') and get('ass_geometry') is not None:
+                    source_geometry_order[geometry_index] = (get('ass_source_key'), int(get('ass_geometry')))
                 if uniform:
                     geometries[key] = geometry_index
                 geometry_bones = tuple(b + 1 for b in palette)
             else:
                 geometry_bones = next(i.bones for i in asset.instances if i.geometry == geometry_index)
             mesh_type = node.props.get('bungie_mesh_type')
-            instance_name = legacy_instance_name(node.name, node.props, mesh_type, self.target_game)
+            imported_name = node.name
+            if source_instance is not None and source.name == get('ass_import_name'):
+                imported_name = original_instance['name']
+            instance_name = legacy_instance_name(imported_name, node.props, mesh_type, self.target_game)
+            if get('ass_import_policies') and source.name == get('ass_import_name') and get('ass_instance'):
+                policy_snapshot = json.loads(get('ass_import_policies'))
+                if all(getattr(node.ob.nwo, name) == value for name,value in policy_snapshot.items()):
+                    instance_name = json.loads(get('ass_instance'))['name']
             if node.props.get('foundry_weather_polyhedron'):
                 if not instance_name.casefold().startswith('+weather'):
                     suffix = instance_name.rpartition(':')[2].lstrip('+')
                     instance_name = '+weather_' + (suffix or str(len(asset.instances)))
             parent = node_instances.get(id(node.proxy_parent), 0)
+            if source_instance is not None:
+                parent = source_parent(source_key, original_instance['parent'], ancestry)
             if node.proxy_parent is not None:
                 # Proxy vertex data is authored in the owning instance's local
                 # space. Its ASS child transform must therefore be identity.
                 local = ass.Transform()
+                owner_source = preserved_sources.get(id(node.proxy_parent))
+                if owner_source is not None:
+                    local = source_transform(owner_source[2]['pivot'])
             instance_index = len(asset.instances)
-            asset.instances.append(ass.Instance(geometry_index, instance_name, instance_index,
-                parent, 0, local, ass.Transform(), geometry_bones))
+            identifier = int(get('ass_identifier', instance_index))
+            asset.instances.append(ass.Instance(geometry_index, instance_name, identifier,
+                parent, original_instance['inheritance'] if source_instance is not None else 0, local, pivot, geometry_bones))
             node_instances[id(node)] = instance_index
-        if 'markers' in self.export_tag_types:
+            if source_instance is not None:
+                source_instances[source_key, source_index] = instance_index
+        if 'markers' in self.export_tag_types or self.supports_bsp:
             xref_geometries = {}
             for node in markers:
+                if self.supports_bsp and node.region != name:
+                    continue
                 nwo = node.ob.nwo
                 permutations = {p.name for p in nwo.marker_permutations}
                 if nwo.marker_uses_regions and permutations and (name in permutations) == (nwo.marker_permutation_type == 'exclude'):
@@ -1733,6 +2078,17 @@ class LegacyExportScene(ExportScene):
                     matrix = self.bones[parent].matrix_world.inverted() @ matrix
                 value = transform(matrix, self.to_halo_scale)
                 marker_name = f'#({name} {node.region}){node.name}' if nwo.marker_uses_regions else '#' + node.name
+                source = getattr(node.ob, 'ob', node.ob)
+                if (self.supports_bsp and source.get('ass_instance') and source.get('ass_import_matrix')
+                        and source.matrix_world == Matrix(json.loads(source['ass_import_matrix']))):
+                    original = json.loads(source['ass_instance'])
+                    ancestry = json.loads(source.get('ass_source_ancestry', '[]'))
+                    parent = source_parent(source['ass_source_key'], original['parent'], ancestry)
+                    asset.instances.append(ass.Instance(-1,
+                        original['name'] if source.name == source.get('ass_import_name') else marker_name,
+                        original['unique_id'], parent, original['inheritance'],
+                        source_transform(original['local']), source_transform(original['pivot'])))
+                    continue
                 asset.instances.append(ass.Instance(-1, marker_name, len(asset.instances), parent + 1,
                     0, ass.Transform(value.rotation, value.translation), ass.Transform()))
         for ob in lights:
@@ -1774,6 +2130,25 @@ class LegacyExportScene(ExportScene):
             asset.instances.append(ass.Instance(
                 geometry_index, ob.name, len(asset.instances), 0, 0,
                 ass.Transform(value.rotation, value.translation), ass.Transform()))
+        if source_material_order:
+            order = sorted(range(len(asset.materials)),
+                           key=lambda i: (0, *source_material_order[i]) if i in source_material_order else (1, '', i))
+            remap = {old:new for new,old in enumerate(order)}
+            asset.materials = [asset.materials[i] for i in order]
+            for geometry in asset.geometries:
+                if geometry.material >= 0:
+                    geometry.material = remap[geometry.material]
+                for triangle in geometry.triangles:
+                    if triangle.material >= 0:
+                        triangle.material = remap[triangle.material]
+        if source_geometry_order:
+            order = sorted(range(len(asset.geometries)),
+                           key=lambda i: (0, *source_geometry_order[i]) if i in source_geometry_order else (1, '', i))
+            remap = {old:new for new,old in enumerate(order)}
+            asset.geometries = [asset.geometries[i] for i in order]
+            for instance in asset.instances:
+                if instance.geometry >= 0:
+                    instance.geometry = remap[instance.geometry]
         return asset
 
     @staticmethod

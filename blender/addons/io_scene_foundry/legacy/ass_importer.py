@@ -5,11 +5,13 @@ from math import radians
 from pathlib import Path
 import json
 import re
+import io
 
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
 from .ass_format import ASS, ASSError
+from .coordinates import axis_rotation
 from .jms_format import JMS, Material, Node, Transform, Shape
 from .jms_importer import JMSImporter, is_frame_name, canonical_bone_name
 from .. import utils
@@ -22,7 +24,7 @@ class ASSImporter(JMSImporter):
         self.owner, self.path = owner, Path(path)
         self.ass = ASS.from_file(path)
         self.scale = owner.scale_factor
-        self.rotation = Matrix.Rotation(owner.from_x_rot, 4, 'Z')
+        self.rotation = axis_rotation(owner.from_x_rot)
         self.objects, self.materials, self.created_materials, self.props = [], {}, [], {}
         self.armature, self.node_world = None, {}
         self.tag_armature, self.parent_collection = tag_armature, parent_collection
@@ -107,10 +109,31 @@ class ASSImporter(JMSImporter):
             self.owner.set_permutation(ob, 'default')
         return ob
 
+    def build(self):
+        objects = super().build()
+        if self.collection.get('ass_source_scene'):
+            from uuid import uuid4
+            from .source_preservation import capture_collections
+            for ob in objects:
+                ob['ass_source_key'] = self.source_key
+                ob['ass_object_key'] = str(uuid4())
+            capture_collections([self.collection], objects, bpy.context.scene.nwo)
+        return objects
+
     def store_metadata(self):
+        from uuid import uuid4
+        self.source_key = str(uuid4())
+        self.collection['ass_source_key'] = self.source_key
+        self.collection['ass_source_game'] = self.owner.game
+        self.collection['ass_source_pending'] = True
         self.collection['ass_version'] = self.ass.version
         self.collection['ass_header'] = json.dumps(self.ass.header)
         self.collection['ass_materials'] = json.dumps([asdict(m) for m in self.ass.materials])
+        if not self.is_model and not self.geometry_only:
+            from .writers import write_ass
+            stream = io.StringIO()
+            write_ass(self.ass, stream, decimal_places=10)
+            self.collection['ass_source_scene'] = stream.getvalue()
         if self.ass.invalid_uv_components:
             self.collection['ass_repaired_uv_components'] = self.ass.invalid_uv_components
             utils.print_warning(f'{self.path.name}: replaced {self.ass.invalid_uv_components} non-finite UV components with zero (first at line {self.ass.first_invalid_uv_line})')
@@ -122,10 +145,12 @@ class ASSImporter(JMSImporter):
             self.props[index] = JMSMaterialSlot.from_name(source.name)
             name = re.sub(r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+', '', source.name).strip()
             parts = name.split(maxsplit=1)
-            if len(parts) > 1:
+            if self.is_model and len(parts) > 1:
                 self.global_materials[index], name = parts
             name = utils.base_material_name(name, True).lower() or 'default'
-            self.materials[index] = self.material(name)
+            path = self.source_shader_path(name)
+            display_name = Path(path).stem if path else name
+            self.materials[index] = self.material(display_name, path, name)
             self.props[index].material.name = name
         flags = ('two_sided', 'transparent_one_sided', 'transparent_two_sided', 'render_only',
                  'collision_only', 'sphere_collision_only', 'fog_plane', 'ladder', 'breakable',
@@ -138,6 +163,11 @@ class ASSImporter(JMSImporter):
             p.emissive_per_unit, p.emissive_shader_gel, p.emissive_focus = False, False, 0.0
             p.emissive_attenuation_falloff = p.emissive_attenuation_cutoff = 0.0
             p.emissive_bounce_ratio = 0.0
+            p.emissive_attenuation_mode = 'AUTO'
+            p.emissive_frustum = False
+            p.emissive_basic = any(r.split()[0] == 'BM_LIGHTING_BASIC' for r in material.lighting if r.split())
+            if self.owner.game == 'halo2' and p.emissive_half_life is not None:
+                p.emissive_half_life *= self.scale
             # Older ASS materials can encode power in the name instead of a
             # BM_LIGHTING_BASIC record. Explicit lighting records take priority.
             if self.owner.game in {'halo3', 'halo3odst'}:
@@ -159,6 +189,7 @@ class ASSImporter(JMSImporter):
                         if len(nums) not in (3, 5, 10, 11):
                             raise ValueError('unexpected lightmap record length')
                         p.lightmap_resolution_scale_legacy = nums[0]
+                        p.lightmap_photon_fidelity = int(nums[1])
                         p.lightmap_resolution_scale = utils.clamp(int(nums[0] * 3), 1, 7)
                         tint = (nums[2],) * 3 if len(nums) == 3 else tuple(nums[2:5])
                         p.lightmap_translucency_tint_color = tint if any(tint) else None
@@ -177,22 +208,72 @@ class ASSImporter(JMSImporter):
                         p.emissive_focus = radians(180 * (1 - nums[6])) if len(nums) >= 7 else 0
                     elif key == 'BM_LIGHTING_ATTEN':
                         enabled, falloff, cutoff = map(float, values)
-                        if enabled:
-                            p.emissive_attenuation_falloff = falloff * self.scale
-                            p.emissive_attenuation_cutoff = cutoff * self.scale
+                        p.emissive_attenuation_mode = 'ENABLED' if enabled else 'DISABLED'
+                        p.emissive_attenuation_falloff = falloff * self.scale
+                        p.emissive_attenuation_cutoff = cutoff * self.scale
                     elif key == 'BM_LIGHTING_FRUS':
                         blend, falloff, cutoff = map(float, values)
-                        p.emissive_bounce_ratio = blend
-                    # Frustum angles and other unsupported values remain in collection metadata.
+                        p.emissive_frustum = True
+                        p.emissive_frustum_blend = blend
+                        p.emissive_frustum_falloff = radians(falloff)
+                        p.emissive_frustum_cutoff = radians(cutoff)
+                    # Unknown lighting records remain in collection metadata.
                 except (ValueError, IndexError) as error:
                     raise ASSError(f'Material {material.name!r}: invalid {key}: {error}') from error
+            if (self.owner.game in {'halo3', 'halo3odst'} and p.emissive_power is None
+                    and (p.emissive_shader_gel or p.emissive_frustum or p.emissive_attenuation_mode != 'AUTO')):
+                # ASS can author these independently of BM_LIGHTING_BASIC.
+                # Preserve them even on a currently non-emitting material.
+                p.emissive_power = 0.0
             p.mesh_type = p._mesh_type_from_special_name()
 
     def apply_materials(self, ob, faces_by_material):
         super().apply_materials(ob, faces_by_material)
-        if self.active_kind == 'collision' and not self.is_model:
-            utils.add_face_prop(ob.data, 'face_mode').face_mode = 'collision_only'
+        side_masks = [0] * len(ob.data.polygons)
+        side_states = [0] * len(ob.data.polygons)
         for index, faces in faces_by_material.items():
+            source = self.props.get(index)
+            if source is None:
+                continue
+            mask = int(source.two_sided) | int(source.transparent_one_sided) << 1 | int(source.transparent_two_sided) << 2
+            state = 2 * int(source.two_sided or source.transparent_two_sided) + int(source.transparent_one_sided or source.transparent_two_sided)
+            for face in faces:
+                side_masks[face], side_states[face] = mask, state
+        for name, values in (('ass_source_side_flags', side_masks), ('ass_import_face_sides', side_states)):
+            attribute = ob.data.attributes.new(name, 'INT', 'FACE')
+            attribute.data.foreach_set('value', values)
+        lightmap_records = [0] * len(ob.data.polygons)
+        material_indices = [-1] * len(ob.data.polygons)
+        for index, faces in faces_by_material.items():
+            for face in faces:
+                material_indices[face] = index
+            if index < 0:
+                continue
+            size = next((len(record.split())-1 for record in self.ass.materials[index].lighting
+                         if record.startswith('BM_LMRES ')), 0)
+            for face in faces:
+                lightmap_records[face] = size
+        attribute = ob.data.attributes.new('ass_lightmap_record_size', 'INT', 'FACE')
+        attribute.data.foreach_set('value', lightmap_records)
+        attribute = ob.data.attributes.new('ass_source_material_index', 'INT', 'FACE')
+        attribute.data.foreach_set('value', material_indices)
+        if -1 in faces_by_material:
+            # ASS -1 means an unassigned authoring face, not a default shader.
+            # Preserve that distinction through the display material fallback.
+            mask = [False] * len(ob.data.polygons)
+            for face in faces_by_material[-1]:
+                mask[face] = True
+            attribute = ob.data.attributes.new('ass_unassigned_material', 'BOOLEAN', 'FACE')
+            attribute.data.foreach_set('value', mask)
+        if self.active_kind == 'collision' and not self.is_model:
+            if not any(prop.type == 'face_mode' for prop in ob.data.nwo.face_props):
+                utils.add_face_prop(ob.data, 'face_mode').face_mode = 'collision_only'
+        sphere_mask = [False] * len(ob.data.polygons)
+        for index, faces in faces_by_material.items():
+            props = self.props.get(index)
+            if props and props.collision_only and props.sphere_collision_only:
+                for face in faces:
+                    sphere_mask[face] = True
             game = getattr(self.owner, 'game', None)
             if (index in self.props and self.props[index].ignore_default_resolution and faces
                     and (not game or face_prop_game_supported('lightmap_ignore_default_resolution_scale', game))):
@@ -206,6 +287,9 @@ class ASSImporter(JMSImporter):
                 for face in faces:
                     mask[face] = True
                 utils.add_face_prop(ob.data, 'global_material', mask).global_material = self.global_materials[index]
+        if any(sphere_mask):
+            attribute = ob.data.attributes.new('ass_sphere_collision', 'BOOLEAN', 'FACE')
+            attribute.data.foreach_set('value', sphere_mask)
 
     def collision_material_name(self, index, material):
         return self.global_materials.get(index, material.name)
@@ -215,9 +299,16 @@ class ASSImporter(JMSImporter):
         return self.is_model
 
     def uses_collision_material(self, ob):
-        return self.active_kind == 'collision' or super().uses_collision_material(ob)
+        # BSP collision surfaces resolve their physical material through the
+        # original shader. A display-only Collision material loses that binding.
+        return (self.is_model and self.active_kind == 'collision') or super().uses_collision_material(ob)
 
     def mesh_kind(self, props):
+        if (not self.is_model and props is not None
+                and props.material.name.casefold().startswith('+seamsealer')):
+            # This is a face-level sealing material, not a separate seam
+            # object. Keep it inside its source geometry/instance.
+            return self.active_kind or 'default'
         if self.active_kind == 'instance' and props and props.mesh_type != 'default':
             kind = props.mesh_type
             return ('default' if kind == 'weather_polyhedron'
@@ -229,14 +320,24 @@ class ASSImporter(JMSImporter):
                 and getattr(self.owner, 'game', None) != 'halo2' else kind)
 
     def mesh_created(self, ob, source_indices):
+        super().mesh_created(ob, source_indices)
         self.source_indices[ob] = source_indices
+        # Keep the compiler's local coordinates alongside their Blender-unit
+        # representation. Recover only unchanged points on export; edited
+        # points use the evaluated mesh normally.
+        source_positions = ob.data.attributes.get('legacy_source_position') or ob.data.attributes.new('legacy_source_position', 'FLOAT_VECTOR', 'POINT')
+        source_positions.data.foreach_set('vector', [c for i in source_indices
+                                                    for c in self.active_geometry.vertices[i].position])
+        import_positions = ob.data.attributes.get('legacy_import_position') or ob.data.attributes.new('legacy_import_position', 'FLOAT_VECTOR', 'POINT')
+        import_positions.data.foreach_set('vector', [c for v in ob.data.vertices for c in v.co])
         # Blender UV layers only hold XY. Preserve ASS's third UV component.
         geometry = self.active_geometry
         for channel in range(max((len(v.uvs) for v in geometry.vertices), default=0)):
             if any(len(v.uvs[channel]) == 3 for v in geometry.vertices if channel < len(v.uvs)):
-                attribute = ob.data.attributes.new(f'ass_uv_w_{channel}', 'FLOAT', 'POINT')
+                attribute = ob.data.attributes.new(f'ass_uv_w_{channel}', 'FLOAT', 'CORNER')
                 attribute.data.foreach_set('value', [geometry.vertices[i].uvs[channel][2]
-                    if channel < len(geometry.vertices[i].uvs) and len(geometry.vertices[i].uvs[channel]) == 3 else 0 for i in source_indices])
+                    if channel < len(geometry.vertices[i].uvs) and len(geometry.vertices[i].uvs[channel]) == 3 else 0
+                    for i in (source_indices[loop.vertex_index] for loop in ob.data.loops)])
 
     def role(self, instance, geometry):
         name = instance.name
@@ -355,11 +456,16 @@ class ASSImporter(JMSImporter):
             if instance.unique_id == -1:
                 continue
             geometry = self.ass.geometries[instance.geometry] if instance.geometry != -1 else None
+            # XREF meshes can contain the complete structural surface as well
+            # as the authoring reference. Replacing that payload with a marker
+            # removes BSP walls (e.g. Old Mombasa's hotel_hall) on export.
+            reference_only = bool(geometry and geometry.kind == 'MESH' and geometry.xref_path
+                                  and not (geometry.vertices and geometry.triangles))
             if self.geometry_only and (instance.name.startswith('#') or geometry is None
-                                       or geometry.xref_path or geometry.kind == 'GENERIC_LIGHT'):
+                                       or reference_only or geometry.kind == 'GENERIC_LIGHT'):
                 continue
             matrix = self.scene_matrix(self.world[index] @ self.ass_matrix(instance.pivot))
-            if geometry and geometry.xref_path:
+            if reference_only:
                 ob = self.object(instance.name.lstrip('#'))
                 from ..tools.importer import XREF
                 tag, fallback = self.owner._resolve_xref_tag_path(XREF(instance.name, geometry.xref_path, geometry.xref_name))
@@ -397,6 +503,9 @@ class ASSImporter(JMSImporter):
                     ob.name = f'{instance.name}:{ob.nwo.permutation_name}:{ob.nwo.region_name}'
                     if instance.name.startswith('%'):
                         self.owner.set_poop_policies(ob)
+                        ob['ass_import_policies'] = json.dumps({name:getattr(ob.nwo,name) for name in (
+                            'poop_lighting', 'poop_pathfinding', 'poop_render_only', 'poop_chops_portals',
+                            'poop_does_not_block_aoe', 'poop_excluded_from_lightprobe', 'poop_decal_spacing')})
                         if self.is_model:
                             ob.nwo.marker_uses_regions = ob.nwo.region_name != 'default'
                             ob.nwo.marker_permutation_type = 'include'
@@ -413,9 +522,28 @@ class ASSImporter(JMSImporter):
                 ob.matrix_world = matrix
                 ob['ass_geometry'] = instance.geometry
                 ob['ass_identifier'] = str(instance.unique_id)
+                ancestry = []
+                ancestor = instance.parent
+                while ancestor != -1:
+                    ancestry.append(dict(index=ancestor, **asdict(self.ass.instances[ancestor])))
+                    ancestor = self.ass.instances[ancestor].parent
+                ob['ass_source_key'] = self.source_key
+                ob['ass_source_index'] = index
+                ob['ass_source_ancestry'] = json.dumps(ancestry)
+                ob['ass_import_name'] = ob.name
+                if ob.type == 'MESH':
+                    source_matrix = self.world[index] @ self.ass_matrix(instance.pivot)
+                    ob['ass_source_matrix'] = json.dumps([list(row) for row in source_matrix])
+                if geometry and geometry.xref_path:
+                    ob['ass_xref_path'] = geometry.xref_path
+                    ob['ass_xref_name'] = geometry.xref_name
             self.instance_objects[index] = objects
         self.collapse_frames()
         self.link_collision_proxies()
+        bpy.context.view_layer.update()
+        for ob in self.objects:
+            if ob.type in {'MESH', 'EMPTY'}:
+                ob['ass_import_matrix'] = json.dumps([list(row) for row in ob.matrix_world])
 
     def collapse_frames(self):
         """Use the imported object as the hierarchy anchor wherever possible.
@@ -435,6 +563,17 @@ class ASSImporter(JMSImporter):
             if anchor is None:
                 continue
             if index in self.frame_instances:
+                continue
+            instance = self.ass.instances[index]
+            if (instance.unique_id == -1 and instance.parent == -1
+                    and any(self.ass.instances[i].parent == index for i in self.frame_instances)):
+                # The Max scene root also owns authoring guides outside the
+                # actual export frame. Keep their exclusion after collapsing
+                # helper frames instead of exporting them as BSP surfaces.
+                for child in list(anchor.children):
+                    if child in (self.anchors[i] for i in self.frame_instances):
+                        child.parent = None
+                        child.matrix_world = world_matrices[child]
                 continue
             objects = self.instance_objects.get(index, [])
             if len(objects) > 1 and index in parents:
@@ -461,6 +600,8 @@ class ASSImporter(JMSImporter):
     def link_collision_proxies(self):
         if self.is_model:
             return
+        proxies = defaultdict(list)
+        proxy_sources = defaultdict(list)
         for index, instance in enumerate(self.ass.instances):
             if not instance.name.startswith('@') or instance.parent == -1:
                 continue
@@ -474,11 +615,51 @@ class ASSImporter(JMSImporter):
                 parent = parents.get((child.nwo.region_name, child.nwo.permutation_name))
                 if parent is None:
                     continue
-                if parent.data.users > 1:
-                    parent.data = parent.data.copy()
-                parent.data.nwo.proxy_collision = child
-                child.nwo.proxy_type = 'collision'
-                utils.unlink(child)
+                # Foundry proxies use the render mesh's local coordinates.
+                # ASS collision children have independent transforms/pivots.
+                # Bake those here and retain every child of an instance.
+                if child.data.users > 1:
+                    child.data = child.data.copy()
+                relative = (self.ass_matrix(self.ass.instances[instance.parent].pivot).inverted()
+                            @ self.ass_matrix(instance.local) @ self.ass_matrix(instance.pivot))
+                proxy_sources[parent].append(dict(index=index, instance=asdict(instance),
+                    geometry=asdict(self.ass.geometries[instance.geometry]),
+                    relative=[list(row) for row in relative]))
+                attribute = child.data.attributes.new('ass_proxy_source_instance', 'INT', 'FACE')
+                attribute.data.foreach_set('value', [index] * len(child.data.polygons))
+                normals = [(relative.to_3x3().inverted().transposed() @ n.vector).normalized()
+                           for n in child.data.corner_normals]
+                source_positions = child.data.attributes['legacy_source_position']
+                points = [relative @ v.vector for v in source_positions.data]
+                source_positions.data.foreach_set('vector', [c for point in points for c in point])
+                for vertex, point in zip(child.data.vertices, points):
+                    vertex.co = point * self.scale
+                child.data.normals_split_custom_set(normals)
+                authored = child.data.attributes.get('legacy_source_normal')
+                if authored is not None:
+                    normal_matrix = relative.to_3x3().inverted().transposed()
+                    authored.data.foreach_set('vector', [c for item in authored.data for c in normal_matrix @ item.vector])
+                    child.data.attributes['legacy_import_normal'].data.foreach_set(
+                        'vector', [c for normal in child.data.corner_normals for c in normal.vector])
+                child.data.attributes['legacy_import_position'].data.foreach_set(
+                    'vector', [c for v in child.data.vertices for c in v.co])
+                child.parent = parent
+                child.matrix_parent_inverse = Matrix.Identity(4)
+                child.matrix_basis = Matrix.Identity(4)
+                proxies[parent].append(child)
+        bpy.context.view_layer.update()
+        for parent, children in proxies.items():
+            if parent.data.users > 1:
+                parent.data = parent.data.copy()
+            if len(children) > 1:
+                self.objects = [ob for ob in self.objects if ob not in children[1:]]
+                child = utils.join_objects(children, cleanup_geometry=False)
+            else:
+                child = children[0]
+            parent.data.nwo.proxy_collision = child
+            child.nwo.proxy_type = 'collision'
+            child['ass_proxy_sources'] = json.dumps(proxy_sources[parent])
+            utils.unlink(child)
 
     def light_object(self, instance, light):
         kind = {'SPOT_LGT': 'SPOT', 'DIRECT_LGT': 'AREA', 'OMNI_LGT': 'POINT', 'AMBIENT_LGT': 'SUN'}.get(light.kind)

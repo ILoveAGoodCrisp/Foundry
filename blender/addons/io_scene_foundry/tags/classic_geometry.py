@@ -662,11 +662,15 @@ def weld_classic_vertices(mesh, *, preserve_deformation=False):
         protected = set()
         shape_layers = tuple(bm.verts.layers.shape.values()) if preserve_deformation else ()
         deform_layer = bm.verts.layers.deform.active if preserve_deformation else None
+        source_layer = bm.verts.layers.float_vector.get('legacy_source_position')
+        import_layer = bm.verts.layers.float_vector.get('legacy_import_position')
         for vertex in bm.verts:
             role = bool(vertex.link_faces) and all(f in noncollision for f in vertex.link_faces)
             shapes = tuple(tuple(vertex[layer]) for layer in shape_layers)
             weights = tuple(sorted(vertex[deform_layer].items())) if deform_layer is not None else ()
-            by_position[tuple(vertex.co), role, shapes, weights].append(vertex)
+            source = (tuple(vertex[source_layer]) if source_layer is not None and import_layer is not None
+                      and vertex.co == vertex[import_layer] else None)
+            by_position[tuple(vertex.co), role, shapes, weights, source].append(vertex)
         for face in bm.faces:
             coords = frozenset(tuple(v.co) for v in face.verts)
             # Cross-role overlays are already protected by the weld key.

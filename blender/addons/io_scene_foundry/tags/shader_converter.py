@@ -18,6 +18,7 @@ from .blender import BlenderTag
 from .field_view import NativeTagStruct
 import os
 from .bitmap import BitmapTag, bitmap_to_image
+from .scene_time import scene_time_node
 from ..tools.export_bitmaps import export_bitmap, bitmap_export_image, bitmap_needs_rebuild
 from .. import utils
 from ..tools.node_layout import layout_nodes
@@ -1744,6 +1745,35 @@ class ShaderTag(BlenderTag, TagDocument):
                 texcoord.location = (-1000, 0)
             vector = texcoord.outputs['Reflection' if reflection else
                                       'Generated' if self.generated_uvs else 'UV']
+            if reflection and shader_type == 'shader_environment':
+                # A separate direction group avoids a shader graph cycle:
+                # environment color is an input of the main surface group.
+                direction_tree = utils.add_node_from_resources(
+                    'h1_nodes', 'foundry_h1.environment_reflection_vector')
+                if direction_tree is not None:
+                    direction = nodes.new('ShaderNodeGroup')
+                    direction.node_tree = direction_tree
+                    direction.label = 'Halo reflection direction'
+                    direction.location = (-700, image_node.location.y)
+                    for name in ('Bump Map', 'Bump Strength',
+                                 'Bump Map Is Specular Mask', 'Reflection Type'):
+                        source = group.inputs.get(name)
+                        if source is None:
+                            continue
+                        if source.is_linked:
+                            tree.links.new(source.links[0].from_socket,
+                                           direction.inputs[name])
+                        else:
+                            direction.inputs[name].default_value = source.default_value
+                    # Make this helper the common control source. Editing its
+                    # normal/mode inputs updates both the lookup and surface;
+                    # copying defaults alone would leave the lookup stale.
+                    for name in ('Bump Map', 'Bump Strength',
+                                 'Bump Map Is Specular Mask', 'Reflection Type'):
+                        target = group.inputs.get(name)
+                        if target is not None:
+                            tree.links.new(direction.outputs[name], target)
+                    vector = direction.outputs['Reflection Vector']
             if not reflection and tiling != (1.0, 1.0):
                 mapping = nodes.new('ShaderNodeMapping')
                 mapping.location = (-700, image_node.location.y)
@@ -1760,6 +1790,11 @@ class ShaderTag(BlenderTag, TagDocument):
         blender_material.surface_render_method = 'DITHERED'
 
         if shader_type == 'shader_model':
+            def model_input(name, value):
+                socket = group.inputs.get(name)
+                if socket is not None:
+                    socket.default_value = value
+
             for flag, socket in (
                     ('detail after reflection', 'Detail After Reflections'),
                     ('two sided', 'Two-Sided'),
@@ -1768,6 +1803,8 @@ class ShaderTag(BlenderTag, TagDocument):
                     ('use xbox multipurpose channel order',
                      'Multipurpose Map Uses OG Xbox Channel Order')):
                 group.inputs[socket].default_value = flags.get_flag(flag)
+            model_input('True Atmospheric Fog', flags.get_flag('true atmospheric fog'))
+            model_input('Disable Two-Sided Culling', flags.get_flag('disable two sided culling'))
             if flags.get_flag('alpha blended decal'):
                 blender_material.surface_render_method = 'BLENDED'
 
@@ -1784,9 +1821,28 @@ class ShaderTag(BlenderTag, TagDocument):
 
             copy_value(illumination, 'animation color lower bound')
             copy_value(illumination, 'animation color upper bound')
-            # Keep a static preview for classic animation functions, as before.
             group.inputs['Animation Color Bound Factor'].default_value = (
                 0.0 if enum_name(illumination, 'animation function') == 'zero' else 1.0)
+            if group.inputs.get('Animation Function') is not None:
+                copy_menu(illumination, 'animation function', 'Animation Function')
+                model_input('Animation Period', float(self.value(illumination, 'animation period')) or 1.0)
+                model_input('No Random Phase', self.required_field(illumination, 'flags').get_flag('no random phase'))
+                model_input('Use Animation Function', True)
+                clock = scene_time_node(tree)
+                clock.location = (-400, 480)
+                tree.links.new(clock.outputs['Seconds'], group.inputs['Animation Time'])
+            illumination_source = enum_name(illumination, 'color source')
+            group['halo1_self_illumination_color_source'] = illumination_source
+            attribute_name = {'a': 'Primary Color', 'b': 'Secondary Color',
+                              'c': 'Tertiary Color', 'd': 'Quaternary Color'}.get(illumination_source)
+            model_input('Use Self-Illumination Color Source', attribute_name is not None)
+            if attribute_name is not None and group.inputs.get('Self-Illumination Color Source') is not None:
+                attribute = nodes.new('ShaderNodeAttribute')
+                attribute.attribute_type = 'INSTANCER'
+                attribute.attribute_name = attribute_name
+                attribute.label = 'Halo self-illumination color'
+                attribute.location = (-400, 720)
+                tree.links.new(attribute.outputs['Color'], group.inputs['Self-Illumination Color Source'])
             maps = child(root, 'maps')
             uv_scale = (scale(maps, 'map u scale'), scale(maps, 'map v scale'))
             bitmap(maps, 'base map', tiling=uv_scale)
@@ -1795,23 +1851,52 @@ class ShaderTag(BlenderTag, TagDocument):
             copy_menu(maps, 'detail mask')
             detail_scale = scale(maps, 'detail map scale')
             detail_v_scale = float(self.value(maps, 'detail map v scale')) or detail_scale
-            bitmap(maps, 'detail map', tiling=(uv_scale[0] * detail_scale,
-                                              uv_scale[1] * detail_v_scale))
+            detail_node = bitmap(maps, 'detail map', tiling=(uv_scale[0] * detail_scale,
+                                                           uv_scale[1] * detail_v_scale))
+            model_input('Use Detail Map', detail_node is not None)
+            if detail_node is None:
+                neutral = 1.0 if enum_name(maps, 'detail function') == 'multiply' else 0.5
+                group.inputs['Detail Map'].default_value = (neutral, neutral, neutral, 1.0)
+                group.inputs['Detail Map Alpha'].default_value = 1.0
             specular = child(reflection, 'cube map properties')
             for field in ('perpendicular brightness', 'parallel brightness',
                           'perpendicular tint color', 'parallel tint color'):
                 copy_value(specular, field)
+            model_input('Reflection Falloff Distance', float(self.value(reflection, 'falloff distance')))
+            model_input('Reflection Cutoff Distance', float(self.value(reflection, 'cutoff distance')))
+            model_input('World Units Per Blender Unit', bpy.context.scene.unit_settings.scale_length / 3.048)
             bitmap(reflection, 'cube map', 'Reflection Cube Map', reflection=True)
         else:
             group.inputs['Alpha Tested'].default_value = flags.get_flag('alpha tested')
+            def environment_input(name, value):
+                # Existing .blend files can still contain an older appended
+                # resource group. Keep their imports usable until refreshed.
+                socket = group.inputs.get(name)
+                if socket is not None:
+                    socket.default_value = value
+
+            environment_input('Bump Map Is Specular Mask',
+                              flags.get_flag('bump map is specular mask'))
+            environment_input('Use Alternate Bump Attenuation',
+                              flags.get_flag('use alternate bump attenuation'))
             copy_menu(properties, 'shader environment type', 'Blend Type')
             diffuse = child(root, 'diffuse')
             bitmap(diffuse, 'base map')
             copy_menu(diffuse, 'detail map function')
             copy_menu(diffuse, 'micro detail map function')
+            detail_nodes = {}
             for name in ('primary detail map', 'secondary detail map', 'micro detail map'):
                 detail_scale = scale(diffuse, name + ' scale')
-                bitmap(diffuse, name, tiling=(detail_scale, detail_scale))
+                detail_nodes[name] = bitmap(diffuse, name, tiling=(detail_scale, detail_scale))
+                if detail_nodes[name] is None:
+                    function = ('micro detail map function' if name == 'micro detail map'
+                                else 'detail map function')
+                    neutral = 1.0 if enum_name(diffuse, function) == 'multiply' else 0.5
+                    group.inputs[name.title()].default_value = (neutral, neutral, neutral, 1.0)
+                    group.inputs[name.title() + ' Alpha'].default_value = 1.0
+            environment_input('Use Detail Maps', any(detail_nodes[name] is not None
+                              for name in ('primary detail map', 'secondary detail map')))
+            environment_input('Use Micro Detail Map', detail_nodes['micro detail map'] is not None)
 
             bump = child(root, 'bump')
             bump_scale = scale(bump, 'bump map scale')
@@ -1827,8 +1912,14 @@ class ShaderTag(BlenderTag, TagDocument):
             bitmap(illumination, 'map', 'Self-Illumination Map', non_color=True,
                    tiling=(illumination_scale, illumination_scale))
             specular = child(root, 'specular')
+            environment_input('Lightmap Is Specular',
+                              self.required_field(specular, 'flags').get_flag('lightmap is specular'))
             for field in ('brightness', 'perpendicular color', 'parallel color'):
                 copy_value(specular, field)
+            if group.inputs.get('Reflection Type') is not None:
+                copy_menu(reflection, 'type', 'Reflection Type')
+            environment_input('Lightmap Brightness Scale',
+                              float(self.value(reflection, 'lightmap brightness scale')))
             for field in ('perpendicular brightness', 'parallel brightness'):
                 copy_value(reflection, field)
             bitmap(reflection, 'reflection cube map', reflection=True)

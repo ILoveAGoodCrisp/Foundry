@@ -8,15 +8,32 @@ from ..tags.classic_geometry import weld_classic_vertices
 
 
 def make_mesh_editable(mesh):
-    """Weld coincident vertices and replace custom normals with edge sharpness.
+    """Weld coincident vertices, retaining interchange authoring normals.
 
     Exact welding keeps thin features, UV seams, face properties and separate
     render/collision overlays intact. Compare both ends of each shared edge:
     an authored normal split at either end makes that edge sharp. Allow one
-    degree of encoding noise in the imported normals.
+    degree of encoding noise in the imported tag normals when replacing them.
     """
+    baseline = mesh.attributes.get('legacy_import_normal')
+    identities = mesh.attributes.get('legacy_source_vertex')
+    unchanged_normals = {}
+    if baseline is not None and identities is not None:
+        for identity, imported, normal in zip(identities.data, baseline.data, mesh.corner_normals):
+            matches = (imported.vector - normal.vector).length < 1e-7
+            unchanged_normals[identity.value] = unchanged_normals.get(identity.value, True) and matches
     weld_classic_vertices(mesh, preserve_deformation=True)
-    if not mesh.has_custom_normals:
+    if unchanged_normals:
+        # Re-encoding custom normals against welded topology changes Blender's
+        # compression basis. Refresh only corners which were not edited.
+        baseline = mesh.attributes['legacy_import_normal']
+        identities = mesh.attributes['legacy_source_vertex']
+        for identity, imported, normal in zip(identities.data, baseline.data, mesh.corner_normals):
+            if unchanged_normals.get(identity.value, False):
+                imported.vector = normal.vector
+    # Interchange files retain authoring normals, which need not be derivable
+    # from smooth/sharp edges. Keep those corners through an unedited round trip.
+    if not mesh.has_custom_normals or mesh.get('foundry_legacy_normals', False):
         return
 
     bm = bmesh.new()

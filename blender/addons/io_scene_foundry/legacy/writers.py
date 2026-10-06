@@ -257,10 +257,10 @@ def write_jms(asset, stream, *, maya_order=False):
                 w.vector((power,))
 
 
-def write_ass(asset, stream):
-    if asset.version not in {2, 7}:
+def write_ass(asset, stream, *, decimal_places=None):
+    if asset.version not in range(1, 8):
         raise ExportCancelled(f'Unsupported ASS output version {asset.version}')
-    w = TextWriter(stream, quoted=True)
+    w = TextWriter(stream, quoted=True, decimal_places=decimal_places)
     w.line(asset.version)
     for value in asset.header or ('Foundry', 'Blender', '', ''):
         w.line(value)
@@ -318,6 +318,6 @@ def write_ass(asset, stream):
             w.line(value)
         for transform in (i.local, i.pivot):
             w.transform(transform)
-            w.vector((transform.scale[0],))
+            w.vector(transform.scale if asset.version == 1 else (transform.scale[0],))
         for bone in i.bones:
             w.line(bone)

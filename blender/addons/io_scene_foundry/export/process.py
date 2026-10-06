@@ -309,6 +309,7 @@ class ExportScene:
         self.sky_lights = []
         self.sun = None
         self.armature_poses = {}
+        self.legacy_armature_modifiers = []
         self.ob_halo_data = {}
         # self.disabled_collections = set()
         self.current_frame = self.context.scene.frame_current
@@ -424,6 +425,16 @@ class ExportScene:
                         continue
                     if utils.ultimate_armature_parent(ob) is main_armature:
                         support_armatures.append(ob)
+
+            if self.legacy_export:
+                # JMS writes bind-pose vertices and skin weights separately.
+                # Even a resting armature introduces float matrix roundoff.
+                for ob in self.context.view_layer.objects:
+                    for modifier in ob.modifiers:
+                        if (modifier.type == 'ARMATURE' and modifier.object is not None
+                                and modifier.object.data in self.armature_poses and modifier.show_viewport):
+                            self.legacy_armature_modifiers.append(modifier)
+                            modifier.show_viewport = False
                         
             self.context.view_layer.update()
         
@@ -1658,6 +1669,8 @@ class ExportScene:
                         if self.legacy_export else int(prop.lightmap_resolution_scale))
                 case 'lightmap_ignore_default_resolution_scale':
                     mesh_props["bungie_lightmap_ignore_default_resolution_scale"] = int(prop.lightmap_ignore_default_resolution_scale)
+                case 'lightmap_photon_fidelity':
+                    mesh_props['foundry_lightmap_photon_fidelity'] = prop.lightmap_photon_fidelity
                 case 'lightmap_chart_group':
                     mesh_props["bungie_lightmap_chart_group"] = prop.lightmap_chart_group
                 case 'lightmap_type':
@@ -1677,6 +1690,10 @@ class ExportScene:
                 case 'emissive':
                     if self.project_game == 'halo2':
                         # Resolve material defaults and face scale overrides together.
+                        mesh_props['foundry_lighting_emissive_half_life'] = prop.material_lighting_emissive_half_life * self.to_halo_scale
+                        continue
+                    if self.project_game in {'halo3', 'halo3odst'}:
+                        mesh_props.update(utils.legacy_emissive_export_properties(prop, self.project_game, self.to_halo_scale))
                         continue
                     if prop.material_lighting_emissive_power <= 0:
                         mesh_props["bungie_lighting_emissive_power"] = 0.0
@@ -2765,6 +2782,8 @@ class ExportScene:
         
         for armature, pose in self.armature_poses.items():
             armature.pose_position = pose
+        for modifier in self.legacy_armature_modifiers:
+            modifier.show_viewport = True
         
         if self.collection_view_layers_to_restore:
             for coll_view_layer in self.collection_view_layers_to_restore:

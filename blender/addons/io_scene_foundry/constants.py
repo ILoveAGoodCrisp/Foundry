@@ -271,6 +271,7 @@ face_prop_type_items = [
             ('lightmap_lighting_from_both_sides', "Light Both Sides", "reach,corinth:scenario,prefab", 31),
             ('emissive', "Emissive", "halo2,halo3,halo3odst,reach,corinth:scenario,prefab", 32), # all emissive props
             ('shadow_only', "Shadow Only", "halo2,halo3,halo3odst:scenario", 33),
+            ('lightmap_photon_fidelity', "Photon Fidelity", "halo3,halo3odst:scenario,prefab", 34),
         ]
 
 
@@ -289,6 +290,7 @@ def face_prop_game_supported(prop_type: str, game: str, face_mode: str | None = 
     return False
 
 face_prop_descriptions = {
+    'lightmap_photon_fidelity': "Photon fidelity setting stored in ASS lightmap properties",
     'face_mode': "By default the game will build multiple versions of this geometry for different uses, such as building the visible mesh and the collision mesh. You can use this to specify a specific type of geometry only to be built",
     'render_only': "Builds visible render geometry from these faces, but does not use them for collision",
     'collision_only': "Builds collision from these faces, but does not include them in visible render geometry",

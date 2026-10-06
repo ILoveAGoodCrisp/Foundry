@@ -31,12 +31,31 @@ Material flags become Foundry face properties before shader names are deduplicat
 collision/physics materials also become Foundry global material properties.
 The source material table is retained on the collection for metadata that does
 not have a Foundry equivalent.
+Source JMS/ASS custom normals remain authored during the final import cleanup,
+and colors use the corner domain so exact positional welding preserves seams.
+Material flags are suffix symbols; punctuation inside a shader name is retained.
+Halo 2/3 BSP meshes carry the axis correction on the object and retain original
+local points plus the imported placement. Unedited exports avoid repeated unit
+and axis conversions; changed points and placements use the evaluated scene.
+Model points, corner normals and source vertex identities are also retained.
+Native export uses authoring UVs without a float32 `1-V` round trip and retains
+floating skin weights. Resting armature modifiers are temporarily muted for
+bind-pose export and restored afterward. Unedited source bones retain their
+ordering, names and transforms; edited bones use the current rig.
+
+Halo 2 render files are separated by LOD. Material definitions use the Tool
+grammar `(sub-material ID) LOD permutation region`; distinct Max sub-material
+IDs survive shader deduplication. Source precision flags override Auto Precise
+so a fresh import/export does not change compiler welding.
 
 Hinge and ragdoll constraints become Foundry constraints. Car-wheel,
 point-to-point and prismatic records have no matching Foundry constraint type:
 they are retained on non-exporting empties with a warning. Both constraint
 frames and source limits remain in metadata. Xrefs, bounding spheres and
 skylights also retain their source metadata.
+Native hinge/ragdoll export preserves both endpoint frames, source-only limit
+values and friction. Joint frames bypass the marker-axis correction; moving a
+joint updates both frames while retaining their relative offset.
 
 ## Export and round trips
 
@@ -45,6 +64,8 @@ skylights also retain their source metadata.
 resolved face properties and region/permutation/LOD, not Blender slot indices.
 Unit/axis conversion is reversed at the adapter boundary. Import remains
 independent of virtual geometry and tag/export initialization.
+Forward-axis quarter turns use exact signed axis matrices, and legacy export
+deduplicates exact vertex data rather than applying the Granny tolerance weld.
 
 For Halo 1, exact and ordinary portals are partitioned separately on import.
 The source Exact Portal setting is retained on the object. All Halo 1 portals
@@ -96,7 +117,26 @@ are cleared so objects inherit the top-level BSP, while other child categories
 are preserved. This collection classification applies even with Selected Only;
 object conversion and coordinate transforms still follow the selected scope.
 
+## Emissive parameters
+
+Native JMS material names carry emissive power through `lp:`; Halo 2 also
+supports the `hl:` half-life distance. Foundry imports and exports both, with
+half-life converted between source and scene units. H3/ODST `lp:` becomes the
+emissive power property. ASS 2 uses the same Halo 2 material-name parameters.
+
+JMS has no `BM_LIGHTING_*` records. Colour, quality, normalization, shader gel,
+focus, attenuation and frustum settings require ASS 7 for H3/ODST geometry.
+Exporting these settings to JMS produces a warning instead of silently implying
+that the full lighting settings were saved. Model shader emission remains a
+shader property.
+
 ## Checks
+
+H3/ODST collision permutations export together in one JMS, with shared source
+vertex identities, vertex order, face order and corner starts retained. Separate
+files change Tool's weld candidates and can move clipped collision boundaries.
+Collision sources retain their own bind-transform header when the rig is
+unchanged and the node order/hierarchy matches. Edited rigs use current bones.
 
 Run `blender/test_jms_roundtrip.py` with Blender in background factory-startup
 mode and `--python-exit-code 1`. The tests use real Foundry properties, importer,

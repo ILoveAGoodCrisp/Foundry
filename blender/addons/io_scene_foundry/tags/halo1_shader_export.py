@@ -71,11 +71,21 @@ def write_shader(shader):
 
     # Invert the model/environment resource importer, including external bitmap
     # nodes, UV scales, display menus, reflection and static illumination bounds.
+    def input_default(socket):
+        if socket.is_linked:
+            source = socket.links[0].from_node
+            if (source.type == 'GROUP' and source.node_tree is not None
+                    and source.node_tree.name == 'foundry_h1.environment_reflection_vector'):
+                control = source.inputs.get(socket.name)
+                if control is not None:
+                    return control.default_value
+        return socket.default_value
+
     def copy_value(struct, field_name, socket_name=None):
         socket = group.inputs.get(socket_name or field_name.title())
         if socket is None:
             return
-        value = socket.default_value
+        value = input_default(socket)
         if isinstance(shader.value(struct, field_name), RealRgbColor):
             value = RealRgbColor(*value[:3])
         set_value(struct, field_name, value)
@@ -83,7 +93,7 @@ def write_shader(shader):
     def copy_menu(struct, field_name, socket_name=None):
         socket = group.inputs.get(socket_name or field_name.title())
         if socket is not None:
-            menu(struct, field_name, socket.default_value)
+            menu(struct, field_name, input_default(socket))
 
     def image_node(socket_name):
         node = utils.find_linked_node(group, socket_name.lower(), 'TEX_IMAGE')
@@ -116,9 +126,31 @@ def write_shader(shader):
                 ('alpha blended decal', 'Alpha-Blended Decal'),
                 ('use xbox multipurpose channel order', 'Multipurpose Map Uses OG Xbox Channel Order')):
             flags.set_flag(flag, group.inputs[socket_name].default_value)
+        for flag, name in (('true atmospheric fog', 'True Atmospheric Fog'),
+                           ('disable two sided culling', 'Disable Two-Sided Culling')):
+            socket = group.inputs.get(name)
+            if socket is not None:
+                flags.set_flag(flag, input_default(socket))
         for name in ('animation color lower bound', 'animation color upper bound'):
             copy_value(illumination, name)
-        activation(illumination, 'animation function', 'Animation Color Bound Factor')
+        if (group.inputs.get('Use Animation Function') is not None
+                and group.inputs['Use Animation Function'].default_value):
+            copy_menu(illumination, 'animation function', 'Animation Function')
+            copy_value(illumination, 'animation period', 'Animation Period')
+            shader.required_field(illumination, 'flags').set_flag(
+                'no random phase', group.inputs['No Random Phase'].default_value)
+        else:
+            activation(illumination, 'animation function', 'Animation Color Bound Factor')
+        color_source = group.inputs.get('Use Self-Illumination Color Source')
+        if color_source is not None:
+            source = 'none'
+            if color_source.default_value:
+                attribute = utils.find_linked_node(group, 'self-illumination color source', 'ATTRIBUTE')
+                source = {'Primary Color': 'a', 'Secondary Color': 'b', 'Tertiary Color': 'c',
+                          'Quaternary Color': 'd'}.get(attribute.attribute_name if attribute else '',
+                            group.get('halo1_self_illumination_color_source',
+                                      shader.required_field(illumination, 'color source').options().current_name))
+            menu(illumination, 'color source', source)
         maps = child(root, 'maps')
         image(maps, 'base map')
         u, v = tiling(image_node('Base Map') or image_node('Multipurpose Map'))
@@ -135,6 +167,8 @@ def write_shader(shader):
                       'perpendicular tint color', 'parallel tint color'):
             copy_value(specular, field)
         image(reflection, 'cube map', 'Reflection Cube Map')
+        copy_value(reflection, 'falloff distance', 'Reflection Falloff Distance')
+        copy_value(reflection, 'cutoff distance', 'Reflection Cutoff Distance')
         attribute = utils.find_linked_node(group, 'primary change color', 'ATTRIBUTE')
         source = {'Primary Color': 'a', 'Secondary Color': 'b',
                   'Tertiary Color': 'c', 'Quaternary Color': 'd'}.get(
@@ -142,6 +176,11 @@ def write_shader(shader):
         menu(child(root, 'change color'), 'change color source', source)
     else:
         flags.set_flag('alpha tested', group.inputs['Alpha Tested'].default_value)
+        for flag, name in (('bump map is specular mask', 'Bump Map Is Specular Mask'),
+                           ('use alternate bump attenuation', 'Use Alternate Bump Attenuation')):
+            socket = group.inputs.get(name)
+            if socket is not None:
+                flags.set_flag(flag, input_default(socket))
         copy_menu(properties, 'shader environment type', 'Blend Type')
         diffuse = child(root, 'diffuse')
         image(diffuse, 'base map')
@@ -158,8 +197,13 @@ def write_shader(shader):
                        layer.title() + ' Self-Illumination Activation Level')
         set_value(illumination, 'map scale', image(illumination, 'map', 'Self-Illumination Map')[0])
         specular = child(root, 'specular')
+        socket = group.inputs.get('Lightmap Is Specular')
+        if socket is not None:
+            shader.required_field(specular, 'flags').set_flag('lightmap is specular', socket.default_value)
         for field in ('brightness', 'perpendicular color', 'parallel color'):
             copy_value(specular, field)
+        copy_menu(reflection, 'type', 'Reflection Type')
+        copy_value(reflection, 'lightmap brightness scale', 'Lightmap Brightness Scale')
         for field in ('perpendicular brightness', 'parallel brightness'):
             copy_value(reflection, field)
         image(reflection, 'reflection cube map')

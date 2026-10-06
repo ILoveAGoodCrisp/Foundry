@@ -2822,12 +2822,19 @@ def emissive_export_attenuation(prop, power: float, game: str) -> tuple[float, f
     """
     falloff = prop.material_lighting_attenuation_falloff
     cutoff = prop.material_lighting_attenuation_cutoff
-    if game not in {'halo1', 'halo2'} and falloff == 0 and cutoff == 0:
+    if (getattr(prop, 'material_lighting_attenuation_mode', 'AUTO') == 'AUTO'
+            and game not in {'halo1', 'halo2'} and falloff == 0 and cutoff == 0):
         # Match automatic light export's conversion from scene energy to meters.
         power = max(power, 0.0) * get_unit_conversion_factor(bpy.context) ** 2
         falloff = math.sqrt(power / (4 * math.pi * 0.5))
         cutoff = math.sqrt(power / (4 * math.pi * 0.05))
     return falloff, cutoff
+
+
+def legacy_emissive_export_properties(prop, game, distance_scale):
+    from .legacy.lighting import emissive_properties
+    automatic = emissive_export_attenuation(prop, prop.material_lighting_emissive_power, game)
+    return emissive_properties(prop, distance_scale, automatic)
 
 
 def get_blender_shader(node_tree: bpy.types.NodeTree) -> bpy.types.Node | None:
@@ -5904,6 +5911,16 @@ def emissive_signature(prop):
         # prop.light_intensity,
         prop.material_lighting_emissive_quality,
         prop.debug_emissive_index,
+        prop.material_lighting_attenuation_mode,
+        prop.material_lighting_use_shader_gel,
+        prop.material_lighting_bounce_ratio,
+        prop.material_lighting_emissive_frustum,
+        prop.material_lighting_emissive_basic,
+        prop.material_lighting_frustum_blend,
+        prop.material_lighting_frustum_falloff,
+        prop.material_lighting_frustum_cutoff,
+        prop.material_lighting_emissive_power_scale,
+        prop.material_lighting_emissive_half_life,
     )
     
 def consolidate_face_attributes(mesh: bpy.types.Mesh, *, preserve_special_faces=False):
@@ -5950,20 +5967,23 @@ def consolidate_face_attributes(mesh: bpy.types.Mesh, *, preserve_special_faces=
     for pname, lst in face_props_by_name.items():
         if len(lst) == 1:
             continue
-        if pname.startswith("Emissive"):
+        if len(lst) > 1:
             sig_primary = {}
             for idx, attr, prop in lst:
-                sig = emissive_signature(prop)
+                if prop.type == 'emissive':
+                    sig = emissive_signature(prop)
+                else:
+                    # Display names round numeric values and omit colours.
+                    # Merge only identical properties, never different variants.
+                    sig = tuple((field.identifier, tuple(getattr(prop, field.identifier)) if getattr(field, 'is_array', False) else getattr(prop, field.identifier))
+                                for field in prop.bl_rna.properties
+                                if field.identifier not in {'rna_type', 'name', 'attribute_name', 'face_count', 'color', 'debug_emissive_index'}
+                                and field.type in {'BOOLEAN', 'INT', 'FLOAT', 'STRING', 'ENUM'})
                 if sig not in sig_primary:
                     sig_primary[sig] = attr.name
                 else:
                     attr_merge[sig_primary[sig]].append(attr.name)
                     to_remove.add(idx)
-        else:
-            prim = lst[0][1].name
-            for idx, attr, _ in lst[1:]:
-                attr_merge[prim].append(attr.name)
-                to_remove.add(idx)
 
     needed = set(attr_prop_map.keys())
     for dupes in attr_merge.values(): needed.update(dupes)
@@ -6002,7 +6022,7 @@ def consolidate_face_attributes(mesh: bpy.types.Mesh, *, preserve_special_faces=
             m[plus_faces] = False
 
 
-    if two_side_attr and sphere_coll_attr:
+    if two_side_attr and sphere_coll_attr and not mesh.get('foundry_legacy_normals'):
         masks[two_side_attr] &= ~masks[sphere_coll_attr]
 
     if render_only_attr:

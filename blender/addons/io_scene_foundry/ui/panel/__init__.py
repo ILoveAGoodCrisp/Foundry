@@ -3494,21 +3494,35 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         row.prop(item, "material_lighting_emissive_power", text="Power")
                     if halo2 and not for_material:
                         box.prop(item, 'material_lighting_emissive_power_scale')
+                    if halo2:
+                        box.prop(item, 'material_lighting_emissive_half_life')
                     if not classic_material and not halo2:
                         row = box.row()
                         row.prop(item, "material_lighting_emissive_quality", text="Quality")
                         row = box.row()
                         row.prop(item, "material_lighting_emissive_focus", text="Focus")
+                        legacy_lighting = project and project.game in {'halo3', 'halo3odst'}
+                        if legacy_lighting:
+                            box.prop(item, "material_lighting_attenuation_mode")
                         row = box.row()
+                        row.enabled = not legacy_lighting or item.material_lighting_attenuation_mode != 'DISABLED'
                         row.prop(item, "material_lighting_attenuation_falloff", text="Light Falloff")
                         row = box.row()
+                        row.enabled = not legacy_lighting or item.material_lighting_attenuation_mode != 'DISABLED'
                         row.prop(item, "material_lighting_attenuation_cutoff", text="Light Cutoff")
-                        row = box.row()
-                        row.prop(item, "material_lighting_bounce_ratio", text="Bounce Ratio",)
+                        if not legacy_lighting:
+                            row = box.row()
+                            row.prop(item, "material_lighting_bounce_ratio", text="Bounce Ratio",)
                         row = box.row()
                         row.prop(item, "material_lighting_use_shader_gel", text="Shader Gel")
                         row = box.row()
                         row.prop(item, "material_lighting_emissive_per_unit")
+                        if legacy_lighting:
+                            box.prop(item, "material_lighting_emissive_frustum")
+                            if item.material_lighting_emissive_frustum:
+                                box.prop(item, "material_lighting_frustum_blend")
+                                box.prop(item, "material_lighting_frustum_falloff")
+                                box.prop(item, "material_lighting_frustum_cutoff")
                 case 'lightmap_resolution_scale':
                     project = utils.get_project(self.scene_nwo.scene_project)
                     if project and project.game in {'halo2', 'halo3', 'halo3odst'}:

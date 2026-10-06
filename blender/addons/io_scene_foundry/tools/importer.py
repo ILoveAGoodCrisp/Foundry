@@ -2911,6 +2911,8 @@ class NWO_Import(bpy.types.Operator):
                 if self.make_meshes_editable:
                     make_imported_meshes_editable(starting_meshes)
                 set_imported_face_prop_colors(starting_meshes)
+                from ..legacy.source_preservation import finalize_import
+                finalize_import(imported_objects, scene_nwo)
                     
                 # # Clamp lights
                 # utils.print_tag("Clamping Lights")
@@ -3251,6 +3253,7 @@ class JMSMaterialSlot:
             result.lightmap_resolution_scale_legacy = resolution
             result.lightmap_resolution_scale = utils.clamp(int(resolution * 3), 1, 7)
         result.ignore_default_resolution = props.ignore_default_res_scale
+        result.lightmap_photon_fidelity = getattr(props, 'photon_fidelity', 1)
         result.lightmap_additive_transparency = tuple(props.additive_transparency) if any(props.additive_transparency) else None
         result.lightmap_translucency_tint_color = tuple(props.two_sided_transparent_tint) if any(props.two_sided_transparent_tint) else None
         result.lightmap_transparency_override = props.override_lightmap_transparency
@@ -3263,8 +3266,15 @@ class JMSMaterialSlot:
         result.emissive_shader_gel = props.use_shader_gel
         result.emissive_focus = radians(180 * (1 - min(props.emissive_focus, 1)))
         result.emissive_attenuation = props.attenuation_enabled
-        result.emissive_attenuation_falloff = props.falloff_distance * scale if props.attenuation_enabled else 0
-        result.emissive_attenuation_cutoff = props.cutoff_distance * scale if props.attenuation_enabled else 0
+        result.emissive_attenuation_mode = 'ENABLED' if props.attenuation_enabled else 'DISABLED'
+        result.emissive_attenuation_falloff = props.falloff_distance * scale
+        result.emissive_attenuation_cutoff = props.cutoff_distance * scale
+        result.emissive_frustum = bool(getattr(props, 'is_bm', False))
+        result.emissive_frustum_blend = getattr(props, 'frustum_blend', 0.0)
+        result.emissive_frustum_falloff = radians(getattr(props, 'frustum_falloff', 25.0))
+        result.emissive_frustum_cutoff = radians(getattr(props, 'frustum_cutoff', 45.0))
+        result.emissive_half_life = (props.lightmap_half_life * scale
+                                     if game == 'halo2' and props.lightmap_half_life > 0 else None)
         result.mesh_type = 'portal' if result.portal_exact else result._mesh_type_from_special_name()
         return result
 
@@ -3276,8 +3286,17 @@ class JMSMaterialSlot:
         result.material = SimpleNamespace(name=name)
         result.name = name
         result._material_props_from_name()
-        result.slip_surface = ']' in name
         result.emissive_power = None
+        result.emissive_color, result.emissive_quality = (1, 1, 1), 1.0
+        result.emissive_per_unit, result.emissive_shader_gel = False, False
+        result.emissive_focus = radians(180)
+        result.emissive_attenuation_mode = 'AUTO'
+        result.emissive_attenuation_falloff = result.emissive_attenuation_cutoff = 0.0
+        result.emissive_bounce_ratio = 1.0
+        result.emissive_frustum = False
+        result.emissive_frustum_blend = 0.0
+        result.emissive_frustum_falloff = radians(25)
+        result.emissive_frustum_cutoff = radians(45)
         result.material.name = re.sub(r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+', '', name).strip()
         result.mesh_type = result._mesh_type_from_special_name()
         return result
@@ -3307,31 +3326,37 @@ class JMSMaterialSlot:
         
     def _material_props_from_name(self):
         name = self.material.name
-        self.two_sided = '%' in name
-        self.transparent_one_sided = '#' in name
-        self.transparent_two_sided = '?' in name
-        self.render_only = '!' in name
-        self.collision_only = '@' in name
-        self.sphere_collision_only = '*' in name
-        self.fog_plane = '$' in name
-        self.ladder = '^' in name
-        self.breakable = '-' in name
-        self.ai_deafening = '&' in name
-        self.no_shadow = '=' in name
-        self.lightmap_only = ';' in name
+        shader = re.sub(r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+', '', name).strip()
+        # Tool reads trailing material symbols. Interior punctuation is part
+        # of the shader name, including Max's stock "Material #3451" names.
+        symbols = "%#?!@*$^-&=.;)><|~({]}['"
+        flags = shader[len(shader.rstrip(symbols)):]
+        self.two_sided = '%' in flags
+        self.transparent_one_sided = '#' in flags
+        self.transparent_two_sided = '?' in flags
+        self.render_only = '!' in flags
+        self.collision_only = '@' in flags
+        self.sphere_collision_only = '*' in flags
+        self.fog_plane = '$' in flags
+        self.ladder = '^' in flags
+        self.breakable = '-' in flags
+        self.ai_deafening = '&' in flags
+        self.no_shadow = '=' in flags
+        self.lightmap_only = ';' in flags
         self.shadow_only = False
-        self.precise = ')' in name
+        self.precise = ')' in flags
         self.portal_exact = name.startswith('+exactportal')
-        self.portal_one_way = '<' in name
-        self.portal_door = '|' in name
-        self.portal_vis_blocker = '~' in name
-        self.ignored_by_lightmaps = '{' in name
-        self.blocks_sound = '}' in name
-        self.decal_offset = '[' in name
-        self.water_surface = "'" in name
-        self.slip_surface = False
+        self.portal_one_way = '<' in flags
+        self.portal_door = '|' in flags
+        self.portal_vis_blocker = '~' in flags
+        self.ignored_by_lightmaps = '{' in flags
+        self.blocks_sound = '}' in flags
+        self.decal_offset = '[' in flags
+        self.water_surface = "'" in flags
+        self.slip_surface = ']' in flags
         
         self.emissive_power_scale = None
+        self.emissive_half_life = None
 
         # lighting props
         self.lightmap_resolution_scale = None
@@ -3339,6 +3364,7 @@ class JMSMaterialSlot:
         self.lightmap_translucency_tint_color = None
         self.lightmap_additive_transparency = None
         self.lightmap_transparency_override = None
+        self.lightmap_photon_fidelity = 1
         
         parts = name.split()
         if len(parts) > 1 and (parts[0].startswith(utils.legacy_lightmap_prefixes) or parts[-1].startswith(utils.legacy_lightmap_prefixes)):
@@ -3350,6 +3376,8 @@ class JMSMaterialSlot:
                 match match_groups[0]:
                     case 'lp:':
                         self.emissive_power_scale = float(match_groups[1])
+                    case 'hl:':
+                        self.emissive_half_life = float(match_groups[1])
                     case 'lm:':
                         value = float(match_groups[1])
                         self.lightmap_resolution_scale_legacy = value
@@ -3410,15 +3438,17 @@ class JMSMaterialSlot:
         if self.lightmap_transparency_override != __value.lightmap_transparency_override: return False
         
         if getattr(self, 'emissive_power_scale', None) != getattr(__value, 'emissive_power_scale', None): return False
+        if self.emissive_half_life != __value.emissive_half_life: return False
         if self.emissive_power != __value.emissive_power: return False
         if self.emissive_color != __value.emissive_color: return False
         if self.emissive_quality != __value.emissive_quality: return False
         if self.emissive_per_unit != __value.emissive_per_unit: return False
         if self.emissive_shader_gel != __value.emissive_shader_gel: return False
         if self.emissive_focus != __value.emissive_focus: return False
-        if self.emissive_attenuation != __value.emissive_attenuation: return False
+        if self.emissive_attenuation_mode != __value.emissive_attenuation_mode: return False
         if self.emissive_attenuation_falloff != __value.emissive_attenuation_falloff: return False
         if self.emissive_attenuation_cutoff != __value.emissive_attenuation_cutoff: return False
+        if self.emissive_frustum != __value.emissive_frustum: return False
         if self.emissive_frustum_blend != __value.emissive_frustum_blend: return False
         if self.emissive_frustum_falloff != __value.emissive_frustum_falloff: return False
         if self.emissive_frustum_cutoff != __value.emissive_frustum_cutoff: return False
@@ -4159,21 +4189,34 @@ class NWOImporter:
             utils.add_face_prop(mesh, "lightmap_translucency_tint_color", indices).lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
         if jms_mat.lightmap_transparency_override and supports('lightmap_transparency_override'):
             utils.add_face_prop(mesh, "lightmap_transparency_override", indices)
+        if jms_mat.lightmap_photon_fidelity != 1 and supports('lightmap_photon_fidelity'):
+            utils.add_face_prop(mesh, 'lightmap_photon_fidelity', indices).lightmap_photon_fidelity = jms_mat.lightmap_photon_fidelity
 
-        if self.game == 'halo2' and getattr(jms_mat, 'emissive_power_scale', None) is not None and supports('emissive'):
+        if (self.game == 'halo2' and supports('emissive') and
+                (getattr(jms_mat, 'emissive_power_scale', None) is not None
+                 or getattr(jms_mat, 'emissive_half_life', None) is not None)):
             prop = utils.add_face_prop(mesh, "emissive", indices)
-            prop.material_lighting_emissive_power_scale = jms_mat.emissive_power_scale
+            if jms_mat.emissive_power_scale is not None:
+                prop.material_lighting_emissive_power_scale = jms_mat.emissive_power_scale
+            if jms_mat.emissive_half_life is not None:
+                prop.material_lighting_emissive_half_life = jms_mat.emissive_half_life
             prop.material_lighting_attenuation_falloff = 0.0
             prop.material_lighting_attenuation_cutoff = 0.0
-        elif self.game != 'halo2' and jms_mat.emissive_power and supports('emissive'):
+        elif self.game != 'halo2' and jms_mat.emissive_power is not None and supports('emissive'):
             prop = utils.add_face_prop(mesh, "emissive", indices)
             prop.material_lighting_emissive_power = jms_mat.emissive_power
+            prop.material_lighting_emissive_basic = getattr(jms_mat, 'emissive_basic', True)
             prop.material_lighting_emissive_color = jms_mat.emissive_color
             prop.material_lighting_emissive_quality = jms_mat.emissive_quality
             prop.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
             prop.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
             prop.material_lighting_emissive_focus = jms_mat.emissive_focus
             prop.material_lighting_bounce_ratio = getattr(jms_mat, 'emissive_bounce_ratio', 0.0)
+            prop.material_lighting_attenuation_mode = getattr(jms_mat, 'emissive_attenuation_mode', 'AUTO')
+            prop.material_lighting_emissive_frustum = getattr(jms_mat, 'emissive_frustum', False)
+            prop.material_lighting_frustum_blend = getattr(jms_mat, 'emissive_frustum_blend', 0.0)
+            prop.material_lighting_frustum_falloff = getattr(jms_mat, 'emissive_frustum_falloff', radians(25))
+            prop.material_lighting_frustum_cutoff = getattr(jms_mat, 'emissive_frustum_cutoff', radians(45))
             prop.material_lighting_attenuation_falloff = 0.0 if self.game == 'halo1' else jms_mat.emissive_attenuation_falloff
             prop.material_lighting_attenuation_cutoff = 0.0 if self.game == 'halo1' else jms_mat.emissive_attenuation_cutoff
         
@@ -6000,7 +6043,19 @@ class NWOImporter:
             if Path(path).suffix.lower() in legacy_model_formats
         ]
         if source_files:
-            bsp_objects = self.import_jms_files(source_files, 'bsp', parent_collection=scenario_collection)
+            shader_paths = {}
+            if self.game in {'halo2', 'halo3', 'halo3odst'}:
+                with utils.TagImportMover(self.tags_dir, file) as mover:
+                    with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
+                        field_name = 'shader' if self.game == 'halo2' else 'render method'
+                        for element in bsp.block(bsp.tag.root(), 'materials'):
+                            reference = bsp.reference(element, field_name)
+                            if reference is None:
+                                continue
+                            name, path = reference.ShortName.lower(), reference.RelativePathWithExtension
+                            shader_paths[name] = path if shader_paths.get(name, path) == path else ''
+            bsp_objects = self.import_jms_files(source_files, 'bsp', parent_collection=scenario_collection,
+                                               shader_paths=shader_paths)
             game_objects = [ob for ob in bsp_objects if ob.type == 'EMPTY'
                             and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance']
             self._import_bsp_game_objects(bsp_objects, game_objects)
@@ -6363,6 +6418,11 @@ class NWOImporter:
 
 
     def set_poop_policies(self, ob):
+        # ASS geometry copies share a template object. Instance policy must
+        # come from this name, rather than inherited flags on the first copy.
+        for name in ('poop_lighting', 'poop_pathfinding', 'poop_render_only', 'poop_chops_portals',
+                     'poop_does_not_block_aoe', 'poop_excluded_from_lightprobe', 'poop_decal_spacing'):
+            ob.nwo.property_unset(name)
         for char in ob.name[1:]:
             match char:
                 case '+':

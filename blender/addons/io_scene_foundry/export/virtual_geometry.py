@@ -1,6 +1,7 @@
 '''Classes to store intermediate geometry data to be passed to granny files'''
 
 from ..exceptions import ExportCancelled
+from ..legacy.coordinates import axis_rotation
 from collections import defaultdict
 from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
@@ -1241,6 +1242,9 @@ class VirtualMesh:
         self.proxies = proxies
         self.positions: np.ndarray = None
         self.normals: np.ndarray = None
+        self.legacy_positions: np.ndarray | None = None
+        self.legacy_position_mask: np.ndarray | None = None
+        self.legacy_no_material: np.ndarray | None = None
         self.bone_weights: np.ndarray = None
         self.bone_indices: np.ndarray = None
         self.texcoords: list[np.ndarray] = [] # Up to 4 uv layers
@@ -1441,11 +1445,11 @@ class VirtualMesh:
         self.len_vertex_array = len_vertex_array
         self.vertex_array = vertex_array
 
-    def _stable_unique_rows_with_epsilon(self, arrays: list[np.ndarray], epsilon: float) -> tuple[np.ndarray, np.ndarray]:
+    def _stable_unique_rows_with_epsilon(self, arrays: list[np.ndarray], epsilon: float | None) -> tuple[np.ndarray, np.ndarray]:
         loop_data = arrays[0] if len(arrays) == 1 else np.hstack(arrays)
 
-        quantized = np.rint(loop_data / epsilon).astype(np.int64)
-        _, first_indices, inverse = np.unique(quantized, axis=0, return_index=True, return_inverse=True)
+        key = loop_data if epsilon is None else np.rint(loop_data / epsilon).astype(np.int64)
+        _, first_indices, inverse = np.unique(key, axis=0, return_index=True, return_inverse=True)
         order = np.argsort(first_indices)
         new_indices = first_indices[order].astype(np.int32)
 
@@ -1473,7 +1477,10 @@ class VirtualMesh:
                     if utils.uses_array_mod(eval_ob):
                         mod.show_viewport = False
 
-            if true_mesh:
+            legacy_triangles = (scene.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
+                                and all(p.loop_total == 3 for p in ob.data.polygons)
+                                and not any(mod.show_viewport for mod in ob.ob.modifiers))
+            if true_mesh and not legacy_triangles:
                 add_triangle_mod(scene, eval_ob)
 
             mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
@@ -1547,6 +1554,17 @@ class VirtualMesh:
         def remap(i):
             return vgroup_remap.get(i, 0)
 
+        original = mesh.attributes.get('legacy_source_position')
+        imported = mesh.attributes.get('legacy_import_position')
+        if (scene.game in {'halo2', 'halo3', 'halo3odst'} and original is not None and imported is not None
+                and original.domain == imported.domain == 'POINT'):
+            source_positions = np.empty((num_vertices, 3), dtype=np.single)
+            import_positions = np.empty_like(source_positions)
+            original.data.foreach_get('vector', source_positions.ravel())
+            imported.data.foreach_get('vector', import_positions.ravel())
+            self.legacy_positions = source_positions[loop_vertex_indices]
+            self.legacy_position_mask = np.all(vertex_positions == import_positions, axis=1)[loop_vertex_indices]
+
         is_collision = props.get("bungie_mesh_type") == MeshType.collision.value
         is_physics = props.get("bungie_mesh_type") == MeshType.physics.value
 
@@ -1557,7 +1575,8 @@ class VirtualMesh:
 
             vgroup_bone_names = {vg.name: idx for idx, vg in enumerate(ob.vertex_groups)}
 
-            bone_weights = np.zeros((num_vertices, 4), dtype=np.uint8)
+            legacy_weights = scene.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
+            bone_weights = np.zeros((num_vertices, 4), dtype=np.single if legacy_weights else np.uint8)
             bone_indices = np.zeros((num_vertices, 4), dtype=np.int32)
             vgroup_remap = {}
             unique_bone_indices = set()
@@ -1634,7 +1653,7 @@ class VirtualMesh:
                     bone_ids = np.pad(bone_ids, (0, pad), constant_values=default_bone_index)
                     weights = np.pad(weights, (0, pad), constant_values=0.0)
 
-                bone_weights[v_idx] = quantize_weights(weights)
+                bone_weights[v_idx] = weights if legacy_weights else quantize_weights(weights)
                 bone_indices[v_idx] = bone_ids
 
                 # track used bones
@@ -1678,12 +1697,24 @@ class VirtualMesh:
             self.bone_weights = bone_weights[loop_vertex_indices]
             self.bone_indices = np.clip(remapped_indices, 0, 255).astype(np.uint8)[loop_vertex_indices]
         
-        if render_mesh:
-            # We only care about writing this data if the in game mesh will have a render definition
+        legacy = scene.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
+        if render_mesh or legacy:
+            # Interchange special surfaces retain authored normals too. A
+            # constant fallback normal changes portal and collision records.
             self.normals = np.empty((num_loops, 3), dtype=np.single)
             mesh.corner_normals.foreach_get("vector", self.normals.ravel())
 
-            if mesh.has_custom_normals:
+            source_normal = mesh.attributes.get('legacy_source_normal')
+            import_normal = mesh.attributes.get('legacy_import_normal')
+            if legacy and source_normal is not None and import_normal is not None:
+                authored = np.empty_like(self.normals)
+                baseline = np.empty_like(self.normals)
+                source_normal.data.foreach_get('vector', authored.ravel())
+                import_normal.data.foreach_get('vector', baseline.ravel())
+                unchanged = np.max(np.abs(self.normals - baseline), axis=1) < 1e-4
+                self.normals[unchanged] = authored[unchanged]
+
+            if mesh.has_custom_normals and not legacy:
                 # Build per-vertex normals from split normals so custom data that is effectively
                 # vertex-based doesn't force unnecessary loop splits at export.
                 vertex_normals = np.zeros((num_vertices, 3), dtype=np.single)
@@ -1716,8 +1747,17 @@ class VirtualMesh:
                 
                 loop_uvs = np.zeros((num_loops, 2), dtype=np.single)
                 layer.uv.foreach_get("vector", loop_uvs.ravel())
-                loop_uvs[:, 1] = 1-loop_uvs[:, 1]
+                if not legacy:
+                    loop_uvs[:, 1] = 1-loop_uvs[:, 1]
                 zeros_column = np.zeros((num_loops, 1), dtype=np.single)
+                if legacy:
+                    # ASS 5+ can retain a third texture coordinate. Store it
+                    # per corner so coincident UV seams survive import welding.
+                    uv_w = mesh.attributes.get(f'ass_uv_w_{idx}')
+                    if uv_w is not None and uv_w.domain in {'POINT', 'CORNER'}:
+                        values = np.empty(len(uv_w.data), dtype=np.single)
+                        uv_w.data.foreach_get('value', values)
+                        zeros_column[:, 0] = values[loop_vertex_indices] if uv_w.domain == 'POINT' else values
                 combined_uvs = np.hstack((loop_uvs, zeros_column))
                 if layer.name.lower() == "lighting":
                     self.lighting_texcoords = combined_uvs
@@ -1774,7 +1814,7 @@ class VirtualMesh:
         # Remove duplicate vertex data.
         # Render meshes: emulate fbx-to-gr2 weld key (position + normal + UVs + color0) with
         # k_real_epsilon tolerance (1e-4) and stable first-seen ordering.
-        if render_mesh:
+        if render_mesh or legacy:
             weld_components = [self.positions]
             if self.normals is not None:
                 weld_components.append(self.normals)
@@ -1784,19 +1824,40 @@ class VirtualMesh:
                 weld_components.append(self.lighting_texcoords)
             if self.vertex_colors is not None:
                 weld_components.extend(self.vertex_colors)
-            new_indices, face_indices = self._stable_unique_rows_with_epsilon(weld_components, 1.0e-4)
         else:
             weld_components = [self.positions]
-            # if self.normals is not None:
-            #     weld_components.append(self.normals)
-            new_indices, face_indices = self._stable_unique_rows_with_epsilon(weld_components, 1.0e-4)
+
+        # JMS/ASS compilers perform their own positional welding. Granny's
+        # tolerance can collapse valid thin faces or move only one UV/normal
+        # variant of a shared position, opening the structure collision shell.
+        if legacy and self.bone_weights is not None:
+            weld_components.extend((self.bone_indices, self.bone_weights))
+        if self.legacy_positions is not None:
+            # Unit conversion can round distinct source floats to one Blender
+            # coordinate. Keep their original identities through export too.
+            weld_components.extend((self.legacy_positions, self.legacy_position_mask[:, None]))
+        source_vertices = mesh.attributes.get('legacy_source_vertex')
+        source_vertex_ids = None
+        if legacy and source_vertices is not None and source_vertices.domain == 'CORNER':
+            # Tool's strip/tangent construction uses source vertex identity.
+            # Identical overlapping faces must not acquire shared indices here.
+            identities = np.empty(num_loops, dtype=np.int32)
+            source_vertices.data.foreach_get('value', identities)
+            weld_components.append(identities[:, None])
+            source_vertex_ids = identities
+        new_indices, face_indices = self._stable_unique_rows_with_epsilon(
+            weld_components, None if legacy else 1.0e-4)
 
         self.indices = face_indices.astype(np.int32)
         new_indices = tuple(new_indices)
         
         self.new_indices = new_indices
+        self.legacy_vertex_ids = source_vertex_ids[list(new_indices)] if source_vertex_ids is not None else None
 
         self.positions = self.positions[new_indices, :]
+        if self.legacy_positions is not None:
+            self.legacy_positions = self.legacy_positions[new_indices, :]
+            self.legacy_position_mask = self.legacy_position_mask[list(new_indices)]
         
         if self.normals is not None:
             self.normals = self.normals[new_indices, :]
@@ -1848,7 +1909,7 @@ class VirtualMesh:
         elif num_materials > 1 and scene.supports_multiple_materials(ob, props, mesh_type_value):
             material_indices = np.empty(num_polygons, dtype=np.int32)
             mesh.polygons.foreach_get("material_index", material_indices)
-            sorted_order = np.argsort(material_indices)
+            sorted_order = np.argsort(material_indices, kind='stable')
             sorted_polygons = self.indices.reshape((-1, 3))[sorted_order]
             self.indices = sorted_polygons.ravel()
             if self.pca_indices is not None:
@@ -1878,7 +1939,7 @@ class VirtualMesh:
             props.pop("material_override")
             
         force_render_only = False
-        if not scene.corinth and mesh_type_value == MeshType.poop.value:
+        if not scene.corinth and not legacy and mesh_type_value == MeshType.poop.value:
             mask = np.asarray(scene.poop_obs[ob.data])
             if mask.all(): # Checks if all instances of a mesh use the poop_render_only flag, in which case it sets render only at face level
                 force_render_only = True
@@ -1908,6 +1969,44 @@ class VirtualMesh:
                         scene.warnings.append(f"Object '{ob.name}' has different mesh properties per face, this is not allowed for instanced objects. Forcing {prop_name} to {face_set.array[0]}")
                         face_set.array = new_array
         
+        unassigned = mesh.attributes.get('ass_unassigned_material')
+        if unassigned is not None and unassigned.domain == 'FACE':
+            self.legacy_no_material = np.empty(num_polygons, dtype=np.bool_)
+            unassigned.data.foreach_get('value', self.legacy_no_material)
+            if sorted_order is not None:
+                self.legacy_no_material = self.legacy_no_material[sorted_order]
+        sphere_collision = mesh.attributes.get('ass_sphere_collision')
+        if sphere_collision is not None and sphere_collision.domain == 'FACE':
+            values = np.empty(num_polygons, dtype=np.int32)
+            sphere_collision.data.foreach_get('value', values)
+            if sorted_order is not None:
+                values = values[sorted_order]
+            self.face_properties['foundry_legacy_sphere_collision'] = FaceSet(values)
+        material_slots = mesh.attributes.get('legacy_material_slot')
+        if material_slots is not None and material_slots.domain == 'FACE':
+            values = np.empty(num_polygons, dtype=np.int32)
+            material_slots.data.foreach_get('value', values)
+            if sorted_order is not None:
+                values = values[sorted_order]
+            self.face_properties['foundry_legacy_material_slot'] = FaceSet(values)
+        for name,target in (('legacy_source_face','legacy_face_order'), ('legacy_face_start','legacy_face_starts'),
+                            ('ass_proxy_source_instance','legacy_proxy_source_instances')):
+            attribute = mesh.attributes.get(name)
+            if attribute is not None and attribute.domain == 'FACE':
+                values = np.empty(num_polygons, dtype=np.int32)
+                attribute.data.foreach_get('value', values)
+                setattr(self, target, values[sorted_order] if sorted_order is not None else values)
+        for name,key in (('ass_source_side_flags','foundry_legacy_side_flags'), ('ass_import_face_sides','foundry_legacy_import_sides'),
+                         ('ass_lightmap_record_size','foundry_legacy_lightmap_record_size'),
+                         ('ass_source_material_index','foundry_legacy_ass_material_index')):
+            attribute = mesh.attributes.get(name)
+            if attribute is not None and attribute.domain == 'FACE':
+                values = np.empty(num_polygons, dtype=np.int32)
+                attribute.data.foreach_get('value', values)
+                if sorted_order is not None:
+                    values = values[sorted_order]
+                self.face_properties[key] = FaceSet(values)
+
         if evaluated:
             eval_ob.to_mesh_clear()
     
@@ -2115,6 +2214,10 @@ class VirtualNode:
 
 
     def _should_apply_marker_axis(self, scene: 'VirtualScene') -> bool:
+        if (scene.game in {'halo2', 'halo3', 'halo3odst'}
+                and self.props.get('bungie_marker_type') in LEGACY_CONSTRAINT_MARKER_TYPES):
+            # JMS constraints author joint frames, independent of marker axes.
+            return False
         if not scene.maintain_marker_axis:
             return False
         if self.props.get("bungie_object_type") != ObjectType.marker.value:
@@ -2665,10 +2768,11 @@ class VirtualScene:
         self.aim_pitch_matrix_inverse = IDENTITY_MATRIX
         self.aim_yaw_matrix_inverse = IDENTITY_MATRIX
 
-        self.rotation_matrix = Matrix.Rotation(rotation, 4, Vector((0, 0, 1)))
+        legacy = self.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
+        self.rotation_matrix = axis_rotation(rotation) if legacy else Matrix.Rotation(rotation, 4, Vector((0, 0, 1)))
         self.halo_rotation = rotation
         self.halo_transform_scale = halo_transform_scale
-        self.marker_rotation_matrix = Matrix.Rotation(-rotation, 4, 'Z')
+        self.marker_rotation_matrix = axis_rotation(-rotation) if legacy else Matrix.Rotation(-rotation, 4, 'Z')
         self.maintain_marker_axis = maintain_marker_axis
         self.armature_matrix = IDENTITY_MATRIX
         
@@ -3349,6 +3453,20 @@ class FaceSet:
         self.annotation_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
             
 
+def update_legacy_emissive_faces(face_properties, mesh, num_faces, prop, scene, material_indices=None):
+    values = utils.legacy_emissive_export_properties(prop, scene.game, scene.light_scale)
+    for key, value in values.items():
+        vector = isinstance(value, (tuple, list))
+        shape = (num_faces, len(value)) if vector else num_faces
+        dtype = np.int32 if isinstance(value, int) else np.single
+        default = face_prop_defaults.get(key, 0)
+        face_set = face_properties.setdefault(key, FaceSet(np.full(shape, default, dtype=dtype)))
+        if material_indices is None:
+            face_set.update(mesh, prop, value)
+        else:
+            face_set.update_from_material(mesh, material_indices, value)
+
+
 def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh, num_faces: int, scene: VirtualScene, sorted_order, special_mats_dict: dict, prop_mats_dict: dict, props: dict, force_render_only: bool, bungie_attributes: list[bpy.types.Attribute]) -> dict:
     is_structure = props.get("bungie_mesh_type") == MeshType.default.value
     face_properties = {}
@@ -3483,6 +3601,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                 case 'lightmap_ignore_default_resolution_scale':
                     if props.get("bungie_lightmap_ignore_default_resolution_scale") is None:
                         face_properties.setdefault("bungie_lightmap_ignore_default_resolution_scale", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_ignore_default_resolution_scale"], dtype=np.int32))).update_from_material(mesh, material_indices, int(prop.lightmap_ignore_default_resolution_scale))
+                case 'lightmap_photon_fidelity':
+                    if props.get('foundry_lightmap_photon_fidelity') is None:
+                        face_properties.setdefault('foundry_lightmap_photon_fidelity', FaceSet(np.ones(num_faces, np.int32))).update_from_material(mesh, material_indices, prop.lightmap_photon_fidelity)
                 case 'lightmap_chart_group':
                     if props.get("bungie_lightmap_chart_group") is None:
                         face_properties.setdefault("bungie_lightmap_chart_group", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_chart_group"], dtype=np.int32))).update_from_material(mesh, material_indices, prop.lightmap_chart_group)
@@ -3509,6 +3630,11 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         face_properties.setdefault("bungie_lightmap_lighting_from_both_sides", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_lighting_from_both_sides"], dtype=np.int32))).update_from_material(mesh, material_indices, int(prop.lightmap_lighting_from_both_sides))
                 case 'emissive':
                     if scene.game == 'halo2':
+                        face_properties.setdefault('foundry_lighting_emissive_half_life', FaceSet(np.zeros(num_faces, np.single))).update_from_material(mesh, material_indices, prop.material_lighting_emissive_half_life * scene.light_scale)
+                        continue
+                    if scene.game in {'halo3', 'halo3odst'}:
+                        if props.get('bungie_lighting_emissive_power') is None:
+                            update_legacy_emissive_faces(face_properties, mesh, num_faces, prop, scene, material_indices)
                         continue
                     if props.get("bungie_lighting_emissive_power") is None and prop.material_lighting_emissive_power > 0:
                         color, power = utils.get_light_final_color_and_intensity(prop.material_lighting_emissive_color, prop.material_lighting_emissive_power, True, True)
@@ -3626,6 +3752,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             case 'lightmap_ignore_default_resolution_scale':
                 if props.get("bungie_lightmap_ignore_default_resolution_scale") is None and prop.lightmap_ignore_default_resolution_scale:
                     face_properties.setdefault("bungie_lightmap_ignore_default_resolution_scale", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_ignore_default_resolution_scale"], dtype=np.int32))).update(mesh, prop, 1)
+            case 'lightmap_photon_fidelity':
+                if props.get('foundry_lightmap_photon_fidelity') is None:
+                    face_properties.setdefault('foundry_lightmap_photon_fidelity', FaceSet(np.ones(num_faces, np.int32))).update(mesh, prop, prop.lightmap_photon_fidelity)
             case 'lightmap_chart_group':
                 if props.get("bungie_lightmap_chart_group") is None:
                     face_properties.setdefault("bungie_lightmap_chart_group", FaceSet(np.full(num_faces, face_prop_defaults["bungie_lightmap_chart_group"], dtype=np.int32))).update(mesh, prop, prop.lightmap_chart_group)
@@ -3653,6 +3782,11 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             case 'emissive':
                 if scene.game == 'halo2':
                     face_properties.setdefault("bungie_lighting_emissive_power_scale", FaceSet(np.ones(num_faces, np.single))).update(mesh, prop, prop.material_lighting_emissive_power_scale)
+                    face_properties.setdefault('foundry_lighting_emissive_half_life', FaceSet(np.zeros(num_faces, np.single))).update(mesh, prop, prop.material_lighting_emissive_half_life * scene.light_scale)
+                    continue
+                if scene.game in {'halo3', 'halo3odst'}:
+                    if props.get('bungie_lighting_emissive_power') is None:
+                        update_legacy_emissive_faces(face_properties, mesh, num_faces, prop, scene)
                     continue
                 if props.get("bungie_lighting_emissive_power") is None and prop.material_lighting_emissive_power > 0:
                     color, power = utils.get_light_final_color_and_intensity(prop.material_lighting_emissive_color, prop.material_lighting_emissive_power, True, True)

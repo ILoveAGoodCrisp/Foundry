@@ -12,6 +12,7 @@ import bmesh
 from mathutils import Matrix, Quaternion, Vector
 
 from .jms_format import JMS
+from .coordinates import axis_rotation
 from .. import utils
 
 FRAME_PREFIXES = ('frame_', 'frame ', 'bip_', 'bip ', 'b_', 'b ')
@@ -36,7 +37,7 @@ class JMSImporter:
         self.path = Path(path)
         self.jms = JMS.from_file(path)
         self.scale = owner.scale_factor
-        self.rotation = Matrix.Rotation(owner.from_x_rot, 4, 'Z')
+        self.rotation = axis_rotation(owner.from_x_rot)
         self.is_model = self.model_import(legacy_type, tag_armature)
         self.objects = []
         self.materials = {}
@@ -100,6 +101,8 @@ class JMSImporter:
         ob = bpy.data.objects.new(name, data)
         self.objects.append(ob)
         self.collection.objects.link(ob)
+        if getattr(self, 'jms_source_key', None):
+            ob['jms_source_key'] = self.jms_source_key
         return ob
 
     def build(self):
@@ -115,8 +118,27 @@ class JMSImporter:
         try:
             self.store_metadata()
             self.build_contents()
+            if (self.armature is not None and self.jms.version >= 8205
+                    and (self.tag_armature is not None or self.armature in self.objects)):
+                self.armature['legacy_import_matrix'] = json.dumps([list(row) for row in self.armature.matrix_world])
+                for index, node in enumerate(self.jms.nodes):
+                    name = self.tag_bone_names.get(index, node.name)
+                    bone = self.armature.data.bones.get(name)
+                    if bone is not None and 'legacy_source_node' not in bone:
+                        bone['legacy_source_node'] = json.dumps(asdict(node))
+                        bone['legacy_source_node_index'] = index
+                        bone['legacy_import_name'] = bone.name
+                        bone['legacy_import_matrix'] = json.dumps([list(row) for row in bone.matrix_local])
             if not self.is_model:
                 self.select_export_root()
+                bpy.context.view_layer.update()
+                for ob in self.objects:
+                    if (ob.type == 'MESH' and 'legacy_source_position' in ob.data.attributes
+                            and 'ass_source_matrix' not in ob):
+                        # JMS BSP points are in world space. Their Blender
+                        # object carries only the import-axis correction.
+                        ob['ass_source_matrix'] = json.dumps([list(row) for row in Matrix.Identity(4)])
+                        ob['ass_import_matrix'] = json.dumps([list(row) for row in ob.matrix_world])
                 # JMS regions describe model parts, not separate BSPs. ASS
                 # instances share this path, including copied mesh instances.
                 bsp = self.owner._ensure_region_entry(self.path.stem, utils.SetType.SCENARIO)
@@ -152,6 +174,10 @@ class JMSImporter:
             context.view_layer.objects.active = active
 
     def store_metadata(self):
+        from uuid import uuid4
+        self.jms_source_key = str(uuid4())
+        self.collection['jms_source_key'] = self.jms_source_key
+        self.collection['jms_nodes'] = json.dumps([asdict(node) for node in self.jms.nodes])
         self.collection['jms_version'] = self.jms.version
         self.collection['jms_materials'] = json.dumps([asdict(m) for m in self.jms.materials])
         self.collection['jms_checksum'] = str(self.jms.checksum)
@@ -181,7 +207,19 @@ class JMSImporter:
 
     def mesh_created(self, ob, source_indices):
         """Adapter hook for formats with instance-local skin and UV bindings."""
-        pass
+        if self.owner.game in {'halo2', 'halo3', 'halo3odst'}:
+            original = ob.data.attributes.new('legacy_source_position', 'FLOAT_VECTOR', 'POINT')
+            original.data.foreach_set('vector', [c for i in source_indices for c in self.jms.vertices[i].position])
+            imported = ob.data.attributes.new('legacy_import_position', 'FLOAT_VECTOR', 'POINT')
+            imported.data.foreach_set('vector', [c for vertex in ob.data.vertices for c in vertex.co])
+        rotation = self.rotation.to_3x3() if self.is_model else Matrix.Identity(3)
+        original_normals = ob.data.attributes.new('legacy_source_normal', 'FLOAT_VECTOR', 'CORNER')
+        original_normals.data.foreach_set('vector', [c for loop in ob.data.loops
+            for c in rotation @ Vector(self.jms.vertices[source_indices[loop.vertex_index]].normal)])
+        imported_normals = ob.data.attributes.new('legacy_import_normal', 'FLOAT_VECTOR', 'CORNER')
+        imported_normals.data.foreach_set('vector', [c for normal in ob.data.corner_normals for c in normal.vector])
+        identities = ob.data.attributes.new('legacy_source_vertex', 'INT', 'CORNER')
+        identities.data.foreach_set('value', [source_indices[loop.vertex_index] for loop in ob.data.loops])
 
     def build_armature(self):
         if not self.jms.nodes:
@@ -256,12 +294,44 @@ class JMSImporter:
         from ..tools.importer import JMSMaterialSlot
         for index, material in enumerate(self.jms.materials):
             self.props[index] = JMSMaterialSlot.from_name(material.name)
+            if self.owner.game in {'halo3', 'halo3odst'}:
+                self.props[index].emissive_power = self.props[index].emissive_power_scale
+            if self.owner.game == 'halo2' and self.props[index].emissive_half_life is not None:
+                self.props[index].emissive_half_life *= self.scale
             # Keep property variants in the source table, never in Blender materials.
             shader = re.sub(r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+', '', material.name).strip()
             name = utils.base_material_name(shader, True).lower() or 'default'
-            self.materials[index] = self.material(name, self.shader_paths.get(name, ''))
+            self.materials[index] = self.material(name, self.source_shader_path(name), name)
 
-    def material(self, name, shader_path=''):
+    def source_shader_path(self, name):
+        """Resolve authoring collection prefixes before basename shader search."""
+        supplied = self.shader_paths.get(name.casefold(), '')
+        if supplied:
+            return supplied
+        game = getattr(self.owner, 'game', '')
+        if game not in {'halo2', 'halo3', 'halo3odst'}:
+            return ''
+        if not hasattr(self, 'shader_collections'):
+            from ..export.shader_collections import ShaderCollections
+            self.shader_collections = ShaderCollections(utils.get_tags_path(), game)
+        parts = name.split(maxsplit=1)
+        if len(parts) != 2:
+            return ''
+        # A tag's material table can disambiguate a stale authoring collection.
+        supplied = self.shader_paths.get(parts[1].casefold(), '')
+        if supplied:
+            return supplied
+        collection = self.shader_collections.prefix_directories.get(parts[0].casefold())
+        if collection is None:
+            return ''
+        directory = Path(utils.get_tags_path(), collection[1])
+        for extension in utils.shader_exts:
+            path = directory / (parts[1] + extension)
+            if path.is_file():
+                return str(path.relative_to(utils.get_tags_path()))
+        return ''
+
+    def material(self, name, shader_path='', source_name=''):
         if shader_path:
             material = next((mat for mat in bpy.data.materials
                              if mat.nwo.shader_path == shader_path), None)
@@ -269,6 +339,8 @@ class JMSImporter:
                 material = bpy.data.materials.new(name)
                 material.nwo.shader_path = shader_path
                 self.created_materials.append(material)
+            if source_name and 'foundry_legacy_shader_name' not in material:
+                material['foundry_legacy_shader_name'] = source_name
             if getattr(material.nwo, 'SpecialMaterial', False):
                 utils.material_add_visibility(material)
             return material
@@ -276,6 +348,8 @@ class JMSImporter:
         if material is None:
             material = bpy.data.materials.new(name)
             self.created_materials.append(material)
+        if source_name and 'foundry_legacy_shader_name' not in material:
+            material['foundry_legacy_shader_name'] = source_name
         if getattr(material.nwo, 'SpecialMaterial', False):
             utils.material_add_visibility(material)
         return material
@@ -303,6 +377,7 @@ class JMSImporter:
         collision = self.uses_collision_material(ob)
         physics = ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_physics'
         slots = {}
+        source_slots = [-1] * len(ob.data.polygons)
         for index, faces in faces_by_material.items():
             material = self.materials.get(index)
             if material is None:
@@ -312,6 +387,10 @@ class JMSImporter:
                 ob.data.materials.append(material)
             for face in faces:
                 ob.data.polygons[face].material_index = slots[material.name]
+                if index >= 0 and index < len(self.jms.materials):
+                    match = re.search(r'\((\d+)\)', self.jms.materials[index].definition)
+                    if match:
+                        source_slots[face] = int(match[1])
             props = self.props.get(index)
             if props:
                 indices = None
@@ -319,6 +398,10 @@ class JMSImporter:
                     indices = np.zeros(len(ob.data.polygons), dtype=np.bool_)
                     indices[faces] = True
                 self.owner._apply_jms_material_props(ob.data, ob.nwo, props, indices)
+                if self.is_model and self.owner.game in {'halo2', 'halo3', 'halo3odst'} and not props.precise:
+                    # An unflagged source material explicitly uses the default
+                    # compiler precision. Do not let Auto Precise change it.
+                    utils.add_face_prop(ob.data, 'precise_position', indices).precise_position = False
             if (collision or physics) and self.supports_collision_material_properties():
                 mask = np.zeros(len(ob.data.polygons), dtype=np.bool_)
                 mask[faces] = True
@@ -340,6 +423,9 @@ class JMSImporter:
             if not existed:
                 self.created_materials.append(ob.data.materials[0])
         utils.consolidate_face_attributes(ob.data, preserve_special_faces=self.jms.version <= 8200)
+        if any(slot >= 0 for slot in source_slots):
+            attribute = ob.data.attributes.new('legacy_material_slot', 'INT', 'FACE')
+            attribute.data.foreach_set('value', source_slots)
 
     def collision_material_name(self, index, material):
         return material.name
@@ -352,7 +438,9 @@ class JMSImporter:
 
     def build_meshes(self):
         j = self.jms
-        rotation = self.rotation.to_3x3()
+        source_face_indices = {id(triangle):index for index,triangle in enumerate(j.triangles)}
+        object_rotation = not self.is_model and self.owner.game in {'halo2', 'halo3', 'halo3odst'}
+        rotation = Matrix.Identity(3) if object_rotation else self.rotation.to_3x3()
         skipped_triangles = 0
         for (region, permutation, lod), triangles in j.triangle_groups().items():
             if (self.allowed_region_permutations
@@ -367,8 +455,10 @@ class JMSImporter:
                     skipped_triangles += 1
                     continue
                 props = self.props.get(triangle.material)
-                policy = tuple(getattr(props, p, False) for p in ('portal_one_way', 'portal_door', 'portal_vis_blocker', 'blocks_sound', 'ai_deafening', 'portal_exact'))
-                groups[(self.mesh_kind(props), policy)].append(triangle)
+                kind = self.mesh_kind(props)
+                policy = (tuple(getattr(props, p, False) for p in ('portal_one_way', 'portal_door', 'portal_vis_blocker', 'blocks_sound', 'ai_deafening', 'portal_exact'))
+                          if kind == 'portal' else ())
+                groups[(kind, policy)].append(triangle)
             for (kind, _), faces in groups.items():
                 remap = {}
                 faces_by_material = defaultdict(list)
@@ -383,17 +473,26 @@ class JMSImporter:
                     name = f'{self.path.stem}:{permutation}:{region}' + (f':{lod}' if lod else '')
                 mesh = bpy.data.meshes.new(name)
                 ob = self.object(name, mesh)
+                if object_rotation:
+                    ob.matrix_world = self.rotation
                 mesh.from_pydata([rotation @ (Vector(v.position) * self.scale) for v in vertices], [], local_faces)
                 mesh.update()
+                if self.owner.game in {'halo2', 'halo3', 'halo3odst'}:
+                    for name, values in (
+                            ('legacy_source_face', [source_face_indices[id(t)] for t in faces]),
+                            ('legacy_face_start', [t.vertices[0] for t in faces])):
+                        attribute = mesh.attributes.new(name, 'INT', 'FACE')
+                        attribute.data.foreach_set('value', values)
                 mesh.polygons.foreach_set('use_smooth', [True] * len(mesh.polygons))
                 mesh.normals_split_custom_set_from_vertices([(rotation @ Vector(v.normal)).normalized() for v in vertices])
+                mesh['foundry_legacy_normals'] = True
                 loop_vertices = [loop.vertex_index for loop in mesh.loops]
                 for uv_index in range(max((len(v.uvs) for v in vertices), default=0)):
                     uv = mesh.uv_layers.new(name='UVMap' if uv_index == 0 else f'UVMap.{uv_index:03}')
                     uv.data.foreach_set('uv', [c for i in loop_vertices for c in (vertices[i].uvs[uv_index] if uv_index < len(vertices[i].uvs) else (0, 0))])
                 if any(v.color is not None for v in vertices):
-                    colors = mesh.color_attributes.new(name='Color', type='FLOAT_COLOR', domain='POINT')
-                    colors.data.foreach_set('color', [c for v in vertices for c in (*(v.color or (1, 1, 1)), 1)])
+                    colors = mesh.color_attributes.new(name='Color', type='FLOAT_COLOR', domain='CORNER')
+                    colors.data.foreach_set('color', [c for i in loop_vertices for c in (*(vertices[i].color or (1, 1, 1)), 1)])
                 self.configure_mesh(ob, kind, region, permutation)
                 lod_label = lod.upper()
                 if lod_label in {'L1', 'L2', 'L3', 'L4', 'L5', 'L6'}:
@@ -422,6 +521,7 @@ class JMSImporter:
                     if weights:
                         modifier = ob.modifiers.new('Armature', 'ARMATURE')
                         modifier.object = self.armature
+                ob['legacy_import_matrix'] = json.dumps([list(row) for row in ob.matrix_world])
 
         if skipped_triangles:
             utils.print_warning(f'{self.path.name}: skipped {skipped_triangles} triangles with repeated vertex indices')
@@ -433,7 +533,7 @@ class JMSImporter:
         if (marker and self.owner.game in {'halo3', 'halo3odst'}
                 and self.owner.scene_nwo.maintain_marker_axis):
             # Match the axis correction used for markers read directly from tags.
-            matrix = matrix @ Matrix.Rotation(-self.owner.from_x_rot, 4, 'Z')
+            matrix = matrix @ axis_rotation(-self.owner.from_x_rot)
         if self.armature:
             ob.parent = self.armature
             if parent != -1:
@@ -518,6 +618,15 @@ class JMSImporter:
             self.place(ob, constraint.parent_transform, constraint.parent)
             # Preserve both frames and unsupported constraint types for later export.
             ob['jms_constraint'] = json.dumps(asdict(constraint))
+            parent_world = self.transform(constraint.parent_transform)
+            child_world = self.transform(constraint.child_transform)
+            if constraint.parent != -1:
+                parent_world = self.node_world[constraint.parent] @ parent_world
+            if constraint.child != -1:
+                child_world = self.node_world[constraint.child] @ child_world
+            relative = parent_world.inverted() @ child_world
+            relative.translation *= self.scale
+            ob['jms_constraint_child_relative'] = json.dumps([list(row) for row in relative])
             if constraint.kind not in {'hinge', 'ragdoll'}:
                 ob.nwo.export_this = False
                 utils.print_warning(f'JMS {constraint.kind} constraint {constraint.name}: preserved as metadata; Foundry supports hinge and socket constraints')

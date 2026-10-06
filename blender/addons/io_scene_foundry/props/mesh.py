@@ -109,6 +109,8 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
                 return f"Lightmap Resolution: {LightmapResolution(int(self.lightmap_resolution_scale)).name.replace('_', ' ').title()}"
             case 'lightmap_ignore_default_resolution_scale':
                 return "Default Lightmap Rez Ignored" if  self.lightmap_ignore_default_resolution_scale else "Using Default Lightmap Rez"
+            case 'lightmap_photon_fidelity':
+                return f"Photon Fidelity: {self.lightmap_photon_fidelity}"
             case 'lightmap_chart_group':
                 return f"Lightmap Chart Group {self.lightmap_chart_group}"
             case 'lightmap_type':
@@ -321,6 +323,11 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         description=face_prop_descriptions['lightmap_ignore_default_resolution_scale'],
         default=True,
     )
+
+    lightmap_photon_fidelity: bpy.props.IntProperty(
+        name="Photon Fidelity", description="ASS lightmap photon fidelity",
+        default=1, min=0, max=3, options=set(),
+    )
     
     lightmap_chart_group: bpy.props.IntProperty(
         name="Lightmap Chart Group",
@@ -396,6 +403,40 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
 
     # MATERIAL LIGHTING PROPERTIES
+
+    material_lighting_attenuation_mode: bpy.props.EnumProperty(
+        name="Attenuation",
+        description="Whether the emissive surface uses distance attenuation",
+        items=[('AUTO', "Automatic", "Calculate distances when both are zero"),
+               ('ENABLED', "Enabled", "Use the specified falloff and cutoff distances"),
+               ('DISABLED', "Disabled", "Emit without distance attenuation")],
+        default='AUTO', options=set(),
+    )
+
+    material_lighting_emissive_frustum: bpy.props.BoolProperty(
+        name="Frustum Settings", description="Use ASS emissive frustum blend and angular limits",
+        default=False, options=set(),
+    )
+    material_lighting_emissive_basic: bpy.props.BoolProperty(
+        name="Authored Emissive Record", default=True, options={'HIDDEN'},
+        description="Whether ASS explicitly supplied basic emissive settings",
+    )
+    material_lighting_frustum_blend: bpy.props.FloatProperty(
+        name="Frustum Blend", description="Blend value stored in ASS BM_LIGHTING_FRUS",
+        default=0, min=0, max=1, options=set(),
+    )
+    material_lighting_frustum_falloff: bpy.props.FloatProperty(
+        name="Frustum Falloff", description="ASS emissive frustum falloff angle",
+        default=radians(25), min=0, max=radians(180), subtype='ANGLE', options=set(),
+    )
+    material_lighting_frustum_cutoff: bpy.props.FloatProperty(
+        name="Frustum Cutoff", description="ASS emissive frustum cutoff angle",
+        default=radians(45), min=0, max=radians(180), subtype='ANGLE', options=set(),
+    )
+    material_lighting_emissive_half_life: bpy.props.FloatProperty(
+        name="Half-life", description="Halo 2 JMS/ASS hl: distance parameter; zero uses the shader default",
+        default=0, min=0, subtype='DISTANCE', unit='LENGTH', options=set(),
+    )
       
     def update_lighting_attenuation_falloff(self, context):
         if not utils.get_scene_props().transforming:
@@ -410,7 +451,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     material_lighting_attenuation_cutoff: bpy.props.FloatProperty(
         name="Material Lighting Attenuation Cutoff",
         options=set(),
-        description="Determines how far light travels before it stops. Leave both falloff and cutoff at 0 to calculate attenuation on export",
+        description="Determines how far light travels before it stops. Automatic attenuation calculates distances when both are zero",
         min=0,
         default=0,
         update=update_lighting_attenuation_cutoff,
@@ -421,7 +462,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     material_lighting_attenuation_falloff: bpy.props.FloatProperty(
         name="Material Lighting Attenuation Falloff",
         options=set(),
-        description="Determines how far light travels before its power begins to falloff. Leave both falloff and cutoff at 0 to calculate attenuation on export",
+        description="Determines how far light travels before its power begins to falloff. Automatic attenuation calculates distances when both are zero",
         min=0,
         default=0,
         update=update_lighting_attenuation_falloff,
