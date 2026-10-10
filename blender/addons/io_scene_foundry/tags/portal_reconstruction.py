@@ -6,6 +6,7 @@ connected surfaces, with enclosing outlines recovered where solid-volume and
 bounded cluster-region proofs preserve the opening and its portal junctions.
 Unsupported outlines retain their cutting faces.
 """
+from .. import face_attributes
 from collections import Counter, defaultdict
 from dataclasses import replace
 from itertools import product
@@ -35,9 +36,7 @@ def snap_portal_vertices(portals, structures, tolerance):
         excluded = set()
         for prop in mesh.nwo.face_props:
             if prop.type == 'face_mode' and prop.face_mode in {'render_only', 'lightmap_only', 'shadow_only'}:
-                attribute = mesh.attributes.get(prop.attribute_name)
-                if attribute is not None:
-                    excluded.update(i for i, value in enumerate(attribute.data) if value.value)
+                excluded.update(i for i, value in enumerate(face_attributes.mask(mesh, prop)) if value)
         indices = {i for face in mesh.polygons if face.index not in excluded for i in face.vertices}
         for i in sorted(indices):
             local = mesh.vertices[i].co
