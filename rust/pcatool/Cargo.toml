@@ -1,0 +1,15 @@
+[package]
+name = "pcatool"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "Foundry's standalone temporal PCA solver for Halo 4 and H2A Tool"
+
+[dependencies]
+nalgebra = { version = "=0.34.1", default-features = false, features = ["std"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+overflow-checks = true
+strip = true
