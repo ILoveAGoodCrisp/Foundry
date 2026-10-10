@@ -20,7 +20,7 @@ from .field_view import NativeTagStruct
 import os
 from .bitmap import BitmapTag, bitmap_to_image
 from .scene_time import scene_time_node
-from ..tools.export_bitmaps import export_bitmap, bitmap_export_image, bitmap_needs_rebuild
+from ..tools.export_bitmaps import export_bitmap, bitmap_export_image, bitmap_needs_rebuild, BitmapImportBatch
 from .. import utils
 from ..tools.node_layout import layout_nodes
 from ..tools.shader_nodes import surface_links, constant_input
@@ -469,7 +469,20 @@ class ShaderTag(BlenderTag, TagDocument):
         else:
             self.custom = self._group_node_matches(self.group_node)
         if linked_to_blender:
-            self._edit_tag()
+            if self.game in {'halo1', 'halo2'} and getattr(self, 'bitmap_import_batch', None) is None:
+                # A single shader can generate several images in one folder.
+                # Prepare every reference before invoking directory import.
+                batch = BitmapImportBatch(self.game)
+                self.bitmap_import_batch = batch
+                try:
+                    self._edit_tag()
+                    _, errors = batch.compile()
+                    if errors:
+                        raise RuntimeError('; '.join(str(error) for _, error in errors))
+                finally:
+                    self.bitmap_import_batch = None
+            else:
+                self._edit_tag()
         elif self.corinth and self.material_shader:
             self._native_root.SelectField("Reference:material shader").Path = self._TagPath_from_string(self.material_shader)
         if self.game not in {'halo1', 'halo2'}:
@@ -1396,7 +1409,7 @@ class ShaderTag(BlenderTag, TagDocument):
             return
         image = bitmap_export_image(image)
         if bitmap_needs_rebuild(image):
-            bitmap = export_bitmap(image)
+            bitmap = export_bitmap(image, import_batch=getattr(self, 'bitmap_import_batch', None))
             if bitmap and Path(self.tags_dir, bitmap).exists():
                 return bitmap
             return
@@ -1411,7 +1424,7 @@ class ShaderTag(BlenderTag, TagDocument):
             if Path(self.tags_dir, bitmap).exists():
                 return bitmap
 
-        bitmap = export_bitmap(image)
+        bitmap = export_bitmap(image, import_batch=getattr(self, 'bitmap_import_batch', None))
         if not bitmap:
             return
         if Path(self.tags_dir, bitmap).exists():
