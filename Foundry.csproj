@@ -111,18 +111,18 @@
 if errorlevel 1 exit /b 1
 
 call python "$(SolutionDir)bonobo\build_plugins.py" --build --configuration "$(Configuration)" --msbuild-path "$(MSBuildToolsPath)\MSBuild.exe"
-
-
+if errorlevel 1 exit /b 1
 
 if /I "$(Configuration)"=="Release" (
     call python "$(SolutionDir)blender\addons\io_scene_foundry\build_extension.py" --manifest-only --bump-assembly-info-version "$(SolutionDir)Properties\AssemblyInfo.cs"
+    if errorlevel 1 exit /b 1
 )
 
-
-
 call python "$(SolutionDir)blender\addons\io_scene_foundry\build_extension.py" --keep-existing --version-from-assembly-info "$(SolutionDir)Properties\AssemblyInfo.cs"
+if errorlevel 1 exit /b 1
 
 call python "$(SolutionDir)blender\build\create_zip.py" "$(Configuration)"
+if errorlevel 1 exit /b 1
 
 call blender --command extension server-generate --repo-dir="$(SolutionDir)site\api\v1\extensions" --html</PreBuildEvent>
   </PropertyGroup>
