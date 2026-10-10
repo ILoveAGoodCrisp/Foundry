@@ -28,12 +28,13 @@ from .process import ExportScene
 from .cinematic import CinematicScene, set_actor_animation_compression
 from .legacy_materials import material_variant
 from .cleanup import ANIMATION_EXTENSIONS, prune_intermediates
-from .shader_collections import ShaderCollections
+from .shader_collections import ShaderCollections, halo1_export_shader_name, halo1_shader_lookup
 from ..legacy import jms_format as jms
 from ..legacy import ass_format as ass
 from ..legacy.mirror import mirror_ass, mirror_jms, mirror_transform
 from ..legacy.mesh_geometry import clean_ass_mesh
 from ..legacy.lighting import jms_emissive_unsupported
+from ..legacy.references import ASS_GAMES, ASS_GAME_OBJECT_EXTENSIONS, ass_reference_name, ass_reference_prefix
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, legacy_bone_order, node_checksum, write_jms, write_ass
 from ..tags.backend import TagDocument
 from ..tags.sky import SkyDocument, SkyLightRecord, MAX_SKY_LIGHTS
@@ -208,11 +209,6 @@ class LegacyExportScene(ExportScene):
         self.jms_source_nodes = {col['jms_source_key']:json.loads(col['jms_nodes'])
                                  for col in bpy.data.collections
                                  if col.get('jms_source_key') and col.get('jms_nodes')}
-        self.ass_source_materials = {col['ass_source_key']:json.loads(col['ass_materials'])
-                                    for col in bpy.data.collections
-                                    if col.get('ass_source_key') and col.get('ass_materials')}
-        from ..legacy.source_preservation import unchanged_collections
-        self.unchanged_ass_sources = unchanged_collections(bpy.data.collections, bpy.data.objects, self.scene_settings, self.target_game)
         self.halo1_two_sided_shaders = set()
         self.skipped_legacy_animations = set()
 
@@ -292,6 +288,11 @@ class LegacyExportScene(ExportScene):
                 # H3 collision import info can share vertices between several
                 # permutations in one JMS. Splitting files changes Tool's weld
                 # candidates and can move clipped collision boundaries.
+                name = 'default'
+            if (folder == 'render' and self.target_game in {'halo3', 'halo3odst'}
+                    and getattr(node.ob, 'ob', node.ob).get('foundry_converted_from_toolset')):
+                # Keep Toolset model permutations together, as its JMS writer
+                # does. Otherwise Tool duplicates diagnostics across input files.
                 name = 'default'
             if self.target_game == 'halo2' and folder == 'render' and node.props.get('bungie_mesh_type') != 11:
                 # Tool consumes LOD labels per material, but still requires
@@ -916,15 +917,23 @@ class LegacyExportScene(ExportScene):
         for ob in self.ob_halo_data:
             for slot in getattr(ob, 'material_slots', ()):
                 mat = slot.material
-                if mat is None or not mat.nwo.shader_path.strip():
+                if mat is None:
                     continue
-                path = Path(self.tags_dir, utils.relative_path(mat.nwo.shader_path))
+                shader_path = mat.nwo.shader_path.strip()
+                path = Path(self.tags_dir, utils.relative_path(shader_path)) if shader_path else None
                 try:
-                    key = filename(self.shader_collections.material_name(mat.nwo.shader_path)).casefold()
+                    key = (self.shader_collections.material_name(shader_path) if shader_path
+                           else halo1_export_shader_name(mat.get('foundry_legacy_shader_name', '') or mat.name))
+                    key = filename(key).casefold()
                 except ValueError:
                     self.warnings.append(f'{mat.name}: invalid Halo 1 shader path {mat.nwo.shader_path}. Using a default shader')
                     continue
                 materials.setdefault(key, {})[mat.name] = (mat, path)
+                # Tags Only can reuse JMS written before safe aliases existed.
+                old_name = (Path(shader_path).stem if shader_path else
+                            mat.get('foundry_legacy_shader_name', '') or mat.name)
+                old_key = halo1_shader_lookup(old_name, model=shader_type == 'shader_model')
+                materials.setdefault(old_key, {})[mat.name] = (mat, path)
         existing = {
             path.stem.casefold()
             for path in shader_root.rglob('*')
@@ -932,26 +941,21 @@ class LegacyExportScene(ExportScene):
         } if shader_root.is_dir() else set()
         for source in source_paths:
             for material in jms.JMS.from_file(source).materials:
-                # H1 Tool does not treat the later precise-position `)`
-                # marker as a material suffix, so preserve it in the lookup name.
-                name = re.sub(
-                    r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+',
-                    '',
-                    material.name,
-                ).strip()
-                if shader_type != 'shader_model':
-                    name = name.rstrip("%#?!@*$^-&=.;><|~({]}[' ")
+                name = halo1_shader_lookup(material.name, model=shader_type == 'shader_model')
                 if not name or name.startswith('+'):
                     continue
-                name = filename(name)
+                # A numeric suffix can leave a trailing dot (Material.001 ->
+                # material.). Validate the complete tag filename, not its stem.
+                filename(name + '.' + shader_type)
                 candidates = list(materials.get(name.casefold(), {}).values())
                 if candidates:
-                    paths = {path.resolve() for _, path in candidates}
+                    paths = {path.resolve() if path is not None else None for _, path in candidates}
                     shader_source = candidates[0][1]
-                    if (len(paths) != 1 or not shader_source.is_file()
+                    if (len(paths) != 1 or shader_source is None or not shader_source.is_file()
                             or not shader_source.suffix.lower().startswith('.shader')
                             or not shader_source.resolve().is_relative_to(Path(self.tags_dir).resolve())):
-                        self.warnings.append(f'{name}: invalid or conflicting Halo 1 shader path. Using an asset shader')
+                        if shader_source is not None or len(paths) != 1:
+                            self.warnings.append(f'{name}: invalid or conflicting Halo 1 shader path. Using an asset shader')
                     else:
                         destination = shader_root / 'shaders' / (name + shader_source.suffix)
                         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -1281,6 +1285,8 @@ class LegacyExportScene(ExportScene):
 
     def legacy_shader_name(self, mat):
         source_name = getattr(mat, 'legacy_shader_name', '') or mat.name
+        if self.target_game == 'halo1' and not source_name.startswith('+'):
+            source_name = halo1_export_shader_name(source_name)
         path = mat.shader_path
         if not path or not path.strip() or path in {'override', 'shaders\\invalid'}:
             return source_name
@@ -1328,7 +1334,7 @@ class LegacyExportScene(ExportScene):
             ob = ob.parent
         return 0 if self.bones or implied_root else -1
 
-    def face_materials(self, node, asset, cache, source_material_order=None):
+    def face_materials(self, node, asset, cache):
         mesh = node.mesh
         materials = {}
         regions = {v: k for k, v in self.virtual_scene.regions.items()}
@@ -1377,45 +1383,15 @@ class LegacyExportScene(ExportScene):
             # H2 Tool expects LOD before permutation/region, after an optional
             # Max sub-material ID. An end-of-line LOD is not equivalent.
             definition = (f'{lod} ' if lod else '') + f'{permutation} {region}'
-            material_slot = props.get('foundry_legacy_material_slot', -1)
-            if material_slot >= 0:
-                # Max sub-material IDs keep separate compiler strip/tangent
-                # sections even when shader paths and face flags are identical.
-                definition = f'({material_slot}) ' + definition
+            if self.target_game == 'halo1':
+                # H1 stores the optional texture filename here. Regions are
+                # triangle records and permutations/LODs are JMS filenames.
+                definition = '<none>'
             key = (name, definition, lighting)
-            source_slot = props.get('foundry_legacy_ass_material_index', -1)
-            source_key = ''
-            if source_slot >= 0:
-                source = getattr(node.ob, 'ob', node.ob)
-                source_key = source.get('ass_source_key', '')
-            original_materials = getattr(self, 'ass_source_materials', {}).get(source_key, ())
-            if ass_version is not None and 0 <= source_slot < len(original_materials):
-                originals = {r.split()[0]:r for r in original_materials[source_slot]['lighting'] if r.split()}
-                restored = []
-                for record in lighting:
-                    kind,*values = record.split()
-                    original = originals.get(kind)
-                    if original and kind != 'BM_FLAGS':
-                        authored = original.split()[1:]
-                        if len(values) == len(authored) and all(abs(float(a)-float(b)) <= 1e-6 for a,b in zip(values,authored)):
-                            # Preserve explicitly authored zero overrides and
-                            # RGB rounding at Tool's packed-colour boundaries.
-                            record = original
-                    restored.append(record)
-                known = {'BM_FLAGS','BM_LMRES','BM_LIGHTING_BASIC','BM_LIGHTING_ATTEN','BM_LIGHTING_FRUS'}
-                restored.extend(r for kind,r in originals.items() if kind not in known)
-                lighting = tuple(restored)
-                key = (name, definition, lighting)
-            if source_material_order is not None and source_key and source_slot >= 0:
-                # Distinct source material slots can control Tool's processing
-                # order even when their authored properties happen to agree.
-                key += (source_key, source_slot)
             if key not in cache:
                 cache[key] = len(asset.materials)
                 asset.materials.append(ass.Material(name, definition, lighting) if ass_version is not None
                                        else jms.Material(name, definition, region, permutation, lod.lower()))
-                if source_material_order is not None and source_key and source_slot >= 0:
-                    source_material_order[cache[key]] = (source_key, source_slot)
             return cache[key], region
 
         for mat, _, (start, count) in mesh.groups:
@@ -1429,6 +1405,30 @@ class LegacyExportScene(ExportScene):
             # Cache complete override combinations within each material group.
             # Raw array bytes retain integer precision and vector components.
             variants = {}
+            if len(faces) >= 32 and all(getattr(array, 'dtype', None) is not None
+                                       and array.dtype.kind in 'biufc' for _, array in overrides):
+                import numpy as np
+                # Group raw bytes rather than coercing mixed attributes to
+                # floats. Retain first-use order across bounded batches, since
+                # material order affects Tool's processing of geometry.
+                for batch_start in range(faces.start, faces.stop, 65536):
+                    foundry_output._raise_if_cancel_requested()
+                    batch_end = min(batch_start + 65536, faces.stop)
+                    count = batch_end - batch_start
+                    rows = np.concatenate([
+                        np.ascontiguousarray(array[batch_start:batch_end]).view(np.uint8).reshape(count, -1)
+                        for _, array in overrides], axis=1)
+                    keys = rows.view(np.dtype((np.void, rows.shape[1]))).ravel()
+                    _, first, inverse = np.unique(keys, return_index=True, return_inverse=True)
+                    resolved = [None] * len(first)
+                    for index in np.argsort(first):
+                        signature = keys[first[index]].tobytes()
+                        if signature not in variants:
+                            variants[signature] = resolve(batch_start + int(first[index]), shader)
+                        resolved[index] = variants[signature]
+                    materials.update(zip(range(batch_start, batch_end),
+                                         (resolved[index] for index in inverse.tolist())))
+                continue
             for face in faces:
                 signature = tuple(array[face].tobytes() for _, array in overrides)
                 if signature not in variants:
@@ -1441,7 +1441,7 @@ class LegacyExportScene(ExportScene):
                     materials[face] = (-1, materials[face][1])
         return materials
 
-    def vertices(self, node, matrix, weighted=True, implied_root=False, *, ass_uvs=False, ass_positions=False):
+    def vertices(self, node, matrix, weighted=True, implied_root=False, *, ass_uvs=False):
         mesh = node.mesh
         normal_matrix = matrix.to_3x3().inverted().transposed()
         vertices = []
@@ -1482,9 +1482,6 @@ class LegacyExportScene(ExportScene):
                 # A float32 1-V round trip destroys small UV components.
                 texcoords = tuple(tuple(uv[i]) for uv in uv_layers)
                 output_position = tuple((matrix @ Vector(position)) * self.to_halo_scale)
-                if (ass_positions and getattr(mesh, 'legacy_positions', None) is not None
-                        and mesh.legacy_position_mask[start + i]):
-                    output_position = tuple(float(c) for c in mesh.legacy_positions[start + i])
                 vertices.append(jms.Vertex(output_position, tuple(normal),
                     influences, texcoords, tuple(colors[i]) if colors is not None else None))
         return vertices
@@ -1497,6 +1494,8 @@ class LegacyExportScene(ExportScene):
                             get('ass_xref_path', '') or '')
         tag_path = str(node.props.get('bungie_marker_game_instance_tag_name', '') or
                        node.ob.nwo.marker_game_instance_tag_name or '')
+        if get('ass_import_tag_path') and tag_path != get('ass_import_tag_path'):
+            imported_path = ''
         if not imported_path and not tag_path:
             raise ExportCancelled(f'{node.name}: tag-reference marker has no tag path')
         if imported_path:
@@ -1524,7 +1523,9 @@ class LegacyExportScene(ExportScene):
                             default_name + '.max'))
         xref_name = str(get('jms_xref_name', '') or get('ass_xref_name', '') or
                         default_name)
-        raw_identifier = get('jms_identifier', '')
+        if get('ass_import_tag_path') and tag_path != get('ass_import_tag_path'):
+            xref_name = default_name
+        raw_identifier = get('jms_identifier', '') or get('ass_identifier', '')
         try:
             identifier = int(raw_identifier)
         except (TypeError, ValueError):
@@ -1565,9 +1566,6 @@ class LegacyExportScene(ExportScene):
                                      tuple(n['transform']['translation']))) for n in source_nodes]
         asset.checksum = self.legacy_node_checksum(asset.nodes)
         cache = {}
-        collision_vertex_order = []
-        collision_face_order = []
-        preserve_collision_order = folder == 'collision' and self.target_game in {'halo2','halo3','halo3odst'}
         for node in nodes:
             foundry_output._raise_if_cancel_requested()
             if self.target_game == 'halo1' and node.tag_type == 'physics':
@@ -1633,50 +1631,15 @@ class LegacyExportScene(ExportScene):
                         jms.Transform((0, 0, 0, 1), (0, 0, 0)), vertices=points))
                 continue
             offset = len(asset.vertices)
-            source = getattr(node.ob, 'ob', node.ob)
-            imported_matrix = source.get('legacy_import_matrix')
-            preserve_points = bool(imported_matrix and node.ob.matrix_world == Matrix(json.loads(imported_matrix)))
-            vertices = self.vertices(node, node.matrix_world, implied_root=True, ass_positions=preserve_points)
-            asset.vertices.extend(vertices)
-            identities = getattr(node.mesh, 'legacy_vertex_ids', None)
-            source_faces = getattr(node.mesh, 'legacy_face_order', None)
-            starts = getattr(node.mesh, 'legacy_face_starts', None)
-            if preserve_collision_order:
-                if identities is None or source_faces is None:
-                    preserve_collision_order = False
-                else:
-                    collision_vertex_order.extend(int(i) for i in identities)
+            asset.vertices.extend(self.vertices(node, node.matrix_world, implied_root=True))
             for face, triangle in enumerate(node.mesh.indices.reshape((-1, 3))):
                 material, region = materials[face]
                 if region not in asset.regions:
                     asset.regions.append(region)
                 indices = tuple(int(i) + offset for i in triangle)
-                if preserve_collision_order:
-                    collision_face_order.append(int(source_faces[face]))
-                    if starts is not None:
-                        for corner,index in enumerate(triangle):
-                            if identities[index] == starts[face]:
-                                indices = indices[corner:] + indices[:corner]
-                                break
                 if node.negative_scaling:
                     indices = indices[0], indices[2], indices[1]
                 asset.triangles.append(jms.Triangle(material, indices, asset.regions.index(region)))
-        if preserve_collision_order and collision_vertex_order:
-            order = sorted(range(len(asset.vertices)), key=lambda i: collision_vertex_order[i])
-            remap, unique, vertices = {}, {}, []
-            for index in order:
-                vertex = asset.vertices[index]
-                key = (collision_vertex_order[index], vertex.position, vertex.normal,
-                       vertex.influences, vertex.uvs, vertex.color)
-                if key not in unique:
-                    unique[key] = len(vertices)
-                    vertices.append(vertex)
-                remap[index] = unique[key]
-            asset.vertices = vertices
-            for triangle in asset.triangles:
-                triangle.vertices = tuple(remap[i] for i in triangle.vertices)
-            order = sorted(range(len(asset.triangles)), key=lambda i: collision_face_order[i])
-            asset.triangles = [asset.triangles[i] for i in order]
         if folder == 'physics' and self.jms_version >= 8206:
             for node in markers:
                 marker_type = node.props.get('bungie_marker_type')
@@ -1725,12 +1688,26 @@ class LegacyExportScene(ExportScene):
                     kind, node.name.lstrip('$'), parent, child,
                     transform(parent_matrix, self.to_halo_scale),
                     transform(child_matrix, self.to_halo_scale), limits))
-        if folder in {'render', 'models'} and 'markers' in self.export_tag_types:
+        if folder in {'render', 'models', 'collision'} and 'markers' in self.export_tag_types:
             xref_indices = {}
+            merged_render = (folder == 'render' and self.target_game in {'halo3', 'halo3odst'}
+                and any(getattr(n.ob, 'ob', n.ob).get('foundry_converted_from_toolset') for n in nodes))
+            asset_permutations = {m.permutation for m in asset.materials}
             for node in markers:
                 nwo = node.ob.nwo
+                collision_marker = nwo.marker_type == '_connected_geometry_marker_type_pathfinding_sphere'
+                physics_marker = nwo.marker_type == '_connected_geometry_marker_type_physics_constraint'
+                if ((folder == 'collision' and not collision_marker) or
+                        (folder != 'collision' and (collision_marker or physics_marker))):
+                    continue
                 permutations = {p.name for p in nwo.marker_permutations}
-                if nwo.marker_uses_regions and permutations:
+                scoped_permutations = None
+                if merged_render and nwo.marker_uses_regions and permutations:
+                    scoped_permutations = (asset_permutations - permutations if
+                        nwo.marker_permutation_type == 'exclude' else asset_permutations & permutations)
+                    if not scoped_permutations:
+                        continue
+                elif nwo.marker_uses_regions and permutations:
                     if (name in permutations) == (nwo.marker_permutation_type == 'exclude'):
                         continue
                 if nwo.marker_type == '_connected_geometry_marker_type_game_instance':
@@ -1755,9 +1732,14 @@ class LegacyExportScene(ExportScene):
                 region = node.region or 'default'
                 if region not in asset.regions:
                     asset.regions.append(region)
-                marker_name = f'({name} {region}){node.name}' if nwo.marker_uses_regions and self.jms_version >= 8205 else node.name
-                asset.markers.append(jms.Marker(marker_name, asset.regions.index(region) if nwo.marker_uses_regions else -1,
-                    parent, transform(matrix, self.to_halo_scale), node.props.get('bungie_mesh_primitive_sphere_radius', 1)))
+                source = getattr(node.ob, 'ob', node.ob)
+                group_name = node.name
+                if source.name == source.get('toolset_marker_object_name'):
+                    group_name = source.get('toolset_marker_name', group_name)
+                for permutation in sorted(scoped_permutations) if scoped_permutations is not None else (name,):
+                    marker_name = f'({permutation} {region}){group_name}' if nwo.marker_uses_regions and self.jms_version >= 8205 else group_name
+                    asset.markers.append(jms.Marker(marker_name, asset.regions.index(region) if nwo.marker_uses_regions else -1,
+                        parent, transform(matrix, self.to_halo_scale), node.props.get('bungie_mesh_primitive_sphere_radius', 1)))
         if self.target_game == 'halo1' and folder == 'physics' and asset.markers and not asset.materials:
             # Tool also requires a material to build its intermediate model,
             # even though mass points do not reference any faces or shaders.
@@ -1793,15 +1775,14 @@ class LegacyExportScene(ExportScene):
         return asset
 
     def ass_asset(self, name, nodes, markers=(), lights=()):
-        if self.supports_bsp and not self.limit_bsps_to_selection and not self.limit_perms_to_selection:
-            keys = {getattr(node.ob, 'ob', node.ob).get('ass_source_key') for node in nodes}
-            if len(keys) == 1:
-                original = self.unchanged_ass_sources.get(next(iter(keys)))
-                if original:
-                    return ass.ASS.read(io.StringIO(original), name)
+        if self.target_game in ASS_GAMES:
+            for marker in markers:
+                if marker.ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance':
+                    path = marker.ob.nwo.marker_game_instance_tag_name
+                    if Path(path).suffix.casefold() not in ASS_GAME_OBJECT_EXTENSIONS:
+                        raise ExportCancelled(f'{marker.name}: ASS game objects support only scenery and device_machine tags; got {path!r}')
         asset = ass.ASS(name=name, version=self.ass_version)
         cache, geometries = {}, {}
-        source_material_order = {}
         source_geometry_order = {}
         node_instances = {}
         asset.instances.append(ass.Instance(-1, 'frame', -1, -1, 0, ass.Transform(), ass.Transform()))
@@ -1857,71 +1838,9 @@ class LegacyExportScene(ExportScene):
             source_frames[identity] = index
             return index
 
-        def original_proxy_parts(node, materials):
-            source = getattr(node.ob, 'ob', node.ob)
-            mesh = node.mesh
-            owner = preserved_sources.get(id(node.proxy_parent))
-            if (owner is None or not source.get('ass_proxy_sources')
-                    or getattr(mesh, 'legacy_proxy_source_instances', None) is None
-                    or getattr(mesh, 'legacy_vertex_ids', None) is None
-                    or getattr(mesh, 'legacy_face_order', None) is None
-                    or getattr(mesh, 'legacy_position_mask', None) is None
-                    or not mesh.legacy_position_mask.all()):
-                return None
-            faces = mesh.indices.reshape((-1, 3))
-            ids = mesh.legacy_vertex_ids
-            orders = mesh.legacy_face_order
-            exported = self.vertices(node, Matrix.Identity(4), False, ass_uvs=self.ass_version >= 5, ass_positions=True)
-            parts = []
-            for item in json.loads(source['ass_proxy_sources']):
-                original = item['geometry']
-                selected = [i for i,group in enumerate(mesh.legacy_proxy_source_instances) if group == item['index']]
-                selected.sort(key=lambda i: int(orders[i]))
-                geometry = ass.Geometry('MESH', xref_path=original['xref_path'], xref_name=original['xref_name'],
-                    vertices=[jms.Vertex(**v) for v in original['vertices']])
-                normal_matrix = Matrix(item['relative']).to_3x3().inverted().transposed()
-                for face in selected:
-                    ordinal = int(orders[face])
-                    if not 0 <= ordinal < len(original['triangles']):
-                        return None
-                    triangle = original['triangles'][ordinal]
-                    identities = tuple(int(ids[i]) for i in faces[face])
-                    corners = tuple(triangle['vertices'])
-                    if not any(identities == corners[k:] + corners[:k] for k in range(3)):
-                        return None  # topology was edited
-                    for index,identity in zip(faces[face],identities):
-                        actual,expected = exported[index],geometry.vertices[identity]
-                        normal = normal_matrix @ Vector(expected.normal)
-                        normal.normalize()
-                        if (max(abs(a-b) for a,b in zip(actual.normal,normal)) > 1e-4
-                                or len(actual.uvs) != len(expected.uvs)
-                                or any(len(a) != len(b) or max(abs(x-y) for x,y in zip(a,b)) > 1e-6
-                                       for a,b in zip(actual.uvs,expected.uvs))
-                                or (actual.color is None) != (expected.color is None)
-                                or (actual.color is not None and max(abs(a-b) for a,b in zip(actual.color,expected.color)) > 1e-6)):
-                            return None  # edited corner data must use evaluated geometry
-                    geometry.triangles.append(jms.Triangle(materials[face][0], corners))
-                if not geometry.triangles:
-                    return None
-                parts.append((item,geometry))
-            return parts
-
         for node in ordered_nodes:
             foundry_output._raise_if_cancel_requested()
-            materials = self.face_materials(node, asset, cache, source_material_order)
-            proxy_parts = original_proxy_parts(node, materials) if node.proxy_parent is not None else None
-            if proxy_parts is not None:
-                owner_index = node_instances[id(node.proxy_parent)]
-                for item,geometry in proxy_parts:
-                    original = item['instance']
-                    geometry_index = len(asset.geometries)
-                    asset.geometries.append(geometry)
-                    source_geometry_order[geometry_index] = (preserved_sources[id(node.proxy_parent)][0], original['geometry'])
-                    instance_index = len(asset.instances)
-                    asset.instances.append(ass.Instance(geometry_index, original['name'], original['unique_id'],
-                        owner_index, original['inheritance'], source_transform(original['local']),
-                        source_transform(original['pivot'])))
-                continue
+            materials = self.face_materials(node, asset, cache)
             matrix = (Matrix.Identity(4) if node.proxy_parent is not None
                       else node.matrix_world)
             source = getattr(node.ob, 'ob', node.ob)
@@ -1930,7 +1849,11 @@ class LegacyExportScene(ExportScene):
             if node.proxy_parent is None and get('ass_source_matrix') and get('ass_import_matrix'):
                 imported = Matrix(json.loads(get('ass_import_matrix')))
                 current = node.ob.matrix_world
-                if current == imported:
+                unchanged = current == imported
+                if not unchanged and get('toolset_import_transform'):
+                    from ..legacy.scene_converter import toolset_transform_signature
+                    unchanged = toolset_transform_signature(source) == get('toolset_import_transform')
+                if unchanged:
                     original = Matrix(json.loads(get('ass_source_matrix')))
                     original_loc, original_rot, original_scale = original.decompose()
                     original_rebuilt = Matrix.LocRotScale(original_loc, original_rot, original_scale)
@@ -1964,35 +1887,15 @@ class LegacyExportScene(ExportScene):
                 geometry.xref_path = str(get('ass_xref_path', '') or '')
                 geometry.xref_name = str(get('ass_xref_name', '') or '')
                 geometry.vertices = self.vertices(node, Matrix.Identity(4) if uniform else matrix, bool(self.bones),
-                                                  ass_uvs=self.ass_version >= 5, ass_positions=uniform)
-                identities = getattr(node.mesh, 'legacy_vertex_ids', None)
-                vertex_remap = None
-                if identities is not None:
-                    # Tool's positional weld chooses between close source
-                    # vertices in input order. Preserve that order after the
-                    # virtual mesh has collected vertices by first-used corner.
-                    vertex_order = sorted(range(len(geometry.vertices)), key=lambda i: int(identities[i]))
-                    vertex_remap = {old:new for new,old in enumerate(vertex_order)}
-                    geometry.vertices = [geometry.vertices[i] for i in vertex_order]
+                                                  ass_uvs=self.ass_version >= 5)
                 palette = sorted({b for vertex in geometry.vertices for b, _ in vertex.influences})
                 palette_map = {b: i for i, b in enumerate(palette)}
                 for vertex in geometry.vertices:
                     vertex.influences = tuple((palette_map[b], weight) for b, weight in vertex.influences)
                 geometry.node_indices = list(range(len(palette)))
                 triangles = node.mesh.indices.reshape((-1, 3))
-                source_order = getattr(node.mesh, 'legacy_face_order', None)
-                face_order = sorted(range(len(triangles)), key=lambda i: int(source_order[i])) if source_order is not None else range(len(triangles))
-                for face in face_order:
-                    triangle = triangles[face]
+                for face, triangle in enumerate(triangles):
                     indices = tuple(int(i) for i in triangle)
-                    starts = getattr(node.mesh, 'legacy_face_starts', None)
-                    if starts is not None and identities is not None:
-                        for corner,index in enumerate(indices):
-                            if identities[index] == starts[face]:
-                                indices = indices[corner:] + indices[:corner]
-                                break
-                    if vertex_remap is not None:
-                        indices = tuple(vertex_remap[i] for i in indices)
                     if node.negative_scaling and not (uniform and scale[0] < 0):
                         indices = indices[0], indices[2], indices[1]
                     geometry.triangles.append(jms.Triangle(materials[face][0], indices))
@@ -2065,12 +1968,39 @@ class LegacyExportScene(ExportScene):
                     if geometry_index is None:
                         geometry_index = len(asset.geometries)
                         xref_geometries[key] = geometry_index
-                        asset.geometries.append(ass.Geometry(
-                            'MESH', xref_path=path, xref_name=xref_name))
+                        source = getattr(node.ob, 'ob', node.ob)
+                        original = source.get('ass_reference_geometry')
+                        if original and nwo.marker_game_instance_tag_name == source.get('ass_import_tag_path'):
+                            data = json.loads(original)
+                            data['vertices'] = [jms.Vertex(**v) for v in data['vertices']]
+                            data['triangles'] = [jms.Triangle(**t) for t in data['triangles']]
+                            data['light'] = ass.Light(**data['light']) if data['light'] else None
+                            material_remap = {-1:-1}
+                            for old,material in json.loads(source.get('ass_reference_materials', '{}')).items():
+                                material_remap[int(old)] = len(asset.materials)
+                                asset.materials.append(ass.Material(**material))
+                            data['material'] = material_remap[data['material']]
+                            for triangle in data['triangles']:
+                                triangle.material = material_remap[triangle.material]
+                            asset.geometries.append(ass.Geometry(**data))
+                        else:
+                            asset.geometries.append(ass.Geometry('MESH', xref_path=path, xref_name=xref_name))
                     value = transform(node.matrix_world, self.to_halo_scale)
+                    source = getattr(node.ob, 'ob', node.ob)
+                    instance_name = ass_reference_prefix(nwo.marker_game_instance_tag_name) + ass_reference_name(node.name)
+                    if (source.get('ass_instance') and source.get('ass_import_matrix')
+                            and source.matrix_world == Matrix(json.loads(source['ass_import_matrix']))):
+                        original = json.loads(source['ass_instance'])
+                        ancestry = json.loads(source.get('ass_source_ancestry', '[]'))
+                        parent = source_parent(source['ass_source_key'], original['parent'], ancestry)
+                        asset.instances.append(ass.Instance(geometry_index, instance_name, original['unique_id'],
+                            parent, original['inheritance'], source_transform(original['local']), source_transform(original['pivot']),
+                            tuple(source_parent(source['ass_source_key'], bone, ancestry) if bone>=0 else -1 for bone in original['bones'])))
+                        continue
                     asset.instances.append(ass.Instance(
-                        geometry_index, node.name, identifier, 0, 0,
-                        ass.Transform(value.rotation, value.translation), ass.Transform()))
+                        geometry_index, instance_name, identifier, 0, 0,
+                        ass.Transform(value.rotation, value.translation), ass.Transform(),
+                        tuple(-1 for _ in asset.geometries[geometry_index].node_indices)))
                     continue
                 parent = self.parent_index(node)
                 matrix = node.matrix_world
@@ -2130,17 +2060,6 @@ class LegacyExportScene(ExportScene):
             asset.instances.append(ass.Instance(
                 geometry_index, ob.name, len(asset.instances), 0, 0,
                 ass.Transform(value.rotation, value.translation), ass.Transform()))
-        if source_material_order:
-            order = sorted(range(len(asset.materials)),
-                           key=lambda i: (0, *source_material_order[i]) if i in source_material_order else (1, '', i))
-            remap = {old:new for new,old in enumerate(order)}
-            asset.materials = [asset.materials[i] for i in order]
-            for geometry in asset.geometries:
-                if geometry.material >= 0:
-                    geometry.material = remap[geometry.material]
-                for triangle in geometry.triangles:
-                    if triangle.material >= 0:
-                        triangle.material = remap[triangle.material]
         if source_geometry_order:
             order = sorted(range(len(asset.geometries)),
                            key=lambda i: (0, *source_geometry_order[i]) if i in source_geometry_order else (1, '', i))
@@ -2175,6 +2094,8 @@ class LegacyExportScene(ExportScene):
         for shot in self.virtual_scene.shots:
             for shot_actor, animation in shot.actor_animation.items():
                 actor = shot_actor.actor
+                if actor.scenario_only:
+                    continue
                 self.cinematic_scene.actor_animations[actor].append(animation)
                 source_dir = Path(self.asset_path, 'objects', self.cinematic_scene.name, filename(actor.name))
                 actor.graph = str(source_dir.relative_to(self.data_dir) / f'{actor.name}.model_animation_graph')
@@ -2216,6 +2137,16 @@ class LegacyExportScene(ExportScene):
 
     def cinematic_skeleton(self, actor):
         """Tool requires a render JMS even when only compiling an actor graph."""
+        if actor.render_model is None:
+            bones = [actor.ob.data.bones[name] for name in actor.node_order]
+            skeleton = jms.JMS(name=actor.name, version=self.jms_version)
+            rotation = self.virtual_scene.rotation_matrix
+            skeleton.nodes = [jms.Node(bone.name,
+                actor.node_order.get(bone.parent.name, -1) if bone.parent else -1,
+                transform(rotation @ actor.ob.matrix_world @ bone.matrix_local, self.to_halo_scale))
+                for bone in bones]
+            skeleton.checksum = self.legacy_node_checksum(skeleton.nodes)
+            return skeleton
         with RenderModelMetadataTag(path=Path(actor.render_model).with_suffix('.render_model')) as model:
             nodes = model.nodes()
         world = {}
@@ -2464,3 +2395,4 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
                 utils.print_warning(warning)
         finally:
             os.chdir(export.original_cwd)
+    return export

@@ -6,6 +6,7 @@ shader-collection prefix to constrain that lookup to the selected tag folder.
 from ..exceptions import ExportCancelled
 from hashlib import sha1
 from pathlib import Path, PureWindowsPath
+import re
 
 
 COLLECTION_PATHS = {
@@ -15,6 +16,38 @@ COLLECTION_PATHS = {
 }
 FOUNDRY_HEADING = "; Foundry shader collections (generated from full shader paths)"
 MAX_PREFIX_LENGTH = 32
+HALO1_MATERIAL_LENGTH = 31
+HALO1_BSP_FLAGS = '%#!@*$^-&'
+
+
+def halo1_shader_lookup(material_name, *, model=False):
+    """Match H1 Tool's JMS string buffer, BSP flags and numeric suffix removal.
+
+    Tool first truncates to 31 characters, removes BSP flags, then removes
+    trailing digits (Max material-instance numbers). Dots are retained, as are
+    later games' symbols. Model import does not remove BSP flags.
+    """
+    name = material_name[:HALO1_MATERIAL_LENGTH].lower()
+    if not model:
+        name = name.rstrip(HALO1_BSP_FLAGS)
+    return name.rstrip('0123456789').rstrip()
+
+
+def halo1_export_shader_name(name, identity=None):
+    """Allocate a filename that survives both H1 compilers unchanged.
+
+    Leave room for every BSP flag. Alphabetic hashes cannot themselves be
+    interpreted as numeric instance suffixes, unlike a hexadecimal digest.
+    """
+    limit = HALO1_MATERIAL_LENGTH - len(HALO1_BSP_FLAGS)
+    if (name and len(name) <= limit and not name.endswith((' ', '.'))
+            and re.fullmatch(r'[A-Za-z0-9_ .()]+', name)
+            and halo1_shader_lookup(name) == name.lower()):
+        return name.lower()
+    base = re.sub(r'[^A-Za-z0-9_]', '_', name).strip('_') or 'shader'
+    digest = sha1((identity or name).casefold().encode('utf-8')).hexdigest()
+    digest = digest.translate(str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))[:10]
+    return base[:limit - 11].lower() + '_' + digest
 
 
 def _tag_path(value) -> PureWindowsPath:
@@ -82,8 +115,9 @@ class ShaderCollections:
                 continue
             key = str(path).casefold()
             paths.setdefault(key, path)
-            groups.setdefault(path.stem.casefold(), set()).add(key)
-        names = {key: paths[key].stem for keys in groups.values() if len(keys) == 1 for key in keys}
+            groups.setdefault(halo1_export_shader_name(path.stem, key).casefold(), set()).add(key)
+        names = {key: halo1_export_shader_name(paths[key].stem, key)
+                 for keys in groups.values() if len(keys) == 1 for key in keys}
         used = set(groups)
         for basename, keys in sorted(groups.items()):
             if len(keys) == 1:
@@ -91,12 +125,12 @@ class ShaderCollections:
             for key in sorted(keys):
                 digest = sha1(key.encode('utf-8')).hexdigest()
                 length = 10
-                name = paths[key].stem + '_' + digest[:length]
+                name = halo1_export_shader_name(paths[key].stem + '_' + digest[:length], key)
                 while name.casefold() in used:
                     length += 1
                     if length > len(digest):
                         raise ExportCancelled(f'Could not allocate a Halo 1 shader name for {paths[key]}')
-                    name = paths[key].stem + '_' + digest[:length]
+                    name = halo1_export_shader_name(paths[key].stem + '_' + digest[:length], key + digest[:length])
                 names[key] = name
                 used.add(name.casefold())
         self.halo1_names = names
@@ -109,7 +143,7 @@ class ShaderCollections:
         suffix = path.suffix.casefold()
         shader_name = path.stem if self.game == "halo1" or suffix.startswith(".shader") else path.name
         if self.game == 'halo1':
-            return self.halo1_names.get(str(path).casefold(), shader_name)
+            return self.halo1_names.get(str(path).casefold(), halo1_export_shader_name(shader_name, str(path)))
         if self.path is None or str(path.parent) == ".":
             return shader_name
 

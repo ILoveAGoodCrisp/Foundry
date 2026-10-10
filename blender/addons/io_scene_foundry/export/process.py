@@ -61,7 +61,10 @@ from ..props.object import NWO_ObjectPropertiesGroup
 from ..auto_bsp import AutoBSPAssigner
 from .virtual_geometry import AnimatedBone, VectorEvent, VirtualAnimation, VirtualNode, VirtualScene
 from ..granny import Granny
+from ..granny_export import (ExportBackend, ExportDataError, backend_for_export, backend_for_scene,
+    build_export_file, write_minimal_file, write_rust_file)
 from .. import utils
+from ..coordinate_system import CoordinateSystem
 from ..constants import GENERAL_OBJECTS, IK_INFLUENCE_ROUNDING_TOLERANCE, VALID_MESHES, VALID_OBJECTS, WU_SCALAR, face_prop_game_supported
 from ..tools.asset_types import AssetType
 
@@ -89,9 +92,13 @@ class ExportTagType(Enum):
         
 class ExportScene:
     '''Scene to hold all the export objects'''
-    def __init__(self, context: bpy.types.Context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings, start_scene):
+    def __init__(self, context: bpy.types.Context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings, start_scene, *, export_backend=None):
         self.context = context
         self.legacy_export = utils.uses_legacy_export(scene_settings.scene_project)
+        try:
+            self.export_backend = backend_for_export(self.legacy_export, export_settings, export_backend)
+        except (ExportDataError, ValueError) as error:
+            raise ExportCancelled(str(error)) from error
         project = utils.get_project(scene_settings.scene_project)
         self.project_game = project.game if project else ('corinth' if corinth else 'reach')
         self.asset_type = AssetType[asset_type.upper()]
@@ -124,13 +131,14 @@ class ExportScene:
         self.project_root = Path(project.project_path)
         
         os.chdir(self.project_root)
-        self.granny = None if self.legacy_export else Granny(Path(self.project_root, "granny2_x64.dll"), self.corinth)
+        self.granny = Granny(Path(self.project_root, "granny2_x64.dll"), self.corinth) if self.export_backend.uses_native else None
         
         self.forward = scene_settings.forward_direction
-        self.from_halo_scale = 1 if scene_settings.scale == 'max' else 0.03048
-        self.to_halo_scale = (1 / 0.03048) if scene_settings.scale == 'blender' else 1
+        convention = CoordinateSystem.from_scene(scene_settings)
+        self.from_halo_scale = convention.from_halo_scale
+        self.to_halo_scale = convention.to_halo_scale
         self.to_maya_scale = self.to_halo_scale / 10 if self.corinth else self.to_halo_scale
-        self.halo_transform_scale = 0.03048 * WU_SCALAR if scene_settings.scale == 'max' else WU_SCALAR
+        self.halo_transform_scale = convention.to_world_scale
         self.mirror = export_settings.granny_mirror
         self.has_animations = False
         self.setup_scenario = False
@@ -148,9 +156,9 @@ class ExportScene:
         self.node_usage_set = False
         
         self.atten_scalar = 1 if corinth else 100
-        self.unit_factor = 0.03048 if scene_settings.scale == 'max' else 1
+        self.unit_factor = convention.meters_per_unit
         
-        self.rotation_correction = utils.blender_halo_rotation_diff(self.forward)
+        self.rotation_correction = convention.to_halo_rotation
         
         self.type_is_relevant = self.asset_type in {AssetType.MODEL, AssetType.SCENARIO, AssetType.SKY, AssetType.PARTICLE_MODEL, AssetType.PREFAB, AssetType.MULTI_MODEL, AssetType.MULTI_PREFAB}
         self.uses_main_armature = self.asset_type in {AssetType.MODEL, AssetType.SKY, AssetType.ANIMATION, AssetType.SINGLE_ANIMATION}
@@ -468,6 +476,9 @@ class ExportScene:
             elif original.is_instancer and original.instance_collection and original.instance_collection.all_objects and not nwo.marker_instance:
                 continue
             
+            # Decorator clouds author placements through their dedicated exporter.
+            if original.get('nwo_decorator_placement_cloud') or original.get('nwo_decorator_instance_source'):
+                continue
             if ignore_for_export_fast(original, collection_map, parent):
                 continue
              
@@ -527,7 +538,7 @@ class ExportScene:
         else:    
             self.export_objects = [ob for ob in proxy_export_objects if ob.nwo.export_this and ob.type in valid_objects]
 
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.rotation_correction, self.scene_settings.maintain_marker_axis, self.granny_textures, utils.get_project(self.scene_settings.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context, self.halo_transform_scale, self.scene_settings)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings, utils.time_step(), self.rotation_correction, self.granny_textures, utils.get_project(self.scene_settings.scene_project), self.to_halo_scale, self.unit_factor, self.atten_scalar, self.context, self.halo_transform_scale, self.scene_settings, export_backend=self.export_backend)
         self.has_no_virtual_scene = False
 
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
@@ -680,6 +691,8 @@ class ExportScene:
                         if warning is None:
                             actor_name = self._cinematic_actor_export_name(ob)
                             self.cinematic_actors.append(Actor(ob, self.cinematic_scene.name, self.asset_path_relative, export_name=actor_name))
+                            if self.cinematic_actors[-1].scenario_only:
+                                continue
                         else:
                             self.warnings.append(warning)
                             continue
@@ -1086,6 +1099,7 @@ class ExportScene:
         return props, region, permutation, mesh_props, copy, is_pca, skip
     
     def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str, permutation: str, mesh_props: dict):
+        warnings_append = self.warnings.append
         mesh_type = ob.data.nwo.mesh_type
         mesh = ob.data
         data_nwo: NWO_MeshPropertiesGroup = mesh.nwo
@@ -1149,7 +1163,7 @@ class ExportScene:
                     case '_connected_geometry_mesh_type_weather_polyhedron':
                         if not self.legacy_export or self.project_game not in {'halo1', 'halo2'}:
                             warnings_append(f'{ob.name}: weather polyhedra are only supported by Halo 1 and Halo 2 legacy export. Skipping mesh')
-                            return
+                            return None, True
                         # H1 JMS and H2 ASS represent these through special
                         # materials/names rather than a connected-geometry enum.
                         props['foundry_weather_polyhedron'] = True
@@ -1161,11 +1175,11 @@ class ExportScene:
                         '_connected_geometry_mesh_type_poop_vertical_rain_sheet',
                     }:
                         warnings_append(f'{ob.name}: rain geometry is only supported by Reach. Skipping mesh')
-                        return
+                        return None, True
                     if (self.project_game in {'halo1', 'halo2'}
                             and mesh_type == '_connected_geometry_mesh_type_boundary_surface'):
                         warnings_append(f'{ob.name}: boundary surfaces are not supported by {self.project_game}. Skipping mesh')
-                        return
+                        return None, True
                     if self.project_game == 'halo1' and mesh_type in {
                         '_connected_geometry_mesh_type_seam',
                         '_connected_geometry_mesh_type_water_surface',
@@ -1173,7 +1187,7 @@ class ExportScene:
                         '_connected_geometry_mesh_type_cookie_cutter',
                     }:
                         warnings_append(f'{ob.name}: this scenario mesh type is not supported by Halo 1. Skipping mesh')
-                        return
+                        return None, True
                         
                 match mesh_type:
                     case '_connected_geometry_mesh_type_poop':
@@ -1556,6 +1570,7 @@ class ExportScene:
         precise = self.asset_type in {AssetType.MODEL, AssetType.MULTI_MODEL} and self.export_settings.auto_precise
         skip_mesh_face_props = False
         face_count = 0
+        mesh_prop_counts = {}
         face_sides_props = []
         face_sides_props_full = []
         
@@ -1572,9 +1587,18 @@ class ExportScene:
             skip_mesh_face_props = True
         
         if is_mesh and mesh.nwo.face_props:
-            # Imported H1 helpers and Reach seam sealers can carry surface
-            # flags needed to preserve their collision and sidedness on export.
-            utils.consolidate_face_attributes(mesh, preserve_special_faces=self.project_game in {'halo1', 'reach'})
+            if utils.face_attributes.has_legacy(mesh):
+                if not mesh.is_editable:
+                    raise ExportCancelled(f'Mesh [{mesh.name}]: make linked mesh data local before converting face attributes')
+                try:
+                    utils.face_attributes.convert(mesh)
+                except ValueError as error:
+                    raise ExportCancelled(f'Mesh [{mesh.name}]: could not convert face attributes: {error}') from error
+                # Temporary export copies and modifiers must see the new channels
+                # immediately, including copies made during property mapping.
+                self.context.view_layer.update()
+            mesh_prop_counts = {prop.as_pointer(): utils.face_attributes.count(mesh, prop)
+                                for prop in mesh.nwo.face_props}
             face_count = len(mesh.polygons)
             if not skip_mesh_face_props:
                 face_props.extend(data_nwo.face_props)
@@ -1588,7 +1612,7 @@ class ExportScene:
                 mat = prop.global_material.strip().replace(' ', "_")
                 if mat:
                     self.global_materials.add(mat)
-            if is_mesh and prop.face_count != face_count:
+            if is_mesh and mesh_prop_counts.get(prop.as_pointer(), prop.face_count) != face_count:
                 if prop.type == 'region' and prop.region != region:
                     region_face_level = True
                 elif prop.type == 'precise_position':
@@ -1739,10 +1763,7 @@ class ExportScene:
                     if material.name.startswith("+sky"):
                         sky_materials.append(material)
                         if len(material.name) > 4 and material.name[4].isdigit():
-                            if len(material.name) > 5 and material.name[5].isdigit():
-                                sky_index = int("".join(material.name[4:5]))
-                            else:
-                                sky_index = int(material.name[4])
+                            sky_index = utils.get_sky_perm(material)
                             sky_indices.add(sky_index)
                     elif material.name.startswith("+seamsealer"):
                         seamsealer_materials.append(material)
@@ -1790,6 +1811,9 @@ class ExportScene:
         elif self.asset_type == AssetType.CINEMATIC:
             for actor in self.cinematic_actors:
                 if not actor.original_tag.strip():
+                    actor.node_order = {bone.name: index for index, bone in enumerate(sorted(
+                        (bone for bone in actor.ob.data.bones if bone.use_deform),
+                        key=lambda bone: bone.get('cinematic_node_index', 0)))}
                     continue
                 path = Path(self.tags_dir, utils.relative_path(actor.original_tag))
                 if path.exists() and path.is_file() and path.is_absolute():
@@ -2560,8 +2584,8 @@ class ExportScene:
         # if self.is_child_asset:
         #     writer = QUA(self.parent_asset_path_relative, self.cinematic_scene.name, self.virtual_scene.shots, self.cinematic_actors, self.corinth, False)
         # else:
-        writer = QUA(self.asset_path_relative, cin_scene.name, cin_scene.shots, cin_scene.actors, self.corinth, False,
-                     preserve_unexported_shots=self.legacy_export and self.current_shot_only)
+        writer = QUA(self.asset_path_relative, cin_scene.name, cin_scene.shots, cin_scene.actors, self.corinth, cin_scene.scene,
+                     preserve_unexported_shots=self.current_shot_only)
         # scene specific
         cin_scene_settings = cin_scene.scene_settings or self.scene_settings.cinematic_scenes[0]
         writer.write_to_tag(cin_scene_settings, cin_scene.scene)
@@ -2678,7 +2702,28 @@ class ExportScene:
         if not exported_something:
             print("--- No geometry to export")
         
+    def build_granny_export_data(self, filepath: Path, virtual_objects: dict[str: VirtualNode], animation: VirtualAnimation = None):
+        return build_export_file(self.virtual_scene, virtual_objects, animation=animation, export_info=self.export_info,
+            file_name=bpy.data.filepath or str(filepath), art_tool_version=bpy.app.version,
+            exporter_version=utils.get_version(), scale=self.from_halo_scale)
+
     def _export_granny_file(self, filepath: Path, virtual_objects: dict[str: VirtualNode], animation: VirtualAnimation = None):
+        if animation is not None and animation.is_pca and self.corinth:
+            from .pca import ensure_pcatool
+            try:
+                ensure_pcatool(self.project_root)
+            except OSError as error:
+                raise ExportCancelled(f'Could not install the blend shape solver: {error}') from error
+        if backend_for_scene(self) in (ExportBackend.PYTHON, ExportBackend.RUST):
+            try:
+                self.granny_export_data = self.build_granny_export_data(filepath, virtual_objects, animation)
+                writer = write_rust_file if backend_for_scene(self) is ExportBackend.RUST else write_minimal_file
+                writer(self.granny_export_data, filepath)
+            except (ExportDataError, OSError) as error:
+                raise ExportCancelled(f'Could not write GR2 file {filepath}: {error}') from error
+            if self.granny_open and animation is None and filepath.exists():
+                os.startfile(Path(utils.get_prefs().granny_viewer_path.strip("""'\" """)).with_suffix('.exe'), arguments=str(filepath))
+            return
         self.granny.new(filepath, self.forward, self.from_halo_scale)
         self.granny.from_tree(self.virtual_scene, virtual_objects, animation)
         

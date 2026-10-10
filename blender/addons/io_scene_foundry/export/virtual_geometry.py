@@ -2,6 +2,7 @@
 
 from ..exceptions import ExportCancelled
 from ..legacy.coordinates import axis_rotation
+from ..uv_channels import texture_uv_layers
 from collections import defaultdict
 from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
@@ -20,27 +21,29 @@ from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 from ..granny.formats import GrannyAnimation, GrannyBone, GrannyCurveDataDaKeyframes32f, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyMorphTarget, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVectorTrack, GrannyVertexData
 from ..granny import Granny
 from ..granny.mirror import mirror_indices, mirror_matrix, mirror_tracks, mirror_vectors
+from ..granny_export import ExportBackend, backend_for_scene
+from ..granny_export.adapter import sampled_animation, vertex_data as independent_vertex_data
+from ..granny_export.model import MorphTarget, Texture, TextureImage
 
 from .export_info import AdditionalCompression, ExportInfo, FaceDrawDistance, FaceMode, FaceType, LightmapType, MeshTessellationDensity, MeshType, ObjectType
+from .pca_mesh import pca_sample_mesh
+from .pca_tension import TensionBasis
 
 from ..props.mesh import NWO_MeshPropertiesGroup
 
-from .. import utils
+from .. import utils, face_attributes
 from ..tags.animation_compression import export_animation_compression
 
 from ..tools.asset_types import AssetType
 
-from .cinematic import Actor, Frame
+from .cinematic import Actor, Frame, cinematic_extra_camera_tracks
 
 from ..constants import IDENTITY_MATRIX, IK_INFLUENCE_ROUNDING_TOLERANCE, VALID_MESHES, WU_SCALAR, face_prop_game_supported
 NORMAL_FIX_MATRIX = Matrix(((1, 0, 0), (0, -1, 0), (0, 0, -1)))
 logging.basicConfig(level=logging.DEBUG)
 
 HAVOK_MAYA_COORDINATE_MATRIX_INV = Matrix(((0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0)))
-LEGACY_CONSTRAINT_MARKER_TYPES = {
-    "_connected_geometry_marker_type_physics_hinge_constraint",
-    "_connected_geometry_marker_type_physics_socket_constraint",
-}
+from ..marker_axis import LEGACY_CONSTRAINT_MARKER_TYPES, is_joint_frame, local_axes
 
 face_prop_defaults = {
     "bungie_face_region": 0,
@@ -262,6 +265,7 @@ class VirtualShotAnimation:
         self.granny_track_group = granny_track_group
         # self.granny_event_track_groups = None
         self.granny_animation = granny_animation
+        self.export_animation = None
         self.is_pca = is_pca
         self.gr2_path = None
         self.shot_index = index
@@ -279,6 +283,8 @@ class VirtualShotActor:
         self.actor = actor
         self.bones = None
         self.in_scope = scene.cinematic_scope != 'CAMERA' and (not scene.selected_cinematic_objects_only or actor.ob in scene.selected_actors)
+        if getattr(actor, 'scenario_only', False):
+            self.in_scope = False
         model = scene.models.get(actor.ob)
         if model is not None:
             skeleton = model.skeleton
@@ -297,6 +303,9 @@ class VirtualShot:
         self.frame_end = frame_end
         self.frame_count = frame_end - frame_start + 1
         self.frames: list[Frame] = []
+        self.extra_camera_tracks = (cinematic_extra_camera_tracks(scene.context.scene)
+                                    if scene.cinematic_scope != 'OBJECT' else [])
+        self.extra_camera_frames = {track.name: [] for track in self.extra_camera_tracks}
         self.index = index
         self.actor_animation = {}
         self.shot_index = index
@@ -306,7 +315,8 @@ class VirtualShot:
         self.in_scope = in_scope
     
     def perform(self, scene: 'VirtualScene', film_aperture: float):
-        if self.in_scope and (scene.cinematic_scope != 'OBJECT' or scene.granny is None):
+        legacy_export = backend_for_scene(scene) is ExportBackend.LEGACY
+        if self.in_scope and (scene.cinematic_scope != 'OBJECT' or not backend_for_scene(scene).uses_native):
             fps = utils.real_frame_rate()
             start, end = self.frame_start, self.frame_end
 
@@ -328,7 +338,16 @@ class VirtualShot:
 
                 scene.context.scene.frame_set(frame, subframe=subframe)
                 if scene.cinematic_scope != 'OBJECT':
-                    self.frames.append(Frame(self.camera, scene.corinth, film_aperture, scene.halo_transform_scale, scene.halo_rotation))
+                    self.frames.append(Frame(self.camera, scene.corinth, film_aperture, scene.halo_transform_scale, scene.halo_rotation, game=scene.game, scene=scene.context.scene))
+                    depsgraph = scene.context.evaluated_depsgraph_get()
+                    for track in self.extra_camera_tracks:
+                        if track.camera.name not in scene.context.view_layer.objects:
+                            raise ExportCancelled(f'Extra camera {track.name} is excluded from the active view layer')
+                        evaluated = track.camera.evaluated_get(depsgraph)
+                        self.extra_camera_frames[track.name].append(Frame(
+                            evaluated, scene.corinth, film_aperture, scene.halo_transform_scale,
+                            scene.halo_rotation, game=scene.game, scene=scene.context.scene,
+                            extra_camera_aspect=scene.context.scene.nwo.texture_camera_aspect_ratio))
                 for shot_actor in self.shot_actors:
                     if not shot_actor.in_scope:
                         continue
@@ -346,9 +365,16 @@ class VirtualShot:
 
                         loc, rot, sca = matrix.decompose()
 
-                        position = (c_float * 3)(loc.x, loc.y, loc.z)
-                        orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
-                        scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
+                        if legacy_export:
+                            # mathutils already exposes float32 values; JMA
+                            # needs no temporary ctypes arrays to round them.
+                            position = (loc.x, loc.y, loc.z)
+                            orientation = (rot.x, rot.y, rot.z, rot.w)
+                            scale_shear = (sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
+                        else:
+                            position = (c_float * 3)(loc.x, loc.y, loc.z)
+                            orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
+                            scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
 
                         shot_actor.positions[bone].extend(position)
                         shot_actor.orientations[bone].extend(orientation)
@@ -358,13 +384,21 @@ class VirtualShot:
                 
         for shot_actor in self.shot_actors:
             if shot_actor.in_scope and self.in_scope:
-                if scene.granny is None:
+                if backend_for_scene(scene) is ExportBackend.LEGACY:
                     animation = VirtualShotAnimation(f"{shot_actor.name}_{self.index + 1}", None, None, self.index, False)
                     animation.frame_count = self.frame_count
                     animation.legacy_tracks = [
                         (bone.name, shot_actor.positions[bone], shot_actor.orientations[bone], shot_actor.scales[bone])
                         for bone in shot_actor.bones
                     ]
+                    self.actor_animation[shot_actor] = animation
+                    continue
+                if backend_for_scene(scene) in (ExportBackend.PYTHON, ExportBackend.RUST):
+                    animation = VirtualShotAnimation(f"{shot_actor.name}_{self.index + 1}", None, None, self.index, False)
+                    animation.frame_count = self.frame_count
+                    animation.export_animation = sampled_animation(animation.name, scene.time_step, self.frame_count,
+                        [(bone.pbone.name, shot_actor.positions[bone], shot_actor.orientations[bone], shot_actor.scales[bone])
+                         for bone in shot_actor.bones])
                     self.actor_animation[shot_actor] = animation
                     continue
                 tracks = []
@@ -557,6 +591,8 @@ class VirtualAnimation:
         self.composite_blend_axis_values = {}
             
         self.granny_animation = None
+        self.export_animation = None
+        self.export_morph_targets = {}
         self.granny_track_group = None
         self.granny_vector_tracks = None
         # self.granny_event_track_groups = []
@@ -597,7 +633,7 @@ class VirtualAnimation:
 
         if sample:
             self.create_track_group(scene.skeleton_model.skeleton.animated_bones + animation_controls, scene, shape_key_objects, vector_events)
-            if scene.granny is not None:
+            if backend_for_scene(scene).uses_native:
                 self.to_granny_animation(scene)
             
     def create_vector_track_groups(self, scene: 'VirtualScene', vector_events: list[VectorEvent]):
@@ -652,6 +688,7 @@ class VirtualAnimation:
                 scene.warnings.append(f"--- XYZ rotation {rotation_with_names} occurs at frames {frames}")
 
     def create_track_group(self, bones: list['AnimatedBone'], scene: 'VirtualScene', shape_key_objects, vector_events: list[VectorEvent]):
+        legacy_export = backend_for_scene(scene) is ExportBackend.LEGACY
         positions = defaultdict(list)
         orientations = defaultdict(list)
         scales = defaultdict(list)
@@ -756,9 +793,14 @@ class VirtualAnimation:
                     frame_data = tuple((rot.x, rot.y, rot.z, wrap_events.get(frame)))
                     pose_overlay_frame_data[bone.name].append(frame_data)
 
-                position = (c_float * 3)(loc.x, loc.y, loc.z)
-                orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
-                scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
+                if legacy_export:
+                    position = (loc.x, loc.y, loc.z)
+                    orientation = (rot.x, rot.y, rot.z, rot.w)
+                    scale_shear = (sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
+                else:
+                    position = (c_float * 3)(loc.x, loc.y, loc.z)
+                    orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
+                    scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
 
                 positions[bone].extend(position)
                 orientations[bone].extend(orientation)
@@ -779,10 +821,16 @@ class VirtualAnimation:
 
         self.validate_pose_overlay(scene, pose_overlay_frame_data)
 
-        if scene.granny is None:
+        if backend_for_scene(scene) is ExportBackend.LEGACY:
             if shape_key_data or vector_events:
                 raise ExportCancelled('JMA export does not support PCA or vector animation events')
             self.legacy_tracks = [(bone.name, positions[bone], orientations[bone], scales[bone]) for bone in bones]
+            return
+        if backend_for_scene(scene) in (ExportBackend.PYTHON, ExportBackend.RUST):
+            self.export_animation = sampled_animation(self.name, scene.time_step, self.frame_count,
+                [(bone.pbone.name, positions[bone], orientations[bone], scales[bone]) for bone in bones], vector_events)
+            self.export_morph_targets = {node: tuple(MorphTarget(None, morph.export_vertices)
+                for morph in morphs if not morph.invalid) for node, morphs in morph_target_datas.items()}
             return
         self.create_vector_track_groups(scene, vector_events)
         
@@ -980,6 +1028,7 @@ class VirtualMaterial:
         self.shader_path = "override"
         self.shader_type = "override"
         self.granny_texture = None
+        self.export_texture = None
         self.scene = scene
         if shader_path is not None:
             if not str(shader_path).strip() or str(shader_path) == '.':
@@ -1010,6 +1059,8 @@ class VirtualMaterial:
         self.to_granny_data(scene)
     
     def to_granny_data(self, scene):
+        if not backend_for_scene(scene).uses_native:
+            return
         self.granny_material = GrannyMaterial()
         self.granny_material.name = self.name.encode()
         data = MaterialExtendedData(shader_path=self.shader_path.encode(), shader_type=self.shader_type.encode())
@@ -1041,6 +1092,9 @@ class VirtualMaterial:
         
         # Create a granny texture builder instance
         width, height, stride, rgba = bitmap_data
+        if backend_for_scene(scene) in (ExportBackend.PYTHON, ExportBackend.RUST):
+            self.export_texture = Texture(str(full_path), (TextureImage(width, height, stride, bytes(rgba)),))
+            return
         if isinstance(rgba, (bytes, bytearray)):
             rgba_buffer = (c_ubyte * len(rgba)).from_buffer_copy(rgba)
             rgba = cast(rgba_buffer, c_void_p)
@@ -1068,14 +1122,19 @@ class VirtualMorphTargetData:
         self.num_vertices = 0
         self.invalid = False
         self._setup(ob, scene, node)
+        self.export_vertices = None
+        if backend_for_scene(scene) in (ExportBackend.PYTHON, ExportBackend.RUST):
+            if not self.invalid:
+                self.export_vertices = independent_vertex_data(self, morph=True)
+            return
         self._granny_vertex_data(scene)
         self._write_vertex_position(scene, node)
         self.granny_morph_target = GrannyMorphTarget(None, self.granny_vertex_data, 0)
         
     def _write_vertex_position(self, scene, node):
         self.granny_vertex_data = GrannyVertexData()
-        # self.granny_vertex_data.vertex_component_names = self.vertex_component_names
-        # self.granny_vertex_data.vertex_component_name_count = self.vertex_component_name_count
+        self.granny_vertex_data.vertex_component_names = self.vertex_component_names
+        self.granny_vertex_data.vertex_component_name_count = self.vertex_component_name_count
         self.granny_vertex_data.vertex_type = self.vertex_type
         vertex_array = (c_ubyte * self.len_vertex_array)()
         if node.matrix_world == IDENTITY_MATRIX:
@@ -1099,33 +1158,23 @@ class VirtualMorphTargetData:
         self.granny_vertex_data = pointer(self.granny_vertex_data)   
     
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene' , node: 'VirtualNode'):
-        eval_ob = ob.ob.evaluated_get(scene.depsgraph)
+        try:
+            with pca_sample_mesh(ob.ob, scene.depsgraph,
+                                 utils.tri_mod_to_bmesh_tri(scene.quad_method),
+                                 utils.tri_mod_to_bmesh_tri(scene.ngon_method),
+                                 reference_positions=node.mesh.pca_reference_positions,
+                                 reference_indices=node.mesh.pca_loop_vertex_indices) as mesh:
+                self._read_sample_mesh(mesh, ob, scene, node)
+        except ValueError as error:
+            raise ExportCancelled(str(error)) from error
 
-        # Get a fully evaluated mesh (preserve data layers so corner_normals / colors exist)
-        mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
-        
+    def _read_sample_mesh(self, mesh, ob, scene, node):
         self.name = mesh.name
         if not mesh.polygons:
             scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. Skipping writing morph target data")
             self.invalid = True
             return
 
-        # Keep morph sampling topology aligned with VirtualMesh export topology.
-        loop_totals = np.empty(len(mesh.polygons), dtype=np.int32)
-        mesh.polygons.foreach_get("loop_total", loop_totals)
-        unique_loop_totals = np.unique(loop_totals)
-        if len(unique_loop_totals) > 1 or unique_loop_totals[0] != 3:
-            bm = bmesh.new()
-            bm.from_mesh(mesh)
-            bmesh.ops.triangulate(
-                bm,
-                faces=bm.faces,
-                quad_method=utils.tri_mod_to_bmesh_tri(scene.quad_method),
-                ngon_method=utils.tri_mod_to_bmesh_tri(scene.ngon_method),
-            )
-            bm.to_mesh(mesh)
-            bm.free()
-            
         num_loops = len(mesh.loops)
         num_vertices = len(mesh.vertices)
         
@@ -1141,26 +1190,15 @@ class VirtualMorphTargetData:
         self.normals = np.empty((num_loops, 3), dtype=np.single)
         mesh.corner_normals.foreach_get("vector", self.normals.ravel())
         
-        for idx, layer in enumerate(mesh.color_attributes):
-            # if len(self.vertex_colors) >= 2:
-            #     break
-
-            is_tension = layer.name.lower() == "tension"
-            if not is_tension:
-                continue
-            
-            colors = np.empty((num_vertices, 4) if layer.domain == 'POINT' else (num_loops, 4), dtype=np.single)
-            layer.data.foreach_get("color", colors.ravel())
-            is_tension = layer.name.lower() == "tension"
-            
-            colors = colors[:, :3]
-            if layer.domain == 'POINT':
-                colors = colors[loop_vertex_indices]
-
-            self.tension = colors
-
-                
-        if self.tension is None:
+        # Tool looks up this field by the reference mesh's declaration, even
+        # when the morph omits the reference's ordinary vertex color layers.
+        self.tension_field_name = f'DiffuseColor{len(node.mesh.vertex_colors)}'
+        if scene.corinth and node.mesh.pca_tension_basis is not None:
+            # Compute once per original vertex, then expand to the same fixed
+            # triangle corners as positions and normals. Painted values are not
+            # used for PCA samples: tension describes this frame's deformation.
+            self.tension = node.mesh.pca_tension_basis.calculate(vertex_positions)[loop_vertex_indices]
+        else:
             self.tension = np.zeros((num_loops, 3), dtype=np.single)
         
         if node.for_pca and node.mesh.pca_new_indices is not None:
@@ -1173,6 +1211,8 @@ class VirtualMorphTargetData:
             if new_indices.size:
                 max_index = int(new_indices.max())
                 if max_index >= len(self.positions):
+                    if node.for_pca:
+                        raise ExportCancelled(f'PCA mesh [{ob.name}] has a different corner layout in its animation and reference mesh')
                     max_valid_index = max(len(self.positions) - 1, 0)
                     scene.warnings.append(
                         f"PCA morph target [{ob.name}] loop index mismatch for node [{node.name}] "
@@ -1188,7 +1228,6 @@ class VirtualMorphTargetData:
             if self.tension is not None:
                 self.tension = self.tension[new_indices, :]
             
-        # eval_ob.to_mesh_clear()
         
         self.num_vertices = len(self.positions)
 
@@ -1206,7 +1245,7 @@ class VirtualMorphTargetData:
             
         if self.tension is not None:
             data.append(self.tension)
-            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"DiffuseColor0", None, 3))
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, self.tension_field_name.encode(), None, 3))
             type_names.append(b"tension")
             dtypes.append(("tension", np.single, (3,)))
 
@@ -1214,8 +1253,9 @@ class VirtualMorphTargetData:
         
         num_types = len(type_names)
         names_array = (c_char_p * num_types)(*type_names)
-        # self.vertex_component_names = cast(names_array, POINTER(c_char_p))
-        # self.vertex_component_name_count = num_types
+        self._vertex_component_names_array = names_array
+        self.vertex_component_names = cast(names_array, POINTER(c_char_p))
+        self.vertex_component_name_count = num_types
         
         type_info_array = (GrannyDataTypeDefinition * (num_types + 1))(*types)
         self.vertex_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
@@ -1242,8 +1282,6 @@ class VirtualMesh:
         self.proxies = proxies
         self.positions: np.ndarray = None
         self.normals: np.ndarray = None
-        self.legacy_positions: np.ndarray | None = None
-        self.legacy_position_mask: np.ndarray | None = None
         self.legacy_no_material: np.ndarray | None = None
         self.bone_weights: np.ndarray = None
         self.bone_indices: np.ndarray = None
@@ -1267,6 +1305,9 @@ class VirtualMesh:
         self.siblings = [ob.name]
         self.new_indices = None
         self.pca_new_indices = None
+        self.pca_reference_positions = None
+        self.pca_loop_vertex_indices = None
+        self.pca_tension_basis = None
         self.pca_indices = None
         self.pca_granny_tri_topology = None
         self.pca_num_vertices = 0
@@ -1277,11 +1318,12 @@ class VirtualMesh:
         self.pca_vertex_array = None
         self._pca_vertex_component_names_array = None
         self._pca_vertex_type_array = None
+        self.export_pca_vertices = None
         self.pca_enabled = bool(getattr(ob, "for_pca", False))
         self.bone_parent = ""
         self._setup(ob, scene, render_mesh, props, bones)
             
-        if not self.invalid and scene.granny is not None:
+        if not self.invalid and backend_for_scene(scene).uses_native:
             self.to_granny_data(scene)
             if negative_scaling:
                 scene.granny.invert_tri_topology_winding(self.granny_tri_topology)
@@ -1480,12 +1522,28 @@ class VirtualMesh:
             legacy_triangles = (scene.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
                                 and all(p.loop_total == 3 for p in ob.data.polygons)
                                 and not any(mod.show_viewport for mod in ob.ob.modifiers))
+            if self.pca_enabled and scene.corinth:
+                # Match Maya's deformation edges, excluding the extra diagonals
+                # introduced solely for export. Capture in local rest space.
+                rest_mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
+                try:
+                    self.pca_tension_basis = TensionBasis.from_mesh(rest_mesh)
+                finally:
+                    eval_ob.to_mesh_clear()
             if true_mesh and not legacy_triangles:
                 add_triangle_mod(scene, eval_ob)
 
             mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
         else:
             mesh = ob.data
+            if self.pca_enabled and scene.corinth:
+                self.pca_tension_basis = TensionBasis.from_mesh(mesh)
+
+        if self.pca_enabled:
+            # Capture before object transforms: triangulation decisions are made
+            # in the evaluated mesh's local reference coordinates.
+            self.pca_reference_positions = np.empty((len(mesh.vertices), 3), dtype=np.single)
+            mesh.vertices.foreach_get('co', self.pca_reference_positions.ravel())
             
         if props.get("foundry_simplify"):
             simplify_water_physics_mesh(mesh, scene)
@@ -1553,17 +1611,6 @@ class VirtualMesh:
         
         def remap(i):
             return vgroup_remap.get(i, 0)
-
-        original = mesh.attributes.get('legacy_source_position')
-        imported = mesh.attributes.get('legacy_import_position')
-        if (scene.game in {'halo2', 'halo3', 'halo3odst'} and original is not None and imported is not None
-                and original.domain == imported.domain == 'POINT'):
-            source_positions = np.empty((num_vertices, 3), dtype=np.single)
-            import_positions = np.empty_like(source_positions)
-            original.data.foreach_get('vector', source_positions.ravel())
-            imported.data.foreach_get('vector', import_positions.ravel())
-            self.legacy_positions = source_positions[loop_vertex_indices]
-            self.legacy_position_mask = np.all(vertex_positions == import_positions, axis=1)[loop_vertex_indices]
 
         is_collision = props.get("bungie_mesh_type") == MeshType.collision.value
         is_physics = props.get("bungie_mesh_type") == MeshType.physics.value
@@ -1704,16 +1751,6 @@ class VirtualMesh:
             self.normals = np.empty((num_loops, 3), dtype=np.single)
             mesh.corner_normals.foreach_get("vector", self.normals.ravel())
 
-            source_normal = mesh.attributes.get('legacy_source_normal')
-            import_normal = mesh.attributes.get('legacy_import_normal')
-            if legacy and source_normal is not None and import_normal is not None:
-                authored = np.empty_like(self.normals)
-                baseline = np.empty_like(self.normals)
-                source_normal.data.foreach_get('vector', authored.ravel())
-                import_normal.data.foreach_get('vector', baseline.ravel())
-                unchanged = np.max(np.abs(self.normals - baseline), axis=1) < 1e-4
-                self.normals[unchanged] = authored[unchanged]
-
             if mesh.has_custom_normals and not legacy:
                 # Build per-vertex normals from split normals so custom data that is effectively
                 # vertex-based doesn't force unnecessary loop splits at export.
@@ -1741,23 +1778,19 @@ class VirtualMesh:
                     consistent_loops = consistent_vertices[loop_vertex_indices]
                     self.normals[consistent_loops] = vertex_normals[loop_vertex_indices[consistent_loops]]
 
-            for idx, layer in enumerate(mesh.uv_layers):
-                if len(self.texcoords) >= 4:
-                    break
+            for layer, w_layer in texture_uv_layers(mesh):
+                if layer.name.lower() != 'lighting' and len(self.texcoords) >= 4:
+                    continue
                 
                 loop_uvs = np.zeros((num_loops, 2), dtype=np.single)
                 layer.uv.foreach_get("vector", loop_uvs.ravel())
                 if not legacy:
                     loop_uvs[:, 1] = 1-loop_uvs[:, 1]
                 zeros_column = np.zeros((num_loops, 1), dtype=np.single)
-                if legacy:
-                    # ASS 5+ can retain a third texture coordinate. Store it
-                    # per corner so coincident UV seams survive import welding.
-                    uv_w = mesh.attributes.get(f'ass_uv_w_{idx}')
-                    if uv_w is not None and uv_w.domain in {'POINT', 'CORNER'}:
-                        values = np.empty(len(uv_w.data), dtype=np.single)
-                        uv_w.data.foreach_get('value', values)
-                        zeros_column[:, 0] = values[loop_vertex_indices] if uv_w.domain == 'POINT' else values
+                if w_layer is not None:
+                    coordinates = np.empty((num_loops, 2), dtype=np.single)
+                    w_layer.uv.foreach_get('vector', coordinates.ravel())
+                    zeros_column[:, 0] = coordinates[:, 0]
                 combined_uvs = np.hstack((loop_uvs, zeros_column))
                 if layer.name.lower() == "lighting":
                     self.lighting_texcoords = combined_uvs
@@ -1785,7 +1818,11 @@ class VirtualMesh:
                 else:
                     self.vertex_colors.append(colors)
                     
-            if scene.corinth and self.tension is None and ob.data.shape_keys:
+            if scene.corinth and self.pca_enabled:
+                # The reference pose is neutral even when an old painted
+                # tension layer is present. Animation frames are calculated.
+                self.tension = np.zeros((num_loops, 3), dtype=np.single)
+            elif scene.corinth and self.tension is None and ob.data.shape_keys:
                 self.tension = np.zeros((num_loops, 3), dtype=np.single)
                 
         if scene.corinth:
@@ -1799,16 +1836,20 @@ class VirtualMesh:
 
         if self.pca_enabled:
             # PCA animation export should keep fully split (per-loop) vertices, unlike render export.
+            self.pca_loop_vertex_indices = loop_vertex_indices.copy()
             self.pca_new_indices = np.arange(num_loops, dtype=np.int32)
             self.pca_indices = self.pca_new_indices.copy()
-            pca_names_array, pca_type_info_array, pca_vertex_array, pca_len_vertex_array, pca_num_types = self._make_vertex_array(scene)
-            self._pca_vertex_component_names_array = pca_names_array
-            self._pca_vertex_type_array = pca_type_info_array
-            self.pca_vertex_component_names = cast(pca_names_array, POINTER(c_char_p))
-            self.pca_vertex_component_name_count = pca_num_types
-            self.pca_vertex_type = cast(pca_type_info_array, POINTER(GrannyDataTypeDefinition))
-            self.pca_len_vertex_array = pca_len_vertex_array
-            self.pca_vertex_array = pca_vertex_array
+            if backend_for_scene(scene).uses_native:
+                pca_names_array, pca_type_info_array, pca_vertex_array, pca_len_vertex_array, pca_num_types = self._make_vertex_array(scene)
+                self._pca_vertex_component_names_array = pca_names_array
+                self._pca_vertex_type_array = pca_type_info_array
+                self.pca_vertex_component_names = cast(pca_names_array, POINTER(c_char_p))
+                self.pca_vertex_component_name_count = pca_num_types
+                self.pca_vertex_type = cast(pca_type_info_array, POINTER(GrannyDataTypeDefinition))
+                self.pca_len_vertex_array = pca_len_vertex_array
+                self.pca_vertex_array = pca_vertex_array
+            elif backend_for_scene(scene).is_gr2:
+                self.export_pca_vertices = independent_vertex_data(self, corinth=scene.corinth)
             self.pca_num_vertices = num_loops
 
         # Remove duplicate vertex data.
@@ -1832,19 +1873,6 @@ class VirtualMesh:
         # variant of a shared position, opening the structure collision shell.
         if legacy and self.bone_weights is not None:
             weld_components.extend((self.bone_indices, self.bone_weights))
-        if self.legacy_positions is not None:
-            # Unit conversion can round distinct source floats to one Blender
-            # coordinate. Keep their original identities through export too.
-            weld_components.extend((self.legacy_positions, self.legacy_position_mask[:, None]))
-        source_vertices = mesh.attributes.get('legacy_source_vertex')
-        source_vertex_ids = None
-        if legacy and source_vertices is not None and source_vertices.domain == 'CORNER':
-            # Tool's strip/tangent construction uses source vertex identity.
-            # Identical overlapping faces must not acquire shared indices here.
-            identities = np.empty(num_loops, dtype=np.int32)
-            source_vertices.data.foreach_get('value', identities)
-            weld_components.append(identities[:, None])
-            source_vertex_ids = identities
         new_indices, face_indices = self._stable_unique_rows_with_epsilon(
             weld_components, None if legacy else 1.0e-4)
 
@@ -1852,12 +1880,8 @@ class VirtualMesh:
         new_indices = tuple(new_indices)
         
         self.new_indices = new_indices
-        self.legacy_vertex_ids = source_vertex_ids[list(new_indices)] if source_vertex_ids is not None else None
 
         self.positions = self.positions[new_indices, :]
-        if self.legacy_positions is not None:
-            self.legacy_positions = self.legacy_positions[new_indices, :]
-            self.legacy_position_mask = self.legacy_position_mask[list(new_indices)]
         
         if self.normals is not None:
             self.normals = self.normals[new_indices, :]
@@ -1982,30 +2006,6 @@ class VirtualMesh:
             if sorted_order is not None:
                 values = values[sorted_order]
             self.face_properties['foundry_legacy_sphere_collision'] = FaceSet(values)
-        material_slots = mesh.attributes.get('legacy_material_slot')
-        if material_slots is not None and material_slots.domain == 'FACE':
-            values = np.empty(num_polygons, dtype=np.int32)
-            material_slots.data.foreach_get('value', values)
-            if sorted_order is not None:
-                values = values[sorted_order]
-            self.face_properties['foundry_legacy_material_slot'] = FaceSet(values)
-        for name,target in (('legacy_source_face','legacy_face_order'), ('legacy_face_start','legacy_face_starts'),
-                            ('ass_proxy_source_instance','legacy_proxy_source_instances')):
-            attribute = mesh.attributes.get(name)
-            if attribute is not None and attribute.domain == 'FACE':
-                values = np.empty(num_polygons, dtype=np.int32)
-                attribute.data.foreach_get('value', values)
-                setattr(self, target, values[sorted_order] if sorted_order is not None else values)
-        for name,key in (('ass_source_side_flags','foundry_legacy_side_flags'), ('ass_import_face_sides','foundry_legacy_import_sides'),
-                         ('ass_lightmap_record_size','foundry_legacy_lightmap_record_size'),
-                         ('ass_source_material_index','foundry_legacy_ass_material_index')):
-            attribute = mesh.attributes.get(name)
-            if attribute is not None and attribute.domain == 'FACE':
-                values = np.empty(num_polygons, dtype=np.int32)
-                attribute.data.foreach_get('value', values)
-                if sorted_order is not None:
-                    values = values[sorted_order]
-                self.face_properties[key] = FaceSet(values)
 
         if evaluated:
             eval_ob.to_mesh_clear()
@@ -2035,6 +2035,7 @@ class VirtualNode:
         self.granny_vertex_data = None
         self.granny_vertex_data_copies = {}
         self.granny_vertex_data_copy_buffers = {}
+        self.export_vertex_overrides = {}
         self.negative_scaling = False
         self.mod_stack = None
         
@@ -2054,7 +2055,7 @@ class VirtualNode:
                     self.matrix_local = IDENTITY_MATRIX
                 else:
                     if self._should_apply_marker_axis(scene):
-                        self.matrix_world = scene.rotation_matrix @ id.matrix_world @ scene.marker_rotation_matrix
+                        self.matrix_world = local_axes(scene.rotation_matrix @ id.matrix_world, scene.halo_rotation)
                     else:
                         self.matrix_world = scene.rotation_matrix @ id.matrix_world
                         
@@ -2089,7 +2090,10 @@ class VirtualNode:
                     self.mesh = mesh
                     self.new_mesh = True
                     
-                self.bone_bindings = self.mesh.bone_bindings
+                # Rigid instances share geometry, but each binds to its own
+                # node in its model's skeleton. Only skinned geometry carries
+                # a shared palette addressed by the vertex bone indices.
+                self.bone_bindings = list(self.mesh.bone_bindings) if self.mesh.vertex_weighted else default_bone_bindings
                 if self.mesh.vertex_weighted and not (id.parent_type == 'BONE' and id.parent_bone):
                     self.matrix_local = IDENTITY_MATRIX
                     
@@ -2097,8 +2101,8 @@ class VirtualNode:
                     self.invalid = True
                     return
 
-                if scene.granny is None:
-                    return  # Text backends consume mesh arrays and transforms directly.
+                if not backend_for_scene(scene).uses_native:
+                    return  # Independent backends consume arrays and pending placement directly.
                     
                 self.granny_vertex_data = GrannyVertexData()
                 self.granny_vertex_data.vertex_component_names = self.mesh.vertex_component_names
@@ -2183,6 +2187,12 @@ class VirtualNode:
             )
             return
 
+        if backend_for_scene(scene) in (ExportBackend.PYTHON, ExportBackend.RUST):
+            self.export_vertex_overrides[animation] = independent_vertex_data(self.mesh, corinth=scene.corinth,
+                placement=self.matrix_world, reflect_y=scene.mirror, positions=morph_target.positions,
+                normals=morph_target.normals, tension=morph_target.tension)
+            return
+
         names_array, type_info_array, vertex_array, _, num_types = self.mesh._make_vertex_array(
             scene,
             position_override=morph_target.positions,
@@ -2214,11 +2224,8 @@ class VirtualNode:
 
 
     def _should_apply_marker_axis(self, scene: 'VirtualScene') -> bool:
-        if (scene.game in {'halo2', 'halo3', 'halo3odst'}
-                and self.props.get('bungie_marker_type') in LEGACY_CONSTRAINT_MARKER_TYPES):
+        if is_joint_frame(self.props.get('bungie_marker_type'), scene.game):
             # JMS constraints author joint frames, independent of marker axes.
-            return False
-        if not scene.maintain_marker_axis:
             return False
         if self.props.get("bungie_object_type") != ObjectType.marker.value:
             return False
@@ -2311,7 +2318,7 @@ class VirtualBone:
         self.props = {}
         self.animation_props = {}
         self.physics_subshapes = []
-        self.granny_bone = GrannyBone()
+        self.granny_bone = None
         self.is_proxy = is_proxy
         
     def create_bone_props(self, frame_ids):
@@ -2321,6 +2328,10 @@ class VirtualBone:
         self.props["bungie_object_type"] = ObjectType.frame.value
         
     def to_granny_data(self, scene: 'VirtualScene'):
+        if not backend_for_scene(scene).uses_native:
+            return
+        if self.granny_bone is None:
+            self.granny_bone = GrannyBone()
         self.granny_bone.name = self.name.encode()
         self.granny_bone.parent_index = self.parent_index
         matrix_local = mirror_matrix(self.matrix_local) if scene.mirror else self.matrix_local
@@ -2718,7 +2729,7 @@ class VirtualModel:
             self.matrix: Matrix = ob.matrix_world.copy()
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, time_step: float, rotation: float, maintain_marker_axis: bool, granny_textures: bool, project, light_scale: float, unit_factor: float, atten_scalar: int, context: bpy.types.Context, halo_transform_scale: float = None, scene_nwo=None):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, time_step: float, rotation: float, granny_textures: bool, project, light_scale: float, unit_factor: float, atten_scalar: int, context: bpy.types.Context, halo_transform_scale: float = None, scene_nwo=None, export_backend=None):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.meshes_linked: dict[VirtualMesh] = {}
@@ -2732,7 +2743,8 @@ class VirtualScene:
         self.depsgraph = depsgraph
         self.tags_dir = tags_dir
         self.granny = granny
-        self.mirror = granny is not None and export_settings.granny_mirror
+        self.export_backend = ExportBackend(export_backend) if export_backend is not None else backend_for_scene(self)
+        self.mirror = self.export_backend.is_gr2 and export_settings.granny_mirror
         self.regions: dict = {}
         self.regions_set = set()
         self.permutations: list = []
@@ -2759,7 +2771,7 @@ class VirtualScene:
         self.object_halo_data: dict[bpy.types.Object: tuple[dict, str, str, list]] = {}
         self.mesh_object_map: dict[tuple[bpy.types.Mesh, bool]: list[bpy.types.Object]] = {}
         
-        self.material_extended_data_type = self._create_material_extended_data_type()
+        self.material_extended_data_type = self._create_material_extended_data_type() if self.export_backend.uses_native else None
         self.correction_matrix = IDENTITY_MATRIX
         self.root_bone = None
         self.aim_pitch = None
@@ -2769,11 +2781,9 @@ class VirtualScene:
         self.aim_yaw_matrix_inverse = IDENTITY_MATRIX
 
         legacy = self.game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
-        self.rotation_matrix = axis_rotation(rotation) if legacy else Matrix.Rotation(rotation, 4, Vector((0, 0, 1)))
+        self.rotation_matrix = axis_rotation(rotation)
         self.halo_rotation = rotation
         self.halo_transform_scale = halo_transform_scale
-        self.marker_rotation_matrix = axis_rotation(-rotation) if legacy else Matrix.Rotation(-rotation, 4, 'Z')
-        self.maintain_marker_axis = maintain_marker_axis
         self.armature_matrix = IDENTITY_MATRIX
         
         self.export_tag_types = set()
@@ -2871,12 +2881,8 @@ class VirtualScene:
         else:
             matrix_world = export_id.matrix_world
 
-        if (
-            self.maintain_marker_axis
-            and node.props.get("bungie_object_type") == ObjectType.marker.value
-            and getattr(export_id, "parent", None) is None
-        ):
-            return self.rotation_matrix @ matrix_world @ self.marker_rotation_matrix
+        if node._should_apply_marker_axis(self):
+            return local_axes(self.rotation_matrix @ matrix_world, self.halo_rotation)
 
         return self.rotation_matrix @ matrix_world
 
@@ -3384,30 +3390,29 @@ def has_armature_deform_mod(ob: utils.ExportObject):
     return False
 
 class FaceSet:
-    __slots__ = ("array", "annotation_type")
+    __slots__ = ("array", "_annotation_type")
     _material_index_cache: dict[tuple[int, int], np.ndarray] = {}
-    _attribute_mask_cache: dict[tuple[int, int, str], np.ndarray] = {}
+    _attribute_mask_cache: dict[tuple[int, int, str, int], np.ndarray] = {}
 
     def __init__(self, array: np.ndarray):
         self.array = array
-        self.annotation_type = None
-        self._set_tri_annotation_type()
+        self._annotation_type = None
+
+    @property
+    def annotation_type(self):
+        if self._annotation_type is None:
+            self._set_tri_annotation_type()
+        return self._annotation_type
         
     def update(self, mesh: bpy.types.Mesh, prop, value: object, additive=False):
         attribute_name = prop.attribute_name
         if not attribute_name:
             return
 
-        cache_key = (mesh.as_pointer(), len(mesh.polygons), attribute_name)
+        cache_key = (mesh.as_pointer(), len(mesh.polygons), attribute_name, face_attributes.assignment_id(prop))
         mask = self._attribute_mask_cache.get(cache_key)
         if mask is None:
-            attribute = mesh.attributes.get(attribute_name)
-            if attribute is None:
-                return
-
-            values_array = np.zeros(len(mesh.polygons), dtype=np.int8)
-            attribute.data.foreach_get("value", values_array)
-            mask = values_array.astype(bool)
+            mask = face_attributes.mask(mesh, prop)
             self._attribute_mask_cache[cache_key] = mask
 
         if additive:
@@ -3450,7 +3455,7 @@ class FaceSet:
         annotation_type.append(GrannyDataTypeDefinition(0, None, None, 0))
         
         type_info_array = (GrannyDataTypeDefinition * 2)(*annotation_type)
-        self.annotation_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
+        self._annotation_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
             
 
 def update_legacy_emissive_faces(face_properties, mesh, num_faces, prop, scene, material_indices=None):
@@ -3684,15 +3689,11 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     face_properties.setdefault("bungie_face_sides", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_sides"], dtype=np.int32))).update(mesh, prop, side_value)
             case 'transparent':
                 if props.get("bungie_face_sides") is None:
-                    attribute = mesh.attributes.get(prop.attribute_name)
-                    if attribute is not None:
-                        prop_face_indices = np.zeros(len(mesh.polygons), dtype=np.int8)
-                        attribute.data.foreach_get("value", prop_face_indices)
-                        if prop.transparent:
-                            deferred_face_transparencies.append(np.nonzero(prop_face_indices)[0])
-                        else:
-                            deferred_opaques.append(np.nonzero(prop_face_indices)[0])
-                    # face_properties.setdefault("bungie_face_sides", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_sides"], dtype=np.int32))).update(mesh, prop, 1, additive=True)
+                    indices = np.flatnonzero(face_attributes.mask(mesh, prop))
+                    if prop.transparent:
+                        deferred_face_transparencies.append(indices)
+                    else:
+                        deferred_opaques.append(indices)
             case 'region':
                 if scene.asset_type.supports_regions and props.get("bungie_face_region") is None:
                     rv = scene.regions.get(face_prop_defaults["bungie_face_region"], 0)
@@ -3836,10 +3837,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                 
                 if not scene.corinth and enum_val == FaceType.sky.value:
                     if len(material.name) > 4 and material.name[4].isdigit():
-                        if len(material.name) > 5 and material.name[5].isdigit():
-                            sky_index = int("".join(material.name[4:5]))
-                        else:
-                            sky_index = int(material.name[4])
+                        sky_index = utils.get_sky_perm(material)
                         if sky_index > 0 and props.get("bungie_sky_permutation_index") is None:
                             face_properties.setdefault("bungie_sky_permutation_index", FaceSet(np.zeros(num_faces, dtype=np.int32))).update_from_material(mesh, material_indices, sky_index)
                         
