@@ -62,9 +62,13 @@ class RenderMethodOptionDocument(TagDocument):
         integer = get('default int/bool value')
         color = option_rgba(get('default color'))
         default = (bitmap, color, real, integer, integer, (color, real))[kind]
+        address = element.field('default address mode')
+        address_mode = enum_index(address.value, ('wrap', 'clamp', 'mirror', 'black border',
+                                  'mirror once', 'mirror once border')) if address is not None else 0
         return SimpleNamespace(name=name, ui_name=ui_name, type=kind, default=default,
                                default_bitmap=bitmap, default_real=real,
-                               default_int=integer, default_color=color)
+                               default_int=integer, default_color=color,
+                               default_address_mode=address_mode)
 
     def get_option_parameters(self):
         result = {}
