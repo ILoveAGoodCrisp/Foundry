@@ -3,6 +3,7 @@
 from enum import Enum, auto
 
 from mathutils import Matrix
+from .coordinate_system import WORLD_UNITS_PER_METER
 
 RENDER_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop", '_connected_geometry_mesh_type_object_instance', '_connected_geometry_mesh_type_water_surface')
 COLLISION_MESH_TYPES = ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision")
@@ -198,7 +199,7 @@ object_game_validation = {
     '_connected_geometry_marker_type_lightCone': ('corinth',),
     }
 
-WU_SCALAR = 0.3280839895013123 # converts a meter to a world unit
+WU_SCALAR = WORLD_UNITS_PER_METER # converts a meter to a world unit
 HALO_FACTOR = (1 / 0.03048) # Converts a meter to halo units
 REACH_FL_FACTOR = 1.276614018691589 # Multiply Blender camera length to get the game focal length
 CORINTH_FL_FACTOR = 0.5
