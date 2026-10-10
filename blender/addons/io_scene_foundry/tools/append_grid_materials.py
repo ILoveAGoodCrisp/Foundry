@@ -118,18 +118,17 @@ def ensure_grid_bitmaps(images, game):
     if not pending:
         return
     try:
-        if game == 'halo2':
-            # H2 only offers directory import. Prepare the entire palette first
+        if game in {'halo1', 'halo2'}:
+            # Prepare the entire classic palette first
             # so one Tool call builds it, with the correct settings on every tag.
             utils.run_tool(['bitmaps', str(BITMAP_DIR)], force_tool=True)
         else:
             for relative in pending:
                 path = str(relative.with_suffix(''))
-                args = ['bitmap' if game == 'halo1' else 'reimport-bitmaps-single', path]
+                args = ['reimport-bitmaps-single', path]
                 if game in {'halo4', 'halo2a'}:
                     args.append('default')
-                # Use stock Tool for bitmap compilation. H1 has no tool_fast.exe,
-                # even though Tool Fast is Foundry's default global preference.
+                # Use stock Tool for bitmap compilation.
                 utils.run_tool(args, force_tool=True)
         # Some versions of Tool return success even when TIFF import failed.
         for relative in pending:

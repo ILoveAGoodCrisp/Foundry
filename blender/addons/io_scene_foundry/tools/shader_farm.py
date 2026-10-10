@@ -13,7 +13,7 @@ from ..tags.backend import TagDocument
 
 from ..icons import get_icon_id
 from ..tags.bitmap import BitmapTag
-from ..tools.export_bitmaps import save_image_as, bitmap_export_image, export_bitmap
+from ..tools.export_bitmaps import save_image_as, bitmap_export_image, export_bitmap, BitmapImportBatch
 from ..tools.shader_builder import build_shader
 
 BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
@@ -189,6 +189,8 @@ class NWO_FarmShaders(bpy.types.Operator):
             else:
                 valid_bitmaps = bitmaps['update']
 
+            import_batch = BitmapImportBatch(self.game) if self.game in CLASSIC_GAMES else None
+            prepared_bitmap_paths = set()
             if self.farm_type == "both" or self.farm_type == "bitmaps":
                 # Create a bitmap folder in the asset directory
                 if self.asset_path:
@@ -212,9 +214,12 @@ class NWO_FarmShaders(bpy.types.Operator):
                         if (self.game in CLASSIC_GAMES or bitmap.get('foundry_channel_conversion')
                                 or bitmap.get('foundry_cubemap_export')):
                             # Blender image access stays on this thread.
-                            path = export_bitmap(bitmap, bitmaps_data_dir=self.bitmaps_data_dir)
+                            path = export_bitmap(bitmap, bitmaps_data_dir=self.bitmaps_data_dir,
+                                                 import_batch=import_batch)
                             if path:
-                                self.exported_bitmaps.append(str(path))
+                                prepared_bitmap_paths.add(str(path))
+                                if import_batch is None:
+                                    self.exported_bitmaps.append(str(path))
                             else:
                                 skipped_bitmaps += 1
                             continue
@@ -227,6 +232,12 @@ class NWO_FarmShaders(bpy.types.Operator):
                         utils.print_warning(f"Skipping bitmap {bitmap.name}: {error}")
                         skipped_bitmaps += 1
                         continue
+                if import_batch is not None and self.farm_type == 'bitmaps':
+                    completed, errors = import_batch.compile()
+                    self.exported_bitmaps.extend(str(path) for path in completed)
+                    skipped_bitmaps += len(errors)
+                    for image, error in errors:
+                        utils.print_warning(f"Skipping bitmap {image.name}: {error}")
                 # Wait for Bitmap export to finish
                 print("")
                 job = "Reimporting Source Tiffs"
@@ -241,9 +252,10 @@ class NWO_FarmShaders(bpy.types.Operator):
                 skipped_bitmaps += len(self.bitmap_errors)
                 for error in self.bitmap_errors:
                     utils.print_warning(error)
-                self.report({'INFO'}, f"Exported {bitmap_count - skipped_bitmaps} Bitmaps")
-                if skipped_bitmaps:
-                    self.report({'WARNING'}, f"Skipped {skipped_bitmaps} Bitmaps; see Foundry Output for details")
+                if import_batch is None or self.farm_type == 'bitmaps':
+                    self.report({'INFO'}, f"Exported {bitmap_count - skipped_bitmaps} Bitmaps")
+                    if skipped_bitmaps:
+                        self.report({'WARNING'}, f"Skipped {skipped_bitmaps} Bitmaps; see Foundry Output for details")
 
             if self.farm_type == "both" or self.farm_type == "shaders":
                 print(f"\nStarting {tag_type}s Export")
@@ -260,12 +272,28 @@ class NWO_FarmShaders(bpy.types.Operator):
                 print(f"{shader_count} {tag_type}s in Scope")
                 print(f"{tag_type}s Directory = {shaders_dir}\n")
                 job = f"Exporting {tag_type}s"
+                # Share the bitmap-stage batch so images discovered while
+                # writing shaders do not cause a second import of that folder.
+                shader_bitmap_batch = import_batch
                 for idx, shader in enumerate(valid_shaders):
                     utils.update_progress(job, idx / shader_count)
                     shader.nwo.uses_blender_nodes = self.link_shaders
                     if self.default_material_shader and Path(self.tags_dir, self.default_material_shader).exists():
                         shader.nwo.material_shader = self.default_material_shader
-                    build_shader(shader, self.corinth, shaders_dir)
+                    build_shader(shader, self.corinth, shaders_dir, bitmap_import_batch=shader_bitmap_batch)
+                if shader_bitmap_batch is not None:
+                    completed, errors = shader_bitmap_batch.compile()
+                    self.exported_bitmaps.extend(str(path) for path in completed)
+                    if self.farm_type == 'both':
+                        for image, error in errors:
+                            utils.print_warning(f"Skipping bitmap {image.name}: {error}")
+                            if str(Path(image.nwo.filepath).with_suffix('.bitmap')) in prepared_bitmap_paths:
+                                skipped_bitmaps += 1
+                        self.report({'INFO'}, f"Exported {bitmap_count - skipped_bitmaps} Bitmaps")
+                        if errors or skipped_bitmaps:
+                            self.report({'WARNING'}, 'Some bitmaps failed; see Foundry Output for details')
+                    elif errors:
+                        raise RuntimeError('; '.join(str(error) for _, error in errors))
                 utils.update_progress(job, 1)
                 self.report({'INFO'}, f"Exported {shader_count} {tag_type}s")
 

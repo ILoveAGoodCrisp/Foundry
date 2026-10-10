@@ -105,7 +105,7 @@ def _resolve_reach_shader_class(material: bpy.types.Material, shader_path: Path,
 
     return REACH_SUFFIX_TO_CLASS[".shader"]
 
-def build_shader(material, corinth, folder="", report=None):
+def build_shader(material, corinth, folder="", report=None, *, bitmap_import_batch=None):
     conversion_error = material.get('foundry_material_conversion_error')
     if conversion_error:
         message = f'{material.name}: material conversion is incomplete: {conversion_error}. Reimport the material before building its shader'
@@ -158,6 +158,7 @@ def build_shader(material, corinth, folder="", report=None):
         tag_class = ShaderTag if nwo.uses_blender_nodes else EmptyShaderTag
         try:
             with tag_class(path=shader_path.with_suffix(suffix), tag_must_exist=False) as tag:
+                tag.bitmap_import_batch = bitmap_import_batch
                 path = (tag.write_tag(material, True) if nwo.uses_blender_nodes
                         else tag.tag_path.RelativePathWithExtension)
             nwo.shader_path = path
@@ -172,6 +173,7 @@ def build_shader(material, corinth, folder="", report=None):
         tag_class = ShaderTag if nwo.uses_blender_nodes else EmptyShaderTag
         try:
             with tag_class(path=shader_path.with_suffix('.shader'), tag_must_exist=False) as tag:
+                tag.bitmap_import_batch = bitmap_import_batch
                 if tag.tag_is_new and not nwo.uses_blender_nodes:
                     from ..tags.halo2_shader_io import DEFAULT_TEMPLATE
                     tag.set_reference(tag.tag.root(), 'template', DEFAULT_TEMPLATE)

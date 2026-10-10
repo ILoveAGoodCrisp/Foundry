@@ -119,7 +119,64 @@ def bitmap_needs_rebuild(image):
         image.get('foundry_bitmap_export_root') != str(utils.get_data_path()))
 
 
-def export_bitmap(image: bpy.types.Image, report=None, *, bitmaps_data_dir=None):
+def validate_bitmap_export(image, bitmap_path):
+    # Some versions of Tool return success after a failed TIFF decode.
+    converted = bool(image.get('foundry_channel_conversion'))
+    with BitmapTag(path=bitmap_path) as bitmap:
+        if not bitmap.has_bitmap_data():
+            raise RuntimeError(f'{image.name}: bitmap compiler produced no pixels')
+        if converted or image.get('foundry_cubemap_export'):
+            if converted:
+                first = bitmap.block_bitmaps[0]
+                actual = tuple(bitmap._select_int(first, field) for field in ('width', 'height'))
+                # DXT5's smallest block is 4x4; older constant maps can be 1x1.
+                expected = tuple(max(4, dimension) for dimension in image.size)
+                if actual not in (tuple(image.size), expected):
+                    raise RuntimeError(f'{image.name}: compiled bitmap is {actual}, expected {tuple(image.size)}')
+            elif not bitmap.is_cubemap:
+                raise RuntimeError(f'{image.name}: bitmap compiler did not produce a cubemap')
+            image['foundry_bitmap_export_version'] = BITMAP_EXPORT_VERSION
+            image['foundry_bitmap_export_root'] = str(utils.get_data_path())
+
+
+class BitmapImportBatch:
+    """Compile each classic source folder once, then validate every image."""
+
+    def __init__(self, game):
+        if game not in CLASSIC_GAMES:
+            raise ValueError('Folder bitmap batches are only supported for H1/H2')
+        self.game = game
+        self.folders = {}
+
+    def add(self, image, bitmap_path):
+        path = Path(bitmap_path)
+        # Windows paths are case insensitive, including alternate spellings
+        # retained by images loaded from the same source folder.
+        key = os.path.normcase(os.path.normpath(str(path.parent)))
+        self.folders.setdefault(key, []).append((image, path))
+
+    def compile(self):
+        completed, errors = [], []
+        folders, self.folders = self.folders, {}
+        for entries in folders.values():
+            try:
+                utils.run_tool(bitmap_import_command(entries[0][1], self.game),
+                               False, False, force_tool=self.game == 'halo1')
+            except (RuntimeError, ValueError, OSError, CalledProcessError) as error:
+                errors.extend((image, error) for image, _ in entries)
+                continue
+            for image, path in entries:
+                try:
+                    validate_bitmap_export(image, path)
+                    completed.append(path)
+                except (RuntimeError, ValueError, OSError, CalledProcessError) as error:
+                    errors.append((image, error))
+        return completed, errors
+
+
+def export_bitmap(image: bpy.types.Image, report=None, *, bitmaps_data_dir=None, import_batch=None):
+    if import_batch is not None and import_batch.game != utils.get_game():
+        raise ValueError('Bitmap import batch belongs to a different game')
     image = bitmap_export_image(image)
     data_dir = utils.get_data_path()
     asset_path = utils.get_asset_path()
@@ -203,28 +260,14 @@ def export_bitmap(image: bpy.types.Image, report=None, *, bitmaps_data_dir=None)
                               preserve_size=converted or bool(image.get('foundry_cubemap_export')),
                               bitmap_shape=image.nwo.bitmap_shape)
 
+        if import_batch is not None:
+            import_batch.add(image, bitmap_path)
+            return bitmap_path
         game = utils.get_game()
-        # The H1 editing kit ships tool.exe only, regardless of the global
-        # Tool Fast preference used by the later games.
+        # H1 ships tool.exe only, regardless of the global Tool Fast preference.
         utils.run_tool(bitmap_import_command(path_no_ext, game), False, False,
                        force_tool=game == 'halo1')
-        # Some versions of Tool return success after a failed TIFF decode.
-        with BitmapTag(path=bitmap_path) as bitmap:
-            if not bitmap.has_bitmap_data():
-                raise RuntimeError(f'{image.name}: bitmap compiler produced no pixels')
-            if converted or image.get('foundry_cubemap_export'):
-                if converted:
-                    first = bitmap.block_bitmaps[0]
-                    actual = tuple(bitmap._select_int(first, field) for field in ('width', 'height'))
-                    # preserve_size uses DXT5, whose smallest block is 4x4.
-                    # Older conversions can contain valid 1x1 constant maps.
-                    expected = tuple(max(4, dimension) for dimension in image.size)
-                    if actual not in (tuple(image.size), expected):
-                        raise RuntimeError(f'{image.name}: compiled bitmap is {actual}, expected {tuple(image.size)}')
-                elif not bitmap.is_cubemap:
-                    raise RuntimeError(f'{image.name}: bitmap compiler did not produce a cubemap')
-                image['foundry_bitmap_export_version'] = BITMAP_EXPORT_VERSION
-                image['foundry_bitmap_export_root'] = str(data_dir)
+        validate_bitmap_export(image, bitmap_path)
     else:
         if report:
             report({'ERROR'}, f"{image.name} has no data filepath. Cannot build bitmap")
