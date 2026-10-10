@@ -2,11 +2,14 @@ import itertools
 import multiprocessing
 import os
 from pathlib import Path
+from subprocess import CalledProcessError
 import threading
 import time
 import bpy
 
 from .. import utils
+from ..bitmap_usage import CLASSIC_GAMES, bitmap_import_command, image_bitmap_type
+from ..tags.backend import TagDocument
 
 from ..icons import get_icon_id
 from ..tags.bitmap import BitmapTag
@@ -109,6 +112,8 @@ class NWO_FarmShaders(bpy.types.Operator):
     def execute(self, context):
         with utils.ExportManager():
             self.corinth = utils.is_corinth(context)
+            self.game = utils.get_game()
+            self.bitmap_errors = []
             self.thread_max = multiprocessing.cpu_count()
             self.running_check = 0
             self.bitmap_processes = 0
@@ -204,7 +209,8 @@ class NWO_FarmShaders(bpy.types.Operator):
                 for idx, bitmap in enumerate(valid_bitmaps):
                     try:
                         bitmap = bitmap_export_image(bitmap)
-                        if bitmap.get('foundry_channel_conversion') or bitmap.get('foundry_cubemap_export'):
+                        if (self.game in CLASSIC_GAMES or bitmap.get('foundry_channel_conversion')
+                                or bitmap.get('foundry_cubemap_export')):
                             # Blender image access stays on this thread.
                             path = export_bitmap(bitmap, bitmaps_data_dir=self.bitmaps_data_dir)
                             if path:
@@ -213,18 +219,14 @@ class NWO_FarmShaders(bpy.types.Operator):
                                 skipped_bitmaps += 1
                             continue
                         tiff_path = self.export_tiff_if_needed(bitmap)
-                    except (RuntimeError, OSError) as error:
+                        if tiff_path:
+                            self.thread_bitmap_export(bitmap)
+                        else:
+                            skipped_bitmaps += 1
+                    except (RuntimeError, ValueError, OSError, CalledProcessError) as error:
                         utils.print_warning(f"Skipping bitmap {bitmap.name}: {error}")
                         skipped_bitmaps += 1
                         continue
-                    if tiff_path:
-                        self.thread_bitmap_export(bitmap)
-                    else:
-                        skipped_bitmaps += 1
-                self.report({'INFO'}, f"Exported {bitmap_count - skipped_bitmaps} Bitmaps")
-                if skipped_bitmaps:
-                    self.report({'WARNING'}, f"Skipped {skipped_bitmaps} Bitmaps; see Foundry Output for details")
-
                 # Wait for Bitmap export to finish
                 print("")
                 job = "Reimporting Source Tiffs"
@@ -236,6 +238,12 @@ class NWO_FarmShaders(bpy.types.Operator):
                     )
                     time.sleep(0.1)
                 utils.update_job_count(job, "", total_p, total_p)
+                skipped_bitmaps += len(self.bitmap_errors)
+                for error in self.bitmap_errors:
+                    utils.print_warning(error)
+                self.report({'INFO'}, f"Exported {bitmap_count - skipped_bitmaps} Bitmaps")
+                if skipped_bitmaps:
+                    self.report({'WARNING'}, f"Skipped {skipped_bitmaps} Bitmaps; see Foundry Output for details")
 
             if self.farm_type == "both" or self.farm_type == "shaders":
                 print(f"\nStarting {tag_type}s Export")
@@ -284,25 +292,29 @@ class NWO_FarmShaders(bpy.types.Operator):
         user_path = Path(image.filepath_from_user())
         user_path_contains_data_dir = user_path.is_relative_to(self.data_dir)
             
-        if user_path and user_path_contains_data_dir and user_path.exists():
+        if (user_path.suffix.lower() in {'.tif', '.tiff'} and user_path_contains_data_dir
+                and user_path.is_file() and not image.packed_file):
             image.nwo.filepath = utils.relative_path(user_path)
-            if image.nwo.reexport_tiff:
+            if image.nwo.reexport_tiff or image.packed_file:
                 if image.has_data or image.source == 'SEQUENCE':
                     image.nwo.filepath = save_image_as(image, user_path.parent, tiff_name=image.nwo.source_name)
                 else:
                     utils.print_warning(f"{image.name} has no data. Cannot export Tif")
+                    return ''
 
         elif Path(image.nwo.filepath.lower()).suffix in {".tif", ".tiff"} and Path(self.data_dir, image.nwo.filepath).exists():
-            if image.nwo.reexport_tiff:
+            if image.nwo.reexport_tiff or image.packed_file:
                 if image.has_data or image.source == 'SEQUENCE':
                     image.nwo.filepath = save_image_as(image, Path(self.data_dir, image.nwo.filepath).parent, tiff_name=image.nwo.source_name)
                 else:
                     utils.print_warning(f"{image.name} has no data. Cannot export Tif")
+                    return ''
         else:
             if image.has_data or image.source == 'SEQUENCE':
                 image.nwo.filepath = save_image_as(image, self.bitmaps_data_dir, tiff_name=image.nwo.source_name)
             else:
                 utils.print_warning(f"{image.name} has no data. Cannot export Tif")
+                return ''
                 
         if image.nwo.filepath and Path(self.data_dir, image.nwo.filepath).is_file():
             return image.nwo.filepath
@@ -328,26 +340,32 @@ class NWO_FarmShaders(bpy.types.Operator):
             path_no_ext = str(Path(image.nwo.filepath).with_suffix(""))
             bitmap_path = path_no_ext + '.bitmap'
             with BitmapTag(path=bitmap_path) as bitmap:
-                bitmap.new_bitmap(utils.dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.colorspace_settings.name)
+                bitmap.new_bitmap(Path(path_no_ext).name, image_bitmap_type(image), image.colorspace_settings.name)
                 
             self.exported_bitmaps.append(bitmap_path)
             print(f"{job} {bitmap_path}")
             while self.running_check > self.thread_max * 2:
                 time.sleep(0.1)
 
-            thread = threading.Thread(target=self.export_bitmap, args=(path_no_ext,))
+            # Resolve project/UI settings before entering a worker thread.
+            runner = utils.prepare_tool(bitmap_import_command(path_no_ext, self.game), False, True)
+            self.running_check += 1
+            self.bitmap_processes += 1
+            thread = threading.Thread(target=self.export_bitmap, args=(path_no_ext, runner))
             thread.start()
             self.first_bitmap = False
 
-    def export_bitmap(self, bitmap_path):
-        self.running_check += 1
-        self.bitmap_processes += 1
-        time.sleep(self.running_check / 10)
-        if self.corinth:
-            utils.run_tool(["reimport-bitmaps-single", bitmap_path, "default"], False, True)
-        else:
-            utils.run_tool(["reimport-bitmaps-single", bitmap_path], False, True)
-        self.running_check -= 1
+    def export_bitmap(self, bitmap_path, runner):
+        try:
+            runner()
+            with TagDocument(bitmap_path + '.bitmap', tags_root=self.tags_dir,
+                             game=self.game, must_exist=True) as bitmap:
+                if not len(bitmap.block(bitmap.tag.root(), 'bitmaps')):
+                    raise RuntimeError(f'{bitmap_path}: bitmap compiler produced no pixels')
+        except Exception as error:
+            self.bitmap_errors.append(str(error))
+        finally:
+            self.running_check -= 1
         
     def draw(self, context):
         layout = self.layout

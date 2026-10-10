@@ -23,6 +23,7 @@ from .scene_time import scene_time_node
 from ..tools.export_bitmaps import export_bitmap, bitmap_export_image, bitmap_needs_rebuild
 from .. import utils
 from ..tools.node_layout import layout_nodes
+from ..tools.shader_nodes import surface_links, constant_input
 import bpy
 
 from .render_method_definition import RenderMethodDefinitionTag
@@ -52,25 +53,39 @@ DEFAULT_CUBEMAP = r"shaders\default_bitmaps\bitmaps\default_cube.bitmap"
 
 srgb_names = "base_map", "palette", "self_illum_map"
 
-def build_templates(shader_paths, do_print=False, *, from_options=False):
+def build_templates(shader_paths, do_print=False, *, from_options=False, report=None):
     new_template_count = 0
     processes = []
     max_process_count = multiprocessing.cpu_count()
     built_templates = set()
     per_template_timeout_seconds = 120
 
+    def warn(message):
+        utils.print_warning(message)
+        if report is not None:
+            report({'WARNING'}, message)
+
     def finish(job):
         process, template_path, started = job
         remaining = max(0, per_template_timeout_seconds - (time.perf_counter() - started))
         try:
             result = process.wait(timeout=remaining)
+        except subprocess.CalledProcessError as exc:
+            # MonitoredToolProcess raises on non-zero exits instead of returning
+            # an exit code. A failed template must not abort shader creation or
+            # prevent the remaining background jobs from being collected.
+            warn(f"Failed to build shader template '{template_path}' (Tool exit code {exc.returncode}). See Foundry Output for compiler errors.")
+            return 0
         except subprocess.TimeoutExpired:
             process.kill()
-            process.wait()
-            utils.print_warning(f"Timed out building shader template '{template_path}'. Continuing export.")
+            try:
+                process.wait()
+            except subprocess.CalledProcessError:
+                pass  # Killing a monitored process produces a non-zero exit.
+            warn(f"Timed out building shader template '{template_path}'. Continuing export.")
             return 0
         if result or not template_path.is_file():
-            utils.print_warning(f"Failed to build shader template '{template_path}' (Tool exit code {result}).")
+            warn(f"Failed to build shader template '{template_path}' (Tool exit code {result}). See Foundry Output for compiler errors.")
             return 0
         return 1
     
@@ -95,7 +110,7 @@ def build_templates(shader_paths, do_print=False, *, from_options=False):
                         new_template_count += finish(processes.pop(0))
                     
                     if do_print: print(f"--- Building template {template_name} for {spath}")
-                    process = utils.run_tool(["generate-specified-template", "win", definition.Path.RelativePath, template_name], in_background=True, null_output=True)
+                    process = utils.run_tool(["generate-specified-template", "win", definition.Path.RelativePath, template_name], in_background=True)
                     processes.append((process, path_template, time.perf_counter()))
                     
     if do_print and processes: print("--- Waiting for Tool processes to complete")
@@ -450,7 +465,7 @@ class ShaderTag(BlenderTag, TagDocument):
         self.material_shader = material_shader
         self.group_node = self._find_group_node(blender_material)
         if self.corinth:
-            self.custom = self.group_node is not None
+            self.custom = self._group_node_is_export_candidate(self.group_node)
         else:
             self.custom = self._group_node_matches(self.group_node)
         if linked_to_blender:
@@ -478,21 +493,15 @@ class ShaderTag(BlenderTag, TagDocument):
         self.alpha_type = self._alpha_type_from_blender_material()
         used_group_export = bool(self.custom and self._from_nodes_group())
         if not used_group_export:
-            self._build_basic(self._get_basic_mapping(self.blender_material))
+            mapping = self._get_basic_mapping(self.blender_material)
+            self.alpha_type = ('blend' if self.blender_material.surface_render_method == 'BLENDED' else 'clip') if (
+                mapping.get('alpha') is not None or mapping.get('opacity', 1.0) < 1.0) else ''
+            self._build_basic(mapping)
         
         self.tag_has_changes = True
 
     def _iter_material_output_surface_links(self, node_tree: bpy.types.NodeTree):
-        for node in node_tree.nodes:
-            if node.type != "OUTPUT_MATERIAL":
-                continue
-            surface_input = node.inputs.get('Surface')
-            if surface_input is None and node.inputs:
-                surface_input = node.inputs[0]
-            if surface_input is None:
-                continue
-            for link in surface_input.links:
-                yield link
+        yield from surface_links(node_tree)
 
     def _iter_upstream_nodes_from_material_outputs(self, node_tree: bpy.types.NodeTree):
         pending = [link.from_node for link in self._iter_material_output_surface_links(node_tree)]
@@ -516,10 +525,6 @@ class ShaderTag(BlenderTag, TagDocument):
             return
 
         for node in self._iter_upstream_nodes_from_material_outputs(tree):
-            if node.type == "GROUP" and getattr(node, "node_tree", None) and self._group_node_is_export_candidate(node):
-                return node
-
-        for node in tree.nodes:
             if node.type == "GROUP" and getattr(node, "node_tree", None) and self._group_node_is_export_candidate(node):
                 return node
 
@@ -862,6 +867,8 @@ class ShaderTag(BlenderTag, TagDocument):
 
                 source = self._source_from_input_and_parameter_type(input_socket, source_type, source_node)
                 if source is None:
+                    if source_type == 'bitmap':
+                        self._Element_remove_if_needed(self.block_parameters, 'parameter name', parameter_name)
                     continue
 
                 element = self._setup_parameter(source, parameter_name, tag_type)
@@ -879,8 +886,8 @@ class ShaderTag(BlenderTag, TagDocument):
 
         return True
     
-    def _get_basic_mapping(self, blender_material):
-        """Best-effort mapping from arbitrary Blender node trees to basic Halo shader properties."""
+    def _get_basic_mapping(self, blender_material, *, strict=True):
+        """Map arbitrary node trees; strict requires confident texture-role matches."""
         maps = {}
         node_tree = blender_material.node_tree
         if not node_tree or not node_tree.nodes:
@@ -1042,8 +1049,8 @@ class ShaderTag(BlenderTag, TagDocument):
             text = _norm(' '.join(filter(None, name_bits)))
             return set(text.split())
         
-        def _register_shader(node: bpy.types.Node, path_scores: dict, distance: int):
-            if not node.type.startswith('BSDF'):
+        def _register_shader(node: bpy.types.Node, path_scores: dict, distance: int, group_stack=()):
+            if not node.type.startswith('BSDF') and node.type != 'EMISSION':
                 return
             node_id = id(node)
             input_names = {_norm(i.name) for i in node.inputs}
@@ -1065,7 +1072,7 @@ class ShaderTag(BlenderTag, TagDocument):
             
             previous = shader_hits.get(node_id)
             if previous is None or score > previous['score']:
-                shader_hits[node_id] = {'node': node, 'score': score, 'distance': distance}
+                shader_hits[node_id] = {'node': node, 'score': score, 'distance': distance, 'group_stack': group_stack}
         
         def _register_image(node: bpy.types.Node, path_scores: dict, output_name: str, distance: int):
             nonlocal hit_order
@@ -1076,6 +1083,8 @@ class ShaderTag(BlenderTag, TagDocument):
             distance_bias = max(0.0, 4.0 - float(min(distance, 4)))
             has_image = bool(getattr(node, 'image', None))
             for key in property_keys:
+                if strict and path_scores[key] < max(path_scores.values()) * 0.5:
+                    continue
                 final_score = score[key] + distance_bias * (0.25 if key != 'alpha' else 0.1)
                 if final_score <= 0.0:
                     continue
@@ -1124,7 +1133,7 @@ class ShaderTag(BlenderTag, TagDocument):
             traversal_guard.add(guard_key)
             
             current_scores = _merge_scores(path_scores, _scores_from_node(node))
-            _register_shader(node, current_scores, distance)
+            _register_shader(node, current_scores, distance, group_stack)
             
             if node.type == 'TEX_IMAGE':
                 _register_image(node, current_scores, output_name, distance)
@@ -1182,17 +1191,8 @@ class ShaderTag(BlenderTag, TagDocument):
                 for link in input_socket.links:
                     _walk(link.from_node, link.from_socket.name, group_stack, next_scores, distance + 1)
         
-        surface_links = []
-        for output_node in node_tree.nodes:
-            if output_node.type != 'OUTPUT_MATERIAL':
-                continue
-            surface_input = output_node.inputs.get('Surface')
-            if surface_input is None and output_node.inputs:
-                surface_input = output_node.inputs[0]
-            if not surface_input or not surface_input.links:
-                continue
-            for link in surface_input.links:
-                surface_links.append((surface_input, link))
+        surface_links = [(link.to_socket, link)
+                         for link in self._iter_material_output_surface_links(node_tree)]
         
         for surface_input, link in surface_links:
             seed_scores = _scores_from_input(surface_input.node, surface_input)
@@ -1203,20 +1203,22 @@ class ShaderTag(BlenderTag, TagDocument):
                 "Adaptive shader-node mapping traversal reached safety limits and was truncated to avoid infinite recursion"
             )
         
-        if not any(property_hits.values()):
+        if not surface_links and not strict:
             for node in node_tree.nodes:
                 _register_shader(node, zero_scores, 32)
                 if node.type == 'TEX_IMAGE':
                     _register_image(node, zero_scores, '', 32)
         
         bsdf_node = None
+        bsdf_stack = ()
         if shader_hits:
             best_shader = sorted(
                 shader_hits.values(),
                 key=lambda hit: (-hit['score'], hit['distance'], hit['node'].name),
             )[0]
             bsdf_node = best_shader['node']
-        else:
+            bsdf_stack = best_shader['group_stack']
+        elif not strict:
             bsdf_node = utils.get_blender_shader(node_tree)
         
         mapping_root = bsdf_node
@@ -1263,6 +1265,8 @@ class ShaderTag(BlenderTag, TagDocument):
             for hit in ranked:
                 if hit['score'] >= minimum_score:
                     return hit['node'], hit
+            if strict:
+                return None, None
             return ranked[0]['node'], ranked[0]
         
         thresholds = {
@@ -1306,7 +1310,7 @@ class ShaderTag(BlenderTag, TagDocument):
             maps['self_illum_from_diffuse_alpha'] = True
         
         if bsdf_node:
-            emission_input = bsdf_node.inputs.get('Emission Strength')
+            emission_input = bsdf_node.inputs.get('Strength' if bsdf_node.type == 'EMISSION' else 'Emission Strength')
             if emission_input is None:
                 for input_socket in bsdf_node.inputs:
                     if _norm(input_socket.name) == 'emission strength':
@@ -1314,15 +1318,29 @@ class ShaderTag(BlenderTag, TagDocument):
                         break
             if emission_input:
                 try:
-                    maps['emission_strength'] = float(emission_input.default_value)
+                    maps['emission_strength'] = float(constant_input(emission_input, 1.0, bsdf_stack))
                 except (TypeError, ValueError):
                     pass
+            color_socket = bsdf_node.inputs.get('Color' if bsdf_node.type == 'EMISSION' else 'Emission Color')
+            emission_color = constant_input(color_socket, (0., 0., 0., 1.), bsdf_stack)
+            if isinstance(emission_color, (int, float)):
+                emission_color = (emission_color,) * 3
+            maps['emission_color'] = tuple(emission_color[:3])
+            maps['opacity'] = float(constant_input(bsdf_node.inputs.get('Alpha'), 1.0, bsdf_stack))
+            if maps.get('emission_strength', 0) <= 0:
+                maps.pop('self_illum', None)
+                maps.pop('self_illum_from_diffuse_alpha', None)
+        if chosen_hits.get('alpha'):
+            maps['alpha_channel'] = chosen_hits['alpha']['output_name']
         
         if maps.get('diffuse') is None:
             if bsdf_node:
-                albedo_tint = utils.get_material_albedo(bsdf_node)
+                socket = bsdf_node.inputs.get('Base Color') or bsdf_node.inputs.get('Color')
+                albedo_tint = constant_input(socket, group_stack=bsdf_stack)
+                if isinstance(albedo_tint, (float, int)):
+                    albedo_tint = (albedo_tint,) * 3
                 if albedo_tint:
-                    maps['albedo_tint'] = albedo_tint
+                    maps['albedo_tint'] = tuple(albedo_tint[:3])
             if maps.get('albedo_tint') is None:
                 albedo_tint = utils.get_material_albedo(blender_material)
                 if albedo_tint:
@@ -1337,125 +1355,22 @@ class ShaderTag(BlenderTag, TagDocument):
         return 'blend'
             
     def _build_basic(self, map: dict):
-        self.group_node = map.get("mapping_root") or map.get("bsdf")
-        albedo = self.block_options.Elements[0].SelectField('short')
-        bump_mapping = self.block_options.Elements[1].SelectField('short')
-        alpha_test = self.block_options.Elements[2].SelectField('short')
-        specular_mask = self.block_options.Elements[3].SelectField('short')
-        self_illumination = self.block_options.Elements[6].SelectField('short')
-        blend_mode = self.block_options.Elements[7].SelectField('short')
-        alpha_blend_source = (self.block_options.Elements[11].SelectField('short')
-                              if self.game == 'reach' else None)
-        # Set up shader parameters
-        spec_alpha_from_diffuse = bool(map.get('specular_from_diffuse_alpha'))
-        si_alpha_from_diffuse = bool(map.get('self_illum_from_diffuse_alpha'))
-        if map.get('diffuse', 0):
-            if int(albedo.GetStringData()) == 2 or int(albedo.GetStringData()) == -1: # if is constant color or none
-                albedo.SetStringData('0') # sets default
-            element = self._setup_parameter(map['diffuse'], 'base_map', 'bitmap')
-            if element:
-                self._setup_function_parameters(map['diffuse'], element, 'bitmap')
-                diff_alpha_output = map['diffuse'].outputs.get('Alpha')
-                if diff_alpha_output is None and len(map['diffuse'].outputs) > 1:
-                    diff_alpha_output = map['diffuse'].outputs[1]
-                if diff_alpha_output and diff_alpha_output.links:
-                    for l in diff_alpha_output.links:
-                        if l.to_socket.name.lower() == 'specular ior level':
-                            spec_alpha_from_diffuse = True
-                        if l.to_socket.name.lower() == 'emission color':
-                            si_alpha_from_diffuse = True
-                
-        elif map.get('albedo_tint', 0):
-            albedo.SetStringData('2') # constant color
-            element = self._setup_parameter(map['albedo_tint'], 'albedo_color', self.color_parameter_type)
-            if element:
-                self._setup_function_parameters(map['albedo_tint'], element, 'color')
-                
-        if spec_alpha_from_diffuse:
-            specular_mask.SetStringData('1') # Specular mask from diffuse
-        elif map.get('specular', 0):
-            specular_mask.SetStringData('3') # Specular mask from texture
-            element = self._setup_parameter(map['specular'], 'specular_mask_texture', 'bitmap')
-            if element:
-                self._setup_function_parameters(map['specular'], element, 'bitmap')
-        else:
-            specular_mask.SetStringData('-1')
-            
-        if si_alpha_from_diffuse:
-            self_illumination.SetStringData('4') # self illum mask from diffuse
-        elif map.get('self_illum', 0):
-            si_enum = int(self_illumination.GetStringData())
-            if si_enum < 1 or si_enum == 4:
-                self_illumination.SetStringData('1') # simple
-            element = self._setup_parameter(map['self_illum'], 'self_illum_map', 'bitmap')
-            if element:
-                self._setup_function_parameters(map['self_illum'], element, 'bitmap')
-                
-        if si_alpha_from_diffuse or map.get('self_illum', 0):
-            si_intensity = map.get('emission_strength')
-            if si_intensity is None:
-                bsdf = map.get('bsdf')
-                emission_input = None
-                if bsdf and hasattr(bsdf, 'inputs'):
-                    emission_input = bsdf.inputs.get('Emission Strength')
-                    if emission_input is None:
-                        for input_socket in bsdf.inputs:
-                            if input_socket.name.lower() == 'emission strength':
-                                emission_input = input_socket
-                                break
-                if emission_input:
-                    si_intensity = emission_input.default_value
-                else:
-                    si_intensity = 1
-            element = self._setup_parameter(si_intensity, 'self_illum_intensity', 'real')
-            if element:
-                self._setup_function_parameters(si_intensity, element, 'real')
-        else:
-            self_illumination.SetStringData('-1')
-            
-        if map.get('normal', 0):
-            if int(bump_mapping.GetStringData()) < 1:
-                bump_mapping.SetStringData('1') # standard
-            element = self._setup_parameter(map['normal'], 'bump_map', 'bitmap')
-            if element:
-                self._setup_function_parameters(map['normal'], element, 'bitmap')
-        elif int(bump_mapping.GetStringData()) > 0:
-            bump_mapping.SetStringData('-1') # none
-            
-        if self.alpha_type == 'clip' and map.get('alpha', 0):
-            alpha_test.SetStringData('1')
-            element = self._setup_parameter(map['alpha'], 'alpha_test_map', 'bitmap')
-            if element:
-                self._setup_function_parameters(map['alpha'], element, 'bitmap')
-        elif self.alpha_type == 'blend':
-            alpha_test.SetStringData('-1')
-            if int(blend_mode.GetStringData()) < 1:
-                blend_mode.SetStringData('3')
-            if map.get('alpha', 0):
-                if alpha_blend_source is not None and int(alpha_blend_source.GetStringData()) != 4:
-                    alpha_blend_source.SetStringData('3') if map.get('alpha').inputs[0].links else alpha_blend_source.SetStringData('2')
-                element = self._setup_parameter(map['alpha'], 'opacity_map', 'bitmap')
-                if element:
-                    self._setup_function_parameters(map['alpha'], element, 'bitmap')
-        else:
-            alpha_test.SetStringData('-1')
-            blend_mode.SetStringData('-1')
-            if alpha_blend_source is not None:
-                alpha_blend_source.SetStringData('-1')
-          
+        from .shader_basic import write_shader
+        write_shader(self, map)
+
     def _setup_parameter(self, source, parameter_name, parameter_type):
         element = self._Element_from_field_value(self.block_parameters, 'parameter name', parameter_name)
         if element is None:
             element = self.block_parameters.AddElement()
             element.SelectField('parameter name').SetStringData(parameter_name)
-            element.SelectField('parameter type').SetValue(parameter_type)
+        element.SelectField('parameter type').SetValue(parameter_type)
         match parameter_type:
             case 'bitmap':
                 if isinstance(source, bpy.types.Node) and source.get('h3_transform_only') and source.image is None:
                     # ODST window_room uses this bitmap parameter's transform,
                     # even when its bitmap reference is intentionally empty.
                     return element
-                bitmap_path = self._get_bitmap_path(source)
+                bitmap_path = str(source) if isinstance(source, (str, Path)) else self._get_bitmap_path(source)
                 if bitmap_path:
                     element.SelectField('bitmap flags').SetStringData('1') # sets override
                     element.SelectField('bitmap filter mode').SetStringData('6') # sets anisotropic (4) EXPENSIVE
@@ -1506,6 +1421,9 @@ class ShaderTag(BlenderTag, TagDocument):
         mapping = {}
         match parameter_type:
             case 'bitmap':
+                mapping = {AnimatedParameterType.SCALE_UNIFORM: 1., AnimatedParameterType.SCALE_X: 1.,
+                           AnimatedParameterType.SCALE_Y: 1., AnimatedParameterType.TRANSLATION_X: 0.,
+                           AnimatedParameterType.TRANSLATION_Y: 0.}
                 if isinstance(source, bpy.types.Node):
                     if self.group_node is None:
                         return mapping
@@ -1528,6 +1446,10 @@ class ShaderTag(BlenderTag, TagDocument):
                             input_socket = scale_node.inputs.get(input_name)
                             if input_socket is not None and not input_socket.is_linked:
                                 mapping[animated_type] = input_socket.default_value
+                            elif input_socket is not None:
+                                # Linked tag functions are preserved by the group
+                                # exporter, not replaced with identity transforms.
+                                mapping.pop(animated_type, None)
                     elif scale_node.type == 'MAPPING':
                         mapping[AnimatedParameterType.SCALE_X] = scale_node.inputs['Scale'].default_value.x
                         mapping[AnimatedParameterType.SCALE_Y] = scale_node.inputs['Scale'].default_value.y
@@ -1638,13 +1560,19 @@ class ShaderTag(BlenderTag, TagDocument):
                     linked = utils.find_linked_node(source_node, input_name, 'TEX_ENVIRONMENT')
                 return linked
             case 'real':
-                return float(input.default_value)
+                value = constant_input(input)
+                return float(value) if value is not None else None
             case 'int':
-                return int(input.default_value)
+                value = constant_input(input)
+                return int(value) if value is not None else None
             case 'bool':
-                return int(bool(input.default_value))
+                value = constant_input(input)
+                return int(bool(value)) if value is not None else None
             case 'color':
-                return utils.get_material_albedo(source_node, input)
+                value = constant_input(input)
+                if isinstance(value, (int, float)):
+                    return (value,) * 3
+                return tuple(value[:3]) if value is not None else None
             
             
     # READING

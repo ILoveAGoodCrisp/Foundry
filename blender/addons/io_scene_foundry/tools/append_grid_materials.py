@@ -1,124 +1,146 @@
-
-
+"""Create the grid palette using the selected editing kit's tag formats."""
 from pathlib import Path
-import zipfile
-import bpy
-import os
 
-from mathutils import Vector
+import bpy
 
 from .. import utils
+from ..tags.bitmap import BitmapTag
+from ..tags.grid_materials import remove_incompatible_grid_tag, create_grid_shader, grid_shader_path
+from .bitmap_tiff import write_image_tiff
 
-script_file = os.path.realpath(__file__)
-addon_dir = os.path.dirname(os.path.dirname(script_file))
-resources_zip = Path(addon_dir, "resources.zip")
+
+ADDON_DIR = Path(__file__).resolve().parents[1]
+BITMAP_DIR = Path('shaders', 'foundry', 'bitmaps')
+GRID_NAMES = (
+    'grid_checkered', 'grid_checkered_cross',
+    'grid_dark_cross', 'grid_dark_diagonal', 'grid_dark_square',
+    'grid_orange_cross', 'grid_orange_diagonal', 'grid_orange_square',
+)
+
 
 class NWO_OT_AppendGridMaterials(bpy.types.Operator):
-    bl_idname = "nwo.append_grid_materials"
-    bl_label = "Append Grid Materials"
-    bl_description = "Adds a collection of grid materials to the blend file"
-    bl_options = {"UNDO"}
-    
+    bl_idname = 'nwo.append_grid_materials'
+    bl_label = 'Append Grid Materials'
+    bl_description = 'Adds a collection of grid materials to the blend file'
+    bl_options = {'UNDO'}
+
     @classmethod
     def poll(cls, context):
         return utils.current_project_valid()
 
     def execute(self, context):
-        append_grid_materials()
-        self.report({'INFO'}, "Grid Materials Added")
-        return {"FINISHED"}
-    
+        try:
+            append_grid_materials()
+        except Exception as exc:
+            self.report({'ERROR'}, f'Could not create Grid Materials: {exc}')
+            return {'CANCELLED'}
+        self.report({'INFO'}, 'Grid Materials Added')
+        return {'FINISHED'}
+
+
 def append_grid_materials():
-    filepaths = []
-    if not bpy.data.materials.get("grid_checkered"): filepaths.append(os.path.join(addon_dir, "images", 'grid_checkered.png')) 
-    if not bpy.data.materials.get("grid_checkered_cross"): filepaths.append(os.path.join(addon_dir, "images", 'grid_checkered_cross.png')) 
-    if not bpy.data.materials.get("grid_dark_cross"): filepaths.append(os.path.join(addon_dir, "images", 'grid_dark_cross.png')) 
-    if not bpy.data.materials.get("grid_dark_diagonal"): filepaths.append(os.path.join(addon_dir, "images", 'grid_dark_diagonal.png')) 
-    if not bpy.data.materials.get("grid_dark_square"): filepaths.append(os.path.join(addon_dir, "images", 'grid_dark_square.png')) 
-    if not bpy.data.materials.get("grid_orange_cross"): filepaths.append(os.path.join(addon_dir, "images", 'grid_orange_cross.png')) 
-    if not bpy.data.materials.get("grid_orange_diagonal"): filepaths.append(os.path.join(addon_dir, "images", 'grid_orange_diagonal.png')) 
-    if not bpy.data.materials.get("grid_orange_square"): filepaths.append(os.path.join(addon_dir, "images", 'grid_orange_square.png')) 
-    
-    for filepath in filepaths:
-        if os.path.exists(filepath):
-            setup_grid_material(filepath)
+    with utils.busy_cursor():
+        _append_grid_materials()
+
+
+def _append_grid_materials():
+    # Existing Blender materials must not prevent missing project tags from
+    # being created (for example after switching projects or deleting a bitmap).
+    game = utils.get_game()
+    images = {name: bpy.data.images.load(
+        filepath=str(ADDON_DIR / 'images' / (name + '.png')), check_existing=True)
+        for name in GRID_NAMES}
+    ensure_grid_bitmaps(images, game)
+    for name, image in images.items():
+        setup_grid_material(name, image, game)
+
+
+def setup_grid_material(name, image, game):
+    shader_path = grid_shader_path(name, game, utils.get_scene_props().asset_type)
+    create_grid_shader(shader_path, BITMAP_DIR / (name + '.bitmap'), game)
+
+    material = bpy.data.materials.get(name)
+    if material is None:
+        material = bpy.data.materials.new(name)
+        material.use_nodes = True
+        material.use_fake_user = True
+        tree = material.node_tree
+        tree.nodes.clear()
+        output = tree.nodes.new('ShaderNodeOutputMaterial')
+        output.location = (300, 0)
+        bsdf = tree.nodes.new('ShaderNodeBsdfPrincipled')
+        bsdf.inputs['Specular IOR Level'].default_value = 0
+        texture = tree.nodes.new('ShaderNodeTexImage')
+        texture.location = (-300, 0)
+        texture.image = image
+        tree.links.new(bsdf.outputs[0], output.inputs['Surface'])
+        tree.links.new(texture.outputs['Color'], bsdf.inputs['Base Color'])
+
+    # Keep custom replacements and edits, but update Foundry's own reference
+    # when changing game or switching between an H1 level and model asset.
+    previous = Path(material.nwo.shader_path)
+    if not material.nwo.shader_path or (previous.parent == shader_path.parent and previous.stem == name):
+        material.nwo.shader_path = str(shader_path)
+    return material
+
+
+def prepare_grid_bitmap(image, name, game):
+    relative = BITMAP_DIR / (name + '.bitmap')
+    remove_incompatible_grid_tag(relative, game)
+    source = relative.with_suffix('.tif')
+    data_path = Path(utils.get_data_path(), source)
+    if not data_path.exists():
+        data_path.parent.mkdir(parents=True, exist_ok=True)
+        # Avoid Blender's view transform and TIFF compression unsupported by
+        # the older editing kits. The bundled PNG's byte colours are retained.
+        write_image_tiff(image, data_path)
+    image.nwo.filepath = str(source)
+    image.nwo.source_name = source.name
+
+    with BitmapTag(path=relative) as bitmap:
+        if bitmap.has_bitmap_data():
+            return None
+        if game in {'halo1', 'halo2'}:
+            root = bitmap.tag.root()
+            bitmap.required_field(root, 'usage').set('default')
+            # Both classic formats use zero for 2D and DXT1 colour textures.
+            bitmap.required_field(root, 'type').set(0)
+            bitmap.required_field(root, 'encoding format' if game == 'halo1' else 'format').set(0)
+            bitmap.tag_has_changes = True
         else:
-            print(f"{filepath} not found")
+            bitmap.new_bitmap(name, 'Diffuse Map', 'sRGB', preserve_size=True)
+    return relative
 
-def setup_grid_material(filepath):
-    material_name = Path(filepath).with_suffix("").name
-    material = bpy.data.materials.new(material_name)
-    material.use_fake_user = True
-    tree = material.node_tree
-    nodes = tree.nodes
-    nodes.clear()
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = Vector((300, 0))
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    tree.links.new(input=output.inputs[0], output=bsdf.outputs[0])
-    tex_node = nodes.new(type="ShaderNodeTexImage")
-    tex_node.location = Vector((-300, 0))
-    image = bpy.data.images.load(filepath=filepath, check_existing=True)
-    image.nwo.filepath = str(Path(r"shaders\foundry\bitmaps", Path(filepath).name))
-    tex_node.image = image
-    tree.links.new(input=bsdf.inputs[0], output=tex_node.outputs[0])
-    
-    if utils.is_corinth():
-        shader_path = str(Path("shaders", "foundry", "shaders", material_name + ".material"))
-    else:
-        shader_path = str(Path("shaders", "foundry", "shaders", material_name + ".shader"))
-        
-    if not Path(utils.get_tags_path(), shader_path).exists():
-        copy_grid_shader(material_name)
-        
-    material.nwo.shader_path = shader_path
-    
-def copy_grid_shader(name):
-    if utils.is_corinth():
-        source_shader_path = Path(addon_dir, "resources", "textures", "materials", name + ".material")
-        dest_shader_path = Path(utils.get_tags_path(), "shaders", "foundry", "shaders", name + ".material")
-    else:
-        source_shader_path = Path(addon_dir, "resources", "textures", "shaders", name + ".shader")
-        dest_shader_path = Path(utils.get_tags_path(), "shaders", "foundry", "shaders", name + ".shader")
-        
-    print(source_shader_path)
-        
-    os.makedirs(dest_shader_path.parent, exist_ok=True)
-        
-    if source_shader_path.exists():
-        utils.copy_file(source_shader_path, dest_shader_path)
-    elif resources_zip.exists():
-        os.chdir(addon_dir)
-        if utils.is_corinth():
-            file_relative = f"textures/shaders/{name}.material"
+
+def ensure_grid_bitmaps(images, game):
+    pending = [path for name, image in images.items()
+               if (path := prepare_grid_bitmap(image, name, game)) is not None]
+    if not pending:
+        return
+    try:
+        if game == 'halo2':
+            # H2 only offers directory import. Prepare the entire palette first
+            # so one Tool call builds it, with the correct settings on every tag.
+            utils.run_tool(['bitmaps', str(BITMAP_DIR)], force_tool=True)
         else:
-            file_relative = f"textures/shaders/{name}.shader"
-        with zipfile.ZipFile(resources_zip, "r") as zip:
-            filepath = zip.extract(file_relative)
-            utils.copy_file(filepath, dest_shader_path)
-
-        os.remove(filepath)
-        os.rmdir(os.path.dirname(filepath))
-    else:
-        print("Resources not found")
-        
-    source_bitmap_path = Path(addon_dir, "resources", "textures", "bitmaps", name + ".bitmap")
-    dest_bitmap_path = Path(utils.get_tags_path(), "shaders", "foundry", "bitmaps", name + ".bitmap")
-    os.makedirs(dest_bitmap_path.parent, exist_ok=True)
-    
-    if source_bitmap_path.exists():
-        utils.copy_file(source_bitmap_path, dest_bitmap_path)
-    elif resources_zip.exists():
-        os.chdir(addon_dir)
-        file_relative = f"textures/bitmaps/{name}.bitmap"
-        with zipfile.ZipFile(resources_zip, "r") as zip:
-            filepath = zip.extract(file_relative)
-            utils.copy_file(filepath, dest_bitmap_path)
-            
-        os.remove(filepath)
-        os.rmdir(os.path.dirname(filepath))
-    else:
-        print("Resources not found")
-
-    
-    
+            for relative in pending:
+                path = str(relative.with_suffix(''))
+                args = ['bitmap' if game == 'halo1' else 'reimport-bitmaps-single', path]
+                if game in {'halo4', 'halo2a'}:
+                    args.append('default')
+                # Use stock Tool for bitmap compilation. H1 has no tool_fast.exe,
+                # even though Tool Fast is Foundry's default global preference.
+                utils.run_tool(args, force_tool=True)
+        # Some versions of Tool return success even when TIFF import failed.
+        for relative in pending:
+            with BitmapTag(path=relative) as bitmap:
+                if not bitmap.has_bitmap_data():
+                    raise RuntimeError(f'{relative}: bitmap compiler produced no pixels')
+    except Exception:
+        # Leave no empty tag that could be mistaken for a completed bitmap.
+        for relative in pending:
+            with BitmapTag(path=relative) as bitmap:
+                empty = not bitmap.has_bitmap_data()
+            if empty:
+                Path(utils.get_tags_path(), relative).unlink(missing_ok=True)
+        raise

@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from ..constants import NormalType
+from ..bitmap_usage import CLASSIC_GAMES, bitmap_usage_names, infer_bitmap_usage, resolve_bitmap_usage
 from .backend import TagDocument
 from .blender import BlenderTag
 from .. import utils
@@ -292,70 +293,34 @@ class BitmapTag(BlenderTag, TagDocument):
             field.set(type(field.value)(*point))
             self.tag_has_changes = True
         
-    def new_bitmap(self, bitmap_name, bitmap_type, color_space, *, preserve_size=False):
-        def get_type_from_name(bitmap_name):
-            suffix = bitmap_name.rpartition("_")[2].lower()
-            if suffix and "_" in bitmap_name.strip("_"):
-                if suffix.startswith(("orm", "mro", "mtr", "rmo", "control", "arm")):
-                    return "Material Map"
-                elif suffix.startswith("3d"):
-                    return "3D Texture"
-                elif suffix.startswith("blend"):
-                    return "Blend Map (linear for terrains)"
-                elif suffix.startswith("bump"):
-                    return "Bump Map (from Height Map)"
-                elif suffix.startswith(("cc", "change")):
-                    return "Change Color Map"
-                elif suffix.startswith("cube"):
-                    return "Cube Map (Reflection Map)"
-                elif suffix.startswith(("detailb", "detail_b")):
-                    return "Detail Bump Map (from Height Map - fades out)"
-                elif suffix.startswith(("detailn", "detail_n")):
-                    return "Detail Normal Map"
-                elif suffix.startswith("det"):
-                    return "Detail Map"
-                elif suffix.startswith("dsprite"):
-                    return "Sprite (Double Multiply, Gray Background)"
-                elif suffix.startswith("float"):
-                    return "Float Map (WARNING)"
-                elif suffix.startswith("height"):
-                    return "Height Map (for Parallax)"
-                elif suffix.startswith(("illum", "self", "emm")):
-                    return "Self-Illum Map"
-                elif suffix.startswith("msprite"):
-                    return "Sprite (Blend, White Background)"
-                elif suffix.startswith("spec"):
-                    return "Specular Map"
-                elif suffix.startswith("sprite"):
-                    return "Sprite (Additive, Black Background)"
-                elif suffix.startswith("ui"):
-                    return "Interface Bitmap"
-                elif suffix.startswith("vec"):
-                    return "Vector Map"
-                elif suffix.startswith("warp"):
-                    return "Warp Map (EMBM)"
-                elif suffix.startswith(("zbump", "dx_normal", 'dxnormal', 'normaldx', 'normal_dx')):
-                    return "ZBrush Bump Map (from Bump Map)"
-                elif suffix.startswith(("nor", "nm", "nrm")):
-                    if self.corinth:
-                        return "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)"
-                    else:
-                        return "Normal Map (aka zbump)"
-                    
-            return "Diffuse Map"
-        
-        if bitmap_type == 'default':
-            bitmap_type = get_type_from_name(bitmap_name)
-            
+    def new_bitmap(self, bitmap_name, bitmap_type, color_space, *, preserve_size=False, bitmap_shape='auto'):
+        requested = bitmap_type if bitmap_type and bitmap_type != 'default' else infer_bitmap_usage(bitmap_name, self.game)
+        bitmap_type = resolve_bitmap_usage(bitmap_name, bitmap_type, self.game)
+        if self.game in CLASSIC_GAMES:
+            if requested in {'usage:default', *self.longenum_usage.options().names}:
+                requested = infer_bitmap_usage(bitmap_name, self.game)
+            self._new_classic_bitmap(bitmap_type, requested, bitmap_shape)
+            return
+
         normal_bitmap_types = (
             "ZBrush Bump Map (from Bump Map)",
             "Normal Map (aka zbump)",
             "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)",
         )
 
-        self.longenum_usage.set(bitmap_type)
+        # Native field-name normalization treats ':' as metadata, including in
+        # the Float Map label. Use the index from this game's exact definition.
+        self.longenum_usage.set(bitmap_usage_names(self.game).index(bitmap_type))
         self.charenum_usage.set('force PRETTY')
         if not len(self.block_usage_override):
+            # A zero-filled override replaces Tool's complete usage preset,
+            # including height conversion, sprite packing and volume slicing.
+            # Only create overrides for the usages Foundry configures below.
+            if bitmap_type not in (*normal_bitmap_types, 'Material Map', 'Diffuse Map',
+                                   'Blend Map (linear for terrains)', 'Self-Illum Map',
+                                   'Cube Map (Reflection Map)', 'Detail Map'):
+                self.tag_has_changes = True
+                return
             self.block_usage_override.add()
         override = self.block_usage_override[0]
         source_gamma = self.required_field(override, 'source gamma')
@@ -365,7 +330,8 @@ class BitmapTag(BlenderTag, TagDocument):
             source_gamma_value = self._source_gamma_from_color_space(color_space)
         source_gamma.set(source_gamma_value)
         if source_gamma_value > 2.0:
-            self._set_enum(override, 'bitmap curve', "sRGB (gamma 2.2)")
+            curve = 'sRGB' if self.game in {'halo3', 'halo3odst'} else 'sRGB (gamma 2.2)'
+            self._set_enum(override, 'bitmap curve', curve)
         elif source_gamma_value > 1:
             self._set_enum(override, 'bitmap curve', "xRGB (gamma about 2.0)")
         else:
@@ -387,6 +353,39 @@ class BitmapTag(BlenderTag, TagDocument):
             
         self.tag_has_changes = True
         
+    def _new_classic_bitmap(self, usage, requested, shape):
+        root = self.tag.root()
+        self.longenum_usage.set(usage)
+        shapes = {'2d': 0, '3d': 1, 'cube': 2, 'sprites': 3, 'interface': 4}
+        if shape == 'auto':
+            if requested == 'Cube Map (Reflection Map)':
+                shape = 'cube'
+            elif requested == '3D Texture':
+                shape = '3d'
+            elif requested.startswith('Sprite'):
+                shape = 'sprites'
+            elif requested == 'Interface Bitmap':
+                shape = 'interface'
+        if shape != 'auto':
+            self.required_field(root, 'type').set(shapes[shape])
+        if self._enum_index(root, 'type') == 4:
+            # Classic interface/linear textures cannot use DXT compression.
+            self.required_field(root, 'encoding format' if self.game == 'halo1' else 'format').set(4)
+        if self.tag_is_new:
+            # DXT5 preserves authored alpha. Normal/height maps must retain the
+            # classic compiler's own normal encoding instead.
+            if (self._enum_index(root, 'type') != 4 and
+                    usage in {'default', 'alpha blend', 'alpha-blend', 'detail map', 'light map'}):
+                self.required_field(root, 'encoding format' if self.game == 'halo1' else 'format').set(2)
+            processing = self.required_field(root, 'processing').as_struct() if self.game == 'halo1' else root
+            self.required_field(processing, 'bump height').set(1.0)
+            self.required_field(processing, 'detail fade factor').set(0.5)
+        if requested.startswith('Sprite'):
+            sprite = self.required_field(root, 'sprite processing').as_struct() if self.game == 'halo1' else root
+            sprite_usage = 2 if 'Double Multiply' in requested else 1 if 'White Background' in requested else 0
+            self.required_field(sprite, 'usage' if self.game == 'halo1' else 'sprite usage').set(sprite_usage)
+        self.tag_has_changes = True
+
     def get_granny_data(
         self, fill_alpha: bool, calc_blue_channel: bool
     ) -> tuple[int, int, int, bytes] | None:
@@ -895,7 +894,8 @@ class BitmapTag(BlenderTag, TagDocument):
             options = self.longenum_usage.options()
             usage = options.current_name.casefold() if options is not None and options.current_name else ''
             return any(name in usage for name in ('height map', 'vector map', 'bump', 'normal', 'embm'))
-        return self._enum_index(self.tag.root(), 'Usage') in {2, 3, 18, 19, 20, 21, 36, 38}
+        usage = self.longenum_usage.options().current_name
+        return any(word in usage for word in ('Bump Map', 'Normal Map'))
     
     def uses_srgb(self):
         if self.game in {'halo1', 'halo2'}:

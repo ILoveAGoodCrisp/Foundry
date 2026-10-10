@@ -1,4 +1,6 @@
 """Blender transforms and native options for authored scenario markers."""
+import re
+
 from ... import utils
 from ...tags.scenario import ScenarioDocument, ScenarioMarkerPlacement
 from ...tags.scenario_markers import PLAYER_FIELDS, block_fields, MARKER_PREFIX
@@ -68,7 +70,7 @@ def marker_placement(ob, game):
         fields = block_fields(game, 'cutscene flags')
         options = {field: getattr(nwo, prop) for prop, field in
                    (('scenario_editor_folder', 'editor folder'), ('cutscene_flag_source_bsp', 'source bsp')) if field in fields}
-        name = nwo.cutscene_flag_name.strip() or ob.name
+        name = re.sub(r'\.\d{3,}$', '', ob.name)
     return ScenarioMarkerPlacement(name, tuple(matrix.translation), rotation, options)
 
 
@@ -115,7 +117,6 @@ def markers_to_blender(scenario, collection, bvh=None, bsp_indices=None):
                         value = str(value)
                     setattr(ob.nwo, prop, value)
             if kind == 'cutscene_flag':
-                ob.nwo.cutscene_flag_name = placement.name
                 ob.nwo.cutscene_flag_source_bsp = placement.options.get('source bsp', -1)
             else:
                 flags = placement.options.get('flags', 0)

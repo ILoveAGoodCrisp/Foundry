@@ -1,4 +1,5 @@
 from collections import Counter, defaultdict
+from contextlib import contextmanager
 import colorsys
 import copy
 import ctypes
@@ -208,6 +209,26 @@ BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg",
 #############
 ##FUNCTIONS##
 #############
+
+
+_busy_cursor_windows = set()
+
+
+@contextmanager
+def busy_cursor(context=None):
+    """Keep the wait cursor until the outermost operation on this window ends."""
+    window = (context or bpy.context).window
+    if window is None or window.as_pointer() in _busy_cursor_windows:
+        yield
+        return
+    pointer = window.as_pointer()
+    window.cursor_modal_set('WAIT')
+    _busy_cursor_windows.add(pointer)
+    try:
+        yield
+    finally:
+        _busy_cursor_windows.remove(pointer)
+        window.cursor_modal_restore()
 
 
 def is_linked(ob):

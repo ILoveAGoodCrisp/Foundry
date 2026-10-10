@@ -3145,7 +3145,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     if len(enum_options(game, 'player starting locations', 'flags')) > 1:
                         col.prop(nwo, 'player_start_survival_elite')
             elif nwo.marker_type == '_connected_geometry_marker_type_cutscene_flag':
-                col.prop(nwo, 'cutscene_flag_name')
                 if utils.get_project() and utils.get_project().game not in {'halo1', 'halo2'}:
                     col.prop(nwo, 'scenario_editor_folder')
                 if h4:
@@ -3841,6 +3840,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col_props = col.column()
             col_props.use_property_split = True
             col_props.prop(bitmap, "bitmap_type", text="Type")
+            if utils.get_game() in {'halo1', 'halo2'}:
+                col_props.prop(bitmap, "bitmap_shape")
             return
         col.separator()
         col.operator("nwo.open_foundation_tag", text="Open Bitmap Tag", icon_value=utils.get_tag_editor_icon_id()).tag_path = bitmap_path
@@ -3853,6 +3854,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col_props = col.column()
             col_props.use_property_split = True
             col_props.prop(bitmap, "bitmap_type", text="Type")
+            if utils.get_game() in {'halo1', 'halo2'}:
+                col_props.prop(bitmap, "bitmap_shape")
             col_props.prop(bitmap, "reexport_tiff", text="Update source TIFF")
             
     def draw_cinematic_events(self, nwo, ob, box):

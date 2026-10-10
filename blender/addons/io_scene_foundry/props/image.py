@@ -1,66 +1,29 @@
-import os
 import bpy
 
-from ..utils import clean_tag_path, get_asset_path, is_corinth, valid_nwo_asset
+from ..utils import get_game
+from ..bitmap_usage import bitmap_type_items
 
 class NWO_ImagePropertiesGroup(bpy.types.PropertyGroup):
     bitmap_name: bpy.props.StringProperty(
         name="Name",
     )
     def bitmap_type_items(self, context):
-        h4 = is_corinth(context)
-        items = []
-        items.append(("default", "Default", "Usage is defined by the suffix of the bitmap name"))
-        items.append(("Diffuse Map", "Diffuse Map", ""))
-        items.append(("Specular Map", "Specular Map", ""))
-        items.append(("Bump Map (from Height Map)", "Bump Map (from Height Map)", ""))
-        items.append(("Detail Bump Map (from Height Map - fades out)", "Detail Bump Map (from Height Map - fades out)", ""))
-        items.append(("Detail Map", "Detail Map", ""))
-        items.append(("Self-Illum Map", "Self-Illum Map", ""))
-        items.append(("Change Color Map", "Change Color Map", ""))
-        items.append(("Cube Map (Reflection Map)", "Cube Map (Reflection Map)", ""))
-        items.append(("Sprite (Additive, Black Background)", "Sprite (Additive, Black Background)", ""))
-        items.append(("Sprite (Blend, White Background)", "Sprite (Blend, White Background)", ""))
-        items.append(("Sprite (Double Multiply, Gray Background)", "Sprite (Double Multiply, Gray Background)", ""))
-        items.append(("Interface Bitmap", "Interface Bitmap", ""))
-        items.append(("Warp Map (EMBM)", "Warp Map (EMBM)", ""))
-        items.append(("Vector Map", "Vector Map", ""))
-        items.append(("3D Texture", "3D Texture", ""))
-        items.append(("Float Map (WARNING)", "Float Map (WARNING)", ""))
-        items.append(("Half float Map (HALF HUGE)", "Half float Map (HALF HUGE)", ""))
-        items.append(("Height Map (for Parallax)", "Height Map (for Parallax)", ""))
-        items.append(("ZBrush Bump Map (from Bump Map)", "ZBrush Bump Map (from Bump Map)", ""))
-        items.append(("Normal Map (aka zbump)", "Normal Map (aka zbump)", ""))
-        items.append(("Detail ZBrush Bump Map", "Detail ZBrush Bump Map", ""))
-        items.append(("Detail Normal Map", "Detail Normal Map", ""))
-        items.append(("Blend Map (linear for terrains)", "Blend Map (linear for terrains)", ""))
-        items.append(("Palettized --- effects only", "Palettized --- effects only", ""))
-        items.append(("CHUD related bitmap", "CHUD related bitmap", ""))
-        items.append(("Lightmap Array", "Lightmap Array", ""))
-        items.append(("Water Array", "Water Array", ""))
-        items.append(("Interface Sprite", "Interface Sprite", ""))
-        items.append(("Interface Gradient", "Interface Gradient", ""))
-        items.append(("Material Map", "Material Map", ""))
-        items.append(("Smoke Warp", "Smoke Warp", ""))
-        items.append(("Mux Material Blend Map", "Mux Material Blend Map", ""))
-        items.append(("Cubemap Gel", "Cubemap Gel", ""))
-        items.append(("Lens Flare gamma 2.2 -- effects only", "Lens Flare gamma 2.2 -- effects only", ""))
-        items.append(("Signed Noise", "Signed Noise", ""))
-        items.append(("Roughness Map (auto)", "Roughness Map (auto)", ""))
-        if h4:
-            items.append(("Normal Map (from Standard Orientation of Maya, Modo, Zbrush)", "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)", ""))
-            items.append(("Color Grading", "Color Grading", ""))
-            items.append(("Detail Normal Map (from Standard Orientation with distance face)", "Detail Normal Map (from Standard Orientation with distance face)", ""))
-            items.append(("Diffuse Texture Array", "Diffuse Texture Array", ""))
-            items.append(("Palettized Texture Array", "Palettized Texture Array", ""))
-        
-        return items
-
+        return bitmap_type_items(get_game(use_external=False))
 
     bitmap_type: bpy.props.EnumProperty(
         name="Type",
         options=set(),
         items=bitmap_type_items,
+    )
+    bitmap_shape: bpy.props.EnumProperty(
+        name="Texture Shape",
+        description="Halo CE and Halo 2 store texture shape separately from usage",
+        items=[('auto', 'Automatic', 'Infer shape from the image name; preserve existing tags', 0),
+               ('2d', '2D Texture', '', 1), ('3d', '3D Texture', '', 2),
+               ('cube', 'Cube Map', '', 3), ('sprites', 'Sprites', '', 4),
+               ('interface', 'Interface Bitmap', '', 5)],
+        default='auto',
+        options=set(),
     )
     append_type: bpy.props.BoolProperty(
         name="Append Type",

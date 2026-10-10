@@ -10,6 +10,8 @@ def engine_only_limit(game, family, category, option):
     if category == 'blend_mode' and option in {'maximum', 'add_src_times_dstalpha'}:
         return True  # Needs destination framebuffer color/alpha.
     if game == 'reach':
+        if family == 'shader_halogram' and category == 'misc' and option == 'first_person_never':
+            return True  # First-person visibility is controlled by the engine.
         if family == 'shader_fur_stencil':
             return True  # Writes engine stencil bits rather than surface color.
         if family == 'shader_screen' and category == 'base' and option == 'normal_map_edge_stencil':

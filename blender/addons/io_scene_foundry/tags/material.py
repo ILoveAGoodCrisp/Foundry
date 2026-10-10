@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import cast
 from mathutils import Vector
+from blam_tags import RealArgbColor, RealVector3d
 
 from .connected_material import AnimatedParameterType, Function
 from .backend import TagReference
@@ -98,14 +99,12 @@ class MaterialTag(ShaderTag):
         if material_shader_path is None:
             return
         
-        if isinstance(material_shader_path, str):
-            material_parameters = cls.material_shaders.get(Path(material_shader_path).with_suffix("").name)
-        else:
-            material_parameters = cls.material_shaders.get(material_shader_path.ShortName)
+        key = str(Path(utils.get_tags_path(), material_shader_path)) if isinstance(material_shader_path, str) else material_shader_path.Filename
+        material_parameters = cls.material_shaders.get(key)
         if material_parameters is None:
             with MaterialShaderTag(path=material_shader_path) as material_shader:
                 material_parameters = material_shader.get_defaults()
-                cls.material_shaders[material_shader.tag_path.ShortName] = material_parameters
+                cls.material_shaders[key] = material_parameters
         
         # with MaterialShaderTag(path=material_shader_path) as material_shader:
         #     cls.default_parameters, cls.shader_parameters = material_shader.get_defaults()
@@ -176,22 +175,7 @@ class MaterialTag(ShaderTag):
                     pending.append(link.from_node)
 
     def _source_from_input_and_parameter_type(self, input, parameter_type, source_node=None):
-        source_node = source_node or self.group_node
-        input_name = input.name.lower()
-        match parameter_type:
-            case 'bitmap':
-                linked = utils.find_linked_node(source_node, input_name, 'TEX_IMAGE')
-                if linked is None:
-                    linked = utils.find_linked_node(source_node, input_name, 'TEX_ENVIRONMENT')
-                return linked
-            case 'real':
-                return float(input.default_value)
-            case 'int':
-                return int(input.default_value)
-            case 'bool':
-                return int(bool(input.default_value))
-            case 'color':
-                return utils.get_material_albedo(source_node, input)
+        return super()._source_from_input_and_parameter_type(input, parameter_type, source_node)
 
     def _from_nodes_group(self):
         name_type_node_dict = {}
@@ -202,19 +186,16 @@ class MaterialTag(ShaderTag):
         material_shader_path = self._material_shader_path_from_group_node(group_node_name)
         if not material_shader_path:
             utils.print_warning(f"No material shader found for group node [{group_node_name}]. Falling back to adaptive basic mapping")
-            self._build_basic(self._get_basic_mapping(self.blender_material))
             return
         
         self.reference_material_shader.Path = self._TagPath_from_string(material_shader_path)
         if self.reference_material_shader.Path is None:
             utils.print_warning(f"Failed to resolve material shader path [{material_shader_path}] for group node [{group_node_name}]. Falling back to adaptive basic mapping")
-            self._build_basic(self._get_basic_mapping(self.blender_material))
             return
 
         parameters = self._get_info(self.reference_material_shader.Path)
         if not parameters:
             utils.print_warning(f"Material shader defaults missing for [{self.reference_material_shader.Path.ShortName}]. Falling back to adaptive basic mapping")
-            self._build_basic(self._get_basic_mapping(self.blender_material))
             return
         
         for i in inputs:
@@ -240,6 +221,10 @@ class MaterialTag(ShaderTag):
 
         for name, value in name_type_node_dict.items():
             param_type, source = value
+            if source is None:
+                if param_type == 'bitmap':
+                    self._Element_remove_if_needed(self.block_parameters, 'parameter name', name)
+                continue
             element = self._setup_parameter(source, name, param_type)
             if element:
                 mapping = self._setup_function_parameters(source, element, param_type)
@@ -248,137 +233,26 @@ class MaterialTag(ShaderTag):
         return True
                 
     def _build_basic(self, map: dict):
-        # Set up shader parameters
-        self.group_node = map.get("mapping_root") or map.get("bsdf")
-        spec_alpha_from_diffuse = bool(map.get('specular_from_diffuse_alpha'))
-        si_alpha_from_diffuse = bool(map.get('self_illum_from_diffuse_alpha'))
-        if map.get('diffuse', 0):
-            element = self._setup_parameter(map['diffuse'], 'color_map', 'bitmap')
-            if element:
-                mapping = self._setup_function_parameters(map['diffuse'], element, 'bitmap')
-                self._finalize_material_parameters(mapping, element)
-            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'albedo_tint')
-            diff_alpha_output = map['diffuse'].outputs.get('Alpha')
-            if diff_alpha_output is None and len(map['diffuse'].outputs) > 1:
-                diff_alpha_output = map['diffuse'].outputs[1]
-            if diff_alpha_output and diff_alpha_output.links:
-                for l in diff_alpha_output.links:
-                    socket_name = l.to_socket.name.lower()
-                    if socket_name == 'specular ior level' or 'specular' in socket_name or socket_name in {'sp', '[sp] texture'}:
-                        spec_alpha_from_diffuse = True
-                    if socket_name == 'emission color' or 'emission' in socket_name or 'self illum' in socket_name or socket_name in {'em', '[em] texture'}:
-                        si_alpha_from_diffuse = True
-                
-        elif map.get('albedo_tint', 0):
-            element = self._setup_parameter(map['albedo_tint'], 'albedo_tint', 'color')
-            if element:
-                mapping = self._setup_function_parameters(map['albedo_tint'], element, 'color')
-                self._finalize_material_parameters(mapping, element)
-            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'color_map')
-        else:
-            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'color_map')
-            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'albedo_tint')
-                
-        if not spec_alpha_from_diffuse and map.get('specular', 0):
-            element = self._setup_parameter(map['specular'], 'specular_map', 'bitmap')
-            if element:
-                mapping = self._setup_function_parameters(map['specular'], element, 'bitmap')
-                self._finalize_material_parameters(mapping, element)
-        else:
-            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'specular_map')
-            
-        if si_alpha_from_diffuse:
-            element = self._setup_parameter(map['diffuse'], 'control_map_spglrf', 'bitmap')
-            if element:
-                mapping = self._setup_function_parameters(map['diffuse'], element, 'bitmap')
-                self._finalize_material_parameters(mapping, element)
-        else:
-            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'control_map_spglrf')
-            
-        if map.get('self_illum', 0):
-            element = self._setup_parameter(map['self_illum'], 'selfillum_mod_map', 'bitmap')
-            if element:
-                mapping = self._setup_function_parameters(map['self_illum'], element, 'bitmap')
-                self._finalize_material_parameters(mapping, element)
-            element = self._setup_parameter(map['self_illum'], 'selfillum_map', 'bitmap')
-            if element:
-                mapping = self._setup_function_parameters(map['self_illum'], element, 'bitmap')
-                self._finalize_material_parameters(mapping, element)
-        else:
-            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'selfillum_mod_map')
-            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'selfillum_map')
-        
-        if si_alpha_from_diffuse or map.get('self_illum', 0):
-            si_intensity = map.get('emission_strength')
-            if si_intensity is None:
-                bsdf = map.get('bsdf')
-                emission_input = None
-                if bsdf and hasattr(bsdf, 'inputs'):
-                    emission_input = bsdf.inputs.get('Emission Strength')
-                    if emission_input is None:
-                        for input_socket in bsdf.inputs:
-                            if input_socket.name.lower() == 'emission strength':
-                                emission_input = input_socket
-                                break
-                if emission_input:
-                    si_intensity = emission_input.default_value
-                else:
-                    si_intensity = 1
-            element = self._setup_parameter(si_intensity, 'si_intensity', 'real')
-            if element:
-                mapping = self._setup_function_parameters(si_intensity, element, 'real')
-                self._finalize_material_parameters(mapping, element)
-        else:
-            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'si_intensity')
-            
-        if map.get('normal', 0):
-            element = self._setup_parameter(map['normal'], 'normal_map', 'bitmap')
-            if element:
-                mapping = self._setup_function_parameters(map['normal'], element, 'bitmap')
-                self._finalize_material_parameters(mapping, element)
-        else:
-            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'normal_map')
-            
-            
-        if self.alpha_type == 'blend' and self.alpha_blend_mode.Value == 0:
-            self.alpha_blend_mode.Value = 3
-        elif not self.alpha_type and self.alpha_blend_mode.Value == 3:
-            self.alpha_blend_mode.Value = 0
-            
-        if self.material_shader:
-            self.reference_material_shader.Path = self._TagPath_from_string(self.material_shader)
-        elif map.get('albedo_tint', 0) and not map.get('specular', 0) and not map.get('normal', 0):
-            if self.alpha_type == 'clip':
-                self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_constant_clip.material_shader')
-            else:
-                self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_constant.material_shader')
-        elif si_alpha_from_diffuse:
-            self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_ca_blinn_diffspec_selfillum.material_shader')
-        elif spec_alpha_from_diffuse:
-            if self.alpha_type == 'clip':
-                self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_ca_blinn_diffspec_clip.material_shader')
-            else:
-                self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_ca_blinn_diffspec.material_shader')
-        elif map.get('self_illum', 0):
-            self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_blinn_selfillum_mod.material_shader')
-        elif self.alpha_type == 'clip':
-            self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_blinn_clip.material_shader')
-        else:
-            self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_blinn.material_shader')
-            
-            
+        from .material_basic import write_material
+        write_material(self, map)
+
     def _finalize_material_parameters(self, mapping, element):
+        names = {AnimatedParameterType.COLOR: 'color', AnimatedParameterType.VALUE: 'value',
+                 AnimatedParameterType.SCALE_X: self.scale_u, AnimatedParameterType.SCALE_Y: self.scale_v,
+                 AnimatedParameterType.TRANSLATION_X: self.translation_u,
+                 AnimatedParameterType.TRANSLATION_Y: self.translation_v}
+        mapping = {names.get(key, key): value for key, value in mapping.items()}
         color = mapping.get('color', 0)
         if color:
             argb_color = [1, utils.linear_to_srgb(color[0]), utils.linear_to_srgb(color[1]), utils.linear_to_srgb(color[2])]
-            element.SelectField('color').Data = argb_color
+            element.SelectField('color').Data = RealArgbColor(*argb_color)
         if mapping.get(self.scale_u) is not None:
             element.SelectField('real').Data = mapping.get(self.scale_u)
         if mapping.get(self.scale_v) is not None:
             if mapping.get(self.translation_u) is not None:
-                element.SelectField('vector').Data = [mapping.get(self.scale_v), mapping.get(self.translation_u), mapping.get(self.translation_v)]
+                element.SelectField('vector').Data = RealVector3d(mapping.get(self.scale_v), mapping.get(self.translation_u), mapping.get(self.translation_v))
             else:
-                element.SelectField('vector').Data = [mapping.get(self.scale_v), 0, 0]
+                element.SelectField('vector').Data = RealVector3d(mapping.get(self.scale_v), 0, 0)
         
         value = mapping.get('value')
         if value is not None:

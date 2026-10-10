@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import traceback
 import bpy
 
 from ..export.build_sidecar import Sidecar
@@ -249,6 +250,10 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         return asset_name, asset_directory
 
     def execute(self, context):
+        with utils.busy_cursor(context):
+            return self.create_asset(context)
+
+    def create_asset(self, context):
         project = utils.get_project(self.project)
         asset_name, asset_directory = self.asset_location(project)
 
@@ -344,7 +349,11 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             add_special_materials('h4' if project.corinth else 'reach', self.asset_type)
             
         if self.append_grid_materials:
-            append_grid_materials()
+            try:
+                append_grid_materials()
+            except Exception as exc:
+                traceback.print_exc()
+                self.report({'WARNING'}, f"Could not create Grid Materials; continuing asset creation: {exc}")
         
         if self.generate_halo_skeleton:
             needs_aim_bones = self.output_biped or self.output_vehicle or scene_nwo.output_giant

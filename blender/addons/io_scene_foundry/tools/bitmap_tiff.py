@@ -40,12 +40,13 @@ def write_image_tiff(image, path):
     write_rgba_tiff(path, width, height, rgba[::-1].tobytes())
 
 
-def write_cube_tiff(image, path):
+def write_cube_tiff(image, path, *, classic=False):
     """Repack an extracted DirectX cross into Tool's cube-slicer plate.
 
     Tool reads the middle row left-to-right, then the top-left and bottom-left
     cells, into the six DirectX storage faces (+X,-X,+Y,-Y,+Z,-Z).
-    This is a lossless rearrangement of the original faces, not a lat-long bake.
+    CE/H2 additionally rotate faces during import; undo those rotations in the
+    source plate. This is a lossless rearrangement, not a lat-long bake.
     """
     import numpy as np
     width, height = image.size
@@ -59,6 +60,8 @@ def write_cube_tiff(image, path):
     plate[:] = (0, 0, 255, 255)
     source_cells = ((0, 1), (2, 1), (1, 0), (1, 2), (1, 1), (3, 1))
     target_cells = ((0, 1), (1, 1), (2, 1), (3, 1), (0, 0), (0, 2))
-    for (sx, sy), (dx, dy) in zip(source_cells, target_cells):
-        plate[dy*size:(dy+1)*size, dx*size:(dx+1)*size] = source[sy*size:(sy+1)*size, sx*size:(sx+1)*size]
+    rotations = (-1, -2, -3, 0, -1, -1) if classic else (0,) * 6
+    for (sx, sy), (dx, dy), rotation in zip(source_cells, target_cells, rotations):
+        face = source[sy*size:(sy+1)*size, sx*size:(sx+1)*size]
+        plate[dy*size:(dy+1)*size, dx*size:(dx+1)*size] = np.rot90(face, rotation)
     write_rgba_tiff(path, width, height, plate.tobytes())

@@ -15,6 +15,7 @@ from ..tags.shader_specialized import (ShaderCortanaTag, ShaderSkinTag, ShaderWa
     ShaderFurTag, ShaderFurStencilTag, ShaderMuxTag, ShaderMuxMaterialTag, ShaderScreenTag)
 from ..tags.material import MaterialTag
 from .. import utils
+from .shader_nodes import connected_nodes
 
 global_material_shaders = []
 material_shader_path = ""
@@ -75,13 +76,12 @@ def _material_output_group(material: bpy.types.Material):
     node_tree = getattr(material, "node_tree", None)
     if node_tree is None:
         return None
-    output = next((node for node in node_tree.nodes if node.type == "OUTPUT_MATERIAL"), None)
-    if output is None or not output.inputs[0].links:
-        return None
-    group_node = output.inputs[0].links[0].from_node
-    if group_node.type != "GROUP" or group_node.node_tree is None:
-        return None
-    return group_node
+    for node in connected_nodes(node_tree):
+        if node.type == 'GROUP' and node.node_tree is not None:
+            name = _normalize_group_name(node.node_tree.name)
+            if name in REACH_GROUP_TO_CLASS or name.startswith('foundry_h1.shader_'):
+                return node
+    return None
 
 
 def _resolve_reach_shader_class(material: bpy.types.Material, shader_path: Path, shader_type: str):
@@ -172,6 +172,9 @@ def build_shader(material, corinth, folder="", report=None):
         tag_class = ShaderTag if nwo.uses_blender_nodes else EmptyShaderTag
         try:
             with tag_class(path=shader_path.with_suffix('.shader'), tag_must_exist=False) as tag:
+                if tag.tag_is_new and not nwo.uses_blender_nodes:
+                    from ..tags.halo2_shader_io import DEFAULT_TEMPLATE
+                    tag.set_reference(tag.tag.root(), 'template', DEFAULT_TEMPLATE)
                 nwo.shader_path = (tag.write_tag(material, True) if nwo.uses_blender_nodes
                                   else tag.tag_path.RelativePathWithExtension)
         except ValueError as exc:
@@ -200,7 +203,7 @@ def build_shader(material, corinth, folder="", report=None):
                 nwo.shader_path = tag.tag_path.RelativePathWithExtension
                 
         if nwo.shader_path:
-            build_templates([nwo.shader_path], from_options=True)
+            build_templates([nwo.shader_path], from_options=True, report=report)
         
         if report is not None:
             report({'INFO'}, f"Created Shader Tag for {material.name}")

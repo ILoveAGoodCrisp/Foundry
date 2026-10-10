@@ -11,6 +11,8 @@ import re
 import bpy
 import numpy as np
 from .bitmap_tiff import rgba_tiff_bytes
+from .. import utils
+from ..bitmap_usage import resolve_bitmap_usage
 
 
 LINEAR_TEXTURE_SPACES = {'Non-Color', 'Raw', 'Linear', 'Linear Rec.709'}
@@ -287,7 +289,8 @@ class DataTextureBaker:
         if hasattr(image, 'nwo'):
             image.nwo.filepath = str(path.relative_to(self.directory))
             image.nwo.source_name = path.name
-            image.nwo.bitmap_type = usage
+            target_usage = resolve_bitmap_usage(name, usage, utils.get_game(use_external=False))
+            image.nwo.bitmap_type = 'usage:default' if target_usage == 'default' else target_usage
         image['foundry_channel_conversion'] = True
         if relative is not None:
             image['foundry_source_bitmap_path'] = str(relative)

@@ -1493,7 +1493,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     player_start_insertion_point: bpy.props.IntProperty(name="Insertion Point Index", min=-1, max=32767, options=set())
     player_start_survival: bpy.props.BoolProperty(name="Survival Mode", options=set())
     player_start_survival_elite: bpy.props.BoolProperty(name="Survival Mode Elite", options=set())
-    cutscene_flag_name: bpy.props.StringProperty(name="Flag Name", description="Script name of this flag; empty uses the object name")
     camera_point_name: bpy.props.StringProperty(name="Point Name", description="Script name of this camera point; empty uses the camera object name")
     camera_point_type: bpy.props.EnumProperty(name="Camera Point Type", items=camera_point_types)
     camera_point_edit_as_relative: bpy.props.BoolProperty(name="Edit as Relative", options=set())
