@@ -34,8 +34,6 @@ class BitmapInfo:
         self.sequence_length = 1
         self.shader_type = "default"
         
-used_plate_paths = []
-
 BITMAP_SEQUENCE_EXTENSIONS = {".tif", ".tiff", ".tga"}
 
 def _frame_suffix_number(path: Path) -> int | None:
@@ -149,7 +147,6 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_ind
     
     with BitmapTag(path=rel_path) as bitmap:
         if not bitmap.has_bitmap_data(): return info
-        use_first_sequence_frame = bitmap.game == 'halo1' or bitmap.is_cubemap
         if bitmap.is_cubemap:
             info.cubemap = True
             cubemap_frame_count = len(bitmap.block_bitmaps)
@@ -165,6 +162,9 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_ind
         info.curve = bitmap.curve_index()
         info.for_normal = bitmap.used_as_normal_map()
         info.shader_type = bitmap.get_shader_type()
+        first_bitmap = bitmap.block_bitmaps[frame_index or 0]
+        array_shape = tuple(int(bitmap.required_field(first_bitmap, key).value)
+                            for key in ('width', 'height', 'depth'))
         incomplete_cubemap_sequence = False
         if info.cubemap and len(bitmap.block_bitmaps) > 1:
             # Prefer the numbered sequence over a stale single-image preview.
@@ -221,19 +221,9 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_ind
             raise BitmapExtractionError(f'Bitmap frame {frame_index} is unavailable for {rel_path}')
     elif sequence_paths and (len(sequence_paths) > info.sequence_length or image_path.is_dir()):
         info.sequence_length = max(info.sequence_length, len(sequence_paths))
-        if use_first_sequence_frame:
-            # A permutation driver indexes from the first bitmap on every
-            # material, including materials sharing this image datablock.
-            info.image_path = str(sequence_paths[0])
-        else:
-            for sequence_path in sequence_paths:
-                if sequence_path in used_plate_paths:
-                    continue
-                used_plate_paths.append(sequence_path)
-                info.image_path = str(sequence_path)
-                break
-            else:
-                info.image_path = str(sequence_paths[0])
+        # Every node has its own ImageUser and frame driver. All materials
+        # must anchor that zero-based index to the same first bitmap.
+        info.image_path = str(sequence_paths[0])
             
     image = bpy.data.images.load(filepath=info.image_path, check_existing=True)
     if frame_index is not None and image.source == 'SEQUENCE':
@@ -241,6 +231,7 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_ind
         image.source = 'FILE'
     image.nwo.filepath = utils.relative_path(info.image_path)
     image['foundry_source_bitmap_path'] = utils.relative_path(path)
+    image['foundry_bitmap_shape'] = array_shape
     image.nwo.shader_type = info.shader_type
     if info.cubemap:
         image['foundry_cubemap_source'] = str(cube_source)
@@ -434,46 +425,25 @@ class BitmapTag(BlenderTag, TagDocument):
 
     @staticmethod
     def _equirectangular_face_type(height: int, width: int):
-        if width % 8 != 0:
-            raise ValueError("equirectangular cubemap width must be a multiple of 8")
-
-        front, right, back, left, up, down = range(6)
-        quarter_width = width // 4
-        eighth_width = width // 8
-        third_height = height // 3
-        face_type = np.empty((height, width), dtype=np.int32)
-
-        face_type[:, :eighth_width] = back
-        face_type[:, eighth_width:eighth_width + quarter_width] = left
-        face_type[:, eighth_width + quarter_width:eighth_width + 2 * quarter_width] = front
-        face_type[:, eighth_width + 2 * quarter_width:eighth_width + 3 * quarter_width] = right
-        face_type[:, eighth_width + 3 * quarter_width:] = back
-
-        indices = np.linspace(-np.pi, np.pi, quarter_width, dtype=np.float32) / 4
-        edge_rows = np.round(height / 2 - np.arctan(np.cos(indices)) * height / np.pi).astype(np.int32)
-        row_indices = np.arange(third_height, dtype=np.int32)[:, None]
-        top_mask = row_indices < edge_rows[None]
-        bottom_mask = np.flip(top_mask, 0)
-
-        face_type[:third_height, :eighth_width][top_mask[:, eighth_width:]] = up
-        face_type[-third_height:, :eighth_width][bottom_mask[:, eighth_width:]] = down
-
-        for index in range(3):
-            start = eighth_width + index * quarter_width
-            stop = start + quarter_width
-            face_type[:third_height, start:stop][top_mask] = up
-            face_type[-third_height:, start:stop][bottom_mask] = down
-
-        remainder = width - stop
-        face_type[:third_height, stop:][top_mask[:, :remainder]] = up
-        face_type[-third_height:, stop:][bottom_mask[:, :remainder]] = down
-        return face_type
+        if height <= 0 or width <= 0:
+            raise ValueError("equirectangular dimensions must be positive")
+        # Sample pixel centers rather than duplicating both longitude endpoints.
+        u = (np.arange(width, dtype=np.float64) + .5) * (2 * np.pi / width) - np.pi
+        v = np.pi / 2 - (np.arange(height, dtype=np.float64) + .5) * (np.pi / height)
+        x = np.cos(v[:, None]) * np.sin(u[None, :])
+        z = np.cos(v[:, None]) * np.cos(u[None, :])
+        y = np.broadcast_to(np.sin(v[:, None]), x.shape)
+        axis = np.argmax(np.stack([np.abs(x), np.abs(y), np.abs(z)]), axis=0)
+        # Keep the existing F/R/B/L/U/D convention and panorama orientation.
+        return np.where(axis == 1, np.where(y >= 0, 4, 5),
+                        np.where(axis == 0, np.where(x >= 0, 1, 3),
+                                 np.where(z >= 0, 0, 2))).astype(np.int32)
 
     @staticmethod
     def _cubemap_equirectangular_coordinates(face_size: int, height: int, width: int):
         up, down = 4, 5
-        u = np.linspace(-np.pi, np.pi, num=width, dtype=np.float32)
-        v = np.linspace(np.pi / 2, -np.pi / 2, num=height, dtype=np.float32)
+        u = (np.arange(width, dtype=np.float64) + .5) * (2 * np.pi / width) - np.pi
+        v = np.pi / 2 - (np.arange(height, dtype=np.float64) + .5) * (np.pi / height)
         u, v = np.meshgrid(u, v)
 
         face_type = BitmapTag._equirectangular_face_type(height, width)
@@ -496,10 +466,13 @@ class BitmapTag(BlenderTag, TagDocument):
         coor_x[mask] = distance * np.sin(u[mask])
         coor_y[mask] = -distance * np.cos(u[mask])
 
-        coor_x += half_size
-        coor_y += half_size
-        coor_x.clip(0, face_size, out=coor_x)
-        coor_y.clip(0, face_size, out=coor_y)
+        # Cube UV edges are between texel centers: -0.5 and size-0.5.
+        # Allow those half-texel border samples so bilinear filtering blends
+        # the current face with the correctly oriented adjacent face.
+        coor_x += half_size - .5
+        coor_y += half_size - .5
+        coor_x.clip(-.5, face_size - .5, out=coor_x)
+        coor_y.clip(-.5, face_size - .5, out=coor_y)
         return face_type, coor_x, coor_y
 
     @staticmethod
@@ -532,6 +505,16 @@ class BitmapTag(BlenderTag, TagDocument):
         padded[up, 1:-1, -1] = cube_faces[right, 0, ::-1]
         padded[down, 1:-1, 0] = cube_faces[left, -1, ::-1]
         padded[down, 1:-1, -1] = cube_faces[right, -1, :]
+
+        # A cube corner touches three faces. Average their corner texels for
+        # the otherwise undefined diagonal border tap used by bilinear sampling.
+        for row, inner_row in [(0, 1), (-1, -2)]:
+            for column, inner_column in [(0, 1), (-1, -2)]:
+                corner = (padded[:, row, inner_column].astype(np.float64) +
+                          padded[:, inner_row, column].astype(np.float64) +
+                          padded[:, inner_row, inner_column].astype(np.float64)) / 3
+                if np.issubdtype(cube_faces.dtype, np.integer):corner = np.rint(corner)
+                padded[:, row, column] = corner.astype(cube_faces.dtype)
 
         return padded
 
