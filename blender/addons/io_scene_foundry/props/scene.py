@@ -10,6 +10,7 @@ from ..constants import get_named_color
 from ..tools.asset_types import asset_type_items
 from ..icons import get_icon_id
 from .. import utils
+from ..coordinate_system import CoordinateSystem, FORWARD_ITEMS
 
 script_object_types = ('WEAPON_TRIGGER_START', 'WEAPON_TRIGGER_STOP', 'SET_VARIANT', 'SET_PERMUTATION', 'SET_REGION_STATE', 'SET_MODEL_STATE_PROPERTY', 'HIDE', 'UNHIDE', 'DESTROY', 'OBJECT_CANNOT_DIE', 'OBJECT_CAN_DIE', 'OBJECT_PROJECTILE_COLLISION_ON', 'OBJECT_PROJECTILE_COLLISION_OFF', 'DAMAGE_OBJECT', 'PLAY_SOUND')
 
@@ -2485,6 +2486,19 @@ class NWO_CinematicEvent(PropertyGroup):
         description="Time to go from the current function value to the new one, in seconds"
     )
     
+class NWO_CinematicExtraCamera(PropertyGroup):
+    name: bpy.props.StringProperty(
+        name="Export Name", default="texture_camera", options=set(),
+        description="Stable name of this extra camera track in the cinematic tag",
+    )
+    camera: bpy.props.PointerProperty(
+        type=bpy.types.Object, name="Camera", options=set(),
+        poll=lambda self, ob: ob.type == 'CAMERA',
+        description="Blender camera sampled alongside the main cinematic camera",
+    )
+    camera_type: bpy.props.StringProperty(default="texture", options={'HIDDEN'})
+
+
 class NWO_CinematicScene(PropertyGroup):
     
     name: bpy.props.StringProperty(
@@ -2546,6 +2560,40 @@ class NWO_CinematicScene(PropertyGroup):
     )
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
+    workflow_checks_expanded: bpy.props.BoolProperty(name="Asset Check", default=False)
+    workflow_export_scope_expanded: bpy.props.BoolProperty(name="Export Scope", default=False)
+    workflow_export_result_expanded: bpy.props.BoolProperty(name="Last Export", default=False)
+    workflow_assignment_details_expanded: bpy.props.BoolProperty(name="Assignment Details", default=False)
+    workflow_export_result: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    workflow_export_message: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    workflow_export_time: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    workflow_export_seconds: bpy.props.FloatProperty(options={'SKIP_SAVE'})
+    workflow_animation_section: bpy.props.EnumProperty(
+        name="Animation Details", default='PLAYBACK',
+        items=[('PLAYBACK', 'Playback', 'Type, motion and frame range'),
+               ('TRACKS', 'Tracks', 'Actions and external animation sources'),
+               ('EVENTS', 'Events', 'Events, renames and animation nodes'),
+               ('EXPORT', 'Export', 'Compression and game tag settings')])
+    # Extra tracks belong to the Blender scene, like cinematic events.
+    cinematic_extra_cameras: bpy.props.CollectionProperty(type=NWO_CinematicExtraCamera, options=set())
+    active_cinematic_extra_camera_index: bpy.props.IntProperty(default=0, options=set())
+    texture_camera_override_settings: bpy.props.BoolProperty(
+        name="Set Feed Size and Aspect", default=False, options=set(),
+        description="Set texture-camera resolution and aspect in the cinematic scene header",
+    )
+    texture_camera_resolution_x: bpy.props.IntProperty(
+        name="Width", default=512, min=16, max=4096, options=set(),
+        description="Width of the game's live texture-camera feed in pixels",
+    )
+    texture_camera_resolution_y: bpy.props.IntProperty(
+        name="Height", default=512, min=16, max=4096, options=set(),
+        description="Height of the game's live texture-camera feed in pixels",
+    )
+    texture_camera_aspect_ratio: bpy.props.FloatProperty(
+        name="Aspect Ratio", default=16 / 9, min=0.1, max=10.0, options=set(),
+        description="Width divided by height of the camera view displayed on the receiving surface",
+    )
+
     # CINEMATIC EVENTS
     cinematic_events: bpy.props.CollectionProperty( # scene specific
         name="Cinematic Events",
@@ -3119,16 +3167,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
 
     forward_direction: bpy.props.EnumProperty(
-        name="Scene Forward",
-        options=set(),
-        description="The forward direction you are using for the scene. By default Halo uses X forward. Whichever option is set as the forward direction in Blender will be oriented to X forward in game i.e. a model facing -Y in Blender will face X in game",
-        default="y-",
-        items=[
-            ("y-", "-Y", "Model is facing Y negative"),
-            ("y", "Y", "Model is facing Y positive"),
-            ("x-", "-X", "Model is facing X negative"),
-            ("x", "X", "Model is facing X positive"),   
-        ],
+        name="Forward", options=set(), default='y-', items=FORWARD_ITEMS,
+        description="Describe the forward axis of existing coordinates. Use Convert Scene Coordinates to change it while preserving in-game orientation",
     )
 
     output_biped: bpy.props.BoolProperty(
@@ -3796,70 +3836,40 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     # Scale
     def scale_update(self, context):
-        scene_scale = 1
-        world_units = self.scale_display == 'world_units'
-        match self.scale:
-            case 'blender':
-                scene_scale = 1 / 3.048 if world_units else 1
-                factor = 0.03048
-            case 'max':
-                scene_scale = 0.01 if world_units else 0.03048
-                factor = 1 / 0.03048
-        scale_val = self.get("scale")
-        if scale_val is not None and scale_val != self.old_scale:
-            self.old_scale = self["scale"]
-            for workspace in bpy.data.workspaces:
-                for screen in workspace.screens:
-                    for area in screen.areas:
-                        if area.type == "VIEW_3D":
-                            for space in area.spaces:
-                                if space.type == "VIEW_3D":
-                                    space.clip_start *= factor
-                                    space.clip_end *= factor
-        
-        
-        if self.scale_display == 'world_units':
-            context.scene.unit_settings.system = 'METRIC'
-            context.scene.unit_settings.length_unit = 'METERS'
-        context.scene.unit_settings.scale_length = scene_scale
-    
+        # Display settings belong to this scene; they never transform geometry.
+        scene = self.id_data
+        scene.unit_settings.system = 'METRIC'
+        scene.unit_settings.length_unit = 'METERS'
+        convention = CoordinateSystem.from_scene(self)
+        scene.unit_settings.scale_length = convention.display_scale(self.scale_display == 'world_units')
+
     def scale_items(self, context):
-        items = []
-        items.append(('blender', 'Blender Scale', "For working at a Blender friendly scale. Scene will be appropriately scaled at export to account for Halo's scale", 'BLENDER', 0))
-        items.append(('max', 'Halo Scale', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", get_icon_id("halo_scale"), 1))
-        return items
-    
+        return [
+            ('blender', 'Blender Scale', 'One scene unit represents one meter. This describes existing coordinates; use Convert Scene to resize them', 'BLENDER', 0),
+            ('max', 'Halo Scale', 'One scene unit represents 0.03048 meters. This describes existing coordinates; use Convert Scene to resize them', get_icon_id('halo_scale'), 1),
+        ]
+
     def scale_display_items(self, context):
-        items = []
-        unit_length: str = context.scene.unit_settings.length_unit
-        items.append(('meters', unit_length, "Meters displayed in Blender are equal to 0.328 in game world units", 'DRIVER_DISTANCE', 0))
-        items.append(('world_units', 'World Units'.upper(), "Meters displayed in Blender are equal to in game world units i.e. 1 Meter = 1 World Unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('wu_scale'), 1))
-        return items
-    
+        return [
+            ('meters', 'Meters', 'Display physical distances in meters; exported size is unchanged', 'DRIVER_DISTANCE', 0),
+            ('world_units', 'World Units (WU)', 'Display distances in Halo world units (1 WU = 3.048 meters). Blender length labels represent WU; exported size is unchanged', get_icon_id('wu_scale'), 1),
+        ]
+
     scale: bpy.props.EnumProperty(
         name="Scale",
         default=0,
         options=set(),
-        description="Select the scaling for this asset. Scale is applied at export to ensure units displayed in Blender match with in game units",
+        description="Describe the scale of existing coordinates. Use Convert Scene Coordinates to change scale while preserving in-game size",
         items=scale_items,
         update=scale_update,
     )
     
-    old_scale: bpy.props.IntProperty(options={'HIDDEN'})
-    
     scale_display: bpy.props.EnumProperty(
         name="Scale Display",
         options=set(),
-        description="Select whether to display scale as meters or world units. This has no affect on the scale of the exported asset",
+        description="Display distances in meters or WU without changing geometry or exported size",
         items=scale_display_items,
         update=scale_update,
-    )
-    
-    maintain_marker_axis: bpy.props.BoolProperty(
-        name="Maintain Marker Axis",
-        options=set(),
-        default=True,
-        description="Maintains the forward direction of markers when the scene coordinate system is transformed. Use this if you're working with mesh markers and want their orientation in Blender to match their in game orientation",
     )
     
     export_in_progress: bpy.props.BoolProperty(options=set())

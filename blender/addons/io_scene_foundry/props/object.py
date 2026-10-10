@@ -57,7 +57,7 @@ class NWO_MarkerPermutationItems(bpy.types.PropertyGroup):
 # CAMERA ACTOR PROPERTIES
 # ----------------------------------------------------------
 def poll_actor(self, object):
-    if object.type == 'ARMATURE' and object.nwo.cinematic_object:
+    if object.type == 'ARMATURE' and (object.nwo.cinematic_object or object.nwo.cinematic_objectless):
         for item in self.id_data.nwo.actors:
             if item.actor is object:
                 return False
@@ -134,6 +134,15 @@ class NWO_CinematicLightItems(bpy.types.PropertyGroup):
         type=bpy.types.Object,
         poll=poll_cinematic_light,
     )
+
+class NWO_CinematicLightingTemplate(bpy.types.PropertyGroup):
+    def clean_lighting_path(self, context):
+        self['lighting'] = utils.clean_tag_path(self['lighting'], 'new_cinematic_lighting').strip('"')
+
+    shot: bpy.props.IntProperty(name="Shot", default=1, min=1, max=64)
+    lighting: bpy.props.StringProperty(name="Lighting Template", update=clean_lighting_path)
+    marker: bpy.props.StringProperty(name="Marker")
+    persist: bpy.props.BoolProperty(name="Persist Across Shots")
     
 cin_shot_options = [
     ('DEFAULT', "Default", "Enables this setting for the current shot only"),
@@ -181,6 +190,11 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     # CINEMATIC
     
     # CIN CAMERA
+    cinematic_extra_camera_enabled: bpy.props.BoolProperty(
+        name="Enabled", default=True,
+        description="Enable this extra camera's game feed at the current frame; can be keyframed",
+        override={'LIBRARY_OVERRIDABLE'},
+    )
     
     def screen_effect_clean_tag_path(self, context):
         self["screen_effect"] = utils.clean_tag_path(self["screen_effect"]).strip('"')
@@ -287,6 +301,11 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         default='uncompressed',
     )
 
+    cinematic_objectless: bpy.props.BoolProperty(
+        name="No Object Tag", description="Retain an imported cinematic actor with no object tag reference",
+        options={'HIDDEN'},
+    )
+
     cinematic_lighting: bpy.props.EnumProperty(
         name="Cinematic Lighting",
         options=set(),
@@ -294,8 +313,18 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
             ('NONE', "None", "No special cinematic lighting tag is created for this actor"),
             ('PERSIST', "Persist", "One cinematic lighting tag is created for this actor and it persists in each shot the actor is active"),
             ('PER_SHOT', "Per Shot", "A cinematic lighting tag is created per shot for this actor"),
+            ('TEMPLATE', "Imported Assignments", "Preserve imported lighting assignments, copying their templates only when destination tags are missing"),
         ]
     )
+
+    def clean_cinematic_lighting_template(self, context):
+        self['cinematic_lighting_template'] = utils.clean_tag_path(self['cinematic_lighting_template'], 'new_cinematic_lighting').strip('"')
+
+    cinematic_lighting_template: bpy.props.StringProperty(
+        name="Lighting Template", update=clean_cinematic_lighting_template,
+        description="Optional new_cinematic_lighting tag to copy, with its light tags, when creating lighting for this actor",
+    )
+    cinematic_lighting_templates: bpy.props.CollectionProperty(type=NWO_CinematicLightingTemplate)
     
     cinematic_lighting_marker: bpy.props.StringProperty(
         name="Lighting Marker",
@@ -719,10 +748,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Scenario file name in the asset scenario folder; leave empty to author in the asset scenario")
     scenario_object_unique_name: bpy.props.BoolProperty(name="Unique Name", default=True, options=set(),
         description="Use the Blender object name in the scenario object names block, for scripting and attachments")
-    scenario_object_manual_bsps: bpy.props.StringProperty(name="Manual BSP Indices", options=set(),
-        description="Comma separated BSP indices for manual BSP placement")
-    scenario_object_attach_bsps: bpy.props.StringProperty(name="Can Attach to BSP Indices", options=set(),
-        description="Comma separated BSP indices to which this object can attach")
     def get_scenario_object_tag(self):
         return self.marker_game_instance_tag_name
     def set_scenario_object_tag(self, value):
@@ -1423,6 +1448,21 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Decorator set, or Halo 1 detail object collection",
         override={'LIBRARY_OVERRIDABLE'},
     )
+    cinematic_dof_source: bpy.props.EnumProperty(
+        name="Depth of Field",
+        description="Use Blender's lens model or preserve Halo's authored blur ramps",
+        items=[('BLENDER', "Blender Camera", "Convert the camera's depth of field to Halo"),
+               ('HALO', "Halo Settings", "Export the native Halo depth of field values")],
+        default='BLENDER', options=set())
+    cinematic_dof_enabled: bpy.props.BoolProperty(name="Enable Depth of Field")
+    cinematic_dof_near_focal_plane_distance: bpy.props.FloatProperty(name="Near Focal Plane", description="Distance in Halo tag units")
+    cinematic_dof_far_focal_plane_distance: bpy.props.FloatProperty(name="Far Focal Plane", description="Distance in Halo tag units")
+    cinematic_dof_focal_depth: bpy.props.FloatProperty(name="Focal Depth")
+    cinematic_dof_blur_amount: bpy.props.FloatProperty(name="Blur Amount")
+    cinematic_dof_near_focal_depth: bpy.props.FloatProperty(name="Near Focal Depth")
+    cinematic_dof_far_focal_depth: bpy.props.FloatProperty(name="Far Focal Depth")
+    cinematic_dof_near_blur_amount: bpy.props.FloatProperty(name="Near Blur Amount")
+    cinematic_dof_far_blur_amount: bpy.props.FloatProperty(name="Far Blur Amount")
 
     def decal_clean_tag_path(self, context):
         self['marker_decal_tag_name'] = utils.clean_tag_path(self.marker_decal_tag_name).strip('"')
@@ -1434,9 +1474,11 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
     decal_force_planar: bpy.props.BoolProperty(name="Force Planar", options=set())
     decal_cull_angle: bpy.props.FloatProperty(name="Cull Angle", min=0, subtype='ANGLE', options=set())
-    decal_manual_bsps: bpy.props.StringProperty(name="Manual BSPs", description="Comma-separated scenario BSP indices; empty uses automatic assignment")
-    scenario_bsp_index: bpy.props.IntProperty(name="BSP Index", default=-1, min=-1, max=32767, options=set())
-    scenario_editor_folder: bpy.props.IntProperty(name="Editor Folder", default=-1, min=-1, max=32767, options=set())
+    decorator_type_index: bpy.props.IntProperty(name="Imported Decorator Type", default=-1, min=-1,
+        options={'HIDDEN'}, description="Disambiguates imported decorator types with identical names")
+    cutscene_flag_source_bsp: bpy.props.IntProperty(name="Source BSP", default=-1, min=-1, max=32767, options=set())
+    scenario_editor_folder: bpy.props.StringProperty(name="Editor Folder", options=set(),
+        description="Scenario editor folder name or parent/name path; leave empty for no folder")
     player_start_team: bpy.props.IntProperty(name="Team Index", min=0, max=32767, options=set())
     player_start_team_designator: bpy.props.EnumProperty(name="Team", items=player_start_enum('team designator'))
     player_start_type_0: bpy.props.EnumProperty(name="Game Type 0", items=player_start_enum('type 0'))

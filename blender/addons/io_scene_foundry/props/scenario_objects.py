@@ -7,8 +7,7 @@ from ..tags.scenario_objects import object_types, object_fields, authored_defaul
 
 
 def current_game():
-    project = utils.get_project()
-    return project.game if project else 'reach'
+    return utils.get_game(use_external=False)
 
 
 @lru_cache(maxsize=7)

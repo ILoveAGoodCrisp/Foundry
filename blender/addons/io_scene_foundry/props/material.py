@@ -48,6 +48,15 @@ def _shader_type_setter(property_name):
 
 
 class NWO_MaterialPropertiesGroup(PropertyGroup):
+    use_texture_camera: BoolProperty(
+        name="Texture Camera Feed", default=False, options=set(),
+        description="Display the live game texture-camera feed through a shader bitmap input",
+    )
+    texture_camera_parameter: StringProperty(
+        name="Feed Parameter", default="self_illum_map", options=set(),
+        description="Shader bitmap input names to replace with the live camera feed, separated by commas",
+    )
+
     def update_shader(self, context):
         self["shader_path"] = utils.clean_tag_path(self["shader_path"])
         shader_path = self.shader_path

@@ -14,6 +14,7 @@ classes = [
     object.NWO_ActorItems,
     object.NWO_ActorAttachmentItems,
     object.NWO_CinematicLightItems,
+    object.NWO_CinematicLightingTemplate,
     object.NWO_ObjectPropertiesGroup,
     scene.NWO_AnimationCopiesItems,
     scene.NWO_AnimationLeavesItems,
@@ -44,6 +45,7 @@ classes = [
     scene.NWO_ControlObjects,
     # scene.NWO_ChildAsset,
     scene.NWO_CinematicEvent,
+    scene.NWO_CinematicExtraCamera,
     scene.NWO_CinematicScene,
     scene.NWO_ScenePropertiesGroup,
 ]

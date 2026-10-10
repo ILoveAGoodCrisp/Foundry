@@ -43,6 +43,11 @@ def face_mode_ui_items(_self, context):
 
 class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     attribute_name: bpy.props.StringProperty(options={'HIDDEN'})
+
+    assignment_id: bpy.props.IntProperty(
+        default=0, min=0, options={'HIDDEN'},
+        description="Stable face assignment ID; zero identifies a legacy mask record",
+    )
     
     face_count: bpy.props.IntProperty(options={'HIDDEN'})
     
@@ -61,12 +66,9 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
     
     def get_all_faces(self):
-        if not self.attribute_name:
+        if not isinstance(self.id_data, bpy.types.Mesh):
             return True
-        
-        attribute = self.id_data.attributes.get(self.attribute_name)
-        
-        return attribute is None
+        return utils.face_attributes.count(self.id_data, self) == len(self.id_data.polygons)
     
     def get_name(self):
         match self.type:
@@ -540,6 +542,8 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
 
 
 class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
+    face_attribute_version: bpy.props.IntProperty(default=0, options={'HIDDEN'})
+    face_attribute_next_id: bpy.props.IntProperty(default=1, min=1, options={'HIDDEN'})
     proxy_collision: bpy.props.PointerProperty(type=bpy.types.Object)
     proxy_cookie_cutter: bpy.props.PointerProperty(type=bpy.types.Object)
     proxy_physics0: bpy.props.PointerProperty(type=bpy.types.Object)
