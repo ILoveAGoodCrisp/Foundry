@@ -17,7 +17,8 @@ license = ["SPDX:GPL-3.0-or-later"]
 
 wheels = [
   "./wheels/coacd-1.0.11-cp39-abi3-win_amd64.whl",
-  "./wheels/blam_tags-0.1.10-cp38-abi3-win_amd64.whl"
+  "./wheels/blam_tags-0.1.10-cp38-abi3-win_amd64.whl",
+  "./wheels/foundry_granny-0.1.1-cp311-abi3-win_amd64.whl"
 ]
 
 [permissions]
