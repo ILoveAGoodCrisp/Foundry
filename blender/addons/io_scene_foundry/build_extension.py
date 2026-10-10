@@ -201,7 +201,7 @@ def bump_assembly_info_version(assembly_info_path: Path) -> str:
 
 def clear_existing_wheels(wheels_dir: Path) -> None:
     for wheel_path in wheels_dir.glob("*.whl"):
-        if normalize_name(wheel_path.name.split('-')[0]) != 'blam-tags':
+        if normalize_name(wheel_path.name.split('-')[0]) not in ('blam-tags', 'foundry-granny'):
             wheel_path.unlink()
 
 
@@ -288,6 +288,15 @@ def collect_required_wheels(wheels_dir: Path) -> list[str]:
     if len(blam_wheels) != 1:
         raise RuntimeError('Build exactly one blam-tags wheel with blender/build_blam_tags.py before packaging Foundry')
     selected.append(blam_wheels[0].name)
+    # Authored locally in rust/granny_writer; preserve separate platform wheels.
+    granny_wheels = [p for p in wheel_files if normalize_name(p.name.split('-')[0]) == 'foundry-granny']
+    if not granny_wheels:
+        raise RuntimeError('Build the foundry-granny wheel with blender/build_granny_writer.py before packaging Foundry')
+    versions = {p.name.split('-')[1] for p in granny_wheels}
+    platforms = [p.name.rsplit('-', 1)[-1] for p in granny_wheels]
+    if len(versions) != 1 or len(set(platforms)) != len(platforms):
+        raise RuntimeError('Keep one foundry-granny version and one wheel per platform before packaging Foundry')
+    selected.extend(sorted(p.name for p in granny_wheels))
     return selected
 
 
