@@ -3,6 +3,7 @@
 from enum import Enum
 from math import radians
 import multiprocessing
+import json
 from pathlib import Path
 import subprocess
 import time
@@ -176,6 +177,14 @@ class EnvironmentMapping(Enum):
     PER_PIXEL = 1
     DYNAMIC = 2
     FROM_FLAT_TEXTURE = 3
+
+class H3EnvironmentMapping(Enum):
+    NONE = 0
+    PER_PIXEL = 1
+    DYNAMIC = 2
+    FROM_FLAT_TEXTURE = 3
+    CUSTOM_MAP = 4
+    FROM_FLAT_TEXTURE_AS_CUBEMAP = 5
     
 class SelfIllumination(Enum):
     OFF = 0
@@ -246,7 +255,8 @@ class ShaderTag(BlenderTag, TagDocument):
     group_node_name = "foundry_reach.shader"
     h3_group_families = frozenset({
         'shader', 'shader_custom', 'shader_decal', 'shader_halogram',
-        'shader_terrain',
+        'shader_terrain', 'shader_cortana', 'shader_foliage', 'shader_skin',
+        'shader_water',
     })
     group_option_start_input = 8
     palette_vector_node_name = "palettized_plasma - palette_vector"
@@ -447,10 +457,19 @@ class ShaderTag(BlenderTag, TagDocument):
             self._edit_tag()
         elif self.corinth and self.material_shader:
             self._native_root.SelectField("Reference:material shader").Path = self._TagPath_from_string(self.material_shader)
+        if self.game not in {'halo1', 'halo2'}:
+            from .texture_camera import write_texture_camera_source
+            write_texture_camera_source(self, blender_material.nwo.texture_camera_parameter,
+                                        blender_material.nwo.use_texture_camera)
             
         return self.tag_path.RelativePathWithExtension
         
     def _edit_tag(self):
+        if self.game == 'halo2':
+            from .halo2_shader_io import write_shader
+            write_shader(self)
+            self.tag_has_changes = True
+            return
         if self.game == 'halo1':
             from .halo1_shader_export import write_shader
             write_shader(self)
@@ -534,10 +553,23 @@ class ShaderTag(BlenderTag, TagDocument):
 
         group_name = self._normalize_group_name(group_tree.name)
         expected = self.group_node_name
+        if self.game == 'halo1':
+            return group_name == 'foundry_h1.' + self.system_path.suffix.lstrip('.').casefold()
+        if self.game == 'halo2':
+            return bool(group_tree.get('h2_template'))
+        if self.game == 'reach' and group_tree.get('reach_source_revision'):
+            return group_name == 'foundry_reach.' + self.system_path.suffix.lstrip('.').casefold()
         if self.game in {'halo3', 'halo3odst'}:
             family = self.system_path.suffix.lstrip('.').casefold()
             if family in self.h3_group_families:
-                expected = f'foundry_h3.{family}'
+                prefix = 'foundry_h3odst.' if self.game == 'halo3odst' else 'foundry_h3.'
+                expected = prefix + family
+                # Older ODST imports used H3 entry groups. Keep their named
+                # source-option export path until the material is reimported.
+                if (self.game == 'halo3odst' and group_name == 'foundry_h3.' + family
+                        and group_node.get('h3_source_options')
+                        and group_node.get('foundry_source_game', 'halo3odst') == 'halo3odst'):
+                    return True
         if isinstance(expected, str):
             return group_name == expected
         return group_name in expected
@@ -619,6 +651,12 @@ class ShaderTag(BlenderTag, TagDocument):
         return None
 
     def _apply_group_options_from_node(self) -> dict[str, str]:
+        if self.game == 'reach' and self.group_node.node_tree.get('reach_source_revision'):
+            from .reach_shader_io import apply_options
+            return apply_options(self)
+        if self.game in {'halo3', 'halo3odst'}:
+            from .halo3_shader_io import apply_options
+            return apply_options(self)
         selected = {}
         inputs = list(self.group_node.inputs)
         for category_name, enum_cls, option_index, socket_index in self.group_option_specs:
@@ -667,6 +705,13 @@ class ShaderTag(BlenderTag, TagDocument):
     def _group_parameter_inputs(self, selected_options):
         """Prefer sockets feeding the selected option when UI names repeat."""
         group_tree = self.group_node.node_tree
+        if self.game == 'reach' and group_tree.get('reach_parameter_sockets'):
+            import json
+            bindings=json.loads(group_tree['reach_parameter_sockets'])
+            active={name for category,option in selected_options.items()
+                    for name in self.category_parameters[category][option]}
+            return [self.group_node.inputs[names[0]] for name,names in bindings.items()
+                    if name in active and self.group_node.inputs.get(names[0]) is not None]
         active_identifiers = set()
         selected_groups = {
             f"{category} - {option}".lower()
@@ -679,6 +724,9 @@ class ShaderTag(BlenderTag, TagDocument):
             base, separator, suffix = name.rpartition('.')
             if separator and suffix.isdigit():
                 name = base
+            if self.game in {'halo3', 'halo3odst'}:
+                name = name.lstrip('.')
+                name = name.removeprefix('odst ').removeprefix('h3 ')
             if name not in selected_groups:
                 continue
             for socket in node.inputs:
@@ -693,9 +741,16 @@ class ShaderTag(BlenderTag, TagDocument):
                         visited.add(source)
                         pending.extend(source.inputs[0].links)
 
-        inputs = list(self.group_node.inputs)[self.group_option_start_input:]
-        # Stable ordering preserves RGB/alpha pairs and existing fallback behavior.
-        return sorted(inputs, key=lambda socket: socket.identifier not in active_identifiers)
+        inputs = (list(self.group_node.inputs) if self.game in {'halo3', 'halo3odst'}
+                  else list(self.group_node.inputs)[self.group_option_start_input:])
+        inputs = [socket for socket in inputs if socket.type != 'MENU']
+        # A sampled RGB input is the bitmap owner when both channels are active.
+        # Appended interfaces can put alpha before RGB, and dependent sampling
+        # can leave alpha on an earlier image node with a stale image/transform.
+        return sorted(inputs, key=lambda socket: (
+            socket.identifier not in active_identifiers,
+            self.game in {'halo3', 'halo3odst'} and socket.name.endswith(('.a', '.a/specular_mask.a')),
+        ))
 
     def _from_nodes_group(self) -> bool:
         if self.group_node is None or not self._group_node_matches(self.group_node):
@@ -748,6 +803,9 @@ class ShaderTag(BlenderTag, TagDocument):
 
             self.shader_parameters.update(option_parameters)
 
+        if self.game == 'halo3odst':
+            from .halo3_odst_io import normalise_parameters
+            self.shader_parameters = normalise_parameters(self.shader_parameters, self.system_path.suffix.lstrip('.').casefold())
         self.true_parameters = {option.ui_name: option for option in self.shader_parameters.values()}
 
         alias_map: dict[str, tuple[str, OptionParameter]] = {}
@@ -759,6 +817,11 @@ class ShaderTag(BlenderTag, TagDocument):
                 key = utils.remove_chars(alias.lower(), cull_chars)
                 if key and key not in alias_map:
                     alias_map[key] = (parameter_name, parameter)
+        if self.game == 'reach' and self.group_node.node_tree.get('reach_parameter_sockets'):
+            import json
+            for name,ports in json.loads(self.group_node.node_tree['reach_parameter_sockets']).items():
+                if name in self.shader_parameters:
+                    alias_map[utils.remove_chars(ports[0].partition('.')[0].lower(),cull_chars)] = (name,self.shader_parameters[name])
         palette_vector_node = None
 
         parameter_nodes = []
@@ -766,6 +829,12 @@ class ShaderTag(BlenderTag, TagDocument):
             palette_vector_node = self._find_palette_vector_node()
             if palette_vector_node is not None:
                 parameter_nodes.append((palette_vector_node, list(palette_vector_node.inputs)))
+
+        if self.game in {'halo3', 'halo3odst'}:
+            from .halo3_shader_io import scrolling_vector_node
+            scrolling_node = scrolling_vector_node(self)
+            if scrolling_node is not None:
+                parameter_nodes.append((scrolling_node, list(scrolling_node.inputs)))
 
         parameter_nodes.append((self.group_node, self._group_parameter_inputs(selected_options)))
 
@@ -798,6 +867,14 @@ class ShaderTag(BlenderTag, TagDocument):
                 element = self._setup_parameter(source, parameter_name, tag_type)
                 if element:
                     self._setup_function_parameters(source, element, source_type)
+                    if self.game in {'halo3', 'halo3odst', 'reach'} and parameter.type == 5:
+                        alpha = source_node.inputs.get(parameter_name + '_alpha')
+                        if self.game == 'reach' and source_node.node_tree.get('reach_parameter_sockets'):
+                            import json
+                            ports=json.loads(source_node.node_tree['reach_parameter_sockets']).get(parameter_name,[])
+                            if len(ports)>1:alpha=source_node.inputs.get(ports[1])
+                        if alpha is not None and not alpha.is_linked:
+                            self._setup_function_parameters(float(alpha.default_value), element, 'alpha')
                     seen_parameters.add(parameter_name)
 
         return True
@@ -1374,6 +1451,10 @@ class ShaderTag(BlenderTag, TagDocument):
             element.SelectField('parameter type').SetValue(parameter_type)
         match parameter_type:
             case 'bitmap':
+                if isinstance(source, bpy.types.Node) and source.get('h3_transform_only') and source.image is None:
+                    # ODST window_room uses this bitmap parameter's transform,
+                    # even when its bitmap reference is intentionally empty.
+                    return element
                 bitmap_path = self._get_bitmap_path(source)
                 if bitmap_path:
                     element.SelectField('bitmap flags').SetStringData('1') # sets override
@@ -1429,6 +1510,11 @@ class ShaderTag(BlenderTag, TagDocument):
                     if self.group_node is None:
                         return mapping
                     scale_node, is_texture_tiling = utils.find_mapping_node(source, self.group_node)
+                    if source.get('h3_sampling_offset'):
+                        from .halo3_sampling import authored_mapping
+                        original_mapping = authored_mapping(source)
+                        if original_mapping is not None:
+                            scale_node, is_texture_tiling = original_mapping, True
                     if not scale_node: return mapping
                     if is_texture_tiling:
                         tiling_inputs = (
@@ -1440,7 +1526,7 @@ class ShaderTag(BlenderTag, TagDocument):
                         )
                         for animated_type, input_name in tiling_inputs:
                             input_socket = scale_node.inputs.get(input_name)
-                            if input_socket is not None:
+                            if input_socket is not None and not input_socket.is_linked:
                                 mapping[animated_type] = input_socket.default_value
                     elif scale_node.type == 'MAPPING':
                         mapping[AnimatedParameterType.SCALE_X] = scale_node.inputs['Scale'].default_value.x
@@ -1451,6 +1537,8 @@ class ShaderTag(BlenderTag, TagDocument):
                 mapping[AnimatedParameterType.VALUE] = source
             case 'color':
                 mapping[AnimatedParameterType.COLOR] = source
+            case 'alpha':
+                mapping[AnimatedParameterType.ALPHA] = source
                 
         return mapping
 
@@ -1519,8 +1607,32 @@ class ShaderTag(BlenderTag, TagDocument):
         if source_node is None:
             source_node = self.group_node
         input_name = input.name.lower()
+        # Socket defaults are not evaluations of linked functions. Preserve the
+        # authored tag animation instead of overwriting it with that default.
+        if parameter_type != 'bitmap' and input.is_linked:
+            linked = input.links[0].from_node
+            if linked.type == 'GROUP' and linked.node_tree.get('foundry_shader_function'):
+                return None
         match parameter_type:
             case 'bitmap':
+                if source_node.get('h3_dependent_textures'):
+                    from .halo3_odst_io import source_texture
+                    original = source_texture(source_node, input)
+                    if original is not None:
+                        return original
+                if input_name == 'detail_map.rgb' and source_node.get('h3_cortana_detail_texture'):
+                    from .halo3_specialized_io import source_detail_texture
+                    original = source_detail_texture(source_node)
+                    if original is not None:
+                        return original
+                # A cubemap's vector graph can contain bump Image Textures.
+                # The directly sampled image takes precedence over those UV
+                # dependencies, including when connected through reroutes.
+                sample = input.links[0].from_node if input.is_linked else None
+                while sample is not None and sample.type == 'REROUTE':
+                    sample = sample.inputs[0].links[0].from_node if sample.inputs[0].is_linked else None
+                if sample is not None and sample.type in {'TEX_IMAGE', 'TEX_ENVIRONMENT'}:
+                    return sample
                 linked = utils.find_linked_node(source_node, input_name, 'TEX_IMAGE')
                 if linked is None:
                     linked = utils.find_linked_node(source_node, input_name, 'TEX_ENVIRONMENT')
@@ -1548,6 +1660,7 @@ class ShaderTag(BlenderTag, TagDocument):
                                    if decal_bitmap_index is None else decal_bitmap_index)
         if self.game == 'halo1':
             self._to_nodes_halo1(blender_material)
+            self._setup_halo1_numeric_counter(blender_material)
             self._import_classic_emission(blender_material)
             utils.update_foundry_material(blender_material, self.game, arrange_nodes=False)
             if layout:
@@ -1560,14 +1673,27 @@ class ShaderTag(BlenderTag, TagDocument):
             if layout:
                 layout_nodes(blender_material.node_tree)
             return
+        from .texture_camera import texture_camera_parameters
+        feed_parameters = texture_camera_parameters(self)
+        blender_material.nwo.use_texture_camera = bool(feed_parameters)
+        if feed_parameters:
+            blender_material.nwo.texture_camera_parameter = ', '.join(feed_parameters)
         self._get_info(self.reference_material_shader.Path if self.corinth else self.definition.Path)
-        family = self.system_path.suffix.lstrip('.').casefold()
+        from .halo3_shader_io import render_method_family
+        family = render_method_family(self)
         has_group = self.group_supported and (
             self.game not in {'halo3', 'halo3odst'}
             or family in self.h3_group_families
         )
         if has_group:
-            self._to_nodes_group(blender_material)
+            if self.game in {'halo3', 'halo3odst'}:
+                from .halo3_shader_io import to_nodes
+                to_nodes(self, blender_material)
+            elif self.game == 'reach':
+                from .reach_shader_io import to_nodes
+                to_nodes(self, blender_material)
+            else:
+                self._to_nodes_group(blender_material)
         else:
             self._to_nodes_bsdf(blender_material)
         
@@ -1602,7 +1728,7 @@ class ShaderTag(BlenderTag, TagDocument):
         prop.material_lighting_attenuation_cutoff = 0.0
         uses_h2_group = self.game == 'halo2' and blender_material.use_nodes and any(
             node.type == 'GROUP' and node.node_tree is not None
-            and node.node_tree.name == 'Basic H2 shader'
+            and (node.node_tree.name == 'Basic H2 shader' or node.node_tree.get('h2_template'))
             for node in blender_material.node_tree.nodes)
         if not uses_h2_group and (self.game != 'halo1' or H1_WRITE_RADIOSITY_TO_NODES):
             utils.update_classic_emissive_material(blender_material, self.game, arrange_nodes=False)
@@ -1641,16 +1767,40 @@ class ShaderTag(BlenderTag, TagDocument):
 
         scene = bpy.context.scene
         fps = scene.render.fps / scene.render.fps_base
-        if self.game == 'halo1' and function is None:
-            value = variable(FORCED_SHADER_PERMUTATION)
-            index = f'min(max(floor({value}),0),{sequence_length-1})'
+        if function is None:
+            if self.game == 'halo1':
+                value = variable(FORCED_SHADER_PERMUTATION)
+                index = f'min(max(floor({value}),0),{sequence_length-1})'
+            else:
+                value = variable('variant')
+                index = f'floor(min(max({value},0),1)*{sequence_length-1}+0.500001)'
         else:
-            value = variable('variant') if function is None else function.driver_expression(variable, f'frame/{fps:.9g}')
-            index = f'floor(min(max({value},0),1)*{sequence_length-1}+0.500001)'
+            # Authored bitmap-index functions output zero-based frame numbers,
+            # e.g. the weapon digit mapping scales a 0..0.9 input by ten.
+            value = function.driver_expression(variable, f'frame/{fps:.9g}')
+            index = f'floor(min(max({value},0),{sequence_length-1})+0.000001)'
         # Blender clamps the scene frame to 0..duration BEFORE applying the
         # offset. Cancel that clamped contribution, including past the sequence.
         expression = f'{index}+1-min(max(floor(frame),0),{sequence_length})'
         set_scalar_driver_expression(tree, curve, expression)
+
+    def _setup_halo1_numeric_counter(self, material):
+        from .function_driver import Halo1NumericCounter
+        if self.system_path.suffix not in {'.shader_transparent_chicago',
+                '.shader_transparent_chicago_extended', '.shader_transparent_generic'}:
+            return
+        root = self.tag.root()
+        field = root.field('properties')
+        properties = field.as_struct() if field is not None else None
+        if properties is None or not self.required_field(properties, 'flags').get_flag('numeric'):
+            return
+        limit = int(self.value(properties, 'numeric counter limit'))
+        permutation = max(0, int(material.get('halo1_shader_permutation', 0)))
+        function = Halo1NumericCounter(limit, permutation)
+        for node in material.node_tree.nodes:
+            if node.type in {'TEX_IMAGE', 'TEX_ENVIRONMENT'}:
+                self._setup_sequence_driver(material.node_tree, node,
+                                            node.image_user.frame_duration, function)
 
     def _halo2_parameter_function(self, element, kind):
         from .metadata import enum_index
@@ -1662,7 +1812,11 @@ class ShaderTag(BlenderTag, TagDocument):
             if enum_index(self.value(animation, 'type'), types) != types.index(kind):
                 continue
             function = Function()
-            function._read_native_mapping(self, animation, 'function')
+            try:
+                function._read_native_mapping(self, animation, 'function')
+            except ValueError as exc:
+                utils.print_warning(f'Halo 2 {self.value(element, "name")} {kind}: {exc}; using the static preview value and preserving the original function')
+                return None
             function.input = self.value(animation, 'input name')
             function.uses_input = bool(function.input)
             function.input = function.input or 'one'
@@ -1705,11 +1859,15 @@ class ShaderTag(BlenderTag, TagDocument):
             # The resource menus use Guerilla's display spelling rather than
             # the normalized names in the native tag schemas.
             value = enum_name(struct, field_name)
+            socket = group.inputs[socket_name or field_name.title()]
+            if socket.type == 'INT':
+                socket.default_value = list(self.required_field(struct, field_name).options().names).index(value)
+                return
             value = value.replace('double biased', 'double/biased')
             value = value.replace('self illumination', 'self-illumination')
             value = value.replace('change color', 'change-color')
             value = value.replace('auxiliary mask', 'multipurpose map alpha')
-            group.inputs[socket_name or field_name.title()].default_value = value
+            socket.default_value = value
 
         def scale(struct, name):
             return float(self.value(struct, name)) or 1.0
@@ -1748,8 +1906,63 @@ class ShaderTag(BlenderTag, TagDocument):
             if reflection and shader_type == 'shader_environment':
                 # A separate direction group avoids a shader graph cycle:
                 # environment color is an input of the main surface group.
-                direction_tree = utils.add_node_from_resources(
-                    'h1_nodes', 'foundry_h1.environment_reflection_vector')
+                direction_tree = (None if group.node_tree.get('h1_minimal_revision') else utils.add_node_from_resources(
+                    'h1_nodes', 'foundry_h1.environment_reflection_vector'))
+                if group.node_tree.get('h1_minimal_revision'):
+                    # Inline direction nodes avoid adding vector outputs or
+                    # generic helper sockets to the resource interface.
+                    def control(name):
+                        target = group.inputs[name]
+                        if target.is_linked:
+                            return target.links[0].from_socket
+                        value = nodes.new('ShaderNodeValue')
+                        value.label = 'Halo ' + name
+                        value['h1_tag_control_for'] = name
+                        value.outputs[0].default_value = float(target.default_value)
+                        value.location = (-950, image_node.location.y + 380 - 150 * sum(
+                            n.type == 'VALUE' and n.get('h1_tag_control_for') is not None for n in nodes))
+                        tree.links.new(value.outputs[0], target)
+                        return value.outputs[0]
+
+                    direction_math = []
+                    def math_node(label, operation, a, b):
+                        node = nodes.new('ShaderNodeMath'); node.label = label; node.operation = operation
+                        direction_math.append(node)
+                        for index, value in enumerate((a, b)):
+                            if isinstance(value, bpy.types.NodeSocket):
+                                tree.links.new(value, node.inputs[index])
+                            else:
+                                node.inputs[index].default_value = value
+                        return node.outputs[0]
+
+                    strength = control('Bump Strength')
+                    mask = control('Bump Map Is Specular Mask')
+                    mode = control('Reflection Type')
+                    geometry = nodes.new('ShaderNodeNewGeometry')
+                    normal = nodes.new('ShaderNodeNormalMap'); normal.space = 'TANGENT'; normal.convention = 'DIRECTX'
+                    normal.label = 'Halo cubemap normal (DirectX)'
+                    bump_input = group.inputs['Bump Map']
+                    if bump_input.is_linked:
+                        tree.links.new(bump_input.links[0].from_socket, normal.inputs['Color'])
+                    else:
+                        normal.inputs['Color'].default_value = bump_input.default_value
+                    enabled = math_node('Bump is a normal', 'SUBTRACT', 1, mask)
+                    flat = math_node('Flat cubemap mode', 'COMPARE', mode, 1)
+                    bumped = math_node('Bumped cubemap mode', 'SUBTRACT', 1, flat)
+                    enabled = math_node('Reflection normal enabled', 'MULTIPLY', enabled, bumped)
+                    amount = math_node('Reflection normal strength', 'MULTIPLY', strength, enabled)
+                    tree.links.new(amount, normal.inputs['Strength'])
+                    incoming = nodes.new('ShaderNodeVectorMath'); incoming.operation = 'MULTIPLY'
+                    incoming.inputs[1].default_value = (-1, -1, -1)
+                    tree.links.new(geometry.outputs['Incoming'], incoming.inputs[0])
+                    reflect = nodes.new('ShaderNodeVectorMath'); reflect.operation = 'REFLECT'
+                    reflect.label = 'Halo reflection direction'
+                    tree.links.new(incoming.outputs[0], reflect.inputs[0]); tree.links.new(normal.outputs[0], reflect.inputs[1])
+                    vector = reflect.outputs[0]
+                    # New outer nodes occupy their own strip, leaving bitmap positions intact.
+                    direction_nodes = [geometry, normal, incoming, reflect, *direction_math]
+                    for index, direction_node in enumerate(dict.fromkeys(direction_nodes)):
+                        direction_node.location = (-1450 + (index % 4) * 190, image_node.location.y - 350 - (index // 4) * 220)
                 if direction_tree is not None:
                     direction = nodes.new('ShaderNodeGroup')
                     direction.node_tree = direction_tree
@@ -1828,15 +2041,19 @@ class ShaderTag(BlenderTag, TagDocument):
                 model_input('Animation Period', float(self.value(illumination, 'animation period')) or 1.0)
                 model_input('No Random Phase', self.required_field(illumination, 'flags').get_flag('no random phase'))
                 model_input('Use Animation Function', True)
-                clock = scene_time_node(tree)
-                clock.location = (-400, 480)
-                tree.links.new(clock.outputs['Seconds'], group.inputs['Animation Time'])
+                if group.inputs.get('Animation Time') is not None:
+                    clock = scene_time_node(tree)
+                    clock.location = (-400, 480)
+                    tree.links.new(clock.outputs['Seconds'], group.inputs['Animation Time'])
             illumination_source = enum_name(illumination, 'color source')
             group['halo1_self_illumination_color_source'] = illumination_source
             attribute_name = {'a': 'Primary Color', 'b': 'Secondary Color',
                               'c': 'Tertiary Color', 'd': 'Quaternary Color'}.get(illumination_source)
             model_input('Use Self-Illumination Color Source', attribute_name is not None)
-            if attribute_name is not None and group.inputs.get('Self-Illumination Color Source') is not None:
+            source_input = group.inputs.get('Self-Illumination Color Source')
+            if source_input is not None and source_input.type == 'MENU':
+                source_input.default_value = illumination_source
+            elif attribute_name is not None and source_input is not None:
                 attribute = nodes.new('ShaderNodeAttribute')
                 attribute.attribute_type = 'INSTANCER'
                 attribute.attribute_name = attribute_name
@@ -1856,6 +2073,8 @@ class ShaderTag(BlenderTag, TagDocument):
             model_input('Use Detail Map', detail_node is not None)
             if detail_node is None:
                 neutral = 1.0 if enum_name(maps, 'detail function') == 'multiply' else 0.5
+                if group.node_tree.get('h1_legacy_rgb_arithmetic'):
+                    neutral = neutral ** 2.2
                 group.inputs['Detail Map'].default_value = (neutral, neutral, neutral, 1.0)
                 group.inputs['Detail Map Alpha'].default_value = 1.0
             specular = child(reflection, 'cube map properties')
@@ -1908,9 +2127,61 @@ class ShaderTag(BlenderTag, TagDocument):
                 copy_value(illumination, layer + ' off color')
                 group.inputs[layer.title() + ' Self-Illumination Activation Level'].default_value = (
                     0.0 if enum_name(illumination, layer + ' animation function') == 'zero' else 1.0)
+                if group.inputs.get(layer.title() + ' Animation Function') is not None:
+                    copy_menu(illumination, layer + ' animation function', layer.title() + ' Animation Function')
+                    environment_input(layer.title() + ' Animation Period', float(self.value(illumination, layer + ' animation period')) or 1.0)
+                    copy_value(illumination, layer + ' animation phase', layer.title() + ' Animation Phase')
             illumination_scale = scale(illumination, 'map scale')
-            bitmap(illumination, 'map', 'Self-Illumination Map', non_color=True,
-                   tiling=(illumination_scale, illumination_scale))
+            illumination_node = bitmap(illumination, 'map', 'Self-Illumination Map', non_color=True,
+                                       tiling=(illumination_scale, illumination_scale))
+            if group.node_tree.get('h1_minimal_revision'):
+                # Specialize absent maps/alpha wiring at import time rather than
+                # exposing preview-only Use Map or map-alpha group sockets.
+                missing_main = not any(detail_nodes[name] for name in ('primary detail map', 'secondary detail map'))
+                missing_micro = detail_nodes['micro detail map'] is None
+                if missing_main or missing_micro or illumination_node is not None:
+                    group.node_tree = group.node_tree.copy()
+                    group.node_tree.use_fake_user = False
+                    resource = group.node_tree
+                    ri = resource.nodes['Group Input'].outputs
+                    detail = ri['Base Map'] if missing_main else resource.nodes['Group'].outputs[0]
+                    if missing_main:
+                        resource.links.new(detail, resource.nodes['Group.001'].inputs['R'])
+                    if missing_micro:
+                        resource.links.new(detail, resource.nodes['Diffuse BSDF'].inputs['Color'])
+                    resource['h1_missing_detail_maps'] = json.dumps({'main': missing_main, 'micro': missing_micro})
+                    if illumination_node is not None:
+                        # The existing plasma activation input carries the
+                        # source waveform; RGB sockets cannot carry bitmap alpha.
+                        wave = nodes.new('ShaderNodeGroup')
+                        wave.node_tree = utils.add_node_from_resources('h1_nodes', 'foundry_h1.tag_animation')
+                        wave.label = 'Plasma tag animation'; wave.location = (-1600, 900)
+                        for suffix in ('Function', 'Period', 'Phase'):
+                            wave.inputs['Animation ' + suffix].default_value = group.inputs['Plasma Animation ' + suffix].default_value
+                        wave.inputs['No Random Phase'].default_value = True
+                        group['h1_plasma_animation_node'] = wave.name
+                        from .halo1_animation import PLASMA_GROUP, build_plasma_group
+                        pulse_tree = utils.add_node_from_resources('h1_nodes', PLASMA_GROUP)
+                        if pulse_tree is None:
+                            pulse_tree = build_plasma_group()
+                        pulse = nodes.new('ShaderNodeGroup')
+                        pulse.node_tree = pulse_tree
+                        pulse.label = 'Plasma bitmap alpha waveform'
+                        pulse.location = (illumination_node.location.x + 240, illumination_node.location.y - 320)
+                        wave.location = (illumination_node.location.x, illumination_node.location.y - 320)
+                        tree.links.new(illumination_node.outputs['Alpha'], pulse.inputs['Map Alpha'])
+                        tree.links.new(wave.outputs['Output'], pulse.inputs['Animation'])
+                        tree.links.new(pulse.outputs['Activation'], group.inputs['Plasma Self-Illumination Activation Level'])
+                        resource.nodes['Plasma activation'].inputs[0].default_value = 1.0
+                        for link in list(resource.nodes['Plasma activation'].inputs[0].links):
+                            resource.links.remove(link)
+                    # The texture pass multiplies diffuse lighting AND glow.
+                    # Keep the glow's texture identical to the diffuse texture,
+                    # including the absent-detail-map bypass above.
+                    tint = resource.nodes.get('Texture modulated self illumination')
+                    if tint is not None:
+                        resource.links.new(resource.nodes['Diffuse BSDF'].inputs['Color'].links[0].from_socket,
+                                           tint.inputs[7])
             specular = child(root, 'specular')
             environment_input('Lightmap Is Specular',
                               self.required_field(specular, 'flags').get_flag('lightmap is specular'))
@@ -1927,6 +2198,7 @@ class ShaderTag(BlenderTag, TagDocument):
 
     def _to_nodes_halo1_generic(self, blender_material: bpy.types.Material):
         """Import generic combiners into the resource's map and stage panels."""
+        from .halo1_generic_io import menu_labels, enum_value, vector_node
         group_tree = utils.add_node_from_resources(
             'h1_nodes', 'foundry_h1.shader_transparent_generic')
         if group_tree is None:
@@ -1976,6 +2248,10 @@ class ShaderTag(BlenderTag, TagDocument):
             return self.required_field(struct, name).options().current_name
 
         def menu(struct, field, path):
+            labels = menu_labels(field, path)
+            if labels is not None:
+                assign(path, enum_value(self, struct, field, labels))
+                return
             value = enum(struct, field)
             mapping_names = {
                 'clamp x': 'clamp(x)', '1 clamp x': '1 - clamp(x)',
@@ -2015,9 +2291,9 @@ class ShaderTag(BlenderTag, TagDocument):
             assign(('generic transparent shader', socket), flags.get_flag(flag))
         menu(properties, 'framebuffer blend function',
              ('generic transparent shader', 'framebuffer blend function'))
+        # Destination-color blend limits are documented on the shader group.
         blender_material.surface_render_method = 'DITHERED' if alpha_tested else 'BLENDED'
 
-        coordinates = None
         maps = self.block(root, 'maps')
         for index in range(4):
             path = ('MAPS', f'map{index}')
@@ -2042,28 +2318,13 @@ class ShaderTag(BlenderTag, TagDocument):
                 tree.links.new(alpha, inputs[(*path, 'map alpha')])
             map_flags = self.required_field(maps[index], 'flags')
             image.interpolation = 'Closest' if map_flags.get_flag('unfiltered') else 'Linear'
-            if not result.cubemap and all(map_flags.get_flag(axis + ' clamped') for axis in ('u', 'v')):
+            if not result.cubemap and any(map_flags.get_flag(axis + ' clamped') for axis in ('u', 'v')):
                 image.extension = 'EXTEND'
-            if coordinates is None:
-                coordinates = nodes.new('ShaderNodeTexCoord')
-                coordinates.location = (-1000, 0)
-            first_type = enum(properties, 'first map type') if index == 0 else '2d map'
-            coordinate = ('Reflection' if 'reflection' in first_type else
-                          'Generated' if 'object centered' in first_type else
-                          'Normal' if 'viewer centered' in first_type else
-                          'Window' if index == 0 and flags.get_flag('first map is in screenspace') else
-                          'Generated' if self.generated_uvs else 'UV')
-            mapping = nodes.new('ShaderNodeMapping')
-            mapping.location = (-700, image.location.y)
-            mapping.inputs['Scale'].default_value = (
-                float(self.value(parameters, 'map u scale')) or 1.0,
-                float(self.value(parameters, 'map v scale')) or 1.0, 1.0)
-            mapping.inputs['Location'].default_value = (
-                float(self.value(parameters, 'map u offset')),
-                float(self.value(parameters, 'map v offset')), 0.0)
-            mapping.inputs['Rotation'].default_value[2] = radians(float(self.value(parameters, 'map rotation')))
-            tree.links.new(coordinates.outputs[coordinate], mapping.inputs['Vector'])
+            mapping = vector_node(self, tree, group, parameters, properties, flags, index, utils.add_node_from_resources, map_flags)
             tree.links.new(mapping.outputs['Vector'], image.inputs['Vector'])
+            if result.cubemap and alpha is None:
+                # Blender Environment Texture exposes RGB only.
+                assign((*path, 'map alpha'), 1.0)
 
         stages = self.block(root, 'stages')
         for index in range(7):
@@ -2072,6 +2333,9 @@ class ShaderTag(BlenderTag, TagDocument):
             if index >= len(stages):
                 continue
             stage = stages[index]
+            stage_flags = self.required_field(stage, 'flags')
+            for channel in ('color', 'alpha'):
+                assign((*path, channel + ' outputs', channel + ' mux'), stage_flags.get_flag(channel + ' mux'))
             constants = (*path, 'constants and animation')
             menu(stage, 'color0 animation function', (*constants, 'color0 animation function'))
             assign((*constants, 'color0 animation period'), self.value(stage, 'color0 animation period'))
@@ -2103,6 +2367,11 @@ class ShaderTag(BlenderTag, TagDocument):
         from .backend import TagDocument
 
         shader_type = self.system_path.suffix[1:].casefold()
+        from .halo1_transparent_io import KINDS, import_shader
+        if shader_type in KINDS:
+            import_shader(self, blender_material, utils.add_node_from_resources,
+                          bitmap_to_image, TagDocument.reference, utils.print_warning)
+            return
         if shader_type == 'shader_transparent_generic':
             if self._to_nodes_halo1_generic(blender_material):
                 return
@@ -2537,8 +2806,6 @@ class ShaderTag(BlenderTag, TagDocument):
                 bounded.inputs[1].default_value = (1., 1., 1.)
                 links.new(scale.outputs['Vector'], bounded.inputs[0])
                 color = bounded.outputs['Vector']
-                utils.print_warning('H1 double multiply decal preview cannot reproduce '
-                                    'framebuffer brightening exactly')
             fade = nodes.new('ShaderNodeMixRGB')
             fade.label = 'Decal intensity (white is neutral)'
             fade.location = (140, 220)
@@ -2585,9 +2852,7 @@ class ShaderTag(BlenderTag, TagDocument):
             links.new(add.outputs[0], output.inputs['Surface'])
             nodes.remove(bsdf)
         else:
-            if blend != 'alpha blend':
-                utils.print_warning(f'H1 decal blend {blend!r} uses an alpha-blended '
-                                    'preview; exact blending requires framebuffer access')
+            # Exact framebuffer blending is unavailable to the material group.
             alpha = nodes.new('ShaderNodeMath')
             alpha.operation = 'MULTIPLY'
             alpha.label = 'Decal alpha * intensity'
@@ -2645,16 +2910,69 @@ class ShaderTag(BlenderTag, TagDocument):
             tree.links.new(tint.outputs['Color'], multiply.inputs[1])
             tree.links.new(multiply.outputs['Vector'], bsdf.inputs['Base Color'])
             tree.links.new(image_node.outputs['Alpha'], bsdf.inputs['Alpha'])
+            layer = str(self.value(root, 'layer'))
+            if layer in {'multiply', 'double multiply'}:
+                color = multiply.outputs['Vector']
+                if layer == 'double multiply':
+                    # H2 blends in gamma space: its neutral 0.5 texel becomes
+                    # 0.5**2.2 after bitmap extraction into scene-linear RGB.
+                    scale = nodes.new('ShaderNodeVectorMath')
+                    scale.operation = 'SCALE'
+                    scale.label = 'H2 double multiply in linear space'
+                    scale.inputs['Scale'].default_value = 2.0 ** 2.2
+                    tree.links.new(color, scale.inputs['Vector'])
+                    color = scale.outputs['Vector']
+                else:
+                    fade = nodes.new('ShaderNodeMixRGB')
+                    fade.label = 'Decal opacity (white is neutral)'
+                    fade.inputs[1].default_value = (1., 1., 1., 1.)
+                    tree.links.new(image_node.outputs['Alpha'], fade.inputs[0])
+                    tree.links.new(color, fade.inputs[2])
+                    color = fade.outputs['Color']
+                transparent = nodes.new('ShaderNodeBsdfTransparent')
+                tree.links.new(color, transparent.inputs['Color'])
+                tree.links.new(transparent.outputs[0], output.inputs['Surface'])
+                nodes.remove(bsdf)
+            elif layer in {'add', 'max'}:
+                # Maximum needs the receiving framebuffer. Additive is a
+                # visible approximation with the same neutral black texels.
+                if layer == 'max':
+                    utils.print_warning('Halo 2 maximum decal blend uses an additive preview')
+                emission = nodes.new('ShaderNodeEmission')
+                tree.links.new(multiply.outputs['Vector'], emission.inputs['Color'])
+                transparent = nodes.new('ShaderNodeBsdfTransparent')
+                add = nodes.new('ShaderNodeAddShader')
+                tree.links.new(transparent.outputs[0], add.inputs[0])
+                tree.links.new(emission.outputs[0], add.inputs[1])
+                tree.links.new(add.outputs[0], output.inputs['Surface'])
+                nodes.remove(bsdf)
             return
 
-        group_tree = utils.add_node_from_resources('h2_nodes', 'Basic H2 shader')
+        template_reference = TagDocument.reference(self, root, 'template')
+        template_name = (template_reference.RelativePath.replace('\\', '/').rsplit('/', 1)[-1]
+                         if template_reference is not None else '')
+        # As with H4, prefer the named template resource. Keep the basic shader
+        # available as the established fallback for templates not reviewed yet.
+        group_tree = (utils.add_node_from_resources('h2_nodes', template_name)
+                      if template_name else None)
+        if group_tree is None and template_name == 'illum_detail':
+            from .halo2_illumination import illum_detail_group
+            group_tree = illum_detail_group()
+        if group_tree is None:
+            if 'change_color' in template_name:
+                utils.print_warning(f'Halo 2 template {template_name} has no reviewed node group; using Basic H2 shader')
+            group_tree = utils.add_node_from_resources('h2_nodes', 'Basic H2 shader')
         if group_tree is None:
             utils.print_warning('Missing Basic H2 shader node group in h2_nodes.blend')
             return
         group = nodes.new('ShaderNodeGroup')
         group.node_tree = group_tree
         group.location = (0, 0)
-        group.inputs['Active Camo amount'].default_value = 0.0
+        if (group_tree.get('h2_preview_transparent_placeholder') or
+                group_tree.get('h2_multichannel_revision') or group_tree.get('h2_surface_mode','opaque') != 'opaque'):
+            blender_material.surface_render_method = 'BLENDED'
+        if group.inputs.get('Active Camo amount') is not None:
+            group.inputs['Active Camo amount'].default_value = 0.0
         tree.links.new(group.outputs['Shader'], output.inputs['Surface'])
 
         parameters = {
@@ -2662,9 +2980,24 @@ class ShaderTag(BlenderTag, TagDocument):
             for element in self.block(root, 'parameters')
         }
 
+        # H2 material tags store only overrides. Resolve the template defaults
+        # for scalars/colors (and fallback textures) rather than assuming white
+        # glancing tints, brightness 1, or a missing detail texture.
+        template_defaults = {}
+        if template_reference is not None and Path(template_reference.Filename).is_file():
+            from blam_tags import TagFile
+            template_path = Path(__file__).parent / 'definitions' / 'halo2_mcc' / 'shader_template.json'
+            template_tag = TagFile.read_classic(template_reference.Filename, template_path)
+            for category in template_tag.root().field('categories').as_block():
+                for item in category.field('parameters').as_block():
+                    template_defaults[str(item.field('name').value).casefold()] = item
+
         def real(name, default=1.0):
             element = parameters.get(name)
-            return default if element is None else float(self.value(element, 'const value'))
+            if element is not None:
+                return float(self.value(element, 'const value'))
+            item = template_defaults.get(name)
+            return default if item is None else float(item.field('default const value').value)
 
         texcoord = None
         row = 0
@@ -2673,16 +3006,26 @@ class ShaderTag(BlenderTag, TagDocument):
             name, separator, channel = socket.name.rpartition('.')
             if not separator or channel not in {'rgb', 'a', 'alpha'}:
                 name = socket.name
+            if name == 'Active Camo amount':
+                name = 'active_camo_amount'
             element = parameters.get(name)
-            if name.endswith('_map'):
+            template_item = template_defaults.get(name)
+            is_bitmap = (name.endswith('_map') or
+                         (template_item is not None and template_item.field('type').options().current_name == 'bitmap'))
+            if is_bitmap:
                 if name in imported_maps:
                     continue
                 imported_maps.add(name)
                 if element is None and name == 'environment_map':
                     element = parameters.get('specular_cube_map')
-                if element is None:
-                    continue
-                reference = TagDocument.reference(self, element, 'bitmap')
+                reference = TagDocument.reference(self, element, 'bitmap') if element is not None else None
+                if reference is None or not reference.RelativePath:
+                    item = template_defaults.get(name)
+                    if item is not None:
+                        bitmap_default = item.field('default bitmap').value
+                        if bitmap_default and bitmap_default[1]:
+                            from .backend import TagReference
+                            reference = TagReference(template_reference.root, bitmap_default[1], 'bitmap')
                 if reference is None or not reference.RelativePath:
                     continue
                 result = bitmap_to_image(reference.Filename, self.always_extract_bitmaps)
@@ -2693,8 +3036,19 @@ class ShaderTag(BlenderTag, TagDocument):
                 image.name = name
                 image.label = name
                 image.image = result.image
+                if name in {'change_color_map', 'multichannel_map', 'bump_map', 'active_camo_bump_map'}:
+                    # RGB channels are data masks. A separate image view avoids
+                    # changing the colour space of another use of the bitmap.
+                    mask_name = result.image.name + ' [H2 data]'
+                    mask_image = bpy.data.images.get(mask_name)
+                    if mask_image is None or mask_image.filepath != result.image.filepath:
+                        mask_image = result.image.copy()
+                        mask_image.name = mask_name
+                    image.image = mask_image
+                    image.image.colorspace_settings.name = 'Non-Color'
+                    image.image.alpha_mode = 'CHANNEL_PACKED'
                 self._setup_sequence_driver(tree, image, result.sequence_length,
-                                            self._halo2_parameter_function(element, 'bitmap index'))
+                                            self._halo2_parameter_function(element, 'bitmap index') if element is not None else None)
                 image.location = (-400, -row * 280)
                 row += 1
                 if name in {'bump_map', 'active_camo_bump_map'}:
@@ -2707,9 +3061,15 @@ class ShaderTag(BlenderTag, TagDocument):
                         tree.links.new(source, target)
                 reflection = name == 'environment_map'
                 prefix = name.removesuffix('_map')
-                scale_x = real(f'{prefix}_scale_x') or 1.0
-                scale_y = real(f'{prefix}_scale_y', scale_x) or scale_x
-                if reflection or scale_x != 1.0 or scale_y != 1.0:
+                default_scale = float(template_item.field('bitmap scale').value) if template_item is not None else 1.0
+                default_scale = default_scale or 1.0
+                scale_x = real(f'{prefix}_scale_x', default_scale)
+                scale_y = real(f'{prefix}_scale_y', scale_x)
+                uniform_scale = self._halo2_parameter_function(element, 'bitmap scale uniform') if element is not None else None
+                x_scale = self._halo2_parameter_function(element, 'bitmap scale x') if element is not None else None
+                y_scale = self._halo2_parameter_function(element, 'bitmap scale y') if element is not None else None
+                has_scale_function = uniform_scale is not None or x_scale is not None or y_scale is not None
+                if reflection or scale_x != 1.0 or scale_y != 1.0 or has_scale_function:
                     if texcoord is None:
                         texcoord = nodes.new('ShaderNodeTexCoord')
                         texcoord.location = (-1000, 0)
@@ -2719,16 +3079,62 @@ class ShaderTag(BlenderTag, TagDocument):
                         mapping.location = (-700, image.location.y)
                         mapping.inputs['Scale'].default_value = (scale_x, scale_y, 1.0)
                         tree.links.new(vector, mapping.inputs['Vector'])
+                        if has_scale_function:
+                            scale_vector = nodes.new('ShaderNodeCombineXYZ')
+                            scale_vector.name = name + ' animated scale'
+                            scale_vector.location = (-1000, image.location.y - 140)
+                            scale_vector.inputs['Z'].default_value = 1.0
+                            self._setup_input_with_function(scale_vector.inputs['X'],
+                                x_scale if x_scale is not None else uniform_scale if uniform_scale is not None else scale_x, uses_time=True)
+                            self._setup_input_with_function(scale_vector.inputs['Y'],
+                                y_scale if y_scale is not None else uniform_scale if uniform_scale is not None else scale_y, uses_time=True)
+                            tree.links.new(scale_vector.outputs[0], mapping.inputs['Scale'])
                         vector = mapping.outputs['Vector']
                     tree.links.new(vector, image.inputs['Vector'])
-            elif element is not None and socket.type == 'RGBA':
-                value = self.value(element, 'const color')
+            elif socket.type == 'RGBA' and (element is not None or name in template_defaults):
+                value = (self.value(element, 'const color') if element is not None else
+                         template_defaults[name].field('default const color').value)
                 socket.default_value = (value.red, value.green, value.blue, 1.0)
-            elif element is not None and socket.type == 'VALUE':
-                function = self._halo2_parameter_function(element, 'value')
+                if group_tree.get('h2_priority_revision') and element is not None:
+                    function = self._halo2_parameter_function(element, 'color')
+                    if function is not None:
+                        self._setup_input_with_function(socket, function)
+            elif socket.type == 'VALUE' and (element is not None or name in template_defaults):
+                function = self._halo2_parameter_function(element, 'value') if element is not None else None
                 self._setup_input_with_function(socket, function if function is not None else real(name))
 
+        # A broad template with no glancing override/default can still use the
+        # existing tint/brightness as its fallback, preserving a flat response.
+        for name,source in [('env_glancing_tint_color','env_tint_color'),('env_glancing_brightness','env_brightness')]:
+            if group.inputs.get(name) is not None and name not in parameters and name not in template_defaults:
+                group.inputs[name].default_value = group.inputs[source].default_value
+
+        # Object-imported colours are shared by materials via instance/object
+        # properties. Alpha distinguishes an absent property from a valid black
+        # colour, so shader-only imports keep the neutral white fallback.
+        for index, name in enumerate(('Primary Color', 'Secondary Color', 'Tertiary Color', 'Quaternary Color')):
+            target = group.inputs.get(name)
+            if target is None:
+                continue
+            attribute = nodes.new('ShaderNodeAttribute')
+            attribute.name = 'H2 ' + name
+            attribute.attribute_name = name
+            attribute.attribute_type = 'INSTANCER'
+            attribute.location = (-1000, -row * 280 - index * 190)
+            fallback = nodes.new('ShaderNodeMix')
+            fallback.name = name + ' or neutral white'
+            fallback.data_type = 'RGBA'
+            fallback.clamp_factor = True
+            fallback.inputs[6].default_value = (1, 1, 1, 1)
+            fallback.location = (-650, attribute.location.y)
+            tree.links.new(attribute.outputs['Alpha'], fallback.inputs[0])
+            tree.links.new(attribute.outputs['Color'], fallback.inputs[7])
+            tree.links.new(fallback.outputs[2], target)
+
         self._setup_h2_cubemap_reflector(tree, group)
+        if group_tree.get('h2_priority_revision'):
+            from .halo2_shader_io import finish_import
+            finish_import(self, blender_material, group)
 
     def _setup_h2_cubemap_reflector(self, tree, group):
         cubemaps = [node for node in tree.nodes if node.type == 'TEX_ENVIRONMENT']
@@ -2856,7 +3262,8 @@ class ShaderTag(BlenderTag, TagDocument):
         """Saves an image (or gets the already existing one) from a shader parameter element"""
         element = None
         bitmap_path = None
-        wrap_mode = 'REPEAT'
+        from .shader_address import read_address_modes
+        wrap_mode = read_address_modes(None, getattr(parameter, 'default_address_mode', 0))
         for element in self.block_parameters.Elements:
             if element.Fields[0].GetStringData() == parameter.name:
                 break
@@ -2883,24 +3290,13 @@ class ShaderTag(BlenderTag, TagDocument):
                     shader.always_extract_bitmaps = self.always_extract_bitmaps
                     result = shader._image_from_parameter(parameter)
                     if result is not None:
-                        return result
+                        image, modes, count = result
+                        return image, read_address_modes(element, modes), count
                     
             if not return_none_if_default:
                 bitmap_path = parameter.default_bitmap
-                element = None
-        elif element is not None:
-            bitmap_flags = element.SelectField("bitmap flags")
-            if bitmap_flags is not None and bitmap_flags.Data > 1:
-                # Address fields vary by game; H3 tags lack the per-axis fields.
-                for field_name in ("bitmap address mode x", "bitmap address mode y", "bitmap address mode"):
-                    address_mode = element.SelectField(field_name)
-                    if address_mode is None:
-                        continue
-                    match address_mode.Data:
-                        case 1 | 3: # clamp | black border
-                            wrap_mode = 'CLIP'
-                        case 2 | 4 | 5: # Mirror
-                            wrap_mode = 'MIRROR'
+        if element is not None:
+            wrap_mode = read_address_modes(element, getattr(parameter, 'default_address_mode', 0))
                     
                 
         if bitmap_path is None:
@@ -3128,6 +3524,10 @@ class ShaderTag(BlenderTag, TagDocument):
             return node
     
     def _recursive_tiling_parameters_get(self, parameter: OptionParameter, animated_parameters: dict):
+        # Resolve ancestors first so the nearest override wins.
+        if not self.corinth and self.reference.Path:
+            with ShaderTag(path=self.reference.Path) as shader:
+                shader._recursive_tiling_parameters_get(parameter, animated_parameters)
         for element in self.block_parameters.Elements:
             if element.Fields[0].GetStringData() == parameter.name:
                 for element in element.SelectField(self.function_parameters).Elements:
@@ -3137,10 +3537,6 @@ class ShaderTag(BlenderTag, TagDocument):
                         func.from_element(element, self.animated_function)
                         animated_parameters[value_type] = func
                     
-        if not self.corinth and self.reference.Path:
-            with ShaderTag(path=self.reference.Path) as shader:
-                shader._recursive_tiling_parameters_get(parameter, animated_parameters)
-            
     def group_set_image(self, tree: bpy.types.NodeTree, node: bpy.types.Node, parameter: OptionParameter, channel_type=ChannelType.DEFAULT, specified_input=None):
         result = self._image_from_parameter(parameter)
         if result is None:
@@ -3157,7 +3553,10 @@ class ShaderTag(BlenderTag, TagDocument):
             data_node = tree.nodes.new('ShaderNodeTexEnvironment')
         else:
             data_node = tree.nodes.new('ShaderNodeTexImage')
-            data_node.extension = wrap_mode
+            if isinstance(wrap_mode, str):
+                data_node.extension = wrap_mode
+            else:
+                data_node['foundry_address_modes'] = list(wrap_mode)
             
         data_node.image = data
         
@@ -3204,13 +3603,17 @@ class ShaderTag(BlenderTag, TagDocument):
                 self.add_texcoord_node(tree, data_node.inputs[0])
         else:
             tree.links.new(input=data_node.inputs[0], output=tiling_node.outputs[0])
+        if not is_equirectangular and self.game not in {'halo3', 'halo3odst', 'reach'}:
+            from .shader_address import setup_address
+            setup_address(tree, data_node, wrap_mode)
             
         return data_node
     
     def _add_group_node(self, tree: bpy.types.NodeTree, nodes: bpy.types.Nodes, name: str) -> bpy.types.Node:
         node = nodes.new(type='ShaderNodeGroup')
         if self.game in {'halo3', 'halo3odst'}:
-            name = name.replace('foundry_reach.', 'foundry_h3.', 1)
+            prefix = 'foundry_h3odst.' if self.game == 'halo3odst' else 'foundry_h3.'
+            name = name.replace('foundry_reach.', prefix, 1)
             resource = 'h3_nodes'
         else:
             resource = 'reach_nodes'
@@ -3250,7 +3653,19 @@ class ShaderTag(BlenderTag, TagDocument):
         if cubemap.type != 'TEX_ENVIRONMENT':
             return
 
-        reflector = self._add_group_node(tree, tree.nodes, 'foundry_h3 - cubemap reflector')
+        odst = getattr(self, 'game', 'halo3') == 'halo3odst'
+        reflector_name = (('foundry_h3odst' if odst else 'foundry_h3') + '.shader_terrain - cubemap reflector'
+                          if group_node.node_tree.name.startswith(('foundry_h3.shader_terrain', 'foundry_h3odst.shader_terrain'))
+                          else 'foundry_h3.shader_water - cubemap reflector'
+                          if group_node.node_tree.name.startswith(('foundry_h3.shader_water', 'foundry_h3odst.shader_water'))
+                          else ('foundry_h3odst' if odst else 'foundry_h3') + ' - cubemap reflector')
+        if self.game == 'reach':
+            reflector_name = ('foundry_reach.shader_water - cubemap reflector'
+                              if group_node.node_tree.name.startswith('foundry_reach.shader_water')
+                              else 'foundry_reach.shader_terrain - cubemap reflector'
+                              if group_node.node_tree.name.startswith('foundry_reach.shader_terrain')
+                              else 'foundry_reach - cubemap reflector')
+        reflector = self._add_group_node(tree, tree.nodes, reflector_name)
         if reflector.node_tree is None:
             tree.nodes.remove(reflector)
             return
@@ -3259,9 +3674,11 @@ class ShaderTag(BlenderTag, TagDocument):
         for socket in reflector.inputs:
             source = group_node.inputs.get(socket.name)
             if source is None:
+                source = group_node.inputs.get(socket.name + '.rgb')
+            if source is None:
                 continue
             value = source.default_value
-            if socket.name == 'bump_mapping':
+            if socket.name == 'bump_mapping' and self.game != 'reach':
                 # The reflector resource uses Reach names for H3's masked
                 # detail modes; their menu positions and behavior match.
                 value = {'detail_blend': 'detail_masked',
@@ -3372,7 +3789,8 @@ class ShaderTag(BlenderTag, TagDocument):
         e_specular_mask = SpecularMask(self._option_value_from_index(3))
         material_model_enum = H3MaterialModel if self.game in {'halo3', 'halo3odst'} else MaterialModel
         e_material_model = material_model_enum(self._option_value_from_index(4))
-        e_environment_mapping = EnvironmentMapping(self._option_value_from_index(5))
+        environment_mapping_enum = H3EnvironmentMapping if self.game in {'halo3', 'halo3odst'} else EnvironmentMapping
+        e_environment_mapping = environment_mapping_enum(self._option_value_from_index(5))
         e_self_illumination = SelfIllumination(self._option_value_from_index(6))
         e_blend_mode = BlendMode(self._option_value_from_index(7))
         e_alpha_blend_source = AlphaBlendSource(self._option_value_from_index(11))
@@ -3395,7 +3813,7 @@ class ShaderTag(BlenderTag, TagDocument):
             
         if e_environment_mapping.value > 2:
             old_env = e_environment_mapping.name
-            e_environment_mapping = EnvironmentMapping.DYNAMIC
+            e_environment_mapping = environment_mapping_enum.DYNAMIC
             utils.print_warning(f"Unsupported environment mapping : {old_env}. Using {e_environment_mapping.name} instead")
             
         # if e_blend_mode.value > BlendMode.DOUBLE_MULTIPLY.value:
@@ -3520,7 +3938,21 @@ class ShaderTag(BlenderTag, TagDocument):
                     end_input.default_value = data.clamp_min
             return
         
-        tree.links.new(input=end_input, output=data.to_blend_nodes(tree, force_time_period=uses_time))
+        # Keep material layouts readable; each tag function owns its small,
+        # independent graph while common arithmetic stays in library helpers.
+        group = bpy.data.node_groups.new('Shader function - ' + end_input.name, 'ShaderNodeTree')
+        group['foundry_shader_function'] = True
+        color = data.color_type != FunctionEditorColorGraphType.Scalar
+        group.interface.new_socket('Color' if color else 'Value', in_out='OUTPUT',
+                                   socket_type='NodeSocketColor' if color else 'NodeSocketFloat')
+        output = group.nodes.new('NodeGroupOutput')
+        group.links.new(data.to_blend_nodes(group, force_time_period=uses_time), output.inputs[0])
+        from ..tools.node_layout import layout_nodes
+        layout_nodes(group)
+        function = tree.nodes.new('ShaderNodeGroup')
+        function.node_tree = group
+        function.label = end_input.name + ' function'
+        tree.links.new(function.outputs[0], end_input)
         if data.input.strip():
             if data.input_uses_group_node:
                 self.object_functions.add(data.input)
@@ -3537,6 +3969,11 @@ class ShaderTag(BlenderTag, TagDocument):
         last_input_node = None
         
         for input in node.inputs[start_input:]:
+            # H3 terrain calls both its category and bitmap "environment_map".
+            # Category menus were already assigned by the H3 dispatcher; never
+            # treat them as bitmap destinations during parameter population.
+            if input.type == 'MENU':
+                continue
             
             if not input.is_icon_visible:
                 continue
