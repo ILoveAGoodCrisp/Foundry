@@ -1006,7 +1006,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         data_path = utils.get_data_path()
         
         for scene in new_scenes:
-            if scene.nwo.sidecar_path:
+            if data_path and scene.nwo.sidecar_path:
                 export_animations_path = Path(data_path, Path(utils.relative_path(scene.nwo.sidecar_path)).parent, "export", "animations")
                 
             for anim in scene.nwo.animations:
@@ -1189,6 +1189,8 @@ class NWO_OT_OpenExternalAnimationBlend(bpy.types.Operator):
             return {'CANCELLED'}
 
         blend_path = animation.blend_path.strip()
+        if (not blend_path or not Path(blend_path).is_absolute()) and not utils.require_project(self):
+            return {'CANCELLED'}
         if blend_path:
             blend = Path(blend_path)
             if not blend.is_absolute():
@@ -1198,6 +1200,8 @@ class NWO_OT_OpenExternalAnimationBlend(bpy.types.Operator):
             blend = Path(utils.get_data_path(), root_asset, "animations", animation.name).with_suffix(".blend")
         
         if not blend.exists():
+            if not utils.require_project(self):
+                return {'CANCELLED'}
             root_asset = Path(animation.gr2_path).parent.parent.parent
             sidecar = Path(utils.get_data_path(), root_asset, f"{root_asset.name}.sidecar.xml")
             blend = utils.source_blend_from_sidecar(sidecar)
@@ -1277,10 +1281,12 @@ class NWO_OT_SelectExternalAnimationPath(bpy.types.Operator):
         if current_path.strip():
             path = Path(current_path.strip())
             if not path.is_absolute():
+                if not utils.require_project(self):
+                    return {'CANCELLED'}
                 path = Path(utils.get_data_path(), path)
             self.filepath = str(path)
         else:
-            asset_path = utils.get_asset_path_full()
+            asset_path = utils.get_asset_path_full() if utils.current_project_valid() else None
             if asset_path:
                 self.filepath = str(Path(asset_path))
             elif bpy.data.filepath:
@@ -1299,6 +1305,8 @@ class NWO_OT_OpenExternalAnimationGR2(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         scene_nwo = utils.get_scene_props()
         return (
             utils.has_gr2_viewer()
@@ -1311,6 +1319,8 @@ class NWO_OT_OpenExternalAnimationGR2(bpy.types.Operator):
         )
 
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         scene_nwo = utils.get_scene_props()
         animation = scene_nwo.animations[scene_nwo.active_animation_index]
         asset_path = utils.get_asset_path_full()
@@ -1605,6 +1615,8 @@ class NWO_OT_AnimationsExportChildBlends(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         scene_nwo = utils.get_scene_props()
         return any(
             animation.export_this and animation.external and animation.blend_path.strip()
@@ -1640,6 +1652,8 @@ class NWO_OT_AnimationsExportChildBlends(bpy.types.Operator):
         return sorted(unique_paths.values(), key=sort_key), sorted(missing_paths.values(), key=sort_key)
 
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         blend_paths, missing_paths = self._child_blend_paths(utils.get_scene_props())
         if not blend_paths:
             self.report({'WARNING'}, "No external animation Blend files were found")
@@ -3126,15 +3140,15 @@ class NWO_UL_AnimationList(bpy.types.UIList):
     def draw_filter(self, context, layout):
         if self.use_filter_show:
             row = layout.row(align=True)
-            row.prop(self, "filter_name", text="")
+            row.prop(self, "filter_name", text="Search")
             row.prop(self, "use_filter_sort_alpha", text="")
             row.prop(self, "use_filter_invert", text="", icon='ARROW_LEFTRIGHT')
             row.separator()
-            row.prop(self, "use_filter_sort_frame", text="", icon='KEYFRAME_HLT')
+            row.prop(self, "use_filter_sort_frame", text="Frame Count", icon='KEYFRAME_HLT')
             row.separator()
-            row.prop(self, "use_filter_event", text="", icon_value=get_icon_id("animation_event"))
-            row.prop(self, "use_filter_rename", text="", icon_value=get_icon_id("animation_rename"))
-            row.prop(self, "use_filter_export", text="", icon='CHECKBOX_HLT')
+            row.prop(self, "use_filter_event", text="Has Events", icon_value=get_icon_id("animation_event"))
+            row.prop(self, "use_filter_rename", text="Has Renames", icon_value=get_icon_id("animation_rename"))
+            row.prop(self, "use_filter_export", text="Export Enabled", icon='CHECKBOX_HLT')
             row.separator()
             row.prop(self, "use_filter_sort_reverse", text="", icon="SORT_ASC")
             layout.separator()
@@ -3152,6 +3166,13 @@ class NWO_UL_AnimationList(bpy.types.UIList):
             row.separator()
             row.prop(self, "use_filter_composite", text="", icon_value=get_icon_id("anim_composite"))
             row.separator()
+            layout.context_pointer_set('foundry_ui_list', self)
+            layout.operator('nwo.workflow_reset_filters', text='Reset Filters', icon='LOOP_BACK')
+            flags, _ = self.filter_items(context, data=utils.get_scene_props(), propname='animations')
+            visible = sum(bool(flag & self.bitflag_filter_item) for flag in flags)
+            layout.label(text=f'{visible} of {len(flags)} animations shown')
+            if flags and not visible:
+                layout.label(text='No matches. Reset filters to show animations.')
 
     def filter_items(self, context, data, propname):
         items = getattr(data, propname)

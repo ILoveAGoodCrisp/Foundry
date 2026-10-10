@@ -14,7 +14,7 @@ import numpy as np
 from ...constants import VALID_MESHES, face_prop_type_items, face_prop_descriptions, face_mode_items
 
 from ...icons import get_icon_id
-from ... import utils
+from ... import utils, face_attributes
 
 from ...tags.globals import GlobalsTag
 from ...tags.model_blender import ModelTag
@@ -418,6 +418,40 @@ class NWO_UL_FacePropList(bpy.types.UIList):
         else:
             row.label(text=f"Unassigned")
             
+class NWO_OT_ConvertFaceAttributes(bpy.types.Operator):
+    bl_idname = "nwo.convert_face_attributes"
+    bl_label = "Convert Legacy Face Attributes"
+    bl_description = "Convert all meshes in the current scene to one assignment channel per property type, preserving effective face settings"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    remove_legacy_masks: bpy.props.BoolProperty(
+        name="Remove Old Foundry Masks", default=False,
+        description="Remove old foundry_attribute__ masks after conversion; leave disabled if nodes or other tools use them. External attributes are always retained",
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return (context.mode == 'OBJECT' and any(
+            ob.type == 'MESH' and face_attributes.has_legacy(ob.data)
+            for ob in context.scene.objects))
+
+    def execute(self, context):
+        meshes = list(dict.fromkeys(ob.data for ob in context.scene.objects
+                                   if ob.type == 'MESH' and face_attributes.has_legacy(ob.data)))
+        try:
+            # Validate all scene meshes before converting the first mesh.
+            if any(not mesh.is_editable for mesh in meshes):
+                raise ValueError('Make linked mesh data local before converting')
+            plans = [(mesh, face_attributes.conversion_plan(mesh)) for mesh in meshes]
+            records = sum(face_attributes.convert(mesh, plan=plan,
+                          remove_legacy_masks=self.remove_legacy_masks) for mesh, plan in plans)
+        except ValueError as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"Converted {records} face properties on {len(meshes)} meshes")
+        return {'FINISHED'}
+
+
 class NWO_OT_FaceAttributeConsolidate(bpy.types.Operator):
     bl_idname = "nwo.face_attribute_consolidate"
     bl_label = "Merge Face Attributes"
@@ -429,7 +463,11 @@ class NWO_OT_FaceAttributeConsolidate(bpy.types.Operator):
         return context.object and context.object.type == 'MESH' and context.object.data.nwo.face_props and context.mode != 'EDIT_MESH'
     
     def execute(self, context):
-        utils.consolidate_face_attributes(context.object.data)
+        try:
+            utils.consolidate_face_attributes(context.object.data)
+        except ValueError as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
         return {"FINISHED"}
                 
 class NWO_OT_FaceAtributeCountRefresh(bpy.types.Operator):
@@ -465,7 +503,11 @@ class NWO_OT_ConsolidateFaceProps(bpy.types.Operator):
         return context.object and context.object.type == 'MESH' and context.object.data.nwo.face_props
     
     def execute(self, context):
-        utils.consolidate_face_attributes(context.object.data)
+        try:
+            utils.consolidate_face_attributes(context.object.data)
+        except ValueError as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
         return {"FINISHED"}
 
 class NWO_OT_EditMode(bpy.types.Operator):
@@ -487,29 +529,25 @@ attributes_list = []
     
 class NWO_OT_ChangeAttribute(bpy.types.Operator):
     bl_idname = "nwo.change_attribute"
-    bl_label = "Change Mesh Attribute"
+    bl_label = "Assign From Mesh Attribute"
     bl_options = {'REGISTER', 'UNDO'}
-    bl_description = "Lets you change the mesh attribute pointed to by this face property (and optionally rename it). Only single value (bool, integer, float) face attributes are supported. For Foundry, a face either has a property or it doesn't so while you can use integers or floats, they will just be true if they are a value other than 0"
+    bl_description = "Replace this property's assignment using nonzero values from a scalar face attribute; the source attribute is preserved"
     
     @classmethod
     def poll(self, context):
-        return context.object and context.object.type in VALID_MESHES and context.object.data.nwo.face_props
-    
+        return (context.object and context.object.type == 'MESH'
+                and context.object.data.nwo.face_props and context.mode != 'EDIT_MESH'
+                and not face_attributes.has_legacy(context.object.data))
+
     def new_attribute_items(self, context):
         global attributes_list
         return [(attr.name, attr.name, "") for attr in attributes_list]
         
     
     new_attribute: bpy.props.EnumProperty(
-        name="New Attribute",
-        description="The new attribute to associate with this face property. Available items come from mesh attributes and must be a single value (bool, integer, float) face attribute",
+        name="Selection Attribute",
+        description="Copy nonzero values from this Boolean, integer, or float face attribute into the property's assignment",
         items=new_attribute_items,
-        options={'SKIP_SAVE'}
-    )
-    
-    name_override: bpy.props.StringProperty(
-        name="Name Override",
-        description="Changes the name of the new attribute above. Leave blank for no change",
         options={'SKIP_SAVE'}
     )
     
@@ -521,32 +559,32 @@ class NWO_OT_ChangeAttribute(bpy.types.Operator):
             self.report({'WARNING'}, f"Failed to find attribute {self.new_attribute}")
             return {'CANCELLED'}
             
-        if self.name_override.strip():
-            attribute.name = self.name_override.strip()
-            
-        prop.attribute_name = attribute.name
-        self.report({'INFO'}, f"Updated face property attribute to: {prop.attribute_name}")
+        try:
+            selection = face_attributes.read_attribute(attribute, len(mesh.polygons)) != 0
+            face_attributes.set_mask(mesh, prop, selection)
+        except ValueError as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"Assigned {prop.face_count} faces from {attribute.name}")
         return {'FINISHED'}
             
     def invoke(self, context: bpy.types.Context, _):
         mesh = cast(bpy.types.Mesh, context.object.data)
-        prop = mesh.nwo.face_props[mesh.nwo.face_props_active_index]
-        current_attribute_name = prop.attribute_name
-        current_attribute = mesh.attributes.get(current_attribute_name)
         global attributes_list
-        if current_attribute is None:
-            attributes_list = [attr for attr in mesh.attributes if attr.domain == 'FACE' and attr.data_type in {'FLOAT', 'INT', 'BOOLEAN'}]
-        else:
-            attributes_list = [current_attribute]
-            attributes_list.extend([attr for attr in mesh.attributes if attr.domain == 'FACE' and attr.data_type in {'FLOAT', 'INT', 'BOOLEAN'} and attr != current_attribute])
-
+        channels = {p.attribute_name for p in mesh.nwo.face_props if p.assignment_id}
+        attributes_list = [attr for attr in mesh.attributes
+                           if attr.domain == 'FACE' and attr.data_type in {'FLOAT', 'INT', 'INT8', 'BOOLEAN'}
+                           and attr.name not in channels and not attr.name.startswith('.')]
+        if not attributes_list:
+            self.report({'INFO'}, "No external scalar face attributes are available")
+            return {'CANCELLED'}
+        self.new_attribute = attributes_list[0].name
         return context.window_manager.invoke_props_dialog(self, width=500)
         
     def draw(self, context):
         layout = cast(bpy.types.UILayout, self.layout)
         layout.use_property_split = True
         layout.prop(self, "new_attribute")
-        layout.prop(self, "name_override")
 
 
 class NWO_OT_FaceAttributeAdd(bpy.types.Operator):
@@ -573,26 +611,15 @@ class NWO_OT_FaceAttributeAdd(bpy.types.Operator):
         nwo = mesh.nwo
         scene_nwo = utils.get_scene_props()
         
-        item = nwo.face_props.add()
+        kind = 'face_mode' if self.options in face_mode_items else self.options
+        selection = None
+        if ob.type == 'MESH' and context.mode == 'EDIT_MESH':
+            selection = np.array([f.select for f in bmesh.from_edit_mesh(mesh).faces], dtype=bool)
+        item = utils.add_face_prop(mesh, kind, selection)
         nwo.face_props_active_index = len(nwo.face_props) - 1
-        
         if self.options in face_mode_items:
-            item.type = 'face_mode'
             item.face_mode = self.options
-        else:
-            item.type = self.options
-        
-        if ob.type == 'MESH':
-            if context.mode == 'EDIT_MESH':
-                attribute, face_count = utils.assign_face_attribute_edit_mode(mesh)
-                item.face_count = face_count
-                item.attribute_name = attribute.name
-            else:
-                attribute, face_count = utils.assign_face_attribute(mesh)
-                item.face_count = face_count
-                item.attribute_name = attribute.name
-        
-            
+
         item.color = utils.random_color(len(nwo.face_props))
         if nwo.highlight and bpy.ops.nwo.face_attribute_color_all.poll():
             bpy.ops.nwo.face_attribute_color_all(enable_highlight=nwo.highlight)
@@ -699,7 +726,7 @@ class NWO_OT_FaceAttributeSetAll(bpy.types.Operator):
     def execute(self, context):
         mesh = context.object.data
         nwo = mesh.nwo
-        utils.delete_face_attribute(mesh, nwo.face_props_active_index, False)
+        face_attributes.assign_selected(mesh, nwo.face_props[nwo.face_props_active_index], all_faces=True)
         return {"FINISHED"}
 
 class NWO_OT_FaceAttributeSelect(bpy.types.Operator):
@@ -781,7 +808,7 @@ class NWO_OT_FacePropCopyToSelected(bpy.types.Operator):
         
         prop = nwo.face_props[nwo.face_props_active_index]
         
-        meshes = {ob.data for ob in context.selected_objects if ob != active and ob.type in VALID_MESHES}
+        meshes = {ob.data for ob in context.selected_objects if ob.data != mesh and ob.type in VALID_MESHES}
         
         for me in meshes:
             utils.copy_face_prop(mesh, prop, me)
@@ -803,9 +830,9 @@ class NWO_OT_FacePropsCopyToSelected(bpy.types.Operator):
         active = context.object
         mesh = active.data
         nwo = mesh.nwo
-        meshes = {ob.data for ob in context.selected_objects if ob != active and ob.type in VALID_MESHES}
+        meshes = {ob.data for ob in context.selected_objects if ob.data != mesh and ob.type in VALID_MESHES}
         
-        for prop in nwo.face_props:
+        for prop in list(nwo.face_props):
             for me in meshes:
                 utils.copy_face_prop(mesh, prop, me)
         
@@ -992,7 +1019,8 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
         bm = bmesh.from_edit_mesh(self.me)
         cm = bm.copy()
 
-        attribute = cm.faces.layers.bool.get(self.attribute_name)
+        prop = self.me.nwo.face_props[self.attribute_index]
+        attribute = face_attributes.bm_layer(cm, prop)
         if attribute is None:
             self.report({'WARNING'},
                         f"Face attribute {self.attribute_name!r} not found")
@@ -1003,7 +1031,7 @@ class NWO_OT_FaceAttributeColor(bpy.types.Operator):
         self.verts = [
             loop.vert.co.to_tuple()
             for tri in loops
-            if tri[0].face.hide is False and tri[0].face[attribute]
+            if not tri[0].face.hide and face_attributes.bm_matches(tri[0].face, prop, attribute)
             for loop in tri
         ]
 
@@ -1134,7 +1162,7 @@ class NWO_OT_RegionListFace(bpy.types.Operator):
 
     def execute(self, context):
         nwo = context.object.data.nwo
-        nwo.face_props[nwo.face_props_active_index].region_name = self.region
+        nwo.face_props[nwo.face_props_active_index].region = self.region
         return {"FINISHED"}
 
 
@@ -1517,7 +1545,13 @@ class NWO_OT_GlobalMaterialGlobals(NWO_OT_RegionList):
     
     type: bpy.props.StringProperty()
 
+    @classmethod
+    def poll(cls, context):
+        return utils.poll_project(cls) and context.object is not None
+
     def get_materials(self, context):
+        if not utils.current_project_valid():
+            return []
         global global_mats_items
         if global_mats_items:
             return global_mats_items
@@ -1536,6 +1570,8 @@ class NWO_OT_GlobalMaterialGlobals(NWO_OT_RegionList):
     )
 
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         ob = context.object
         material = ob.active_material
         match self.type:
@@ -1549,6 +1585,8 @@ class NWO_OT_GlobalMaterialGlobals(NWO_OT_RegionList):
         return {"FINISHED"}
     
     def invoke(self, context, event):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         wm = context.window_manager
         wm.invoke_search_popup(self)
         return {"FINISHED"}

@@ -1,5 +1,5 @@
 import bpy
-from . import bar, node_editor, outliner, viewport, panel, timeline, properties
+from . import bar, node_editor, outliner, viewport, panel, timeline, properties, shader_socket_visibility, workflow
 from .panel import animation, asset, help, material, object, scene, sets, setting, tools, cinematic, light
 from ..tools.animation import animation_name
 
@@ -220,6 +220,7 @@ classes = [
     # object.NWO_MT_FacePropAddMenu,
     object.NWO_UL_FacePropList,
     object.NWO_OT_FaceAttributeConsolidate,
+    object.NWO_OT_ConvertFaceAttributes,
     object.NWO_OT_FaceAtributeCountRefresh,
     object.NWO_OT_EditMode,
     object.NWO_OT_FaceAttributeDelete,
@@ -322,6 +323,10 @@ classes = [
     cinematic.NWO_OT_CameraLightsClear,
     cinematic.NWO_UL_CinematicEvents,
     cinematic.NWO_OT_CinematicEventAdd,
+    cinematic.NWO_UL_CinematicExtraCameras,
+    cinematic.NWO_OT_CinematicExtraCameraAdd,
+    cinematic.NWO_OT_CinematicExtraCameraRemove,
+    cinematic.NWO_OT_CinematicExtraCameraPreview,
     cinematic.NWO_OT_CinematicEventRemove,
     cinematic.NWO_OT_CinematicEventSetFrame,
     cinematic.NWO_OT_UpdateActor,
@@ -343,7 +348,10 @@ classes = [
     light.NWO_OT_HaloLightToggle,
 ]
 
+classes.extend(workflow.classes)
+
 def register():
+    shader_socket_visibility.register()
     for cls in classes: bpy.utils.register_class(cls)
     bpy.types.VIEW3D_MT_object_context_menu.append(viewport.object_context_apply_types)
     bpy.types.VIEW3D_MT_object_context_menu.append(viewport.object_context_sets)
@@ -355,6 +363,7 @@ def register():
     bpy.types.VIEW3D_MT_armature_add.append(viewport.add_halo_armature_buttons)
     bpy.types.OUTLINER_HT_header.append(viewport.create_halo_collection)
     bpy.types.VIEW3D_MT_object.append(viewport.add_halo_join)
+    bpy.types.VIEW3D_MT_object.append(viewport.add_make_meshes_editable)
     bpy.types.TOPBAR_MT_file_import.append(bar.menu_func_import)
     bpy.types.TOPBAR_MT_file_external_data.append(bar.menu_func_external_data)
     bpy.types.DOPESHEET_HT_header.append(timeline.draw_cinematic_info)
@@ -363,8 +372,11 @@ def register():
     bpy.types.Scene.nwo_export = bpy.props.PointerProperty(
         type=bar.NWO_HaloExportPropertiesGroup, name="Halo Export", description=""
     )
+    workflow.register()
     
 def unregister():
+    workflow.unregister()
+    shader_socket_visibility.unregister()
     animation_name.unregister_vehicle_mode_operators()
     del bpy.types.Scene.nwo_export
     bpy.types.VIEW3D_MT_object_parent.remove(object.draw_halo_attach)
@@ -376,6 +388,7 @@ def unregister():
     bpy.types.VIEW3D_MT_mesh_add.remove(viewport.add_halo_scale_model_button)
     bpy.types.VIEW3D_MT_armature_add.remove(viewport.add_halo_armature_buttons)
     bpy.types.VIEW3D_MT_object.remove(viewport.add_halo_join)
+    bpy.types.VIEW3D_MT_object.remove(viewport.add_make_meshes_editable)
     bpy.types.OUTLINER_HT_header.remove(viewport.create_halo_collection)
     bpy.types.NODE_MT_add.remove(node_editor.node_context_menu)
     bpy.types.OUTLINER_MT_collection.remove(viewport.collection_context)

@@ -37,13 +37,19 @@ class NWO_OT_CopyScenario(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         scene_nwo = utils.get_scene_props()
         return scene_nwo.asset_type == 'cinematic' and scene_nwo.cinematic_scenario
     
     def invoke(self, context, event):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         return context.window_manager.invoke_confirm(self, event)
     
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         scene_nwo = utils.get_scene_props()
         scenario = Path(utils.get_tags_path(), utils.relative_path(scene_nwo.cinematic_scenario))
         scenario_rel = utils.relative_path(scenario)
@@ -277,10 +283,14 @@ class NWO_OT_OpenParentAsset(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         scene_nwo = utils.get_scene_props()
         return scene_nwo.parent_asset.strip()
     
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         scene_nwo = utils.get_scene_props()
         asset_path = Path(scene_nwo.parent_asset)
         if asset_path.suffix != '.blend':

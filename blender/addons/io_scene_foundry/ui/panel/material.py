@@ -63,7 +63,14 @@ class NWO_OT_MaterialOpenTag(bpy.types.Operator):
     bl_label = "Open in Tag Editor"
     bl_description = "Opens the active material's Halo Shader/Material in the current project's tag editor"
 
+    @classmethod
+    def poll(cls, context):
+        return (utils.poll_project(cls) and context.object and context.object.active_material
+                and bool(context.object.active_material.nwo.shader_path.strip()))
+
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         tag_path = Path(utils.get_tags_path(), context.object.active_material.nwo.shader_path)
         if tag_path.exists():
             from ...tools.halo_launcher import open_tag_in_editor

@@ -40,7 +40,8 @@ from .project_config import (
     read_kit_settings, read_project_records, relative_content_path, resolve_scene_project, snapshot_project, unique_project_name,
     write_kit_settings, write_project_records,
 )
-from . import foundry_output
+from . import foundry_output, marker_axis, face_attributes
+from .coordinate_system import CoordinateSystem, axis_rotation, geometry_matrix, rotation_between
 from .tool_process import check_tool_process, shader_prompt_error, MonitoredToolProcess
 from .tools.node_layout import layout_nodes as arrange
 from .constants import OBJECT_TAG_EXTS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR
@@ -1422,7 +1423,11 @@ def run_ek_cmd(args: list, in_background=False):
     if not executable.is_absolute():
         executable = Path(project.project_path) / executable
     command = [str(executable), *content_directory_args(project, executable), *[str(arg) for arg in args[1:]]]
-    output_stream = foundry_output.child_stream()
+    # Keep editor/game/watcher output out of Foundry's console. Tool retains
+    # its output even when launched through this general editing-kit helper.
+    output_stream = (foundry_output.child_stream()
+                     if executable.stem.casefold() in {"tool", "tool_fast"}
+                     else subprocess.DEVNULL)
     creationflags = _CREATE_NO_WINDOW if os.name == "nt" and output_stream is not None else 0
     # print(command)
     if in_background:
@@ -2628,6 +2633,22 @@ def current_project_valid():
     
     return bool(project and getattr(project, 'available', True))
 
+def poll_project(operator_class):
+    """Disable project-dependent operators with a useful tooltip."""
+    if current_project_valid():
+        return True
+    operator_class.poll_message_set("Select an available project in Foundry Scene Properties")
+    return False
+
+
+def require_project(operator):
+    """Recheck the project when a dialog or file selector completes."""
+    if current_project_valid():
+        return True
+    operator.report({'WARNING'}, "Select an available project in Foundry Scene Properties")
+    return False
+
+
 def get_project(project_name=None, use_external=True):
     if use_external and _external_project is not None:
         return _external_project
@@ -3487,92 +3508,33 @@ class TransformManager():
 def rotation_and_pivot(rotation):
     axis_z = Vector((0, 0, 1))
     pivot = Vector((0.0, 0.0, 0.0))
-    rotation_matrix = Matrix.Rotation(rotation, 4, axis_z)
+    rotation_matrix = axis_rotation(rotation)
     pivot_matrix = (Matrix.Translation(pivot) @ rotation_matrix @ Matrix.Translation(-pivot))
     
     return rotation_matrix, pivot_matrix
 
 def halo_transforms(ob: bpy.types.Object, scale=None, rotation=None, marker=False) -> Matrix:
-    '''
-    Returns an object's matrix_world transformed for Halo. Used when writing object transforms directly to tags
-    '''
-    if scale is None:
-        if get_scene_props().scale == 'max':
-            scale = 0.03048 * WU_SCALAR
-        else:
-            scale = WU_SCALAR
-    
-    if rotation is None:
-        rotation = blender_halo_rotation_diff(get_scene_props().forward_direction)
-        
-    rotation_matrix, pivot_matrix = rotation_and_pivot(rotation)
-    
-    scale_matrix = Matrix.Scale(scale, 4)
-    
-    object_matrix = ob.matrix_world
-    final_matrix = rotation_matrix @ scale_matrix @ object_matrix
-    
-    # If it's a marker and we have been asked to maintain marker axis
-    if marker and get_scene_props().maintain_marker_axis:
-        marker_rotation_matrix = Matrix.Rotation(-rotation, 4, 'Z')
-        final_matrix = final_matrix @ marker_rotation_matrix
-    
-    return final_matrix
+    """Convert an object's geometry matrix for writing directly to Halo tags."""
+    return halo_transforms_matrix(ob.matrix_world, scale, rotation, marker)
+
 
 def halo_transforms_matrix(matrix: Matrix, scale=None, rotation=None, marker=False) -> Matrix:
-    '''
-    Returns an object's matrix_world transformed for Halo. Used when writing object transforms directly to tags
-    '''
+    convention = CoordinateSystem.from_scene(get_scene_props())
     if scale is None:
-        if get_scene_props().scale == 'max':
-            scale = 0.03048 * WU_SCALAR
-        else:
-            scale = WU_SCALAR
-    
+        scale = convention.to_world_scale
     if rotation is None:
-        rotation = blender_halo_rotation_diff(get_scene_props().forward_direction)
-        
-    rotation_matrix, pivot_matrix = rotation_and_pivot(rotation)
-    
-    scale_matrix = Matrix.Scale(scale, 4)
-    
-    final_matrix = rotation_matrix @ scale_matrix @ matrix
-    
-    # If it's a marker and we have been asked to maintain marker axis
-    if marker and get_scene_props().maintain_marker_axis:
-        marker_rotation_matrix = Matrix.Rotation(-rotation, 4, 'Z')
-        final_matrix = final_matrix @ marker_rotation_matrix
-    
-    return final_matrix
+        rotation = convention.to_halo_rotation
+    return geometry_matrix(matrix, scale, rotation, marker=marker)
 
 def halo_transform_matrix(matrix: Matrix) -> Matrix:
-    """Converts a matrix from blender space to halo space"""
-    scale = WU_SCALAR
-    if get_scene_props().scale == 'max':
-        scale = 0.03048 * WU_SCALAR
-    
-    rotation = blender_halo_rotation_diff(get_scene_props().forward_direction)
-    
-    rotation_matrix, _ = rotation_and_pivot(rotation)
-    scale_matrix = Matrix.Scale(scale, 4)
+    """Convert a geometry matrix from authoring coordinates to Halo world units."""
+    return halo_transforms_matrix(matrix)
 
-    transform_matrix = rotation_matrix @ scale_matrix
-    
-    return transform_matrix @ matrix
 
 def blender_transform_matrix(matrix: Matrix) -> Matrix:
-    """Converts a matrix from halo space to blender space."""
-    scale = WU_SCALAR
-    if get_scene_props().scale == 'max':
-        scale = 0.03048 * WU_SCALAR
-
-    rotation = blender_halo_rotation_diff(get_scene_props().forward_direction)
-    rotation_matrix, _ = rotation_and_pivot(rotation)
-
-    inv_scale_matrix = Matrix.Scale(1.0 / scale, 4)
-    inv_rotation_matrix = rotation_matrix.transposed()
-
-    return inv_scale_matrix @ inv_rotation_matrix @ matrix
+    """Inverse geometry conversion from Halo world units to authoring coordinates."""
+    convention = CoordinateSystem.from_scene(get_scene_props())
+    return geometry_matrix(matrix, 1 / convention.to_world_scale, convention.from_halo_rotation)
 
 
 def maya_transform_matrix(matrix: Matrix) -> Matrix:
@@ -3639,20 +3601,19 @@ class TransformObject:
     def __init__(self, ob: bpy.types.Object, matrix: Matrix = None, scale: float = None, marker_z_matrix: Matrix = None):
         self.ob = ob
         self.original_matrix = self.ob.matrix_world.copy()
-        self.marker_z_matrix = marker_z_matrix
         if matrix is None:
             self.matrix = ob.matrix_world.copy()
         else:
             self.matrix = matrix @ ob.matrix_world
         if scale is not None:
             self.matrix.translation = zero_vector.lerp(self.matrix.translation, scale)
+        if marker_z_matrix is not None:
+            self.matrix = self.matrix @ marker_z_matrix
         
     def apply(self):
         self.ob.matrix_world = self.matrix
-        if self.marker_z_matrix is not None:
-            self.ob.matrix_basis = self.ob.matrix_basis @ self.marker_z_matrix
 
-def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False, scale_light_energy=False, scale_vector=None):
+def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False, scale_light_energy=False, scale_vector=None, marker_objects=None):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
     print("\nTransforming Scene\n")
     context.view_layer.update()
@@ -3662,7 +3623,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
     with TransformManager():
         # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
         if objects is None:
-            objects = bpy.data.objects
+            from .scene_conversion import collect_objects
+            objects = collect_objects(context.scene)
             all_objects = True
             
         if exclude_scale_models:
@@ -3676,25 +3638,34 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             lights = {ob.data for ob in objects if ob.type =='LIGHT'}
             
         if actions is None:
-            actions = bpy.data.actions
+            from .scene_conversion import _bindings
+            actions = {action for _, _, action, _ in _bindings(context.scene, set(objects))}
             
-        if keep_marker_axis is None:
-            keep_marker_axis = get_scene_props().maintain_marker_axis
-
         armatures = {}
         scene_coll = context.scene.collection.objects
         rotation_euler = Euler((0, 0, rotation))
-        rotation_matrix = Matrix.Rotation(rotation, 4, Vector((0, 0, 1)))
+        rotation_matrix = axis_rotation(rotation)
         if scale_vector is None:
             scale_matrix = Matrix.Scale(scale_factor, 4)
         else:
             scale_matrix = Matrix.Diagonal(scale_vector).to_4x4()
         transform_matrix = rotation_matrix @ scale_matrix
         transform_objects = []
-        marker_z = Matrix.Rotation(-rotation, 4, 'Z')
+        marker_z = axis_rotation(-rotation)
         child_of_constraints = []
         
-        parents = {o.parent for o in objects if o.parent is not None}
+        objects = list(objects)
+        targets = set(objects)
+        game = get_game(context.scene.nwo.scene_project)
+        # Raw interchange frames can provide an explicit marker set after typing.
+        if marker_objects is None:
+            marker_objects = {ob for ob in objects if marker_axis.uses_scene_axes(ob, game)}
+        else:
+            marker_objects = set(marker_objects)
+        # Children outside the scope still follow their parent, but must not
+        # inherit the marker's local reference-axis correction.
+        outside_children = {ob: ob.matrix_parent_inverse.copy() for ob in bpy.data.objects
+                            if ob not in targets and ob.parent in marker_objects}
         
         armatures = {ob: ob.data.pose_position for ob in objects if ob.type == 'ARMATURE'}
         for ob in armatures.keys():
@@ -3720,7 +3691,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                         ob.nwo.light_volume_distance *= scale_factor
                 case 'EMPTY':
                     ob.empty_display_size *= scale_factor
-                    if keep_marker_axis and not is_frame(ob) and ob not in parents:
+                    if ob in marker_objects:
                         transform_objects.append(TransformObject(ob, rotation_matrix, scale_factor, marker_z_matrix=marker_z))
                     else:
                         transform_objects.append(TransformObject(ob, rotation_matrix, scale_factor))
@@ -3758,8 +3729,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                         case 'MIRROR':
                             mod.merge_threshold *= scale_factor
                             mod.bisect_threshold *= scale_factor
-                            if not keep_marker_axis and mod.mirror_object and is_marker(mod.mirror_object):
-                                fix_mirror_angles(mod, old_forward, new_forward)
                         case 'REMESH':
                             mod.voxel_size *= scale_factor
                             mod.adaptivity *= scale_factor
@@ -3825,10 +3794,14 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             #     lattice.transform(scale_matrix)
             
             for mesh in meshes:
-                mesh.transform(scale_matrix)
+                mesh.transform(scale_matrix, shape_keys=True)
                 
             for camera in cameras:
                 camera.display_size *= scale_factor
+                camera.clip_start *= scale_factor
+                camera.clip_end *= scale_factor
+                camera.ortho_scale *= scale_factor
+                camera.dof.focus_distance *= scale_factor
                 
             for light in lights:
                 light.nwo.light_far_attenuation_start *= scale_factor
@@ -4006,9 +3979,16 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 for fc in fcurves:
                     fc.keyframe_points.handles_recalc()
                 
-        for transform_ob in transform_objects:
-            transform_ob.apply()
+        # Resolve each parent level before assigning its children's world matrices.
+        for _, level in itertools.groupby(transform_objects, key=lambda item: parentage_depth(item.ob)):
+            for transform_ob in level:
+                transform_ob.apply()
+            context.view_layer.update()
             
+        for ob, parent_inverse in outside_children.items():
+            ob.matrix_parent_inverse = marker_z.inverted() @ parent_inverse
+        context.view_layer.update()
+
         for con in child_of_constraints:
             con.set_inverse_pending = True
             
@@ -4036,56 +4016,16 @@ def get_area_info(context):
     return area, area.regions[-1], area.spaces.active
 
 def blender_halo_rotation_diff(direction):
-    """Returns the rotation (radians) needed to go from the current blender forward to Halo X forward"""
-    match direction:
-        case "y":
-            return radians(-90)
-        case "y-":
-            return radians(90)
-        case "x-":
-            return radians(180)
-            
-    return 0
+    """Rotation from scene forward to Halo's +X forward."""
+    return rotation_between(direction, 'x')
+
 
 def blender_rotation_diff(from_direction, to_direction):
-    """Returns the rotation (radians) needed to go from the current blender forward to the selected forward"""
-    rot = blender_halo_rotation_diff(to_direction)
-    match from_direction:
-        case "y":
-            return rot - radians(-90)
-        case "y-":
-            return rot - radians(90)
-        case "x-":
-            return rot - radians(180)
-        case "x":
-            return rot - 0
-            
-    return 0
+    return rotation_between(to_direction, from_direction)
+
 
 def rotation_diff_from_forward(from_direction, to_direction):
-    from_radians = 0
-    match from_direction:
-        case "y-":
-            from_radians = 0
-        case "y":
-            from_radians = radians(180)
-        case "x-":
-            from_radians = radians(90)
-        case "x":
-            from_radians = radians(-90)
-        
-    to_radians = 0
-    match to_direction:
-        case "y-":
-            to_radians = 0
-        case "y":
-            to_radians = radians(180)
-        case "x-":
-            to_radians = radians(90)
-        case "x":
-            to_radians = radians(-90)
-        
-    return from_radians - to_radians
+    return rotation_between(from_direction, to_direction)
 
 def mute_armature_mods():
     muted_arms = []
@@ -4221,7 +4161,7 @@ CAMERA_SYNC_DEBUG_NAME = "foundry_camera_sync"
     
 def update_debug_menu(asset_dir="", asset_name="", update_type=DebugMenuType.DEFAULT, bsp_names=[]):
     project = get_project()
-    if project and project.game == "halo1":
+    if project and project.game == "halo1" and update_type != DebugMenuType.CAMERA:
         return
 
     menu_commands: list[DebugMenuCommand] = []
@@ -4240,10 +4180,13 @@ def update_debug_menu(asset_dir="", asset_name="", update_type=DebugMenuType.DEF
             for idx, name in enumerate(bsp_names):
                 menu_commands.append(f'<item type = command name = "Foundry: Generate Instance Imposters for BSP {name}" variable = "\\(structure_instance_snapshot {idx}\\)">\n')
         case DebugMenuType.CAMERA:
-            menu_commands.append(f'<item type = command name = "Foundry: Load Game Camera from Blender" variable = "\\(debug_camera_load_simple_name \\"{CAMERA_SYNC_DEBUG_NAME}\\"\\)">\n')
-            menu_commands.append(f'<item type = command name = "Foundry: Save Game Camera for Blender" variable = "\\(debug_camera_save_simple_name \\"{CAMERA_SYNC_DEBUG_NAME}\\"\\)">\n')
+            from .tools.camera_sync import camera_debug_menu_commands
+            menu_commands.extend(camera_debug_menu_commands())
             
-    menu_path = os.path.join(get_project_path(), 'bin', 'debug_menu_user_init.txt')
+    menu_directory = Path(get_project_path())
+    if not project or project.game != 'halo2':
+        menu_directory /= 'bin'
+    menu_path = str(menu_directory / 'debug_menu_user_init.txt')
     Path(menu_path).parent.mkdir(parents=True, exist_ok=True)
     valid_lines = None
     # Read first so we can keep the users existing commands
@@ -4828,32 +4771,14 @@ def new_face_attribute(bm, data, attribute_name, display_name, override_prop, ot
     else:
         return bm.faces.layers.int.new(new_face_prop(data, attribute_name, display_name, override_prop, other_props))
     
-def face_attribute_count(mesh: bpy.types.Mesh, prop) -> 0:
-    attribute = mesh.attributes.get(prop.attribute_name)
-    if attribute is None:
-        return 0
-    
-    array = np.zeros(len(mesh.polygons), dtype=np.int8)
-    attribute.data.foreach_get("value", array)
-    
-    return len(np.nonzero(array)[0])
+def face_attribute_count(mesh: bpy.types.Mesh, prop) -> int:
+    return face_attributes.count(mesh, prop)
 
-def face_attribute_count_edit_mode(mesh: bpy.types.Mesh, prop) -> 0:
-    bm = bmesh.from_edit_mesh(mesh)
-    attribute = bm.faces.layers.bool.get(prop.attribute_name)
-    if attribute is None:
-        return 0
-    
-    face_count = 0
-    for face in bm.faces:
-        if face[attribute]:
-            face_count += 1
-            
-    return face_count
+def face_attribute_count_edit_mode(mesh: bpy.types.Mesh, prop) -> int:
+    return face_attributes.count(mesh, prop)
 
 def calc_face_prop_counts(mesh: bpy.types.Mesh):
-    for prop in mesh.nwo.face_props:
-        prop.face_count = face_attribute_count(mesh, prop)
+    face_attributes.refresh_counts(mesh)
     
 def add_face_attribute(mesh: bpy.types.Mesh) -> bpy.types.Attribute:
     attribute = mesh.attributes.new(f"foundry_attribute__{str(uuid4())[:8]}", 'BOOLEAN', 'FACE')
@@ -4890,52 +4815,11 @@ def test_face_prop_all(mesh: bpy.types.Mesh, prop_name: str):
     return False
 
 def copy_face_prop(mesh: bpy.types.Mesh, prop, copy_mesh: bpy.types.Mesh):
-    copy_prop = copy_mesh.nwo.face_props.add()
-    for k, v in prop.items():
-        copy_prop[k] = v
-        
-    if not isinstance(mesh, bpy.types.Mesh) or not isinstance(copy_mesh, bpy.types.Mesh):
-        copy_prop.attribute_name = ""
-        return
-    
-    attribute = mesh.attributes.get(prop.attribute_name)
-    
-    if attribute is None:
-        return
-    
-    face_count = len(mesh.polygons)
-    if face_count == face_attribute_count(mesh, prop):
-        copy_attribute = add_face_attribute(copy_mesh)
-        copy_prop.face_count = len(copy_mesh.polygons)
-    else:
-        copy_attribute = add_face_attribute_empty(copy_mesh)
-        indices = np.zeros(face_count, dtype=np.int8)
-        attribute.data.foreach_get("value", indices)
-        copy_indices = np.zeros(len(copy_mesh.polygons), dtype=np.int8)
-        min_size = min(indices.size, copy_indices.size)
-        copy_indices[:min_size] = indices[:min_size]
-        copy_attribute.data.foreach_set("value", copy_indices)
-        
-    copy_prop.attribute_name = copy_attribute.name
+    return face_attributes.copy(mesh, prop, copy_mesh)
 
 def add_face_prop(mesh: bpy.types.Mesh, prop_type: str, values_map=None):
-    prop = mesh.nwo.face_props.add()
-    prop.type = prop_type
+    prop = face_attributes.add(mesh, prop_type, values_map)
     prop.color = random_color(len(mesh.nwo.face_props))
-    attribute = None
-    if isinstance(mesh, bpy.types.Mesh):
-        has_any_values = values_map.any() if isinstance(values_map, np.ndarray) else bool(values_map)
-        
-        if has_any_values:
-            attribute = add_face_attribute_empty(mesh)
-            attribute.data.foreach_set("value", values_map)
-            prop.face_count = len(np.nonzero(values_map)[0])
-        else:
-            attribute = add_face_attribute(mesh)
-            prop.face_count = len(mesh.polygons)
-            
-        prop.attribute_name = attribute.name
-        
     return prop
 
 def add_face_attribute_edit_mode(mesh: bpy.types.Mesh, assign_all=False) -> bmesh.types.BMLayerItem:
@@ -4951,65 +4835,24 @@ def add_face_attribute_edit_mode(mesh: bpy.types.Mesh, assign_all=False) -> bmes
     
     return attribute
 
-def assign_face_attribute(mesh: bpy.types.Mesh) -> tuple[bmesh.types.BMLayerItem, int]:
-    attribute = mesh.attributes.get(mesh.nwo.face_props[mesh.nwo.face_props_active_index].attribute_name)
-    face_count = len(mesh.polygons)
-    if attribute is None:
-        attribute = add_face_attribute(mesh)
-    else:
-        array = np.ones(face_count, dtype=np.int8)
-        attribute.data.foreach_set("value", array)
-        
-    return attribute, face_count
+def assign_face_attribute(mesh: bpy.types.Mesh):
+    prop = mesh.nwo.face_props[mesh.nwo.face_props_active_index]
+    face_attributes.assign_selected(mesh, prop, all_faces=True)
+    return mesh.attributes[prop.attribute_name], prop.face_count
 
-def assign_face_attribute_edit_mode(mesh: bpy.types.Mesh) -> tuple[bmesh.types.BMLayerItem, int]:
-    bm = bmesh.from_edit_mesh(mesh)
-    attribute = bm.faces.layers.bool.get(mesh.nwo.face_props[mesh.nwo.face_props_active_index].attribute_name)
-    if attribute is None:
-        attribute = add_face_attribute_edit_mode(mesh)
-    
-    face_count = 0
-    for face in bm.faces:
-        if face.select:
-            face[attribute] = True
-            face_count += 1
-        
-        elif face[attribute]:
-            face_count += 1
-            
-    bmesh.update_edit_mesh(mesh)
-    
-    return attribute, face_count
+def assign_face_attribute_edit_mode(mesh: bpy.types.Mesh):
+    prop = mesh.nwo.face_props[mesh.nwo.face_props_active_index]
+    face_attributes.assign_selected(mesh, prop)
+    return face_attributes.bm_layer(bmesh.from_edit_mesh(mesh), prop), prop.face_count
 
-def remove_face_attribute_edit_mode(mesh: bpy.types.Mesh) -> int:
-    bm = bmesh.from_edit_mesh(mesh)
-    attribute = bm.faces.layers.bool.get(mesh.nwo.face_props[mesh.nwo.face_props_active_index].attribute_name)
-    if attribute is None:
-        attribute = add_face_attribute_edit_mode(mesh, True)
-    
-    face_count = 0
-    for face in bm.faces:
-        if face.select:
-            face[attribute] = False
-        elif face[attribute]:
-            face_count += 1
-            
-    bmesh.update_edit_mesh(mesh)
-    bm.free()
-    
-    return attribute, face_count
+def remove_face_attribute_edit_mode(mesh: bpy.types.Mesh):
+    prop = mesh.nwo.face_props[mesh.nwo.face_props_active_index]
+    face_attributes.assign_selected(mesh, prop, remove=True)
+    return face_attributes.bm_layer(bmesh.from_edit_mesh(mesh), prop), prop.face_count
 
 def select_face_attribute_edit_mode(mesh: bpy.types.Mesh, select=True):
-    bm = bmesh.from_edit_mesh(mesh)
-    attribute = bm.faces.layers.bool.get(mesh.nwo.face_props[mesh.nwo.face_props_active_index].attribute_name)
-    if attribute is None:
-        return
-    
-    for face in bm.faces:
-        if face[attribute]:
-            face.select = select
-            
-    bmesh.update_edit_mesh(mesh)
+    prop = mesh.nwo.face_props[mesh.nwo.face_props_active_index]
+    face_attributes.select(mesh, prop, select)
     
 class EditArmature:
     ob: bpy.types.Object
@@ -5595,6 +5438,8 @@ def actor_validation(ob) -> str | None:
     if ob.type != 'ARMATURE':
         return f"{ob.name} is not an armature"
     if not ob.nwo.cinematic_object:
+        if ob.nwo.object_source != 'CREATE' or ob.nwo.cinematic_objectless:
+            return
         return f"{ob.name} does not have a cinematic object specified. You can set this by selecting the object and updating its Foundry object properties"
     tag_path = Path(ob.nwo.cinematic_object)
     full_tag_path = Path(get_tags_path(), tag_path)
@@ -5797,48 +5642,15 @@ def flatten_dict(d, parent_keys=()):
     return flat
 
 def delete_face_attribute(mesh: bpy.types.Mesh, face_prop_index: int, remove_face_prop=True):
-    attribute = mesh.attributes.get(mesh.nwo.face_props[face_prop_index].attribute_name)
-    if attribute is not None:
-        mesh.attributes.remove(attribute)
-    
-    if remove_face_prop:
-        mesh.nwo.face_props.remove(face_prop_index)
-        mesh.nwo.face_props_active_index = min(mesh.nwo.face_props_active_index, len(mesh.nwo.face_props) - 1)
+    face_attributes.delete(mesh, face_prop_index, remove_record=remove_face_prop)
 
 def delete_face_attribute_edit_mode(mesh: bpy.types.Mesh, face_prop_index: int, remove_face_prop=True):
-    bm = bmesh.from_edit_mesh(mesh)
-    attribute = bm.faces.layers.bool.get(mesh.nwo.face_props[face_prop_index].attribute_name)
-    if attribute is not None:
-        bm.faces.layers.bool.remove(attribute)
-    
-    if remove_face_prop:
-        mesh.nwo.face_props.remove(face_prop_index)
-        mesh.nwo.face_props_active_index = min(mesh.nwo.face_props_active_index, len(mesh.nwo.face_props) - 1)
-    
-    bmesh.update_edit_mesh(mesh)
-    bm.free()
+    face_attributes.delete(mesh, face_prop_index, remove_record=remove_face_prop)
     
 def delete_face_prop(mesh: bpy.types.Mesh, idx: int, bm: bmesh.types.BMesh = None):
-    has_no_bm = bm is None
-    preserve_normals = has_no_bm and mesh.has_custom_normals
-    if has_no_bm:
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
-        if preserve_normals and bm.faces:
-            save_loop_normals(bm, mesh)
-    layer = bm.faces.layers.int.get(mesh.nwo.face_props[idx].attribute_name)
-    if layer is not None:
-        bm.faces.layers.int.remove(layer)
-        
-    mesh.nwo.face_props.remove(idx)
-    
-    mesh.nwo.face_props_active_index = min(mesh.nwo.face_props_active_index, len(mesh.nwo.face_props) - 1)
-    
-    if has_no_bm:
-        bm.to_mesh(mesh)
-        bm.free()
-        if preserve_normals:
-            apply_loop_normals(mesh)
+    if bm is not None:
+        raise ValueError('Delete face properties before constructing the working BMesh')
+    face_attributes.delete(mesh, idx)
 
 def consolidate_materials(mesh: bpy.types.Mesh):
     
@@ -5924,152 +5736,8 @@ def emissive_signature(prop):
     )
     
 def consolidate_face_attributes(mesh: bpy.types.Mesh, *, preserve_special_faces=False):
-    '''Consolidates face layers into the most minimal list'''
-    if not isinstance(mesh, bpy.types.Mesh):
-        return
-    
-    face_count = len(mesh.polygons)
-    if face_count == 0:
-        return
-
-    face_props_by_name = defaultdict(list)
-    type_order = defaultdict(list)
-    attr_prop_map = {}
-    to_remove = set()
-
-    sphere_coll_attr = lightmap_only_attr = shadow_only_attr = None
-    two_side_attr = render_only_attr = None
-
-    for i, prop in enumerate(mesh.nwo.face_props):
-
-        attr = mesh.attributes.get(prop.attribute_name)
-        if not attr:
-            continue
-
-        name = attr.name
-        face_props_by_name[prop.name].append((i, attr, prop))
-        type_order[prop.type].append(name)
-        attr_prop_map[name] = prop
-
-        if prop.name == "Sphere Collision Only":
-            sphere_coll_attr = name
-        elif prop.name == "Lightmap Only":
-            lightmap_only_attr = name
-        elif prop.name == "Shadow Only":
-            shadow_only_attr = name
-        elif prop.name == "Two-Sided":
-            two_side_attr  = name
-        elif prop.name == "Render Only":
-            render_only_attr = name
-
-    attr_merge = defaultdict(list)
-
-    for pname, lst in face_props_by_name.items():
-        if len(lst) == 1:
-            continue
-        if len(lst) > 1:
-            sig_primary = {}
-            for idx, attr, prop in lst:
-                if prop.type == 'emissive':
-                    sig = emissive_signature(prop)
-                else:
-                    # Display names round numeric values and omit colours.
-                    # Merge only identical properties, never different variants.
-                    sig = tuple((field.identifier, tuple(getattr(prop, field.identifier)) if getattr(field, 'is_array', False) else getattr(prop, field.identifier))
-                                for field in prop.bl_rna.properties
-                                if field.identifier not in {'rna_type', 'name', 'attribute_name', 'face_count', 'color', 'debug_emissive_index'}
-                                and field.type in {'BOOLEAN', 'INT', 'FLOAT', 'STRING', 'ENUM'})
-                if sig not in sig_primary:
-                    sig_primary[sig] = attr.name
-                else:
-                    attr_merge[sig_primary[sig]].append(attr.name)
-                    to_remove.add(idx)
-
-    needed = set(attr_prop_map.keys())
-    for dupes in attr_merge.values(): needed.update(dupes)
-    needed.update(n for n in (
-        sphere_coll_attr, lightmap_only_attr,
-        shadow_only_attr, two_side_attr,
-        render_only_attr) if n)
-
-    masks, buf = {}, np.empty(face_count, dtype=np.int8)
-    for name in needed:
-        attr = mesh.attributes.get(name)
-        if attr:
-            attr.data.foreach_get("value", buf)
-            masks[name] = buf.astype(bool)
-        else:
-            masks[name] = np.zeros(face_count, dtype=bool)
-
-    for prim, dupes in attr_merge.items():
-        m = masks[prim]
-        for d in dupes:
-            m |= masks[d]
-        masks[prim] = m
-        
-    plus_faces = np.array([
-        # Only known special materials are helpers. H1 real shaders such as
-        # '+ladder stair' must retain face flags before shader-path resolution.
-        mesh.materials[p.material_index].nwo.SpecialMaterial
-        and not mesh.materials[p.material_index].nwo.shader_path.strip()
-        if 0 <= p.material_index < len(mesh.materials)
-           and mesh.materials[p.material_index] is not None
-        else False
-        for p in mesh.polygons
-    ], dtype=bool)
-    if plus_faces.any() and not preserve_special_faces:
-        for m in masks.values():
-            m[plus_faces] = False
-
-
-    if two_side_attr and sphere_coll_attr and not mesh.get('foundry_legacy_normals'):
-        masks[two_side_attr] &= ~masks[sphere_coll_attr]
-
-    if render_only_attr:
-        wipe = np.zeros(face_count, dtype=bool)
-        if lightmap_only_attr: wipe |= masks[lightmap_only_attr]
-        if shadow_only_attr:   wipe |= masks[shadow_only_attr]
-        masks[render_only_attr] &= ~wipe
-
-    for attr_list in type_order.values():
-        if len(attr_list) < 2:
-            continue
-        taken = np.zeros(face_count, dtype=bool)
-        for attr_name in attr_list:
-            m = masks[attr_name]
-            overlap = taken & m
-            if overlap.any():
-                m[overlap] = False
-            taken |= m
-
-    for name, mask in masks.items():
-        attr = mesh.attributes.get(name)
-        if not attr:
-            continue
-        attr.data.foreach_set("value", mask.astype(np.int8))
-
-        count = int(mask.sum())
-        prop = attr_prop_map.get(name)
-        if prop:
-            prop.face_count = count
-            
-    for j, prop in enumerate(mesh.nwo.face_props):
-        if prop.face_count == 0:
-            to_remove.add(j)
-    
-    if to_remove:
-        preserve_normals = mesh.has_custom_normals
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
-        if preserve_normals and bm.faces:
-            save_loop_normals(bm, mesh)
-        for j in sorted(to_remove, reverse=True):
-            delete_face_prop(mesh, j, bm)
-            
-        bm.to_mesh(mesh)
-        bm.free()
-        if preserve_normals:
-            apply_loop_normals(mesh)
+    if isinstance(mesh, bpy.types.Mesh):
+        face_attributes.consolidate(mesh)
         
 def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True, *, spatial_search=False, boundary_only=False):
     """Split edges so that stray verts become connected.
@@ -6205,9 +5873,7 @@ def set_two_sided(mesh, is_io=False, match_collision_patches=False):
     render_only = set()
     for prop in mesh.nwo.face_props:
         if prop.type == 'face_mode' and prop.face_mode == 'render_only':
-            attribute = mesh.attributes.get(prop.attribute_name)
-            if attribute is not None:
-                render_only.update(i for i, value in enumerate(attribute.data) if value.value)
+            render_only.update(np.flatnonzero(face_attributes.mask(mesh, prop)))
     if match_collision_patches:
         from .tags.collision_patches import opposite_patches
         # Face overrides are part of the identity, not just the shader slot.
@@ -6250,11 +5916,7 @@ def set_two_sided(mesh, is_io=False, match_collision_patches=False):
         for prop in mesh.nwo.face_props:
             if prop.type != 'face_sides' or not prop.two_sided:
                 continue
-            attribute = mesh.attributes.get(prop.attribute_name)
-            if attribute is not None:
-                values = np.empty(len(mesh.polygons), dtype=np.int8)
-                attribute.data.foreach_get('value', values)
-                shell_two_sided |= values
+            shell_two_sided |= face_attributes.mask(mesh, prop)
         seam_index = None
         for face in mesh.polygons:
             if not shell_two_sided[face.index] or face.index in to_remove:
@@ -6308,22 +5970,11 @@ def join_objects(objects: list[bpy.types.Object], *, cleanup_geometry=True, pres
     objects = objects[1:]
     # consolidate_face_attributes(active.data)
     mat_to_idx = {m: i for i, m in enumerate(active.data.materials)}
-    face_attributes = {prop.attribute_name for prop in active.data.nwo.face_props}
+    face_attributes.prepare_join([active.data, *(ob.data for ob in objects)])
     # Consolidate any dupe face layers and remove unused materials, and map all materials to material indices
     for ob in objects:
         # consolidate_face_attributes(ob.data)
         
-        for layer in ob.data.nwo.face_props:
-            # Instanced meshes carry the same attribute names. BMesh joins
-            # their masks into one layer, so retain only one property record;
-            # duplicate records otherwise make consolidation erase that mask.
-            if layer.attribute_name and layer.attribute_name in face_attributes:
-                continue
-            face_attributes.add(layer.attribute_name)
-            new_layer = active.data.nwo.face_props.add()
-            for k,v in layer.items():
-                new_layer[k] = v
-                
         for mat in ob.data.materials:
             if mat not in mat_to_idx:
                 mat_to_idx[mat] = len(active.data.materials)
@@ -6609,8 +6260,11 @@ def update_foundry_material(material, game=None, *, arrange_nodes=True):
     return node
 
 
-def update_foundry_mesh(mesh, game=None, *, arrange_nodes=True):
-    """Resolve face properties in order and delete unused preview attributes."""
+def update_foundry_mesh(mesh, game=None, *, arrange_nodes=True, update_materials=True):
+    """Resolve face properties in order and delete unused preview attributes.
+
+    Imports defer material updates so each shared material is refreshed once.
+    """
     if game is None:
         project = get_project()
         game = project.game if project else None
@@ -6619,43 +6273,61 @@ def update_foundry_mesh(mesh, game=None, *, arrange_nodes=True):
         bpy.ops.object.mode_set(mode='OBJECT')
     try:
         count = len(mesh.polygons)
-        values = {'foundry_two_sided': np.zeros(count, dtype=np.single),
-                  'foundry_invisible': np.zeros(count, dtype=np.single),
-                  'foundry_color': np.zeros((count, 3), dtype=np.single),
-                  'foundry_power': np.zeros((count, 3), dtype=np.single)}
-        emissive_mask = np.zeros(count, dtype=bool)
+        # Most imported meshes have no preview overrides. Allocate face-sized
+        # buffers only for the properties that actually affect the preview.
+        values = {}
+        has_emissive = False
         for prop in mesh.nwo.face_props:
-            attribute = mesh.attributes.get(prop.attribute_name)
-            if attribute is None:
+            if prop.type not in {'face_sides', 'face_mode', 'emissive'}:
                 continue
-            mask = np.empty(count, dtype=np.int32)
-            attribute.data.foreach_get('value', mask)
-            mask = mask.astype(bool)
+            mask = face_attributes.mask(mesh, prop)
             if prop.type == 'face_sides':
+                if 'foundry_two_sided' not in values:
+                    values['foundry_two_sided'] = np.zeros(count, dtype=np.single)
                 values['foundry_two_sided'][mask] = float(prop.two_sided)
             elif prop.type == 'face_mode':
+                if 'foundry_invisible' not in values:
+                    values['foundry_invisible'] = np.zeros(count, dtype=np.single)
                 values['foundry_invisible'][mask] = float(prop.face_mode in INVISIBLE_FACE_MODES)
             elif prop.type == 'emissive':
-                emissive_mask[mask] = True
+                if 'foundry_color' not in values:
+                    values['foundry_color'] = np.zeros((count, 3), dtype=np.single)
+                    values['foundry_power'] = np.zeros((count, 3), dtype=np.single)
+                    # Zero/black are valid overrides, so presence cannot be
+                    # inferred from the emission values themselves.
+                    # 0 = old/missing attribute, 1 = material fallback,
+                    # 2 = face override. Shader Attribute Alpha cannot detect
+                    # missing attributes reliably across render engines.
+                    if game in {'halo2', 'halo3', 'halo3odst'}:
+                        values['foundry_emissive'] = np.ones(count, dtype=np.single)
+                has_emissive = has_emissive or mask.any()
+                if 'foundry_emissive' in values:
+                    values['foundry_emissive'][mask] = 2.0
                 values['foundry_color'][mask] = prop.material_lighting_emissive_color[:3]
                 values['foundry_power'][mask] = (
                     prop.material_lighting_emissive_power_scale if game == 'halo2' else prop.material_lighting_emissive_power,
                     prop.material_lighting_attenuation_falloff,
                     prop.material_lighting_attenuation_cutoff)
-        for name, data in values.items():
+        changed = False
+        for name in ('foundry_two_sided', 'foundry_invisible', 'foundry_color', 'foundry_power', 'foundry_emissive'):
+            data = values.get(name)
             attribute = mesh.attributes.get(name)
-            needed = emissive_mask.any() if name in {'foundry_color', 'foundry_power'} else data.any()
-            data_type = 'FLOAT_VECTOR' if data.ndim == 2 else 'FLOAT'
+            needed = data is not None and (has_emissive if name in {'foundry_color', 'foundry_power', 'foundry_emissive'} else data.any())
+            data_type = 'FLOAT_VECTOR' if name in {'foundry_color', 'foundry_power'} else 'FLOAT'
             if attribute is not None and (not needed or attribute.domain != 'FACE' or attribute.data_type != data_type):
                 mesh.attributes.remove(attribute)
                 attribute = None
+                changed = True
             if needed:
                 if attribute is None:
                     attribute = mesh.attributes.new(name, data_type, 'FACE')
                 attribute.data.foreach_set('vector' if data.ndim == 2 else 'value', data.ravel())
-        mesh.update()
-        for material in {m for m in mesh.materials if m is not None}:
-            update_foundry_material(material, game, arrange_nodes=arrange_nodes)
+                changed = True
+        if changed:
+            mesh.update()
+        if update_materials:
+            for material in {m for m in mesh.materials if m is not None}:
+                update_foundry_material(material, game, arrange_nodes=arrange_nodes)
     finally:
         if was_edit_mode:
             bpy.ops.object.mode_set(mode='EDIT')

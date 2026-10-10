@@ -13,6 +13,7 @@ from .. import utils
 from .. import icons
 from ..icons import get_icon_id
 from .. import startup
+from . import workflow
 
 import blf
 
@@ -73,7 +74,7 @@ class NWO_OT_ReloadIcons(bpy.types.Operator):
     bl_idname = "nwo.reload_icons"
     bl_label = "Reload Foundry Icons"
     bl_description = "Force reload of Foundry's custom icons"
-    bl_options = {"INTERNAL"}
+    bl_options = {"REGISTER"}
 
     @classmethod
     def poll(cls, context):
@@ -486,9 +487,7 @@ class NWO_HaloExportSettings(bpy.types.Panel):
             align=False,
         )
         col = flow.column()
-        col.prop(scene_nwo_export, "export_quick", text="Quick Export")
-        col.prop(scene_nwo_export, "show_output", text="Toggle Output")
-        col.operator("nwo.show_foundry_output", text="Open Foundry Output", icon="CONSOLE")
+        workflow.draw_export_controls(col, scene_nwo, scene_nwo_export, context)
         if asset_type in {'cinematic', 'model', 'animation'}:
             col.prop(scene_nwo_export, "faster_animation_export")
         col.separator()
@@ -619,7 +618,7 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
 
 
 class NWO_HaloExportSettingsFlags(bpy.types.Panel):
-    bl_label = "Import Flags"
+    bl_label = "Tool Compilation Options"
     bl_idname = "NWO_PT_HaloExportSettingsFlags"
     bl_space_type = "VIEW_3D"
     bl_parent_id = "NWO_PT_HaloExportSettings"
@@ -752,7 +751,7 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
             #     col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
                 
 class NWO_HaloExportCoordinateSystem(bpy.types.Panel):
-    bl_label = "Coordinate System"
+    bl_label = "Scene Convention"
     bl_idname = "NWO_PT_HaloExportCoordinateSystem"
     bl_space_type = "VIEW_3D"
     bl_parent_id = "NWO_PT_HaloExportSettings"
@@ -772,8 +771,7 @@ class NWO_HaloExportCoordinateSystem(bpy.types.Panel):
         )
         col = flow.column()
         col.prop(scene_nwo, 'scale', text='Scale')
-        col.prop(scene_nwo, "forward_direction", text="Scene Forward")
-        col.prop(scene_nwo, "maintain_marker_axis")
+        col.prop(scene_nwo, "forward_direction", text="Forward")
         col.prop(scene_nwo_export, "granny_mirror")
                 
 class NWO_HaloExportGranny(bpy.types.Panel):
@@ -843,11 +841,9 @@ class NWO_HaloExport(bpy.types.Operator):
     def execute(self, context):
         scene_nwo_export = utils.get_export_props()
         if scene_nwo_export.export_quick and (utils.valid_nwo_asset(context) or utils.nwo_asset_type() == 'single_animation'):
-            bpy.ops.nwo.export_scene()
+            return bpy.ops.nwo.export_scene()
         else:
-            bpy.ops.nwo.export_scene("INVOKE_DEFAULT")
-        
-        return {'FINISHED'}
+            return bpy.ops.nwo.export_scene("INVOKE_DEFAULT")
 
 
 class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
@@ -1314,7 +1310,7 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         utils.foundry_output_state = self.show_output
 
     show_output: bpy.props.BoolProperty(
-        name="Toggle Output",
+        name="Open Output on Export",
         description="Select whether the Foundry Output window should open at export",
         options=set(),
         # get=get_show_output,
@@ -1335,6 +1331,17 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     #     options=set(),
     # )
     
+    gr2_writer: bpy.props.EnumProperty(
+        name="GR2 Writer",
+        description="Choose automatic, compiled Rust, Python, or the original Granny runtime writer",
+        items=[('auto_gr2', 'Auto', 'Use the compiled Rust writer when available, otherwise Python'),
+               ('rust_gr2', 'Rust', 'Require the compiled Rust GR2 writer'),
+               ('python_gr2', 'Python', 'Use the independent Python GR2 writer'),
+               ('native_gr2', 'Original', 'Use the original Granny runtime writer')],
+        default='auto_gr2',
+        options=set(),
+    )
+
     granny_mirror: bpy.props.BoolProperty(
         name="Mirror",
         description="Mirror exported GR2, JMS, ASS and animation files by flipping Y coordinates",
@@ -1461,14 +1468,15 @@ def draw_foundry_nodes_toolbar(self, context):
     foundry_nodes_toolbar(self.layout, context)
 
 def draw_project_selection_toolbar(row, context):
-    selection = row.row(align=True)
-    selection.ui_units_x = 9
-    if utils.get_prefs().projects:
-        selection.menu('NWO_MT_ProjectChooser', text='Select Project', icon_value=utils.project_game_icon(context))
-    else:
-        selection.operator('nwo.project_add', text='Add First Project').set_scene_project = True
-    row.operator('nwo.reload_icons', text='', icon='FILE_REFRESH')
-    row.prop(utils.get_scene_props(), 'toolbar_expanded', text='', icon_value=get_icon_id('foundry'))
+    nwo = utils.get_scene_props()
+    if nwo.toolbar_expanded:
+        selection = row.row(align=True)
+        selection.ui_units_x = 9
+        if utils.get_prefs().projects:
+            selection.menu('NWO_MT_ProjectChooser', text='Select Project', icon_value=get_icon_id('tag_test'))
+        else:
+            selection.operator('nwo.project_add', text='Add First Project', icon_value=get_icon_id('tag_test')).set_scene_project = True
+    row.prop(nwo, 'toolbar_expanded', text='', icon_value=get_icon_id('foundry'))
 
 
 def foundry_nodes_toolbar(layout, context):
@@ -1609,9 +1617,6 @@ def foundry_toolbar(layout, context):
         )
         sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
             
-        sub_reload = row.row(align=True)
-        sub_reload.operator("nwo.reload_icons", text="", icon="FILE_REFRESH")
-
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
         

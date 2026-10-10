@@ -231,12 +231,22 @@ def _set_type_valid_for_asset(item, asset_set_type):
 def _draw_set_type_filter(ui_list, layout):
     if ui_list.use_filter_show:
         row = layout.row(align=True)
-        row.prop(ui_list, "filter_name", text="")
+        row.prop(ui_list, "filter_name", text="Search")
         row.prop(ui_list, "use_filter_sort_alpha", text="")
         row.prop(ui_list, "use_filter_invert", text="", icon='ARROW_LEFTRIGHT')
         row.separator()
         row.prop(ui_list, "use_filter_set_type", text="Asset Type")
         row.prop(ui_list, "use_filter_sort_reverse", text="", icon="SORT_ASC")
+        from .. import workflow
+        layout.context_pointer_set('foundry_ui_list', ui_list)
+        layout.operator('nwo.workflow_reset_filters', text='Reset Filters', icon='LOOP_BACK')
+        table = 'regions_table' if isinstance(ui_list, NWO_UL_Regions) else 'permutations_table'
+        data = utils.get_scene_props()
+        flags, _ = _filter_set_type_items(ui_list, data, table)
+        visible = sum(bool(flag & ui_list.bitflag_filter_item) for flag in flags)
+        layout.label(text=f'{visible} of {len(flags)} sets shown')
+        if flags and not visible:
+            layout.label(text='No matches. Reset filters to show sets.')
 
 def _filter_set_type_items(ui_list, data, propname):
     items = getattr(data, propname)

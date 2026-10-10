@@ -342,6 +342,8 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
 
     def draw(self, context):
         self.layout.use_property_split = True
+        count = 1 if self.bl_idname.endswith('_single') else sum(ob.type in VALID_MESHES for ob in context.selected_objects)
+        self.layout.label(text=f'Applies to {count} mesh objects', icon='RESTRICT_SELECT_OFF')
         self.layout.prop(self, "m_type", text="Mesh Type")
         self.layout.prop(self, "convert_mesh", text="Convert Mesh", expand=True)
         if self.convert_mesh == "coacd":
@@ -575,6 +577,8 @@ class NWO_OT_ApplyTypeMarker(bpy.types.Operator):
         return enum[2]
 
     def draw(self, context):
+        count = 1 if self.bl_idname.endswith('_single') else sum(ob.type == 'EMPTY' for ob in context.selected_objects)
+        self.layout.label(text=f'Applies to {count} empty objects', icon='RESTRICT_SELECT_OFF')
         self.layout.prop(self, "m_type", text="Marker Type")
         
     def get_marker_type(self):
@@ -748,6 +752,10 @@ def collection_context(self, context):
 
 def add_halo_join(self, context):
     self.layout.operator("nwo.join_halo", text="Halo Join")
+
+
+def add_make_meshes_editable(self, context):
+    self.layout.operator("nwo.make_meshes_editable", icon='MESH_DATA')
     
 def add_halo_scale_model_button(self, context):
     self.layout.operator(

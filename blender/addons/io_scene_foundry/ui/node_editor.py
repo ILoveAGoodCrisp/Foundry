@@ -49,14 +49,26 @@ class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
     def nodes_items(self, context):
         items = []
         h4 = utils.is_corinth(context)
-        if h4:
+        h1 = utils.get_game(context.scene.nwo.scene_project) == 'halo1'
+        h2 = utils.get_game(context.scene.nwo.scene_project) == 'halo2'
+        if h1:
+            lib_blend = Path(utils.MATERIAL_RESOURCES, 'h1_nodes.blend')
+        elif h2:
+            lib_blend = Path(utils.MATERIAL_RESOURCES, 'h2_nodes.blend')
+        elif h4:
             lib_blend = Path(utils.MATERIAL_RESOURCES, 'h4_nodes.blend')
         else:
             lib_blend = Path(utils.MATERIAL_RESOURCES, 'reach_nodes.blend')
         
         with bpy.data.libraries.load(str(lib_blend), link=True) as (data_from, _):
             for n_group in data_from.node_groups:
-                if not h4:
+                if h1:
+                    if n_group.startswith('foundry_h1.shader_'):
+                        items.append((n_group, n_group.partition('.')[2].replace('_', ' ').title(), ''))
+                elif h2:
+                    if not n_group.startswith('.') and n_group != 'Basic H2 environment_map reflector':
+                        items.append((n_group, n_group.replace('_', ' ').title(), ''))
+                elif not h4:
                     if n_group.startswith("foundry_reach."):
                         items.append((n_group, utils.dot_partition(n_group, True).replace("_", " ").title(), ''))
                 else:
@@ -85,7 +97,11 @@ class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
         if not self.node:
             return {'CANCELLED'}
         
-        if utils.is_corinth(context):
+        if utils.get_game(context.scene.nwo.scene_project) == 'halo1':
+            lib_blend = os.path.join(utils.MATERIAL_RESOURCES, 'h1_nodes.blend')
+        elif utils.get_game(context.scene.nwo.scene_project) == 'halo2':
+            lib_blend = os.path.join(utils.MATERIAL_RESOURCES, 'h2_nodes.blend')
+        elif utils.is_corinth(context):
             lib_blend = os.path.join(utils.MATERIAL_RESOURCES, 'h4_nodes.blend')
         else:
             lib_blend = os.path.join(utils.MATERIAL_RESOURCES, 'reach_nodes.blend')
@@ -100,6 +116,9 @@ class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
             tree = context.material.node_tree
             shader = tree.nodes.new('ShaderNodeGroup')
             shader.node_tree = bpy.data.node_groups[self.node]
+            if (shader.node_tree.get('h2_preview_transparent_placeholder') or
+                    shader.node_tree.get('h2_surface_mode','opaque') != 'opaque' or shader.node_tree.get('h2_multichannel_revision')):
+                context.material.surface_render_method = 'BLENDED'
             foundry = utils.update_foundry_material(context.material, arrange_nodes=False)
             surface = next((socket for socket in shader.outputs if socket.type == 'SHADER'), None)
             if surface is not None:
