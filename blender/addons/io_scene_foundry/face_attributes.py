@@ -363,7 +363,9 @@ def prepare_join(meshes):
     meshes = list(dict.fromkeys(meshes))
     if not meshes or not any(m.nwo.face_props for m in meshes):
         return
-    snapshots = [(m, [dict(p.items()) for p in m.nwo.face_props],
+    # Detach nested groups and arrays before clearing their owning collections.
+    # A shallow dict retains IDPropertyArray wrappers backed by freed memory.
+    snapshots = [(m, [p.id_properties_ensure().to_dict() for p in m.nwo.face_props],
                   [(p.type, tuple(p.color)) for p in m.nwo.face_props],
                   resolved_masks(m, strict=True)) for m in meshes]
     kinds = {kind for _, _, records, _ in snapshots for kind, _ in records}

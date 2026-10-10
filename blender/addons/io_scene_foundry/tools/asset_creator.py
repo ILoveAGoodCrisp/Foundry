@@ -381,8 +381,8 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         col.prop(self, "asset_type", text="")
         from ..ui.workflow import draw_text
         name, destination = self.asset_location(project)
-        draw_text(col, f"Data folder: {destination}", context)
-        draw_text(col, f"Asset type: {self.asset_type.replace('_', ' ').title()} · {project.game}", context)
+        # draw_text(col, f"Data folder: {destination}", context)
+        # draw_text(col, f"Asset type: {self.asset_type.replace('_', ' ').title()} · {project.game}", context)
         if not destination.resolve().is_relative_to(Path(project.data_directory).resolve()):
             draw_text(col, "Choose a destination inside this project's data folder.", context, 'ERROR')
         col.prop(self, 'save_new_blend_file')
@@ -397,7 +397,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             advanced.prop(self, 'append_grid_materials')
             if self.asset_type == 'model':
                 advanced.prop(self, 'generate_halo_skeleton')
-        draw_text(col, "Output tags determine the game object types created from this asset.", context)
+        # draw_text(col, "Output tags determine the game object types created from this asset.", context)
         if self.asset_type == "model":
             col.separator()
             col.label(text="Output Tags")
