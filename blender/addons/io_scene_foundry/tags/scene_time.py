@@ -3,6 +3,16 @@ import bpy
 
 
 def scene_time_node(tree):
+    # In 5.2 this geometry-registered node also compiles in shader trees, even
+    # though its editor poll still returns False. Test creation, not that filter.
+    if bpy.app.version >= (5, 2, 0):
+        try:
+            node = tree.nodes.new('GeometryNodeInputSceneTime')
+            if node.outputs.get('Seconds') is not None:
+                return node
+            tree.nodes.remove(node)
+        except RuntimeError:
+            pass
     # Discover the registered type by its RNA name and shader-tree support;
     # Scene Time exists in several editors with different API identifiers.
     for name in dir(bpy.types):
