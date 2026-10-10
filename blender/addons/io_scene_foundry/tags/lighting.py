@@ -1,5 +1,7 @@
 """Lightmapper region settings without the ManagedBlam field interface."""
 import math
+from pathlib import Path
+import shutil
 from .backend import TagDocument
 from dataclasses import dataclass
 from .backend import TagReference
@@ -17,6 +19,46 @@ class CinematicDynamicLight:
 
 class CinematicLightingDocument(TagDocument):
     tag_ext = 'new_cinematic_lighting'
+
+    def seed_from_template(self, template):
+        """Initialize a missing lighting tag and local light copies, never overwrite edits."""
+        if not self.tag_is_new or not template:
+            return
+        if self.read_only:
+            raise RuntimeError('Cannot create lighting templates during a read-only operation')
+        with TagDocument(template, tags_root=self.tags_root, game=self.game,
+                         extension=self.tag_ext, must_exist=True) as source:
+            self._tag = self.api.TagFile.read(source.system_path)
+        references = []
+        block = self.tag.root().field('dynamic lights')
+        for element in block.as_block() if block is not None else ():
+            reference = self.reference(element, 'light')
+            if reference is not None:
+                references.append((element, reference))
+        # Resolve every source before creating any dependencies, so a missing
+        # template never silently produces a partially populated lighting tag.
+        copies = {}
+        for _, reference in references:
+            if reference.RelativePathWithExtension in copies:
+                continue
+            name = f'{self.system_path.stem}_light{len(copies) + 1}.light'
+            destination = self.system_path.with_name(name)
+            source = Path(reference.Filename)
+            if not destination.is_file() and not source.is_file():
+                raise FileNotFoundError(f'Missing cinematic template light: {source}')
+            copies[reference.RelativePathWithExtension] = (source, destination)
+        for source, destination in copies.values():
+            if destination.is_file():
+                continue
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                with source.open('rb') as original, destination.open('xb') as output:
+                    shutil.copyfileobj(original, output)
+            except FileExistsError:
+                pass
+        for element, reference in references:
+            self.set_reference(element, 'light', copies[reference.RelativePathWithExtension][1])
+        self.tag_has_changes = True
 
     def dynamic_lights(self):
         # H4/H2AMP use authored probes; their Blender conversion is not implemented yet.
