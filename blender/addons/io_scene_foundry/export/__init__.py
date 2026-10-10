@@ -153,7 +153,7 @@ class NWO_ExportScene(Operator, ExportHelper):
     bl_idname = "nwo.export_scene"
     bl_label = "Export Asset"
     bl_options = {"PRESET", "UNDO"}
-    bl_description = "Exports Tags for use with a Reach/H4/H2AMP Halo Editing Kit"
+    bl_description = "Export this asset using the connected Halo editing kit and the selected scope"
     
     filename_ext = ".asset"
 
@@ -174,7 +174,8 @@ class NWO_ExportScene(Operator, ExportHelper):
     def description(cls, context, properties):
         d = _export_project_error(utils.get_scene_props())
         if d is not None:
-            return "Export Unavaliable: " + d
+            return "Export Unavailable: " + d
+        return "Export this asset with the current settings"
         
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -291,6 +292,45 @@ class NWO_ExportScene(Operator, ExportHelper):
         return False
 
     def execute(self, context):
+        """Keep operation state and results consistent across every exit."""
+        from ..ui.workflow import record_export
+        nwo = utils.get_scene_props()
+        if nwo.export_in_progress:
+            self.report({'WARNING'}, "An export is already running. Cancel it in Foundry Output first")
+            return {'CANCELLED'}
+        started = time.perf_counter()
+        result = {'CANCELLED'}
+        self.failed = False
+        self.fail_explanation = ""
+        self._process_results = []
+        nwo.export_in_progress = True
+        try:
+            result = self._execute_export(context)
+            return result
+        except KeyboardInterrupt:
+            self.fail_explanation = "Export cancelled by user"
+            self.report({'WARNING'}, self.fail_explanation)
+            return result
+        except Exception as error:
+            self.failed = True
+            self.fail_explanation = str(error)
+            traceback.print_exc()
+            self.report({'ERROR'}, "Export failed. Open Foundry Output for details")
+            return result
+        finally:
+            nwo.export_in_progress = False
+            warning_count = sum(len(getattr(item, 'warnings', ())) +
+                                len(getattr(getattr(item, 'virtual_scene', None), 'warnings', ()))
+                                for item in self._process_results if item is not None)
+            if 'FINISHED' in result:
+                status = 'COMPLETED_WITH_WARNINGS' if warning_count else 'COMPLETED'
+                message = f'{warning_count} export warnings. Open Foundry Output to inspect them.' if warning_count else 'Export completed. Inspect the tags or test the asset.'
+            else:
+                status = 'FAILED' if self.failed else 'CANCELLED'
+                message = self.fail_explanation or 'Export did not complete. Review the export messages and run Check Asset.'
+            record_export(nwo, status, message, time.perf_counter() - started)
+
+    def _execute_export(self, context):
         scene_nwo_export = utils.get_export_props()
         scene_nwo = utils.get_scene_props()
         legacy = utils.uses_legacy_export(scene_nwo.scene_project)
@@ -298,9 +338,9 @@ class NWO_ExportScene(Operator, ExportHelper):
         # Write last export version
         scene_nwo.export_version = utils.get_version_string()
         
-        scene_nwo.export_in_progress = True
         if self.game_path_not_set:
             error = _export_project_error(scene_nwo)
+            self.fail_explanation = error or "Configure the scene project before exporting"
             self.report(
                 {"WARNING"},
                 f"Unable to export. {error or f'Your {scene_nwo.scene_project} path must be set in preferences'}",
@@ -316,6 +356,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         child_animation = _is_child_animation_export(scene_nwo)
         
         if single_animation and not bpy.data.filepath:
+            self.fail_explanation = "Save this animation blend file before exporting"
             self.report({'WARNING'}, "Single Animation files must be saved before export")
             return {'CANCELLED'}
         
@@ -334,7 +375,7 @@ class NWO_ExportScene(Operator, ExportHelper):
             scene_nwo_export.legacy_asset_path = asset_path
             sidecar_path_full = sidecar_path = ''
             if self.export_invalid(asset_path):
-                scene_nwo.export_in_progress = False
+                self.fail_explanation = "Choose an asset folder inside this project data folder"
                 return {'CANCELLED'}
         elif single_animation:
             sidecar_path_full = ""
@@ -350,6 +391,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         elif child_animation:
             parent_asset_path = _child_animation_parent_asset_path(scene_nwo)
             if parent_asset_path is None:
+                self.fail_explanation = "Child animation asset has no parent asset path"
                 self.report({'WARNING'}, "Child animation asset has no parent asset path")
                 return {'CANCELLED'}
 
@@ -359,6 +401,7 @@ class NWO_ExportScene(Operator, ExportHelper):
             sidecar_path = utils.relative_path(sidecar_path_full)
 
             if self.export_invalid(asset_path):
+                self.fail_explanation = "Choose an asset folder inside this project data folder"
                 scene_nwo_export.export_quick = False
                 self.report({"WARNING"}, "Export aborted")
                 return {"CANCELLED"}
@@ -379,6 +422,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         
             # Check that we can export
             if self.export_invalid(asset_path):
+                self.fail_explanation = "Choose an asset folder inside this project data folder"
                 scene_nwo_export.export_quick = False
                 self.report({"WARNING"}, "Export aborted")
                 return {"CANCELLED"}
@@ -388,7 +432,6 @@ class NWO_ExportScene(Operator, ExportHelper):
             utils.clear_output()
             if utils.get_export_props().show_output:
                 utils.show_output()  # open Foundry Output so users can see progress
-                scene_nwo_export.show_output = False
 
             export_title = f"►►► {scene_nwo.asset_type.replace('_', ' ').upper()} EXPORT ◄◄◄"
 
@@ -408,14 +451,14 @@ class NWO_ExportScene(Operator, ExportHelper):
                 
                 if scene_nwo.asset_type in {'multi_model', 'multi_prefab'}:
                     count = 0
-                    active_collection = None
+                    active_collections = None
                     if scene_nwo_export.active_collections_only:
                         active_collections = {c for ob in context.selected_objects for c in ob.users_collection}
                         print("Export Active Collection Only")
                         
                     for coll in context.scene.collection.children:
                         
-                        if active_collection is not None:
+                        if active_collections is not None:
                             if coll not in active_collections:
                                 continue
                         
@@ -439,21 +482,25 @@ class NWO_ExportScene(Operator, ExportHelper):
                             coll_sidecar_path_full = str(Path(coll_asset_path, coll_asset_name).with_suffix(".sidecar.xml"))
                             coll_sidecar_path = str(Path(coll_sidecar_path_full).relative_to(get_data_path()))
                         
-                        export_asset(context, coll_sidecar_path_full, coll_sidecar_path, coll_asset_name, str(coll_asset_path), scene_nwo, scene_nwo_export, is_corinth(context), False, False, coll_layer)
+                        process_results = export_asset(context, coll_sidecar_path_full, coll_sidecar_path, coll_asset_name, str(coll_asset_path), scene_nwo, scene_nwo_export, is_corinth(context), False, False, coll_layer)
+                        self._process_results.append(process_results)
                     
                     if count == 0:
                         self.fail_explanation = "No Collections to export"
                     
                 else:
-                    export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_nwo, scene_nwo_export, is_corinth(context), single_animation, self.for_cache_build)
+                    process_results = export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_nwo, scene_nwo_export, is_corinth(context), single_animation, self.for_cache_build)
+                    self._process_results.append(process_results)
             
             except ExportCancelled as e:
                 self.fail_explanation = str(e)
             except subprocess.CalledProcessError as e:
+                self.failed = True
                 self.fail_explanation = (
                     f'Tool rejected the export (exit code {e.returncode}). '
                     'Review the Tool output above and any imported BSP error geometry for details.')
             except (FileNotFoundError, PermissionError) as e:
+                self.failed = True
                 self.fail_explanation = str(e)
             except Exception:
                 print_error("\n\nException hit. Please include in report\n")
@@ -465,11 +512,18 @@ class NWO_ExportScene(Operator, ExportHelper):
                 utils.get_scene_props().sidecar_path = ""
 
             end = time.perf_counter()
+            for result in self._process_results:
+                if getattr(result, 'sidecar_import_failed', False):
+                    self.failed = True
+                    self.fail_explanation = getattr(result, 'sidecar_import_error', '') or "Tool failed to create tags. Open Foundry Output for details"
+                elif getattr(result, 'lightmap_failed', False):
+                    self.failed = True
+                    self.fail_explanation = getattr(result, 'lightmap_message', '') or "Lighting failed. Open Foundry Output for details"
 
             if self.failed:
                 print("FOUNDRY VERSION: ", utils.get_version_string())
                 print_warning(
-                    "Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
+                    "Export failed. Open Foundry Output and use Copy All to include details in a report: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
                 )
                 print_error(
                     "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
@@ -480,7 +534,7 @@ class NWO_ExportScene(Operator, ExportHelper):
                 print_error(self.fail_explanation)
                 self.report({'WARNING'}, self.fail_explanation)
 
-            elif process_results and process_results.sidecar_import_failed:
+            elif process_results and getattr(process_results, 'sidecar_import_failed', False):
                 print(
                     "\n-----------------------------------------------------------------------"
                 )
@@ -494,7 +548,7 @@ class NWO_ExportScene(Operator, ExportHelper):
                 print(
                     "-----------------------------------------------------------------------\n"
                 )
-            elif process_results and process_results.lightmap_failed:
+            elif process_results and getattr(process_results, 'lightmap_failed', False):
                 
                 print(
                     "\n-----------------------------------------------------------------------"
@@ -531,7 +585,6 @@ class NWO_ExportScene(Operator, ExportHelper):
             print_warning("\n\nEXPORT CANCELLED BY USER")
             self.fail_explanation = "Export cancelled by user"
 
-        utils.get_scene_props().export_in_progress = False
         if self.failed or self.fail_explanation:
             return {"CANCELLED"}
         return {"FINISHED"}
@@ -547,7 +600,7 @@ class NWO_ExportScene(Operator, ExportHelper):
         scenario = scene_nwo.asset_type == "scenario"
         prefab = scene_nwo.asset_type == "prefab"
         for p in projects:
-            if p.name == scene_nwo.scene_project:
+            if p == utils.get_project(scene_nwo.scene_project, use_external=False):
                 thumbnail = os.path.join(p.project_path, p.image_path)
                 if os.path.isfile(thumbnail):
                     icon_id = get_icon_id_in_directory(thumbnail)
@@ -573,8 +626,8 @@ class NWO_ExportScene(Operator, ExportHelper):
             col.prop(scene_nwo_export, 'import_wrl')
         row = col.row()
         col.prop(scene_nwo, "asset_type", text="Asset Type")
-        col.prop(scene_nwo_export, "export_quick", text="Quick Export")
-        col.prop(scene_nwo_export, "show_output", text="Toggle Output")
+        from ..ui.workflow import draw_export_controls
+        draw_export_controls(col, scene_nwo, scene_nwo_export, context)
         if scene_nwo.asset_type in {'cinematic', 'model', 'animation', 'single_animation'}:
             col.prop(scene_nwo_export, "faster_animation_export")
         col.separator()
@@ -663,13 +716,14 @@ class NWO_ExportScene(Operator, ExportHelper):
             col.prop(scene_nwo_export, "export_animations", expand=True)
             
         box = layout.box()
-        box.label(text="Coordinate System")
+        box.label(text="Scene Convention")
         col = box.column()
             
         col.prop(scene_nwo, 'scale', text='Scale')
-        col.prop(scene_nwo, "forward_direction", text="Scene Forward")
-        col.prop(scene_nwo, "maintain_marker_axis")
+        col.prop(scene_nwo, "forward_direction", text="Forward")
         col.prop(scene_nwo_export, "granny_mirror")
+        if not legacy:
+            col.prop(scene_nwo_export, 'gr2_writer')
         
         box = layout.box()
         box.label(text="Triangulation")
@@ -947,3 +1001,4 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
             
     if context.scene != start_scene:
         schedule_start_scene_restore()
+    return export_scene
