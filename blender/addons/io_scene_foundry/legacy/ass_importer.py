@@ -5,17 +5,18 @@ from math import radians
 from pathlib import Path
 import json
 import re
-import io
 
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
 from .ass_format import ASS, ASSError
 from .coordinates import axis_rotation
+from .references import ass_reference_type, ass_reference_name
 from .jms_format import JMS, Material, Node, Transform, Shape
 from .jms_importer import JMSImporter, is_frame_name, canonical_bone_name
-from .. import utils
+from .. import utils, marker_axis
 from ..constants import face_prop_game_supported
+from ..uv_channels import store_uv_w
 
 
 class ASSImporter(JMSImporter):
@@ -109,34 +110,17 @@ class ASSImporter(JMSImporter):
             self.owner.set_permutation(ob, 'default')
         return ob
 
-    def build(self):
-        objects = super().build()
-        if self.collection.get('ass_source_scene'):
-            from uuid import uuid4
-            from .source_preservation import capture_collections
-            for ob in objects:
-                ob['ass_source_key'] = self.source_key
-                ob['ass_object_key'] = str(uuid4())
-            capture_collections([self.collection], objects, bpy.context.scene.nwo)
-        return objects
-
     def store_metadata(self):
         from uuid import uuid4
         self.source_key = str(uuid4())
         self.collection['ass_source_key'] = self.source_key
         self.collection['ass_source_game'] = self.owner.game
-        self.collection['ass_source_pending'] = True
         self.collection['ass_version'] = self.ass.version
         self.collection['ass_header'] = json.dumps(self.ass.header)
         self.collection['ass_materials'] = json.dumps([asdict(m) for m in self.ass.materials])
-        if not self.is_model and not self.geometry_only:
-            from .writers import write_ass
-            stream = io.StringIO()
-            write_ass(self.ass, stream, decimal_places=10)
-            self.collection['ass_source_scene'] = stream.getvalue()
         if self.ass.invalid_uv_components:
             self.collection['ass_repaired_uv_components'] = self.ass.invalid_uv_components
-            utils.print_warning(f'{self.path.name}: replaced {self.ass.invalid_uv_components} non-finite UV components with zero (first at line {self.ass.first_invalid_uv_line})')
+            # utils.print_warning(f'{self.path.name}: replaced {self.ass.invalid_uv_components} non-finite UV components with zero (first at line {self.ass.first_invalid_uv_line})')
 
     def build_materials(self):
         from ..tools.importer import JMSMaterialSlot
@@ -229,34 +213,6 @@ class ASSImporter(JMSImporter):
 
     def apply_materials(self, ob, faces_by_material):
         super().apply_materials(ob, faces_by_material)
-        side_masks = [0] * len(ob.data.polygons)
-        side_states = [0] * len(ob.data.polygons)
-        for index, faces in faces_by_material.items():
-            source = self.props.get(index)
-            if source is None:
-                continue
-            mask = int(source.two_sided) | int(source.transparent_one_sided) << 1 | int(source.transparent_two_sided) << 2
-            state = 2 * int(source.two_sided or source.transparent_two_sided) + int(source.transparent_one_sided or source.transparent_two_sided)
-            for face in faces:
-                side_masks[face], side_states[face] = mask, state
-        for name, values in (('ass_source_side_flags', side_masks), ('ass_import_face_sides', side_states)):
-            attribute = ob.data.attributes.new(name, 'INT', 'FACE')
-            attribute.data.foreach_set('value', values)
-        lightmap_records = [0] * len(ob.data.polygons)
-        material_indices = [-1] * len(ob.data.polygons)
-        for index, faces in faces_by_material.items():
-            for face in faces:
-                material_indices[face] = index
-            if index < 0:
-                continue
-            size = next((len(record.split())-1 for record in self.ass.materials[index].lighting
-                         if record.startswith('BM_LMRES ')), 0)
-            for face in faces:
-                lightmap_records[face] = size
-        attribute = ob.data.attributes.new('ass_lightmap_record_size', 'INT', 'FACE')
-        attribute.data.foreach_set('value', lightmap_records)
-        attribute = ob.data.attributes.new('ass_source_material_index', 'INT', 'FACE')
-        attribute.data.foreach_set('value', material_indices)
         if -1 in faces_by_material:
             # ASS -1 means an unassigned authoring face, not a default shader.
             # Preserve that distinction through the display material fallback.
@@ -320,24 +276,12 @@ class ASSImporter(JMSImporter):
                 and getattr(self.owner, 'game', None) != 'halo2' else kind)
 
     def mesh_created(self, ob, source_indices):
-        super().mesh_created(ob, source_indices)
         self.source_indices[ob] = source_indices
-        # Keep the compiler's local coordinates alongside their Blender-unit
-        # representation. Recover only unchanged points on export; edited
-        # points use the evaluated mesh normally.
-        source_positions = ob.data.attributes.get('legacy_source_position') or ob.data.attributes.new('legacy_source_position', 'FLOAT_VECTOR', 'POINT')
-        source_positions.data.foreach_set('vector', [c for i in source_indices
-                                                    for c in self.active_geometry.vertices[i].position])
-        import_positions = ob.data.attributes.get('legacy_import_position') or ob.data.attributes.new('legacy_import_position', 'FLOAT_VECTOR', 'POINT')
-        import_positions.data.foreach_set('vector', [c for v in ob.data.vertices for c in v.co])
-        # Blender UV layers only hold XY. Preserve ASS's third UV component.
         geometry = self.active_geometry
-        for channel in range(max((len(v.uvs) for v in geometry.vertices), default=0)):
-            if any(len(v.uvs[channel]) == 3 for v in geometry.vertices if channel < len(v.uvs)):
-                attribute = ob.data.attributes.new(f'ass_uv_w_{channel}', 'FLOAT', 'CORNER')
-                attribute.data.foreach_set('value', [geometry.vertices[i].uvs[channel][2]
-                    if channel < len(geometry.vertices[i].uvs) and len(geometry.vertices[i].uvs[channel]) == 3 else 0
-                    for i in (source_indices[loop.vertex_index] for loop in ob.data.loops)])
+        for channel, layer in enumerate(list(ob.data.uv_layers)):
+            store_uv_w(ob.data, layer, [geometry.vertices[i].uvs[channel][2]
+                if channel < len(geometry.vertices[i].uvs) and len(geometry.vertices[i].uvs[channel]) == 3 else 0
+                for i in (source_indices[loop.vertex_index] for loop in ob.data.loops)])
 
     def role(self, instance, geometry):
         name = instance.name
@@ -459,19 +403,39 @@ class ASSImporter(JMSImporter):
             # XREF meshes can contain the complete structural surface as well
             # as the authoring reference. Replacing that payload with a marker
             # removes BSP walls (e.g. Old Mombasa's hotel_hall) on export.
-            reference_only = bool(geometry and geometry.kind == 'MESH' and geometry.xref_path
-                                  and not (geometry.vertices and geometry.triangles))
+            reference_type = ass_reference_type(instance.name)
+            reference_only = bool(reference_type or (geometry and geometry.kind == 'MESH' and geometry.xref_path
+                                  and not (geometry.vertices and geometry.triangles)))
             if self.geometry_only and (instance.name.startswith('#') or geometry is None
                                        or reference_only or geometry.kind == 'GENERIC_LIGHT'):
                 continue
             matrix = self.scene_matrix(self.world[index] @ self.ass_matrix(instance.pivot))
             if reference_only:
-                ob = self.object(instance.name.lstrip('#'))
+                # Referenced models already use the scene's forward axes.
+                # Convert the marker's local basis as well as its world basis.
+                matrix = marker_axis.local_axes(matrix, self.owner.from_x_rot)
+                ob = self.object(ass_reference_name(instance.name) if reference_type else instance.name.lstrip('#'))
                 from ..tools.importer import XREF
-                tag, fallback = self.owner._resolve_xref_tag_path(XREF(instance.name, geometry.xref_path, geometry.xref_name))
+                path = geometry.xref_path if geometry else ''
+                xref_name = geometry.xref_name if geometry else ''
+                if reference_type or not self.is_model:
+                    reference_type = reference_type or '.scenery'
+                    from pathlib import PureWindowsPath
+                    asset_name = PureWindowsPath(path.replace('/', '\\')).stem or ass_reference_name(instance.name)
+                    xref = XREF(instance.name, path, asset_name)
+                    xref.preferred_type = reference_type
+                    tag, fallback = self.owner._resolve_xref_tag_path(xref, (reference_type,))
+                    fallback = fallback or asset_name + reference_type
+                else:
+                    tag, fallback = self.owner._resolve_xref_tag_path(XREF(instance.name, path, xref_name))
                 ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
                 ob.nwo.marker_game_instance_tag_name = tag or fallback or ''
-                ob['ass_xref_path'], ob['ass_xref_name'] = geometry.xref_path, geometry.xref_name
+                ob['ass_import_tag_path'] = ob.nwo.marker_game_instance_tag_name
+                ob['ass_xref_path'], ob['ass_xref_name'] = path, xref_name
+                if geometry:
+                    ob['ass_reference_geometry'] = json.dumps(asdict(geometry))
+                    indices = {geometry.material, *(t.material for t in geometry.triangles)} - {-1}
+                    ob['ass_reference_materials'] = json.dumps({str(i):asdict(self.ass.materials[i]) for i in indices})
                 objects = [ob]
             elif instance.name.startswith('#') or geometry is None:
                 name = instance.name.lstrip('#')
@@ -601,7 +565,6 @@ class ASSImporter(JMSImporter):
         if self.is_model:
             return
         proxies = defaultdict(list)
-        proxy_sources = defaultdict(list)
         for index, instance in enumerate(self.ass.instances):
             if not instance.name.startswith('@') or instance.parent == -1:
                 continue
@@ -622,27 +585,15 @@ class ASSImporter(JMSImporter):
                     child.data = child.data.copy()
                 relative = (self.ass_matrix(self.ass.instances[instance.parent].pivot).inverted()
                             @ self.ass_matrix(instance.local) @ self.ass_matrix(instance.pivot))
-                proxy_sources[parent].append(dict(index=index, instance=asdict(instance),
-                    geometry=asdict(self.ass.geometries[instance.geometry]),
-                    relative=[list(row) for row in relative]))
-                attribute = child.data.attributes.new('ass_proxy_source_instance', 'INT', 'FACE')
-                attribute.data.foreach_set('value', [index] * len(child.data.polygons))
                 normals = [(relative.to_3x3().inverted().transposed() @ n.vector).normalized()
                            for n in child.data.corner_normals]
-                source_positions = child.data.attributes['legacy_source_position']
-                points = [relative @ v.vector for v in source_positions.data]
-                source_positions.data.foreach_set('vector', [c for point in points for c in point])
+                # Convert the translation to Blender units before baking the
+                # child's current local geometry into the render instance.
+                relative.translation *= self.scale
+                points = [relative @ vertex.co for vertex in child.data.vertices]
                 for vertex, point in zip(child.data.vertices, points):
-                    vertex.co = point * self.scale
+                    vertex.co = point
                 child.data.normals_split_custom_set(normals)
-                authored = child.data.attributes.get('legacy_source_normal')
-                if authored is not None:
-                    normal_matrix = relative.to_3x3().inverted().transposed()
-                    authored.data.foreach_set('vector', [c for item in authored.data for c in normal_matrix @ item.vector])
-                    child.data.attributes['legacy_import_normal'].data.foreach_set(
-                        'vector', [c for normal in child.data.corner_normals for c in normal.vector])
-                child.data.attributes['legacy_import_position'].data.foreach_set(
-                    'vector', [c for v in child.data.vertices for c in v.co])
                 child.parent = parent
                 child.matrix_parent_inverse = Matrix.Identity(4)
                 child.matrix_basis = Matrix.Identity(4)
@@ -658,7 +609,6 @@ class ASSImporter(JMSImporter):
                 child = children[0]
             parent.data.nwo.proxy_collision = child
             child.nwo.proxy_type = 'collision'
-            child['ass_proxy_sources'] = json.dumps(proxy_sources[parent])
             utils.unlink(child)
 
     def light_object(self, instance, light):

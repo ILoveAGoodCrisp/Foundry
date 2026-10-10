@@ -3,12 +3,58 @@ from dataclasses import replace
 from math import hypot, isfinite
 
 
+def _ass_mesh_is_clean(geometry):
+    """Check the no-repair case in arrays, without changing any numeric data."""
+    if len(geometry.triangles) < 32:
+        return False
+    try:
+        import numpy as np
+    except ImportError:
+        return False
+
+    positions = np.asarray([v.position for v in geometry.vertices])
+    if positions.dtype != np.dtype(np.float64):
+        # The exporter owns Python float records. Widening externally supplied
+        # float32 or integer records would change the scalar repair arithmetic.
+        return False
+    used = np.zeros(len(geometry.vertices), dtype=bool)
+    # Stay well clear of hypot's overflow boundary. Exceptional coordinates
+    # use the scalar repair path, preserving its errors and arithmetic.
+    limit = np.finfo(np.float64).max / 4
+    with np.errstate(over='ignore', invalid='ignore', under='ignore'):
+        for start in range(0, len(geometry.triangles), 65536):
+            try:
+                indices = np.asarray([t.vertices for t in geometry.triangles[start:start + 65536]],
+                                     dtype=np.intp)
+            except (OverflowError, TypeError, ValueError):
+                return False
+            if np.any(indices < 0) or np.any(indices >= len(positions)):
+                return False
+            a = positions[indices[:, 1]] - positions[indices[:, 0]]
+            b = positions[indices[:, 2]] - positions[indices[:, 0]]
+            normals = np.cross(a, b)
+            if (not np.isfinite(normals).all() or np.any(np.abs(normals) > limit)
+                    or np.any(np.all(normals == 0, axis=1))):
+                return False
+            used[indices.ravel()] = True
+        if not used.all():
+            return False
+        for start in range(0, len(geometry.vertices), 65536):
+            normals = np.asarray([v.normal for v in geometry.vertices[start:start + 65536]],
+                                 dtype=np.float64)
+            if not np.isfinite(normals).all() or np.any(np.all(normals == 0, axis=1)):
+                return False
+    return True
+
+
 def clean_ass_mesh(geometry):
     """Drop zero-area faces and recover invalid normals from incident faces.
 
     Preserve authored normals and all attributes on retained vertices. Use the
     largest incident face for recovery so opposing faces cannot cancel out.
     """
+    if _ass_mesh_is_clean(geometry):
+        return 0, 0
     triangles = []
     face_normals = {}
     removed = repaired = 0

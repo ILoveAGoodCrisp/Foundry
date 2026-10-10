@@ -6,6 +6,8 @@ to the current Foundry scene scale and forward before interpreting source proper
 """
 from collections import defaultdict
 from pathlib import Path
+from math import degrees
+import json
 import re
 
 import bmesh
@@ -28,9 +30,22 @@ def region_definition(name):
     words = [w for w in words if not re.fullmatch(r'l[1-6]|\(\d+\)', w, re.I)]
     return (words[-1] if words else 'default', words[-2] if len(words) > 1 else 'default', lod)
 
+def toolset_transform_signature(ob):
+    """Track authored hierarchy transforms independently of evaluated roundoff."""
+    values = []
+    while ob is not None:
+        if ob.constraints or ob.animation_data is not None or ob.type == 'ARMATURE':
+            return None
+        values.append(dict(basis=[list(r) for r in ob.matrix_basis],
+            inverse=[list(r) for r in ob.matrix_parent_inverse],
+            parent_type=ob.parent_type, parent_bone=ob.parent_bone))
+        ob = ob.parent
+    return json.dumps(values, sort_keys=True)
+
 
 class HaloSceneConverter:
-    def __init__(self, importer, is_model, *, bsp_name="", top_level_bsps=False):
+    def __init__(self, importer, is_model, *, bsp_name="", top_level_bsps=False,
+                 apply_special_materials=False):
         self.owner = importer
         self.is_model = is_model
         self.top_level_bsps = top_level_bsps and not is_model
@@ -41,6 +56,19 @@ class HaloSceneConverter:
         self.warnings = set()
         self.material_props = {}
         self.converted_materials = {}
+        self.converted_meshes = {}
+        self.apply_special_materials = apply_special_materials
+        self.standard_materials = {}
+        self.source_materials = {m for m in bpy.data.materials if not m.get('foundry_standard_material')}
+        self.source_materials.update(slot.material for ob in bpy.data.objects
+                                     if not ob.get(CONVERTED) for slot in ob.material_slots
+                                     if slot.material is not None)
+        self.halo1_named_regions = set()
+        if self.game == 'halo1':
+            for ob in importer.context.scene.objects:
+                match = re.match(r'^@([^\s]+)\s+([^\s]+)\s+(?:frame|bip)[ _]', ob.ass_jms.name_override or ob.name, re.I)
+                if match:
+                    self.halo1_named_regions.add(match[1])
 
     def props(self, material):
         if material is None:
@@ -50,6 +78,8 @@ class HaloSceneConverter:
             self.material_props[material] = JMSMaterialSlot.from_material(
                 material, self.game, self.owner.scale_factor)
             source = material.ass_jms
+            if not source.power and not getattr(source, 'is_bm', False):
+                self.material_props[material].emissive_power = self.material_props[material].emissive_power_scale
             # These toolset fields currently have no Foundry export equivalent.
             unsupported = [name for name in (
                 'conveyor', 'dislike_photons', 'group_transparents_by_plane',
@@ -151,7 +181,7 @@ class HaloSceneConverter:
             raise RuntimeError('Make linked objects and their data local before converting the scene')
         if self.top_level_bsps:
             self.prepare_top_level_bsps()
-        if objects and (convert_scale or convert_forward):
+        if objects:
             self.transform_geometry(objects, convert_scale, convert_forward)
         source_bsps = self.bsp_sources(objects) if not self.is_model else {}
         converted_bsps = {}
@@ -170,7 +200,7 @@ class HaloSceneConverter:
                 converted.append(ob)
             elif ob.rigid_body_constraint and ob.name.startswith('$'):
                 constraints.append((ob, bsp))
-            elif ob.type == 'MESH' and ob.data.ass_jms.XREF_path:
+            elif ob.type == 'MESH' and ob.data.ass_jms.XREF_path and not ob.data.vertices:
                 from ..tools.importer import XREF
                 source = ob.data.ass_jms
                 xref = XREF(ob.name, source.XREF_path, source.XREF_name)
@@ -184,8 +214,14 @@ class HaloSceneConverter:
                 frame.nwo.is_frame = True
                 converted.append(frame)
             elif ob.name.startswith('#'):
-                converted.append(self.marker(ob))
+                if self.is_model and self.game == 'halo1' and ob.ass_jms.marker_mask_type in {'1', '3'}:
+                    converted.append(self.mass_point(ob))
+                else:
+                    converted.append(self.marker(ob))
             elif ob.type == 'MESH':
+                if ob.data.ass_jms.XREF_path:
+                    ob['ass_xref_path'] = ob.data.ass_jms.XREF_path
+                    ob['ass_xref_name'] = ob.data.ass_jms.XREF_name
                 converted.extend(self.mesh(ob))
             elif ob.type == 'EMPTY':
                 ob.nwo.is_frame = ob in parents
@@ -220,6 +256,13 @@ class HaloSceneConverter:
         for ob in converted:
             if ob.type != 'EMPTY' and ob.ass_jms.name_override.strip():
                 ob.name = ob.ass_jms.name_override.strip().lstrip('#')
+        self.owner.context.view_layer.update()
+        if not self.is_model:
+            for ob in converted:
+                if ob.type == 'MESH' and ob.get('ass_source_matrix'):
+                    signature = toolset_transform_signature(ob)
+                    if signature is not None:
+                        ob['toolset_import_transform'] = signature
         return len(converted)
 
     def transform_geometry(self, objects, convert_scale, convert_forward):
@@ -231,26 +274,35 @@ class HaloSceneConverter:
         # Source property distances, like the geometry, are always Halo units.
         if convert_scale:
             self.owner.scale_factor = factor
-        if factor == 1.0 and not rotation:
-            return
         targets = set(objects)
         # Transforming shared data must not resize unselected objects or objects
         # in other scenes. Preserve sharing within this conversion batch.
         copies = {}
+        shared = {ob.data for ob in objects if ob.data and ob.data.users > 1}
         for ob in objects:
-            if ob.data and ob.data.users > 1:
+            if ob.data in shared:
                 source = ob.data
                 if source not in copies:
                     copies[source] = source.copy()
                 ob.data = copies[source]
         context.view_layer.update()
+        meshes = {ob.data for ob in objects if ob.type == 'MESH'}
+        self.local_position_meshes = meshes if self.game in {'halo2', 'halo3', 'halo3odst'} else set()
+        for ob in objects:
+            if ob.type == 'MESH' and ob.data in self.local_position_meshes:
+                ob['toolset_source_world_matrix'] = json.dumps([list(row) for row in ob.matrix_world])
+                if not self.is_model:
+                    ob['ass_source_matrix'] = ob['toolset_source_world_matrix']
+        if factor == 1.0 and not rotation:
+            self.geometry_baseline(objects)
+            return
         outside_children = {ob: ob.matrix_world.copy() for ob in bpy.data.objects
                             if ob not in targets and ob.parent in targets}
         selection = list(context.selected_objects)
         active = context.view_layer.objects.active
         try:
             utils.transform_scene(context, factor, rotation, 'x', forward,
-                                  keep_marker_axis=False, objects=objects, actions=[])
+                                  objects=objects, actions=[], marker_objects=())
         finally:
             context.view_layer.update()
             for ob, matrix in outside_children.items():
@@ -259,6 +311,15 @@ class HaloSceneConverter:
             for ob in selection:
                 ob.select_set(True)
             context.view_layer.objects.active = active
+        self.geometry_baseline(objects)
+
+    def geometry_baseline(self, objects):
+        """Record converted object transforms without duplicating mesh data."""
+        for ob in objects:
+            if ob.type == 'MESH' and ob.data in self.local_position_meshes:
+                ob['legacy_import_matrix'] = json.dumps([list(row) for row in ob.matrix_world])
+                if not self.is_model:
+                    ob['ass_import_matrix'] = ob['legacy_import_matrix']
 
     def marker(self, ob):
         name = (ob.ass_jms.name_override.strip() or ob.name).lstrip('#')
@@ -278,7 +339,20 @@ class HaloSceneConverter:
             utils.copy_bl_props(original.ass_jms, ob.ass_jms)
             bpy.data.objects.remove(original, do_unlink=True)
         ob.name = name
+        # Several source placements can share one tag marker group. Blender
+        # makes object names unique when source scope prefixes are removed.
+        ob['toolset_marker_name'] = name
+        ob['toolset_marker_object_name'] = ob.name
         ob.empty_display_type = 'ARROWS'
+        mask = ob.ass_jms.marker_mask_type
+        if self.is_model and mask == '1':
+            ob.nwo.marker_type = '_connected_geometry_marker_type_pathfinding_sphere'
+            ob.empty_display_type = 'SPHERE'
+        elif self.is_model and mask == '2':
+            # Constraint objects are converted separately. A physics-only helper
+            # must not become a render marker simply because it has a # prefix.
+            ob.nwo.export_this = False
+            self.warnings.add(f'{name}: physics-only marker retained and excluded from render export')
         if self.is_model and region:
             self.owner._ensure_region_entry(region, utils.SetType.MODEL)
             ob.nwo.region_name = region
@@ -296,7 +370,59 @@ class HaloSceneConverter:
             ob.empty_display_type = 'SPHERE'
         return ob
 
+    def model_definition(self, ob, definition):
+        if self.game != 'halo1':
+            return definition
+        region, permutation, lod = definition
+        lods = {'superlow': 'L1', 'low': 'L2', 'medium': 'L3', 'high': 'L4', 'superhigh': 'L5'}
+        candidates = [ob.ass_jms.name_override or ob.name, *(c.name for c in ob.users_collection)]
+        for candidate in candidates:
+            candidate = re.sub(r'\.\d{3}$', '', candidate).lstrip('@#$%')
+            collision = re.match(r'^([^\s]+)\s+([^\s]+)\s+(?:frame|bip)[ _]', candidate, re.I)
+            if collision:
+                return collision[1], collision[2], lod
+            match = re.match(r'^(.+?)\s+(superlow|low|medium|high|superhigh)(?:$|_)', candidate, re.I)
+            if match:
+                identity = match[1].split(maxsplit=1)
+                if len(identity) == 2 and identity[0] in self.halo1_named_regions:
+                    return identity[0], identity[1], lods[match[2].lower()]
+                return region, match[1], lods[match[2].lower()]
+        return definition
+
+    def mass_point(self, original):
+        """H1 collision-source markers are physics mass-point spheres."""
+        radius = (original.empty_display_size if original.type == 'EMPTY' else
+                  max(original.dimensions) / (2 * max(1e-8, *(abs(s) for s in original.scale))))
+        mesh = bpy.data.meshes.new(original.name.lstrip('#'))
+        bm = bmesh.new()
+        try:
+            bmesh.ops.create_uvsphere(bm, u_segments=16, v_segments=8, radius=max(radius, 1e-8))
+            bm.to_mesh(mesh)
+        finally:
+            bm.free()
+        replacement = bpy.data.objects.new(original.name.lstrip('#'), mesh)
+        for collection in original.users_collection:
+            collection.objects.link(replacement)
+        replacement.parent, replacement.parent_type = original.parent, original.parent_type
+        replacement.parent_bone = original.parent_bone
+        replacement.matrix_world = original.matrix_world
+        utils.copy_bl_props(original.ass_jms, replacement.ass_jms)
+        mesh.nwo.mesh_type = '_connected_geometry_mesh_type_physics'
+        replacement.nwo.mesh_primitive_type = '_connected_geometry_primitive_type_sphere'
+        _, permutation, lod = self.model_definition(original, ('default', 'default', 'L5'))
+        self.owner._ensure_permutation_entry(permutation, utils.SetType.MODEL)
+        replacement.nwo.permutation_name, replacement.nwo.mesh_lod = permutation, lod
+        self.apply_mesh_material(replacement, 'physics', ())
+        for child in original.children:
+            world = child.matrix_world.copy()
+            child.parent = replacement
+            child.matrix_world = world
+        bpy.data.objects.remove(original, do_unlink=True)
+        return replacement
+
     def kind(self, ob, props):
+        if not self.is_model and props and props.material.name.casefold().startswith('+seamsealer'):
+            return 'instance' if ob.name.startswith('%') else 'default'
         if ob.name.startswith('@'):
             return 'collision'
         if ob.name.startswith('$'):
@@ -324,6 +450,8 @@ class HaloSceneConverter:
                 index = region_attr.data[face.index].value - 1 if region_attr else 0
                 if 0 <= index < len(regions):
                     definition = region_definition(regions[index].name)
+            if self.is_model:
+                definition = self.model_definition(ob, definition)
             policy = tuple(getattr(prop, name, False) for name in PORTAL_POLICIES) if kind == 'portal' else ()
             groups[(kind, definition, policy)].append(face.index)
         if not groups:
@@ -338,8 +466,10 @@ class HaloSceneConverter:
                 collection.objects.link(copy)
             results.append(copy)
         for result, ((kind, definition, _), faces) in zip(results, groups.items()):
-            result.data = source.copy()
-            if len(groups) > 1:
+            key = (source, tuple(materials), kind, definition, tuple(faces))
+            existing = self.converted_meshes.get(key)
+            result.data = existing if existing is not None else source.copy()
+            if existing is None and len(groups) > 1:
                 self.keep_faces(result.data, set(faces))
             mesh_type, _ = self.owner.mesh_and_material(kind, self.is_model)
             result.data.nwo.mesh_type = mesh_type
@@ -359,12 +489,32 @@ class HaloSceneConverter:
             elif kind == 'physics':
                 primitive = {'CAPSULES': 'pill', 'SPHERE': 'sphere', 'BOX': 'box'}.get(source.ass_jms.Object_Type, 'none')
                 result.nwo.mesh_primitive_type = '_connected_geometry_primitive_type_' + primitive
+                result.name = result.name.lstrip('$')
             elif kind == 'seam':
                 result.nwo.seam_back_manual = True
             if mesh_type == '_connected_geometry_mesh_type_structure':
                 result.nwo.proxy_instance = True
             if kind in {'soft_ceiling', 'soft_kill', 'slip_surface'}:
                 result.data.nwo['boundary_surface_type'] = ('soft_ceiling', 'soft_kill', 'slip_surface').index(kind)
+            if existing is not None:
+                # Object-only policies still differ between instances; shared
+                # mesh properties and material slots have already been converted.
+                for index, prop in enumerate(props):
+                    if prop is not None and index < len(result.material_slots):
+                        result.material_slots[index].link = 'DATA'
+                        result.material_slots[index].material = self.material(materials[index], prop)
+                if kind == 'portal':
+                    policy = next((prop for prop in props if prop and prop.mesh_type == 'portal'), None)
+                    if policy:
+                        result.nwo.portal_exact = policy.portal_exact
+                        result.nwo.portal_ai_deafening = policy.ai_deafening
+                        result.nwo.portal_type = ('_connected_geometry_portal_type_no_way' if policy.portal_vis_blocker else
+                                                 '_connected_geometry_portal_type_one_way' if policy.portal_one_way else
+                                                 '_connected_geometry_portal_type_two_way')
+                        result.nwo.portal_is_door = policy.portal_door
+                        result.nwo.portal_blocks_sounds = policy.blocks_sound
+                self.apply_mesh_material(result, kind, props)
+                continue
             indices = np.empty(len(result.data.polygons), dtype=np.int32)
             result.data.polygons.foreach_get('material_index', indices)
             for index, prop in enumerate(props):
@@ -373,6 +523,8 @@ class HaloSceneConverter:
                     continue
                 self.owner._apply_jms_material_props(result.data, result.nwo, prop, mask,
                                                      apply_object_props=kind == 'portal')
+                if self.game in {'halo2', 'halo3', 'halo3odst'} and not prop.precise:
+                    utils.add_face_prop(result.data, 'precise_position', mask).precise_position = False
                 if prop.ignore_default_resolution and face_prop_game_supported('lightmap_ignore_default_resolution_scale', self.game):
                     utils.add_face_prop(result.data, 'lightmap_ignore_default_resolution_scale', mask)
                 if self.is_model and kind in {'collision', 'physics'}:
@@ -385,6 +537,8 @@ class HaloSceneConverter:
                 # has no suffix. Existing sphere-only masks retain precedence.
                 utils.add_face_prop(result.data, 'face_mode').face_mode = 'collision_only'
             utils.consolidate_face_attributes(result.data, preserve_special_faces=self.game == 'halo1')
+            self.apply_mesh_material(result, kind, props)
+            self.converted_meshes[key] = result.data
         return results
 
     @staticmethod
@@ -399,9 +553,50 @@ class HaloSceneConverter:
             bm.free()
         utils.apply_loop_normals(mesh)
 
+    def standard_material(self, name):
+        if name in self.standard_materials:
+            return self.standard_materials[name]
+        from ..tools.materials import special_materials, convention_materials
+        definition = next((m for m in special_materials
+                           if m.name == name or m.name == '+sky' and re.fullmatch(r'\+sky\d*', name)), None)
+        if definition is not None:
+            from ..tools.append_foundry_materials import ensure_special_material
+            material = ensure_special_material(definition, name=name, exclude=self.source_materials)
+        elif any(m.name == name for m in convention_materials):
+            from ..tools.property_apply import halo_material
+            material = halo_material(name, exclude=self.source_materials)
+        else:
+            return None
+        material['foundry_legacy_shader_name'] = name
+        self.standard_materials[name] = material
+        return material
+
+    def apply_mesh_material(self, ob, kind, props):
+        if not self.apply_special_materials:
+            return
+        _, name = self.owner.mesh_and_material(kind, self.is_model)
+        if kind == 'seam' and any(p and p.mesh_type == 'seam' for p in props):
+            name = '+seam'
+        material = self.standard_material(name) if name else None
+        if material is not None:
+            ob.data.materials.clear()
+            ob.data.materials.append(material)
+            ob.material_slots[0].link = 'DATA'
+            ob.material_slots[0].material = material
+            ob.data.polygons.foreach_set('material_index', [0] * len(ob.data.polygons))
+
     def material(self, source, props):
         if source in self.converted_materials:
             return self.converted_materials[source]
+        if self.apply_special_materials:
+            name = props.material.name.casefold()
+            sky = re.match(r'^\+sky\d*', name)
+            special = (sky[0] if sky else '+seamsealer' if name.startswith('+seamsealer') else
+                       '+seam' if props.mesh_type == 'seam' else None)
+            if special:
+                material = self.standard_material(special)
+                self.converted_materials[source] = material
+                return material
         material = source
         # Face flags belong to Foundry properties, not the exported shader name.
         name = utils.imported_material_name(
@@ -474,5 +669,9 @@ class HaloSceneConverter:
                 nwo.twist_constraint_start, nwo.twist_constraint_end = source.limit_ang_x_lower, source.limit_ang_x_upper
             if source.use_limit_ang_y:
                 nwo.cone_angle = source.limit_ang_y_upper
+            ob['jms_constraint'] = json.dumps({'limits': [
+                degrees(source.limit_ang_x_lower), degrees(source.limit_ang_x_upper),
+                degrees(source.limit_ang_y_lower), degrees(source.limit_ang_y_upper),
+                degrees(source.limit_ang_z_lower), degrees(source.limit_ang_z_upper), 0.0]})
             if source.use_limit_ang_z:
                 nwo.plane_constraint_minimum, nwo.plane_constraint_maximum = source.limit_ang_z_lower, source.limit_ang_z_upper
