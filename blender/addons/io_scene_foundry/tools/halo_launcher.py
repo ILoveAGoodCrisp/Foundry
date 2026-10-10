@@ -626,16 +626,17 @@ def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False, rep
     init_filename = "init.txt" if legacy_game else "bonobo_init.txt"
     init_backup = str(Path(init_filename).with_stem(Path(init_filename).stem + "_old"))
     init = ""
-    if os.path.exists(init_filename):
-        try:
-            if os.path.exists(init_backup):
-                os.remove(init_backup)
-            os.rename(init_filename, init_backup)
+    if not legacy_game or prefs.update_legacy_init_on_launch:
+        if os.path.exists(init_filename):
+            try:
+                if os.path.exists(init_backup):
+                    os.remove(init_backup)
+                os.rename(init_filename, init_backup)
+                init = init_filename
+            except:
+                print(f"Unable to replace {init_filename}. It is currently read only")
+        else:
             init = init_filename
-        except:
-            print(f"Unable to replace {init_filename}. It is currently read only")
-    else:
-        init = init_filename
 
     if init != "":
         h4_plus = is_corinth()

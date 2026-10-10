@@ -716,6 +716,8 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
         row.prop(prefs, "granny_viewer_path")
         row = box.row(align=True)
         row.prop(prefs, "copy_scenario_path_on_sapien_launch")
+        row = box.row(align=True)
+        row.prop(prefs, "update_legacy_init_on_launch")
 
     box = _settings_box(layout, "Import & Bitmaps", prefs, 'settings_import_expanded')
     if box is not None:
@@ -792,6 +794,12 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
 
 class FoundryPreferences(AddonPreferences):
     bl_idname = __package__
+
+    update_legacy_init_on_launch: BoolProperty(
+        name="Update H1/H2/H3/ODST init.txt on Launch",
+        description="Update init.txt in the root editing kit folder when launching Halo 1, Halo 2, Halo 3, or ODST Sapien or Tag Test. Disable to preserve the existing file; Foundry's launch settings and custom init commands will not be written",
+        default=True,
+    )
 
     copy_scenario_path_on_sapien_launch: BoolProperty(
         name="Copy Scenario Path on Sapien Launch",
