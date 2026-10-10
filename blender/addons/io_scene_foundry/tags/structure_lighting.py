@@ -714,6 +714,8 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
     def _from_reach_light_definitions(self):
         self.inverse_squared_lights = set()
         definitions: dict[int: bpy.types.Light] = {}
+        # H3/ODST share this layout, but store distances in world units.
+        attenuation_scale = (100 if self.game in {'halo3', 'halo3odst'} else 1) * import_transform.scale_factor()
         for element_index, element in enumerate(self.block_generic_light_definitions):
             match self._index(element, 'type'):
                 case 0:
@@ -734,8 +736,8 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
             blender_light.color = [utils.srgb_to_linear(c) for c in self._data(element, 'color')]
             blender_light.nwo.light_intensity = self._data(element, 'intensity')
 
-            blender_light.shadow_soft_size = max((*self._data(element, 'near attenuation bounds'),)) * import_transform.scale_factor()
-            nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a * import_transform.scale_factor() for a in self._data(element, 'far attenuation bounds')]
+            blender_light.shadow_soft_size = max((*self._data(element, 'near attenuation bounds'),)) * attenuation_scale
+            nwo.light_far_attenuation_start, nwo.light_far_attenuation_end = [a * attenuation_scale for a in self._data(element, 'far attenuation bounds')]
             nwo.light_aspect = self._data(element, 'aspect')
             flags = self.required_field(element, 'flags')
             if 'invere squared falloff' in flags.options().names and flags.get_flag("invere squared falloff"):
