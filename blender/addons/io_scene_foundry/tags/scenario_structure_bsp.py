@@ -16,6 +16,7 @@ from .shader import EmptyShaderTag
 from .connected_geometry import BSP, BSPCollisionMaterial, Cluster, Emissive, EnvironmentObject, HavokCollision, Instance, InstanceDefinition, Material, Mesh, ModelCollision, Portal, StructureCollision, StructureMarker, SurfaceMapping
 from .. import import_transform
 from ..utils import jstr
+from .. import face_attributes
 from .. import utils
 from .prefab import ScenarioStructureBspMetadataTag, StructureBspHavokGeometry
 from .classic_geometry import merge_classic_surfaces, weld_classic_vertices
@@ -158,9 +159,10 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
 
     def _classic_render_objects(
         self, collection: bpy.types.Collection, skip_structure_merge=False,
-        *, merge_render_collision=True,
+        *, merge_render_collision=True, import_collision=True,
     ) -> tuple[list[bpy.types.Object], list[bpy.types.Object]]:
-        material_names, material_paths, mesh_records, instances = self.classic_render_scene()
+        material_names, material_paths, mesh_records, instances = self.classic_render_scene(
+            import_collision=import_collision)
         materials = {}
         emissives = {}
         for index, (name, shader_path) in enumerate(zip(material_names, material_paths, strict=True)):
@@ -318,9 +320,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             mask = np.ones(len(ob.data.polygons), dtype=np.int8)
             for prop in ob.data.nwo.face_props:
                 if prop.type == 'face_mode' and prop.face_mode == 'sphere_collision_only':
-                    values = np.empty(len(mask), dtype=np.int8)
-                    ob.data.attributes[prop.attribute_name].data.foreach_get('value', values)
-                    mask &= ~values
+                    mask &= ~face_attributes.mask(ob.data, prop)
             if mask.any():
                 utils.add_face_prop(ob.data, 'face_mode', mask).face_mode = 'collision_only'
             ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
@@ -518,16 +518,22 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         self.collection = collection
 
         if self.game in {'halo1', 'halo2'}:
+            # The importer also uses for_cinematic for Render Geometry Only.
+            import_collision = self.game != 'halo1' or not for_cinematic
+            if not import_collision:
+                merge_render_collision = False
             if import_geometry:
                 classic_objects, classic_game_objects = self._classic_render_objects(
                     collection, skip_structure_merge,
+                    import_collision=import_collision,
                     merge_render_collision=merge_render_collision if self.game == 'halo1' else True)
                 objects.extend(classic_objects)
                 game_objects.extend(classic_game_objects)
                 if self.game == 'halo1':
                     from .halo1_bsp_blender import replace_collision_only, apply_collision_surface_flags, apply_shader_transparency, create_helpers
-                    apply_collision_surface_flags(self, classic_objects)
-                    replace_collision_only(classic_objects, self)
+                    if import_collision:
+                        apply_collision_surface_flags(self, classic_objects)
+                        replace_collision_only(classic_objects, self)
                     for ob in classic_objects:
                         if ob.type == 'MESH':
                             if merge_render_collision:
@@ -838,10 +844,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     sphere_coll_face_props = [prop for prop in collision_mesh.nwo.face_props if prop.name == "Sphere Collision Only"]
                     if sphere_coll_face_props:
                         sphere_coll_face_prop = sphere_coll_face_props[0]
-                        sphere_coll_attribute = collision_mesh.attributes.get(sphere_coll_face_prop.attribute_name)
-                        array = np.zeros(len(collision_mesh.polygons), dtype=np.int8)
-                        sphere_coll_attribute.data.foreach_get("value", array)
-                        coll_only_array = array ^ 1
+                        coll_only_array = ~face_attributes.mask(collision_mesh, sphere_coll_face_prop)
                         utils.add_face_prop(collision_mesh, "face_mode", coll_only_array).face_mode = 'collision_only'
                     else:
                         utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'sphere_collision_only'
@@ -929,10 +932,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 for index in range(len(seam_ob.data.nwo.face_props)-1, -1, -1):
                     prop = seam_ob.data.nwo.face_props[index]
                     if prop.type == 'face_mode' and prop.face_mode == 'collision_only':
-                        attribute = seam_ob.data.attributes.get(prop.attribute_name)
-                        if attribute is not None:
-                            seam_ob.data.attributes.remove(attribute)
-                        seam_ob.data.nwo.face_props.remove(index)
+                        face_attributes.delete(seam_ob.data, index)
                 seam_ob.nwo.seam_back_manual = True
                 seam_ob.name = seam_name or f"{ob.name}_seams"
                 objects.append(seam_ob)

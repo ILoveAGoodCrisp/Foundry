@@ -63,7 +63,7 @@ class ObjectField:
 GENERATED = {'object id', 'parent object', 'editor folder', 'runtimeObjectHandle',
              'havok mopp index', 'ai spawning squad', "DON'T TOUCH THIS", 'no name',
              'pah pah', 'Entity Placeholder', 'Spawner Placeholder',
-             'manual bsp flags', 'can attach to bsp flags', 'bsp indices',
+             'manual bsp flags', 'can attach to bsp flags', 'bsp indices', 'bsp policy',
              'position', 'rotation', 'scale', 'transform flags'}
 
 
@@ -174,6 +174,7 @@ class ObjectExport:
     origin_bsp: int = -1
     mirrored: bool = False
     parent_name: str = ''
+    editor_folder: str = ''
 
 
 def name_metadata(row, game):
@@ -202,6 +203,14 @@ def replace_objects(document, placements, authored_blocks, reserved_ids=None):
     if any(point.block not in authored_blocks for point in placements):
         raise ValueError('Scenario object type is not enabled for authoring')
     root = document.tag.root()
+    existing_definitions = {block: {
+        ref.RelativePathWithExtension.replace('\\', '/').casefold()
+        for row in document.block(root, spec[1])
+        if (ref := document.reference(row, 'name')) is not None}
+        for block, spec in specs.items()}
+    from .scenario_markers import editor_folder_index
+    folder_indices = {name: editor_folder_index(document, name)
+                      for name in {point.editor_folder for point in placements}}
     bsp_refs = bsp_references(document)
     bsp_count = len(bsp_refs)
     owned_names, protected_names = set(), set()
@@ -218,7 +227,9 @@ def replace_objects(document, placements, authored_blocks, reserved_ids=None):
         path = Path(point.definition.replace('\\', '/'))
         if path.is_absolute() or '..' in path.parts or path.suffix.lower() != '.' + specs[point.block][2]:
             raise ValueError(f'{point.name}: invalid {point.block} tag path')
-        if not (document.tags_root / path).is_file():
+        # Some stock scenarios reference tags omitted from the editing kit.
+        # Keep existing references without accepting new mistyped tag paths.
+        if not (document.tags_root / path).is_file() and path.as_posix().casefold() not in existing_definitions[point.block]:
             raise FileNotFoundError(document.tags_root / path)
         try:
             values = struct.unpack('<7f', struct.pack('<7f', *point.position, *point.rotation, point.scale))
@@ -346,7 +357,7 @@ def replace_objects(document, placements, authored_blocks, reserved_ids=None):
             document._set_value(object_id, 'source', 'editor')
             document._set_value(object_id, 'origin bsp index', point.origin_bsp)
             if owner.field('editor folder') is not None:
-                document._set_value(owner, 'editor folder', -1)
+                document._set_value(owner, 'editor folder', folder_indices[point.editor_folder])
             if owner.field('transform flags') is not None:
                 document._set_value(owner, 'transform flags', int(point.mirrored))
             elif game == 'halo2':

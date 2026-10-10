@@ -43,6 +43,7 @@ class ScenarioObjectPlacement:
     folder_index: int
     parent_index: int
     bsps: frozenset[int]
+    not_automatically: bool = False
 
 
 @dataclass(frozen=True)
@@ -81,7 +82,7 @@ class ScenarioMarkerPlacement:
     name: str
     position: tuple[float, float, float]
     rotation: tuple[float, float, float]
-    options: dict[str, int]
+    options: dict[str, int | str]
 
 
 @dataclass(frozen=True)
@@ -299,23 +300,32 @@ class ScenarioDocument(TagDocument):
 
     def marker_placements(self, block_name: str) -> list[ScenarioMarkerPlacement]:
         """Read authored player starts and cutscene flags without runtime fields."""
-        from .scenario_markers import PLAYER_FIELDS
+        from .scenario_markers import PLAYER_FIELDS, editor_folder_name
         fields = block_fields(self.game, block_name)
         result = []
         for index, row in enumerate(self.block(self.tag.root(), block_name)):
+            # Serialized older tags may omit optional authoring fields that
+            # exist in the current editing kit's schema.
+            row_fields = {name: field for name in fields
+                          if (field := row.field(name)) is not None}
             point = self.value(row, 'position').to_array()
             facing = self.value(row, 'facing')
             if block_name == 'player starting locations':
-                rotation = (float(facing), float(self.value(row, 'pitch')) if 'pitch' in fields else 0., 0.)
-                options = {name: self.required_field(row, name).options().current if 'enum' in fields[name]['type']
-                           else int(self.value(row, name)) for name in PLAYER_FIELDS.values() if name in fields}
-                if 'flags' in fields:
-                    options['flags'] = sum(1 << bit for bit, _, enabled in self.required_field(row, 'flags').options().flags if enabled)
+                rotation = (float(facing), float(row_fields['pitch'].value) if 'pitch' in row_fields else 0., 0.)
+                options = {name: row_fields[name].options().current if 'enum' in fields[name]['type']
+                           else int(row_fields[name].value) for name in PLAYER_FIELDS.values() if name in row_fields}
+                if 'flags' in row_fields:
+                    options['flags'] = sum(1 << bit for bit, _, enabled in row_fields['flags'].options().flags if enabled)
                 name = f'player_start_{index}'
             else:
                 rotation = (facing.yaw, facing.pitch, getattr(facing, 'roll', 0.))
-                options = {name: int(self.value(row, name)) for name in ('editor folder', 'source bsp') if name in fields}
+                options = {name: int(row_fields[name].value) for name in ('editor folder', 'source bsp') if name in row_fields}
                 name = str(self.value(row, 'name'))
+            if 'editor folder' in options:
+                options['editor folder'] = editor_folder_name(self, options['editor folder'])
+            # Retain native BSP membership only for partial-import filtering.
+            if block_name == 'player starting locations' and 'bsp index' in row_fields:
+                options['bsp index'] = int(row_fields['bsp index'].value)
             result.append(ScenarioMarkerPlacement(name, tuple(point), rotation, options))
         return result
 
@@ -326,6 +336,9 @@ class ScenarioDocument(TagDocument):
             raise ValueError(f'Unsupported scenario marker block: {block_name}')
         fields = block_fields(self.game, block_name)
         root = self.tag.root()
+        from .scenario_markers import editor_folder_index
+        folders = {name: editor_folder_index(self, name)
+                   for name in {p.options.get('editor folder', '') for p in placements}}
         rows = self.block(root, block_name)
         names = {str(self.value(row, 'name')): index for index, row in enumerate(rows)} if block_name == 'cutscene flags' else {}
         if block_name == 'cutscene flags' and len({p.name for p in placements}) != len(placements):
@@ -340,6 +353,8 @@ class ScenarioDocument(TagDocument):
                     self.game in {'halo1', 'halo2'} and len(placement.name.encode('utf-8')) > 31):
                 raise ValueError(f'Invalid cutscene flag name: {placement.name!r}')
             for name, value in placement.options.items():
+                if name == 'editor folder':
+                    value = folders[value]
                 if name not in fields:
                     raise ValueError(f'{self.game} does not support {name} for {block_name}')
                 field = fields[name]
@@ -369,8 +384,13 @@ class ScenarioDocument(TagDocument):
                 facing.set(yaw)
                 if 'pitch' in fields:
                     self._set_value(row, 'pitch', pitch)
+                if row.field('bsp index') is not None:
+                    self._set_value(row, 'bsp index', -1)
             for name, value in placement.options.items():
-                self._set_value(row, name, value)
+                if name == 'editor folder':
+                    value = folders[value]
+                if row.field(name) is not None:
+                    self._set_value(row, name, value)
         if placements or block_name == 'player starting locations':
             self.tag_has_changes = True
 
@@ -999,7 +1019,8 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
             ))
         placements = []
 
-        for block_name, palette_name in self.OBJECT_BLOCKS:
+        from .scenario_objects import object_types
+        for block_name, palette_name, *_ in object_types(self.game):
             block = self._optional_block(root, block_name)
             palette_block = self._optional_block(root, palette_name)
             if block is None or palette_block is None:
@@ -1008,7 +1029,7 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
             for element_index, element in enumerate(block):
                 type_index = self.value(element, 'type')
                 reference = palette[type_index] if isinstance(type_index, int) and 0 <= type_index < len(palette) else None
-                definition = reference.RelativePathWithExtension if self.path_exists(reference) else None
+                definition = reference.RelativePathWithExtension if reference is not None else None
                 name_index = self.value(element, 'name')
                 if isinstance(name_index, int) and 0 <= name_index < len(object_names):
                     name = object_names[name_index]
@@ -1016,6 +1037,8 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                     name = f'{reference.ShortName}:{element_index}'
                 else:
                     name = 'object'
+                if not name and reference is not None:
+                    name = f'{reference.ShortName}:{element_index}'
 
                 # Halo 1 keeps placement in a separate struct, nested under
                 # unit properties for bipeds and vehicles. It has no scale,
@@ -1032,6 +1055,9 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 position = self.value(object_data, 'position')
                 rotation = self.value(object_data, 'rotation')
                 scale = 1.0 if self.game == 'halo1' else self.value(object_data, 'scale') or 1.0
+                placement_flags = object_data.field('not placed' if self.game == 'halo1' else 'placement flags')
+                not_automatically = (placement_flags.get_flag('automatically' if self.game == 'halo1' else 'not automatically')
+                                     if placement_flags is not None else False)
                 folder_field = object_data.field('editor folder')
                 folder_index = folder_field.value if folder_field is not None else -1
                 if not isinstance(folder_index, int):
@@ -1073,6 +1099,7 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                     folder_index=folder_index,
                     parent_index=parent_index,
                     bsps=frozenset(bsps),
+                    not_automatically=not_automatically,
                 ))
         return len(object_names), folders, placements
 
