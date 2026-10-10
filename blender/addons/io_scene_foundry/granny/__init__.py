@@ -500,9 +500,11 @@ class Granny:
         granny_model.mesh_bindings = cast(mesh_bindings, POINTER(GrannyModelMeshBinding))
         
     def _create_callback(self):
-        callback = GrannyLogCallback()
-        callback.function = GrannyCallbackType(self._new_callback_function)
-        self.set_log_callback(callback)
+        # Granny keeps the function pointer; ctypes must keep its Python owner
+        # alive for the entire writer lifetime, including warning/error paths.
+        self._log_callback = GrannyLogCallback()
+        self._log_callback.function = GrannyCallbackType(self._new_callback_function)
+        self.set_log_callback(self._log_callback)
         
     def _create_file_info(self):
         self.file_info = GrannyFileInfo()
@@ -563,8 +565,8 @@ class Granny:
     def _new_callback_function(self, callback_type, callback_origin, source_file, source_line, message, user_data):
         utils.print_warning(
             f"Granny Traceback\n" 
-            f"Type: {self._grannyget_log_message_type_string(callback_type)}\n"
-            f"Origin: {self._grannyget_log_message_origin_string(callback_origin)}\n"
+            f"Type: {self.get_log_message_type_string(callback_type)}\n"
+            f"Origin: {self.get_log_message_origin_string(callback_origin)}\n"
             f"File: {source_file}\n"
             f"Line: {source_line}\n"
             f"Message: {message}\n"

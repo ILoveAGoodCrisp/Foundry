@@ -1,4 +1,5 @@
 """Reconstruct editable Foundry objects from detached Granny source data."""
+from .. import face_attributes
 import ast
 from collections import defaultdict
 import hashlib
@@ -9,12 +10,14 @@ import re
 from types import SimpleNamespace
 
 import bpy
+from ..uv_channels import store_uv_w
 from mathutils import Matrix, Quaternion, Vector
 import numpy as np
 
 from .. import import_transform, utils
 from ..export import export_info as enums
-from .reader import GrannyReader
+from ..granny_import import GrannyReader, UnsupportedGrannyFormat
+from ..granny_import.native import NativeDecompressor, supported_platform
 
 
 def properties(props):
@@ -133,7 +136,6 @@ def gr2_scene_settings(owner):
     if getattr(owner, 'gr2_convert_scale', True):
         return scene
     return SimpleNamespace(scale='max', forward_direction=scene.forward_direction,
-                           maintain_marker_axis=scene.maintain_marker_axis,
                            asset_type=getattr(scene, 'asset_type', ''))
 
 
@@ -584,11 +586,7 @@ class GR2Importer:
             if prop.type != 'face_mode' or prop.face_mode not in {
                     'collision_only', 'sphere_collision_only', 'shadow_only', 'lightmap_only'}:
                 continue
-            attribute = mesh.attributes.get(prop.attribute_name)
-            if attribute is not None and attribute.domain == 'FACE' and attribute.data_type == 'BOOLEAN':
-                mask = np.empty(len(auxiliary), dtype=bool)
-                attribute.data.foreach_get('value', mask)
-                auxiliary |= mask
+            auxiliary |= face_attributes.mask(mesh, prop)
         # Foundry's convention materials can carry the same face semantics.
         special_slots = {i for i, material in enumerate(mesh.materials) if material is not None
                          and material.name.startswith(('+sky', '+seamsealer', '+seam'))}
@@ -939,6 +937,11 @@ class GR2Importer:
         invalid_uvs = {}
         for name, values in vertices.items():
             layer_name = source.get('component_names', {}).get(name) or name
+            # PCA tension is recalculated from deformation at export. Keep
+            # authored pca_mask weights, but do not turn sampled tension into
+            # a painted Blender color layer.
+            if layer_name.casefold() == 'tension' or name.casefold() == 'tension':
+                continue
             if name.startswith('TextureCoordinates') or name == 'lighting':
                 lighting = 'lighting' in layer_name.lower() or 'lighting' in name.lower()
                 uv = mesh.uv_layers.new(name='lighting' if lighting else layer_name)
@@ -951,7 +954,9 @@ class GR2Importer:
                 coordinates = values[loops, :2].copy()
                 coordinates[:, 1] = 1 - coordinates[:, 1]
                 uv.data.foreach_set('uv', coordinates.ravel())
-            elif name.startswith(('DiffuseColor', 'colorSet')) or name in {'tension', 'pca_mask'}:
+                if values.shape[1] > 2:
+                    store_uv_w(mesh, uv, values[loops, 2])
+            elif name.startswith(('DiffuseColor', 'colorSet')) or name.casefold() == 'pca_mask':
                 layer = mesh.color_attributes.new(name=layer_name, type='FLOAT_COLOR', domain='CORNER')
                 rgba = np.ones((len(loops), 4), dtype=np.float32)
                 rgba[:, :min(4, values.shape[1])] = values[loops, :4]
@@ -1203,20 +1208,34 @@ def resolve_granny_dll(owner):
             utils.print_warning(f'Using fallback Granny runtime: {dll_path}')
             return dll_path
     raise RuntimeError(
-        'GR2 import requires granny2_x64.dll, but it was not found in the current '
+        'This GR2 compatibility codec requires granny2_x64.dll, but it was not found in the current '
         'project or any configured Halo editing kit. The Halo Reach, Halo 4, and '
         'Halo 2 AMP editing kits contain this DLL. Add one of these editing kits '
         'as a Foundry project to use its DLL as a fallback.')
 
 
 def read_gr2(owner, path, animations=False):
-    dll_path = resolve_granny_dll(owner)
+    # Resolve a kit only for a codec that needs it. Standard geometry, curves,
+    # metadata and raw/S3TC images do not require a native runtime.
+    codecs = NativeDecompressor(lambda: resolve_granny_dll(owner), on_use=utils.print_warning)
+    reader = GrannyReader(decompress=codecs, texture_decoder=codecs.texture)
+    options = dict(animations=animations, source_game=getattr(owner, 'game', None),
+                   convert_scale=getattr(owner, 'gr2_convert_scale', True))
     try:
-        reader = GrannyReader(dll_path)
-    except OSError as exc:
-        raise RuntimeError(f'Could not load Granny runtime {dll_path}: {exc}') from exc
-    return reader.read(path, animations=animations, source_game=getattr(owner, 'game', None),
-                       convert_scale=getattr(owner, 'gr2_convert_scale', True))
+        return reader.read(path, **options)
+    except UnsupportedGrannyFormat as error:
+        if not supported_platform():
+            raise RuntimeError(str(error)) from error
+        try:
+            dll_path = resolve_granny_dll(owner)
+        except RuntimeError as missing:
+            raise RuntimeError(f'{error}. Native compatibility fallback is unavailable: {missing}') from error
+        from .reader import GrannyReader as NativeGrannyReader
+        utils.print_warning(f'Using Granny compatibility reader: {error}')
+        try:
+            return NativeGrannyReader(dll_path).read(path, **options)
+        except OSError as exc:
+            raise RuntimeError(f'Could not load Granny runtime {dll_path}: {exc}') from exc
 
 
 def import_gr2(owner, path, **kwargs):
