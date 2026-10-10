@@ -23,6 +23,7 @@ from ..tools.property_apply import apply_props_material
 from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 from ..tools import materials as special_materials
 
+from .. import face_attributes
 from .. import utils
 from .. import import_transform
 from ..tags.havok_tagfile import HavokTagfileReader
@@ -366,10 +367,7 @@ class InstanceDefinition:
                                 sphere_coll_face_props = [prop for prop in collision_mesh.nwo.face_props if prop.name == "Sphere Collision Only"]
                                 if sphere_coll_face_props:
                                     sphere_coll_face_prop = sphere_coll_face_props[0]
-                                    sphere_coll_attribute = collision_mesh.attributes.get(sphere_coll_face_prop.attribute_name)
-                                    array = np.zeros(len(collision_mesh.polygons), dtype=np.int8)
-                                    sphere_coll_attribute.data.foreach_get("value", array)
-                                    coll_only_array = array ^ 1
+                                    coll_only_array = ~face_attributes.mask(collision_mesh, sphere_coll_face_prop)
                                     utils.add_face_prop(collision_mesh, "face_mode", coll_only_array).face_mode = 'collision_only'
                                 else:
                                     utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'sphere_collision_only'
@@ -377,6 +375,7 @@ class InstanceDefinition:
                             elif not self.collision_info.sphere_collision_only:
                                 utils.add_face_prop(collision_mesh, "face_mode").face_mode = 'collision_only'
 
+                            face_attributes.prepare_join([self.blender_render.data, collision_mesh])
                             utils.save_loop_normals_mesh(self.blender_render.data)
                             bm = bmesh.new()
                             bm.from_mesh(self.blender_render.data)
@@ -387,10 +386,7 @@ class InstanceDefinition:
                             utils.apply_loop_normals(self.blender_render.data)
                             utils.set_two_sided(self.blender_render.data, False)
 
-                            for prop in collision_mesh.nwo.face_props:
-                                new_prop = self.blender_render.data.nwo.face_props.add()
-                                for k, v in prop.items():
-                                    new_prop[k] = v
+                            face_attributes.refresh_counts(self.blender_render.data)
                         else:
                             bpy.data.meshes.remove(collision_mesh)
                 else:
@@ -443,6 +439,10 @@ class InstanceDefinition:
                 from .reach_geometry import preserve_two_sided_sealers
                 preserve_two_sided_sealers(self.blender_render.data)
             repair_collision_triangulation(self.blender_render.data, 0.025 * import_transform.scale_factor())
+            if getattr(utils.get_project(), 'game', None) == 'reach':
+                from .bsp_import_geometry import needs_instance_collision_proxy
+                if result and needs_instance_collision_proxy(self.blender_render.data, 0.025 * import_transform.scale_factor()):
+                    self._restore_native_collision_proxy(render_model, temp_meshes)
 
         if self.blender_render:
             objects.append(self.blender_render)
@@ -458,6 +458,34 @@ class InstanceDefinition:
             objects.extend(self.blender_physics)
             
         return objects
+
+    def _restore_native_collision_proxy(self, render_model, temp_meshes):
+        """Keep source shading when mapped triangles cannot compile as collision."""
+        from .classic_geometry import weld_classic_vertices, dissolve_source_collision_splits
+        from .bsp_import_geometry import repair_native_collision_proxy
+
+        render = self.blender_render
+        old_mesh = render.data
+        source_objects = self.mesh.create(render_model, temp_meshes,
+                                          name=f"instance_definition:{self.index}")
+        source = source_objects[0]
+        render.data = source.data
+        render.data.nwo.proxy_cookie_cutter = old_mesh.nwo.proxy_cookie_cutter
+        for index in range(200):
+            slot = f'proxy_physics{index}'
+            setattr(render.data.nwo, slot, getattr(old_mesh.nwo, slot))
+        bpy.data.objects.remove(source)
+        if old_mesh.users == 0:
+            bpy.data.meshes.remove(old_mesh)
+        weld_classic_vertices(render.data)
+        self.blender_collision = self.collision_info.to_object()
+        self.blender_collision.name = f"{render.name}_proxy_collision"
+        self.blender_collision.nwo.proxy_type = 'collision'
+        render.data.nwo.proxy_collision = self.blender_collision
+        self.collision_is_proxy = True
+        weld_classic_vertices(self.blender_collision.data)
+        dissolve_source_collision_splits(self.blender_collision.data)
+        repair_native_collision_proxy(self.blender_collision.data, 0.025 * import_transform.scale_factor())
             
     
 class Instance:
@@ -2618,6 +2646,9 @@ class Material:
         result = cls.__new__(cls)
         result.index = record.index
         result.name = record.render_method.ShortName
+        permutation = getattr(record, 'shader_permutation', None)
+        if permutation:
+            result.name += f' permutation {permutation}'
         result.new = not bool(bpy.data.materials.get(result.name, 0))
         result.shader_path = record.render_method.RelativePathWithExtension
         result.emissive_index = record.emissive_index
@@ -2633,6 +2664,8 @@ class Material:
         result.lm_normal_absorb = record.normal_absorb
         result.emissive_invalid = False
         result.blender_material = get_blender_material(result.name, result.shader_path)
+        if permutation is not None:
+            result.blender_material['halo1_shader_permutation'] = permutation
         result.emissive = None
         if for_bsp and result.emissive_index > -1:
             if result.emissive_index < len(emissives):
@@ -3108,7 +3141,10 @@ class Mesh:
         mesh.is_halo1_bsp = getattr(geometry, 'halo1_source', None) is not None
         mesh.raw_texcoords1 = []
         mesh.raw_water_texcoords = []
+        mesh.water_triangle_uvs = {}
         if geometry.water is not None:
+            from .water_geometry import water_triangle_uvs
+            mesh.water_triangle_uvs = water_triangle_uvs(geometry.water, reverse_winding)
             mesh.raw_water_texcoords = [(0.0, 0.0)] * len(geometry.positions)
             for triangle in geometry.water.triangles:
                 for regular_index, water_index in triangle:
@@ -3766,7 +3802,7 @@ class Mesh:
         has_lighting_texcoords = (getattr(self, 'has_lightmap_uvs', False)
                                  or any(any(v) for v in lighting_texcoords))
         has_texcoords1 = bool(texcoords1) and any(any(v) for v in texcoords1)
-        has_water_texcoords = bool(water_texcoords) and any(any(v) for v in water_texcoords)
+        has_water_texcoords = bool(water_texcoords)
         uvs = self._true_uvs(texcoords) if self.bounds else [Vector((u, 1-v)) for (u, v) in texcoords]
         if has_texcoords1:
             uvs1 = self._true_uvs(texcoords1) if self.bounds else [Vector((u, 1-v)) for (u, v) in texcoords1]
@@ -3780,7 +3816,9 @@ class Mesh:
             else:
                 water_uvs_layer = mesh.uv_layers.new(name="UVMap2", do_init=False)
                 
-            water_uvs = self._true_uvs(water_texcoords) if self.bounds else [Vector((u, 1-v)) for (u, v) in water_texcoords]
+            # base_tex is a separate float stream, never compressed against
+            # the ordinary mesh texture-coordinate bounds (water_shading.fx).
+            water_uvs = [Vector((u, 1-v)) for (u, v) in water_texcoords]
             
         loop_vertex_indices = np.empty(len(mesh.loops), dtype=np.int32)
         mesh.loops.foreach_get("vertex_index", loop_vertex_indices)
@@ -3789,6 +3827,9 @@ class Mesh:
             self._set_uv_layer_data(uvs1_layer, uvs1, loop_vertex_indices)
         if has_water_texcoords:
             self._set_uv_layer_data(water_uvs_layer, water_uvs, loop_vertex_indices)
+            from .water_geometry import set_water_uv_attribute
+            set_water_uv_attribute(mesh, water_uvs_layer,
+                                   getattr(self, 'water_triangle_uvs', None), idx_start)
         if lighting_uv_layer:
             if getattr(self, 'is_halo1_bsp', False):
                 lighting_texcoords = [(u, 1 - v) for u, v in lighting_texcoords]
@@ -3965,11 +4006,6 @@ class Mesh:
             # utils.loop_normal_magic(mesh)
             
         utils.calc_face_prop_counts(mesh)
-            
-        if self.is_pca:
-            attr = mesh.color_attributes.new("tension", 'FLOAT_COLOR', 'POINT')
-            black = [0.0, 0.0, 0.0, 1.0] * len(attr.data)
-            attr.data.foreach_set("color", black)
             
         if self.uncompressed:
             utils.add_face_prop(mesh, "uncompressed")
@@ -4210,7 +4246,7 @@ class MarkerGroup:
                     Matrix.LocRotScale(marker.translation, marker.rotation, Vector.Fill(3, 1)),
                     rotate=False,
                 )
-                ob.matrix_world = import_transform.keep_marker_axis(
+                ob.matrix_world = import_transform.marker_local_axes(
                     armature.pose.bones[marker.bone].matrix @ local_matrix
                 )
 

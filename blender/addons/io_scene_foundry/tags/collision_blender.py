@@ -49,7 +49,7 @@ class CollisionTag(BlenderTag, CollisionDocument):
             local_matrix = import_transform.object_matrix(
                 Matrix.LocRotScale(Vector(sphere.center) * 100, Euler((0, 0, 0)), Vector.Fill(3, 1)),
                 rotate=armature is None)
-            ob.matrix_world = import_transform.keep_marker_axis(
+            ob.matrix_world = import_transform.marker_local_axes(
                 armature.matrix_world @ armature.pose.bones[sphere.bone].matrix @ local_matrix
                 if armature is not None else local_matrix)
             collection.objects.link(ob)

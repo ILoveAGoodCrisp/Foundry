@@ -13,6 +13,7 @@ import bmesh
 import numpy as np
 from mathutils import kdtree, bvhtree
 
+from .. import face_attributes
 from .. import utils
 
 
@@ -427,19 +428,19 @@ def _replace_faces(mesh, partitions, render):
     """Retain whole render faces; interpolate UVs/normals only at real boundaries."""
     if not mesh.polygons:
         return
+    mode = utils.add_face_prop(mesh, 'face_mode', np.zeros(len(mesh.polygons), dtype=np.int8))
+    mode.face_mode = 'render_only' if render else 'collision_only'
     bm = bmesh.new()
     try:
         bm.from_mesh(mesh)
         bm.faces.ensure_lookup_table()
         utils.save_loop_normals(bm, mesh)
-        mode = utils.add_face_prop(mesh, 'face_mode', np.ones(len(mesh.polygons), dtype=np.int8))
-        mode.face_mode = 'render_only' if render else 'collision_only'
-        layer = bm.faces.layers.bool.new(mode.attribute_name)
+        layer = face_attributes.bm_layer(bm, mode)
         original_faces = list(bm.faces)
         for index, face in enumerate(original_faces):
             uncovered, covered = partitions.get(index, ([], []))
             if not covered:
-                face[layer] = True
+                face[layer] = face_attributes.assignment_id(mode) or 1
                 continue
             if not uncovered:
                 if not render:
@@ -470,7 +471,7 @@ def _replace_faces(mesh, partitions, render):
                             continue
                         vertices = [bm.verts.new(point) for point in coords]
                         new_face = bm.faces.new(vertices, face)
-                        new_face[layer] = is_uncovered
+                        new_face[layer] = (face_attributes.assignment_id(mode) or 1) if is_uncovered else face[layer]
                         for loop in new_face.loops:
                             loop.copy_from_face_interp(face, True)
                         for j, point in enumerate(coords):
@@ -631,14 +632,14 @@ def weld_classic_vertices(mesh, *, preserve_deformation=False):
     bm = bmesh.new()
     try:
         bm.from_mesh(mesh)
-        noncollision_layers = [bm.faces.layers.bool.get(prop.attribute_name)
+        noncollision_layers = [(prop, face_attributes.bm_layer(bm, prop))
                                for prop in mesh.nwo.face_props
                                if getattr(prop, 'type', '') == 'face_mode'
                                and getattr(prop, 'face_mode', '') in
                                {'render_only', 'lightmap_only', 'shadow_only'}]
-        noncollision_layers = [layer for layer in noncollision_layers if layer is not None]
+        noncollision_layers = [(prop, layer) for prop, layer in noncollision_layers if layer is not None]
         noncollision = {face for face in bm.faces
-                        if any(face[layer] for layer in noncollision_layers)}
+                        if any(face_attributes.bm_matches(face, prop, layer) for prop, layer in noncollision_layers)}
         split_needed = any(any(f in noncollision for f in v.link_faces)
                            and any(f not in noncollision for f in v.link_faces)
                            for v in bm.verts) if noncollision else False
@@ -650,27 +651,23 @@ def weld_classic_vertices(mesh, *, preserve_deformation=False):
                 normals_saved = True
                 # Adding the normal layers can reallocate face storage.
                 noncollision = {face for face in bm.faces
-                                if any(face[layer] for layer in noncollision_layers)}
+                                if any(face_attributes.bm_matches(face, prop, layer) for prop, layer in noncollision_layers)}
             before_faces = len(bm.faces)
             bmesh.ops.split(bm, geom=list(noncollision), use_only_faces=True)
             if len(bm.faces) != before_faces:
                 raise ValueError('Separating render-only BSP topology changed the face count')
             noncollision = {face for face in bm.faces
-                            if any(face[layer] for layer in noncollision_layers)}
+                            if any(face_attributes.bm_matches(face, prop, layer) for prop, layer in noncollision_layers)}
         by_position = defaultdict(list)
         by_face = defaultdict(list)
         protected = set()
         shape_layers = tuple(bm.verts.layers.shape.values()) if preserve_deformation else ()
         deform_layer = bm.verts.layers.deform.active if preserve_deformation else None
-        source_layer = bm.verts.layers.float_vector.get('legacy_source_position')
-        import_layer = bm.verts.layers.float_vector.get('legacy_import_position')
         for vertex in bm.verts:
             role = bool(vertex.link_faces) and all(f in noncollision for f in vertex.link_faces)
             shapes = tuple(tuple(vertex[layer]) for layer in shape_layers)
             weights = tuple(sorted(vertex[deform_layer].items())) if deform_layer is not None else ()
-            source = (tuple(vertex[source_layer]) if source_layer is not None and import_layer is not None
-                      and vertex.co == vertex[import_layer] else None)
-            by_position[tuple(vertex.co), role, shapes, weights, source].append(vertex)
+            by_position[tuple(vertex.co), role, shapes, weights].append(vertex)
         for face in bm.faces:
             coords = frozenset(tuple(v.co) for v in face.verts)
             # Cross-role overlays are already protected by the weld key.
@@ -797,7 +794,7 @@ def dissolve_source_collision_splits(mesh, *, preserve_sky=False):
         plane = bm.faces.layers.int.get(attribute.name)
         if plane is None:
             return 0
-        layers = [bm.faces.layers.bool.get(prop.attribute_name)
+        layers = [face_attributes.bm_layer(bm, prop)
                   for prop in mesh.nwo.face_props]
         layers = [layer for layer in layers if layer is not None]
         sky_materials = {index for index, material in enumerate(mesh.materials)

@@ -2,6 +2,7 @@
 from collections import Counter,defaultdict
 import math
 import bmesh
+from .. import face_attributes
 
 def _projection(vertices):
     points=[tuple(v.co) for v in vertices]
@@ -156,7 +157,7 @@ def _merge_collapsed_seam_triangles(mesh):
         bm.from_mesh(mesh)
         bm.normal_update()
         plane = bm.faces.layers.int['.foundry_collision_plane']
-        layers = [bm.faces.layers.bool.get(prop.attribute_name) for prop in mesh.nwo.face_props]
+        layers = [face_attributes.bm_layer(bm, prop) for prop in mesh.nwo.face_props]
         layers = [layer for layer in layers if layer is not None]
         for face in list(bm.faces):
             if not face.is_valid or len(face.verts) != 3 or face[plane] < 0:

@@ -7,6 +7,7 @@ import bmesh
 import numpy as np
 from mathutils import kdtree
 
+from .. import face_attributes
 from .. import utils
 
 
@@ -38,8 +39,7 @@ def reconnect_collinear_triangles(mesh, tolerance=0):
         excluded = {face for face in bm.faces for prop in mesh.nwo.face_props
                     if (prop.type == 'face_mode' and prop.face_mode != 'normal'
                         or prop.type == 'face_sides' and prop.two_sided)
-                    and (attribute := mesh.attributes.get(prop.attribute_name)) is not None
-                    and attribute.data[face.index].value}
+                    and face_attributes.matches(mesh, prop, face.index)}
         for face in list(bm.faces):
             if not face.is_valid or face in excluded or face[plane] < 0 or len(face.verts) != 3:
                 continue
@@ -68,6 +68,12 @@ def reconnect_collinear_triangles(mesh, tolerance=0):
                 continue
             triangles = ((a, c, d), (c, b, d))
             if any((y.co-x.co).cross(z.co-x.co).dot(other.normal) <= 0 for x,y,z in triangles):
+                continue
+            # A junction near another corner can merely transfer the sliver
+            # to the adjoining face. Tool must be able to retain both halves.
+            if any((y.co-x.co).cross(z.co-x.co).length / max(
+                    (y.co-x.co).length, (z.co-y.co).length, (x.co-z.co).length
+                    ) <= epsilon * 2 for x, y, z in triangles):
                 continue
             original = {loop.vert: loop for loop in other.loops}
             for vertices in triangles:
@@ -133,8 +139,7 @@ def recover_folded_patch_boundaries(mesh, tolerance):
         excluded = {face for face in bm.faces for prop in mesh.nwo.face_props
                     if (prop.type=='face_mode' and prop.face_mode!='normal'
                         or prop.type=='face_sides' and prop.two_sided)
-                    and (a:=mesh.attributes.get(prop.attribute_name)) is not None
-                    and a.data[face.index].value}
+                    and face_attributes.matches(mesh, prop, face.index)}
         uv_layers = list(bm.loops.layers.uv.values())
         color_layers = [*bm.loops.layers.color.values(),*bm.loops.layers.float_color.values()]
         pairs = set()
@@ -278,9 +283,7 @@ def recover_mapped_collision(collision_mesh, render_meshes, tolerance):
         for prop in mesh.nwo.face_props:
             if (prop.type == 'face_mode' and prop.face_mode == 'render_only'
                     or prop.type == 'face_sides' and prop.two_sided):
-                attribute = mesh.attributes.get(prop.attribute_name)
-                if attribute is not None:
-                    excluded.update(i for i, value in enumerate(attribute.data) if value.value)
+                excluded.update(i for i, value in enumerate(face_attributes.mask(mesh, prop)) if value)
         for face in mesh.polygons:
             if face.index in excluded:
                 continue
@@ -372,13 +375,11 @@ def retriangulate_render_slivers(mesh, tolerance, *, collision_only=False,
                     if (prop.type == 'face_mode' and prop.face_mode not in
                         ({'normal', 'collision_only'} if collision_only else {'normal'})
                         or prop.type == 'face_sides' and prop.two_sided)
-                    and mesh.attributes.get(prop.attribute_name) is not None
-                    and mesh.attributes[prop.attribute_name].data[f.index].value}
+                    and face_attributes.matches(mesh, prop, f.index)}
         if collision_only:
             helpers = {f for f in bm.faces for prop in mesh.nwo.face_props
                        if prop.type == 'face_mode' and prop.face_mode == 'collision_only'
-                       and mesh.attributes.get(prop.attribute_name) is not None
-                       and mesh.attributes[prop.attribute_name].data[f.index].value}
+                       and face_attributes.matches(mesh, prop, f.index)}
             excluded.update(f for f in bm.faces if f not in helpers)
 
         def altitude(points):
@@ -468,9 +469,7 @@ def repair_collision_triangulation(mesh, tolerance):
     helpers = set()
     for prop in mesh.nwo.face_props:
         if prop.type == 'face_mode' and prop.face_mode == 'collision_only':
-            attribute = mesh.attributes.get(prop.attribute_name)
-            if attribute is not None:
-                helpers.update(i for i, value in enumerate(attribute.data) if value.value)
+            helpers.update(i for i, value in enumerate(face_attributes.mask(mesh, prop)) if value)
     if not helpers:
         return 0
     candidate = mesh.copy()
@@ -509,3 +508,116 @@ def repair_collision_triangulation(mesh, tolerance):
         return changed
     finally:
         bpy.data.meshes.remove(candidate)
+
+
+def needs_instance_collision_proxy(mesh, tolerance):
+    """Find mapped physical triangles which the import repairs could not save."""
+    planes = mesh.attributes.get('.foundry_collision_plane')
+    if planes is None or not mesh.polygons:
+        return False
+    excluded = set()
+    for prop in mesh.nwo.face_props:
+        if (prop.type == 'face_mode' and prop.face_mode not in {'normal', 'collision_only'}
+                or prop.type == 'face_sides' and prop.two_sided):
+            excluded.update(i for i, value in enumerate(face_attributes.mask(mesh, prop)) if value)
+    positions = np.empty((len(mesh.vertices), 3), dtype=np.float64)
+    mesh.vertices.foreach_get('co', positions.ravel())
+    mesh.calc_loop_triangles()
+    for triangle in mesh.loop_triangles:
+        index = triangle.polygon_index
+        if index in excluded or planes.data[index].value < 0:
+            continue
+        a, b, c = positions[list(triangle.vertices)]
+        longest = max(np.linalg.norm(a-b), np.linalg.norm(b-c), np.linalg.norm(c-a))
+        if longest == 0 or np.linalg.norm(np.cross(b-a, c-a)) <= tolerance * longest:
+            return True
+    return False
+
+
+def repair_native_collision_proxy(mesh, tolerance):
+    """Retriangulate native physical outlines, preserving positions and flags.
+
+    A thin mapped render face may border a UV or normal seam. Its native
+    collision shell has no shading seams, so it can use a different diagonal.
+    Include the entire adjoining polygon: triangulating that polygon first
+    can leave another narrow triangle on either possible local diagonal.
+    """
+    if mesh.has_custom_normals or mesh.uv_layers or not needs_instance_collision_proxy(mesh, tolerance):
+        return 0
+    from .collision_outline import _stable_triangles
+
+    bm = bmesh.new()
+    changed = 0
+    try:
+        bm.from_mesh(mesh)
+        plane = bm.faces.layers.int['.foundry_collision_plane']
+        attributes = [a for a in mesh.attributes if a.domain == 'FACE'
+                      and not a.name.startswith('.') and a.data_type in {'BOOLEAN', 'INT', 'FLOAT'}]
+        identities = {f: (f.material_index, tuple(a.data[f.index].value for a in attributes))
+                      for f in bm.faces}
+        excluded = {f for f in bm.faces for prop in mesh.nwo.face_props
+                    if (prop.type == 'face_mode' and prop.face_mode not in {'normal', 'collision_only'}
+                        or prop.type == 'face_sides' and prop.two_sided)
+                    and face_attributes.matches(mesh, prop, f.index)}
+
+        def altitude(vertices):
+            a, b, c = (v.co for v in vertices)
+            longest = max((a-b).length, (b-c).length, (c-a).length)
+            return (b-a).cross(c-a).length / longest if longest else 0
+
+        for face in list(bm.faces):
+            if (not face.is_valid or face in excluded or face[plane] < 0
+                    or len(face.verts) != 3):
+                continue
+            width = altitude(face.verts)
+            if width > tolerance:
+                continue
+            choices = []
+            for edge in face.edges:
+                if len(edge.link_faces) != 2 or not edge.is_contiguous:
+                    continue
+                other = next(f for f in edge.link_faces if f != face)
+                if other in excluded or other[plane] < 0 or identities[face] != identities[other]:
+                    continue
+                c = next(v for v in face.verts if v not in edge.verts)
+                if c in other.verts or abs((c.co-edge.verts[0].co).dot(other.normal)) > tolerance:
+                    continue
+                ring = []
+                for loop in other.loops:
+                    ring.append(loop.vert)
+                    if loop.edge == edge:
+                        ring.append(c)
+                triangles = _stable_triangles(ring)
+                if not triangles or any((y.co-x.co).cross(z.co-x.co).dot(other.normal) <= 0
+                                        for x, y, z in triangles):
+                    continue
+                quality = min(altitude(t) for t in triangles)
+                if quality < max(tolerance * 2, width * 4):
+                    continue
+                outer = {frozenset((a, b)) for a, b in zip(ring, ring[1:] + ring[:1])}
+                if any((existing := bm.edges.get((a, b))) is not None
+                       and frozenset((a, b)) not in outer
+                       and any(f not in (face, other) for f in existing.link_faces)
+                       for tri in triangles for a, b in zip(tri, tri[1:] + tri[:1])):
+                    continue
+                choices.append((quality, other, edge, triangles))
+            if not choices:
+                continue
+            _, other, edge, triangles = max(choices, key=lambda choice: choice[0])
+            source_plane = face[plane] if face[plane] == other[plane] else -1
+            for triangle in triangles:
+                new = bm.faces.new(triangle, other)
+                new[plane] = source_plane
+                identities[new] = identities[other]
+            bm.faces.remove(face)
+            bm.faces.remove(other)
+            bm.edges.remove(edge)
+            changed += 1
+        bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 3])
+        bm.to_mesh(mesh)
+    finally:
+        bm.free()
+    mesh.update()
+    changed += retriangulate_render_slivers(mesh, tolerance)
+    utils.calc_face_prop_counts(mesh)
+    return changed
