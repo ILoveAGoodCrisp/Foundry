@@ -25,6 +25,7 @@ from ..constants import (
 from .backend import TagDocument, TagReference
 from .blender import BlenderTag
 from .metadata import enum_index
+from .. import utils
 
 
 @dataclass(frozen=True)
@@ -663,8 +664,14 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 if following == first:
                     break
                 current = following
-            if len(polygon) < 3 or len(set(polygon)) != len(polygon):
-                raise ValueError(f'{self.path}: {label} has a degenerate surface')
+            degenerate = len(polygon) < 3 or len(set(polygon)) != len(polygon)
+            if degenerate:
+                utils.print_warning(
+                    f'{self.path}: {label} surface {surface_index} is degenerate; '
+                    'skipping collision face')
+                # Keep the slot for compiler surface-to-triangle mappings and
+                # edge ownership. Only the unbuildable collision face is lost.
+                polygon = []
             flags = self.required_field(surface, 'flags')
             breakable = flags.get_flag('breakable')
             invisible = flags.get_flag('invisible')
@@ -680,7 +687,7 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 index=surface_index,
                 material_index=int(self.value(surface, 'material')),
                 negated=negated,
-                invalid=False if self.game == 'halo1' else flags.get_flag('invalid'),
+                invalid=degenerate or (False if self.game == 'halo1' else flags.get_flag('invalid')),
                 ladder=flags.get_flag('climbable'),
                 breakable=breakable,
                 slip_surface=False if self.game in {'halo1', 'halo2'} else flags.get_flag('slip'),

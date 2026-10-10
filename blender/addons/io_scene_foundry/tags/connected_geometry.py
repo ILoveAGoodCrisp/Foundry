@@ -1564,19 +1564,25 @@ class BSP:
 
     def to_object(self, mesh_only=False, surface_indices=[], cookie_cutter=False) -> bpy.types.Object:
                 
-        indices = self.yield_indices()
+        # Native readers retain empty slots for degenerate collision surfaces
+        # so compiler mappings keep their original indices. Blender face data
+        # and properties must instead use only the emitted faces.
+        face_data = [(surface, polygon)
+                     for surface, polygon in zip(self.surfaces, self.yield_indices())
+                     if len(polygon) >= 3 and len(set(polygon)) == len(polygon)]
+        surfaces = [surface for surface, _ in face_data]
         # Create the bpy mesh
         mesh = bpy.data.meshes.new(self.name)
         vertices, transform = self._blender_geometry()
-        mesh.from_pydata(vertices=vertices, edges=[], faces=list(indices))
+        mesh.from_pydata(vertices=vertices, edges=[], faces=[polygon for _, polygon in face_data])
         mesh.transform(transform)
         if hasattr(self, 'native_planes'):
             attribute = mesh.attributes.new('.foundry_collision_plane', 'INT', 'FACE')
-            attribute.data.foreach_set('value', [s.plane_index for s in self.surfaces])
+            attribute.data.foreach_set('value', [s.plane_index for s in surfaces])
         any_ladder = any_breakable = any_slip = any_invisible = False
         # Check if we need to set any per face properties
         map_material, map_two_sided, map_ladder, map_breakable, map_slip, map_negated, map_invalid, map_invisible = [], [], [], [], [], [], [], []
-        for surface in self.surfaces:
+        for surface in surfaces:
             material = surface.material
             two_sided = surface.two_sided
             ladder = surface.ladder
@@ -1643,14 +1649,14 @@ class BSP:
                     else:
                         mesh.materials.append(mat.blender_material)
                         blender_materials_map[mat] = idx
-            elif surface.material:
+            elif surfaces and surface.material:
                 mesh.materials.append(surface.material.blender_material)
 
             global_material_override_masks = {}
             for surface_index, material in enumerate(map_material):
                 override = getattr(material, "global_material_override", "") if material is not None else ""
                 if override:
-                    global_material_override_masks.setdefault(override, np.zeros(len(self.surfaces), dtype=np.int8))[surface_index] = 1
+                    global_material_override_masks.setdefault(override, np.zeros(len(surfaces), dtype=np.int8))[surface_index] = 1
             for override, mask in global_material_override_masks.items():
                 utils.add_face_prop(mesh, "global_material", None if mask.all() else mask).global_material = override
         
@@ -1671,7 +1677,7 @@ class BSP:
                 mesh.polygons.foreach_set("material_index", material_indices)
         elif not cookie_cutter:
             if split_material:
-                indices = np.asarray([s.material.index for s in self.surfaces])
+                indices = np.asarray([s.material.index for s in surfaces])
                 for mat in materials_set:
                     material_indices = indices == mat.index
                     utils.add_face_prop(mesh, "global_material", material_indices).global_material = mat.name
@@ -1699,7 +1705,9 @@ class BSP:
             
                     
         if surface_indices:
-            to_remove.update({idx for idx in range(len(bm.faces)) if idx not in set(surface_indices)})
+            selected_surfaces = set(surface_indices)
+            to_remove.update(idx for idx, surface in enumerate(surfaces)
+                             if surface.index not in selected_surfaces)
         
         if to_remove:
             bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
