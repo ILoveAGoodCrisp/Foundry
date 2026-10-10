@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.15,<2"]
+build-backend = "maturin"
+
+[project]
+name = "foundry-granny"
+version = "0.1.1"
+description = "Independent compiled GR2 writer for Foundry"
+requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
+
+[tool.maturin]
+bindings = "pyo3"
+module-name = "foundry_granny"
