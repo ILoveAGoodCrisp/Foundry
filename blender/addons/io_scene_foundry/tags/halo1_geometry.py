@@ -59,7 +59,7 @@ def vertex_streams(uncompressed, compressed, rendered_count, lighting_count, lab
     return streams
 
 
-def render_scene(document):
+def render_scene(document, *, import_collision=True):
     """Return the classic scene contract with complete H1 render metadata.
 
     Uses the low-level native field API, so existing bundled wheels can expose
@@ -152,9 +152,11 @@ def render_scene(document):
     source['tag_path'] = str(document.path)
     mesh['halo1_source'] = source
 
-    objects, instances = [mesh], [dict(object_index=0, name='compiled_render',
+    objects, instances = [mesh], [dict(object_index=0, name='render_geometry',
                                      rotation=(0., 0., 0., 1.), translation=(0., 0., 0.),
                                      scale=1., mesh_type='render', reference='')]
+    if not import_collision:
+        return dict(materials=names, material_paths=paths, objects=objects, instances=instances)
     # Collision indices belong to edge rings, not the render triangle table.
     collision_slots = [slot(reference.ShortName if reference else 'default',
                             reference.RelativePathWithExtension if reference else '')

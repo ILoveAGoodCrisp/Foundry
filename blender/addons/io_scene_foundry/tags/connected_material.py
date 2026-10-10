@@ -763,6 +763,7 @@ class Function:
     def __init__(self):
         self.animated_type = AnimatedParameterType.VALUE
         self.time_period = 0.0
+        self.is_clamped = True
         self.input = ""
         self.uses_input = False
         self.range = ""
@@ -786,7 +787,9 @@ class Function:
         self.is_exclusion = False
         self.exclusion_min = 0
         self.exclusion_max = 0
-        self.colors = [tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1)), tuple((1, 1, 1))]
+        # Unauthored endpoints still reach Blender color sockets (e.g. ranged
+        # one-color functions), which require RGBA rather than RGB defaults.
+        self.colors = [(1.0, 1.0, 1.0, 1.0) for _ in range(4)]
         self.control_points = []
         
         self.time_period = 0
@@ -836,6 +839,7 @@ class Function:
         editor = element.SelectField(block_name).Value
         self.editor = editor
         self.is_ranged = editor.IsRanged
+        self.is_clamped = getattr(editor, 'IsClamped', True)
         self.master_type = FunctionEditorMasterType(editor.MasterType.value__)
         self.color_type = FunctionEditorColorGraphType(editor.ColorGraphType.value__)
         self.is_color = self.color_type != FunctionEditorColorGraphType.Scalar
@@ -921,12 +925,12 @@ class Function:
                 self.mins = [editor.GetAmplitudeMin(i) for i in graph_range]
                 self.maxes = [editor.GetAmplitudeMax(i) for i in graph_range]
             case FunctionEditorMasterType.Curve:
-                for i in graph_range:
-                    input_segment_count = editor.GetSegmentCount(0)
+                for graph_index in graph_range:
+                    input_segment_count = editor.GetSegmentCount(graph_index)
                     control_point_index = 0
                     segments = []
                     for i in range(input_segment_count):
-                        segment = Segment(0, i)
+                        segment = Segment(graph_index, i)
                         control_point_index = segment.from_editor(editor, control_point_index)
                         segments.append(segment)
                     
@@ -968,6 +972,8 @@ class Function:
 
     def driver_expression(self, variable, time='frame/30'):
         """Scalar counterpart of the shader graph for non-socket properties."""
+        if hasattr(self, 'native_function_type'):
+            return self._modern_driver_expression(variable, time)
         from .function_driver import linear_expression, periodic_expression
 
         value = variable(self.input) if self.uses_input else '1.0'
@@ -1012,6 +1018,69 @@ class Function:
                 result = f'max({result},{self.min_value:.9g})'
             if self.turn_off_with:
                 result = f'({result} if {variable(self.turn_off_with)} else 0)'
+        return result
+
+    def _modern_driver_expression(self, variable, time):
+        """Modern scalar mappings for object properties and image sequences.
+
+        Keep the classic H1/H2 evaluators independent. Shader sockets use Scene
+        Time; Blender image-user frame offsets still require a scalar driver.
+        """
+        from .function_driver import linear_expression, periodic_expression, fraction_expression
+        uses_time = (self.is_object_function and self.master_type == FunctionEditorMasterType.Periodic
+                     or not self.is_object_function and not self.is_light_function
+                     and (not self.uses_input or self.input in {'time', 'unique_id'}))
+        value = variable(self.input) if self.uses_input else '1.0'
+        if uses_time:
+            value = f'(({time})/{self.time_period if self.time_period > 0 else 1.:.9g})'
+            if self.master_type != FunctionEditorMasterType.Periodic:
+                value = fraction_expression(value)
+        if self.master_type == FunctionEditorMasterType.Basic:
+            normalized = variable(self.range) if self.is_ranged else '0.0'
+        else:
+            graphs = []
+            for index in range(self.graph_count):
+                if self.master_type == FunctionEditorMasterType.Curve:
+                    points = []
+                    for segment in self.graph_segments[index]:
+                        points.extend((point.x, point.y) for point in segment.control_points)
+                        if segment.type != FunctionEditorSegmentType.Linear:
+                            points.extend((x, y) for x, y, _ in self.sample(
+                                segment.control_points[0].x, segment.control_points[-1].x, 128, index))
+                    shape = linear_expression(points, value)
+                else:
+                    if self.master_type == FunctionEditorMasterType.Periodic:
+                        phase = f'({value})*{self.frequencies[index]:.9g}+{self.phases[index]:.9g}'
+                        name = self.periodic_functions[index]
+                        # H1's cosine helper starts at zero; modern HLSL starts at one.
+                        shape = (f'(0.5+0.5*cos(2*pi*({phase})))' if name.startswith('cosine')
+                                 else periodic_expression(name, phase))
+                    elif self.master_type == FunctionEditorMasterType.Exponent:
+                        shape = f'pow(max({value},0),{self.exponents[index]:.9g})'
+                    else:
+                        x = f'max({value},0)'
+                        shape = {'linear':x, 'early':f'sqrt({x})', 'very early':f'sqrt(sqrt({x}))',
+                                 'late':f'pow({x},2)', 'very late':f'pow({x},4)',
+                                 'cosine':f'cos(2*pi*(({x})+1))', 'one':'1.0', 'zero':'0.0'}[self.transition_functions[index]]
+                    shape = f'({self.mins[index]:.9g}+{self.maxes[index]-self.mins[index]:.9g}*({shape}))'
+                graphs.append(shape)
+            normalized = graphs[0]
+            if len(graphs) > 1:
+                factor = variable(self.range) if self.range else '0.0'
+                normalized = f'({graphs[0]}+({graphs[1]}-{graphs[0]})*({factor}))'
+            if self.is_exclusion:
+                normalized = f'({normalized}+({self.exclusion_max-self.exclusion_min:.9g} if {normalized}>{self.exclusion_min:.9g} else 0))'
+        if self.is_clamped:
+            normalized = f'min(max({normalized},0),1)'
+        result = f'({self.clamp_min:.9g}+{self.clamp_max-self.clamp_min:.9g}*({normalized}))'
+        if self.is_object_function:
+            if self.invert:result = f'(1-({result}))'
+            if self.scale_by:result = f'({result}*({variable(self.scale_by)}))'
+            if self.min_value:result = f'({result} if {result}>{self.min_value:.9g} else 0)'
+            if self.turn_off_with:result = f'({result} if {variable(self.turn_off_with)}>0 else 0)'
+        if self.output_modifier_type != OutputModifierType.NONE:
+            operator = '*' if self.output_modifier_type == OutputModifierType.TIMES else '+'
+            result = f'({result}{operator}({variable(self.output_modifier)}))'
         return result
 
     def _read_halo2_legacy_mapping(self, data: bytes) -> None:
@@ -1187,6 +1256,12 @@ class Function:
             self._read_halo2_legacy_mapping(data)
             return
         self.editor = TagFunctionEditor(data)
+        self.is_clamped = bool(data[1] & 4)
+        # evaluate_shape includes exclusion. Sample the raw curve here because
+        # the Exclusion helper applies it after the two graphs are blended.
+        curve_data = bytearray(data)
+        curve_data[1] &= ~8
+        self._curve_editor = TagFunctionEditor(bytes(curve_data))
         self.native_function_type = data[0]
         description = self.editor.describe()
         self.is_ranged = description['is_ranged']
@@ -1251,11 +1326,11 @@ class Function:
             t = i / sample_count
             x = start + (end - start) * t
             if hasattr(self.editor, 'evaluate_shape') and self.master_type == FunctionEditorMasterType.Curve:
-                y = self.editor.evaluate_shape(x, float(graph_index))
+                y = getattr(self, '_curve_editor', self.editor).evaluate_shape(x, float(graph_index))
             else:
                 evaluate = getattr(self.editor, 'evaluate', None) or self.editor.Evaluate
                 y = evaluate(x, x)
-            sampled_points.append((x, y, 'AUTO'))
+            sampled_points.append((x, y, 'VECTOR'))
         return sampled_points
     
     def _graph_to_nodes(self, tree: bpy.types.NodeTree, graph_index: int, uses_time_period: bool) -> list[bpy.types.NodeSocket]:
@@ -1270,6 +1345,7 @@ class Function:
         match self.master_type:
             case FunctionEditorMasterType.Curve:
                 curve_node = tree.nodes.new('ShaderNodeFloatCurve')
+                curve_node.mapping.use_clip = False
                 curve = curve_node.mapping.curves[0]
                 curve_points = []
                 for segment in self.graph_segments[graph_index]:
@@ -1277,9 +1353,9 @@ class Function:
 
                     if segment.type != FunctionEditorSegmentType.Linear:
                         # Blender float curves don't allow for handle control, so sampling the value to add more points for accuracy
-                        curve_points.append((cp0.x, cp0.y, 'AUTO'))
-                        curve_points.append((cp1.x, cp1.y, 'AUTO'))
-                        curve_points.extend(self.sample(cp0.x, cp1.x, 16, graph_index=graph_index))
+                        curve_points.append((cp0.x, cp0.y, 'VECTOR'))
+                        curve_points.append((cp1.x, cp1.y, 'VECTOR'))
+                        curve_points.extend(self.sample(cp0.x, cp1.x, 128, graph_index=graph_index))
                     else:
                         curve_points.append((cp0.x, cp0.y, 'VECTOR'))
                         curve_points.append((cp1.x, cp1.y, 'VECTOR'))
@@ -1304,7 +1380,7 @@ class Function:
                 periodic_node = tree.nodes.new('ShaderNodeGroup')
                 periodic_node.node_tree = utils.add_node_from_resources("reach_nodes", f"periodic function type - {periodic_function}")
                 if periodic_function not in {"one", "zero"}:
-                    periodic_node.inputs[1].default_value = 1.0 if uses_time_period and periodic_frequency else periodic_frequency
+                    periodic_node.inputs[1].default_value = periodic_frequency
                     periodic_node.inputs[2].default_value = self.phases[graph_index]
                 tree.links.new(input=map_range_node.inputs[0], output=periodic_node.outputs[0])
                 first_node_input = periodic_node.inputs[0]
@@ -1322,22 +1398,27 @@ class Function:
                 first_node_input = transition_node.inputs[0]
                 
         if uses_time_period:
-            time_node = tree.nodes.new('ShaderNodeGroup')
-            time_node.node_tree = utils.add_node_from_resources("shared_nodes", "Time Period")
-            time_period = 0.0 if self.is_object_function else self.time_period
-            if self.master_type == FunctionEditorMasterType.Periodic and periodic_function not in {"one", "zero"}:
-                periodic_frequency = self.frequencies[graph_index]
-                if periodic_frequency:
-                    time_period = (time_period if time_period > 0 else 1.0) / periodic_frequency
-
-            time_node.inputs[0].default_value = time_period
-            if self.uses_input and not self.is_object_function:
-                attribute_node = add_attribute_node(tree, self.input)
-                self.input_uses_group_node = attribute_node.bl_idname == 'ShaderNodeGroup'
-                tree.links.new(input=time_node.inputs[1], output=attribute_node.outputs[2] if attribute_node.bl_idname == 'ShaderNodeAttribute' else attribute_node.outputs[0])
-            else:
-                time_node.inputs[1].default_value = 1.0
-            tree.links.new(input=first_node_input, output=time_node.outputs[0])
+            clock = tree.nodes.new('GeometryNodeInputSceneTime')
+            time_output = clock.outputs['Seconds']
+            if self.input == 'unique_id' or (self.is_object_function and self.random_time_offset):
+                random = tree.nodes.new('ShaderNodeObjectInfo')
+                add = tree.nodes.new('ShaderNodeMath')
+                add.operation = 'ADD'
+                tree.links.new(time_output, add.inputs[0])
+                tree.links.new(random.outputs['Random'], add.inputs[1])
+                time_output = add.outputs[0]
+            divide = tree.nodes.new('ShaderNodeMath')
+            divide.operation = 'DIVIDE'
+            divide.label = 'Time in seconds / period'
+            divide.inputs[1].default_value = self.time_period if self.time_period > 0 else 1.0
+            tree.links.new(time_output, divide.inputs[0])
+            time_output = divide.outputs[0]
+            if self.master_type != FunctionEditorMasterType.Periodic:
+                wrap = tree.nodes.new('ShaderNodeMath')
+                wrap.operation = 'FRACT'
+                tree.links.new(time_output, wrap.inputs[0])
+                time_output = wrap.outputs[0]
+            tree.links.new(time_output, first_node_input)
         else:
             attribute_node = add_attribute_node(tree, self.input)
             self.input_uses_group_node = attribute_node.bl_idname == 'ShaderNodeGroup'
@@ -1383,7 +1464,9 @@ class Function:
                     node_range = tree.nodes.new('ShaderNodeValue')
                     node_range.outputs[0].default_value = clamp_max
                     node_mix = tree.nodes.new('ShaderNodeMix')
+                    node_mix.clamp_factor = self.is_clamped
                     node_attribute = add_attribute_node(tree, self.range)
+                    self.range_uses_group_node = node_attribute.bl_idname == 'ShaderNodeGroup'
                     tree.links.new(input=node_mix.inputs["A"], output=node.outputs[0])
                     tree.links.new(input=node_mix.inputs["B"], output=node_range.outputs[0])
                     tree.links.new(input=node_mix.inputs["Factor"], output=node_attribute.outputs[2] if node_attribute.bl_idname == 'ShaderNodeAttribute' else node_attribute.outputs[0])
@@ -1391,16 +1474,20 @@ class Function:
                 node = tree.nodes.new('ShaderNodeRGB')
                 node.outputs[0].default_value = self.colors[0]
                 if self.is_ranged:
-                    node_range = tree.nodes.new('ShaderNodeRGB')
-                    node_range.outputs[0].default_value = self.colors[1]
-                    node_mix = tree.nodes.new('ShaderNodeMix')
-                    node_mix.data_type = 'RGBA'
+                    count = max(2, self.color_type.value)
+                    node_mix = tree.nodes.new('ShaderNodeGroup')
+                    node_mix.node_tree = utils.add_node_from_resources('reach_nodes', f'Function - {count}-color')
+                    for index in range(count):
+                        node_mix.inputs[index + 1].default_value = self.colors[0 if self.color_type == FunctionEditorColorGraphType.OneColor else index]
                     node_attribute = add_attribute_node(tree, self.range)
-                    tree.links.new(input=node_mix.inputs["A"], output=node.outputs[0])
-                    tree.links.new(input=node_mix.inputs["B"], output=node_range.outputs[0])
-                    tree.links.new(input=node_mix.inputs["Factor"], output=node_attribute.outputs[0])
+                    self.range_uses_group_node = node_attribute.bl_idname == 'ShaderNodeGroup'
+                    tree.links.new(input=node_mix.inputs[0], output=node_attribute.outputs[2] if node_attribute.bl_idname == 'ShaderNodeAttribute' else node_attribute.outputs[0])
+                    tree.nodes.remove(node)
             
-            output = (node_mix if self.is_ranged else node).outputs[0]
+            if self.is_ranged:
+                output = node_mix.outputs[0]
+            else:
+                output = node.outputs[0]
             output = self._apply_output_modifier(tree, output, max_value if normalize else None)
             if return_node_group:
                 tree.links.new(input=group_output.inputs[0], output=output)
@@ -1426,7 +1513,7 @@ class Function:
                     
                     if self.scale_by:
                         scale_by_attr_node = add_attribute_node(tree, self.scale_by)
-                        tree.links.new(input=object_function_node.inputs[4], output=scale_by_attr_node.outputs[2] if scale_by_attr_node.bl_idname == 'ShaderNodeAttribute' else scale_by_attr_node.outputs[0])
+                        tree.links.new(input=object_function_node.inputs['Scale By'], output=scale_by_attr_node.outputs[2] if scale_by_attr_node.bl_idname == 'ShaderNodeAttribute' else scale_by_attr_node.outputs[0])
                     
                     object_function_node.inputs[3].default_value = self.min_value
                     
@@ -1434,7 +1521,8 @@ class Function:
                         turn_off_attr_node = add_attribute_node(tree, self.turn_off_with)
                         tree.links.new(input=object_function_node.inputs[4], output=turn_off_attr_node.outputs[2] if turn_off_attr_node.bl_idname == 'ShaderNodeAttribute' else turn_off_attr_node.outputs[0])
                     
-                    object_function_node.inputs[5].default_value = self.random_time_offset
+                    # Random phase belongs before evaluation, not on its output.
+                    object_function_node.inputs[5].default_value = False
 
                     tree.links.new(input=object_function_node.inputs[0], output=function_node.outputs[0])
 
@@ -1459,6 +1547,12 @@ class Function:
                 function_node.inputs[4].default_value = self.colors[3]
                 
         first_node_input = function_node.inputs[0]
+
+        if self.color_type == FunctionEditorColorGraphType.Scalar and self.is_clamped:
+            clamp = tree.nodes.new('ShaderNodeClamp')
+            clamp.label = 'Tag: clamp normalized output'
+            tree.links.new(clamp.outputs[0], first_node_input)
+            first_node_input = clamp.inputs[0]
                 
         if self.master_type != FunctionEditorMasterType.Basic and self.is_exclusion:
             exclusion_node = tree.nodes.new('ShaderNodeGroup')
@@ -1473,15 +1567,15 @@ class Function:
             utils.get_prefs().import_shaders_with_time_period
             and not self.is_object_function
             and not self.is_light_function
-            and (force_time_period or self.animated_type in shader_time_period_animation_types)
+            # An authored input is a state value, never a clock multiplier.
+            # Time also drives color/alpha functions, not only scalar/UV ones.
+            and (not self.uses_input or self.input in {'time', 'unique_id'})
         )
-        uses_time_period = (
-            self.color_type == FunctionEditorColorGraphType.Scalar
-            and (uses_object_periodic_time or uses_shader_time_period)
-        )
+        uses_time_period = uses_object_periodic_time or uses_shader_time_period
         outputs = [self._graph_to_nodes(tree, i, uses_time_period) for i in range(self.graph_count)]
         if len(outputs) > 1:
             graph_mix_node = tree.nodes.new('ShaderNodeMix')
+            graph_mix_node.clamp_factor = False
             tree.links.new(input=graph_mix_node.inputs["A"], output=outputs[0])
             tree.links.new(input=graph_mix_node.inputs["B"], output=outputs[1])
             graph_mix_node.inputs["Factor"].default_value = 0

@@ -7,6 +7,12 @@ from .connected_material import AnimatedParameterType
 
 def write_shader(shader):
     kind = shader.system_path.suffix[1:].lower()
+    from .halo1_transparent_io import KINDS, write_shader as write_transparent
+    if kind in KINDS:
+        return write_transparent(shader)
+    if kind == 'shader_transparent_generic':
+        from .halo1_generic_io import write_generic_shader
+        return write_generic_shader(shader)
     if kind not in {'shader_model', 'shader_environment'}:
         raise ValueError(f'Linked Halo 1 export is not supported for {kind}; create an empty tag instead')
     root = shader.tag.root()
@@ -19,6 +25,13 @@ def write_shader(shader):
 
     def menu(struct, name, value):
         # Reverse the display spelling used by _to_nodes_halo1_group.
+        if isinstance(value, (int, float)):
+            field = shader.required_field(struct, name)
+            index = int(value)
+            if not 0 <= index < len(field.options().names):
+                raise ValueError(f'Unknown {kind} {name} index: {index}')
+            field.set(index)
+            return
         value = value.replace('multipurpose map alpha', 'auxiliary mask')
         key = lambda text: ''.join(c for c in text.casefold() if c.isalnum())
         field = shader.required_field(struct, name)
@@ -72,8 +85,18 @@ def write_shader(shader):
     # Invert the model/environment resource importer, including external bitmap
     # nodes, UV scales, display menus, reflection and static illumination bounds.
     def input_default(socket):
+        if socket.name.startswith('Plasma Animation '):
+            node_name = group.get('h1_plasma_animation_node')
+            source = group.id_data.nodes.get(node_name) if node_name else None
+            if source is not None:
+                control = source.inputs.get(socket.name.replace('Plasma ', '', 1))
+                if control is not None:
+                    return control.default_value
         if socket.is_linked:
             source = socket.links[0].from_node
+            if source.type == 'VALUE' and source.get('h1_tag_control_for') == socket.name:
+                value = source.outputs[0].default_value
+                return bool(value) if socket.type == 'BOOLEAN' else int(value) if socket.type == 'INT' else value
             if (source.type == 'GROUP' and source.node_tree is not None
                     and source.node_tree.name == 'foundry_h1.environment_reflection_vector'):
                 control = source.inputs.get(socket.name)
@@ -133,8 +156,9 @@ def write_shader(shader):
                 flags.set_flag(flag, input_default(socket))
         for name in ('animation color lower bound', 'animation color upper bound'):
             copy_value(illumination, name)
-        if (group.inputs.get('Use Animation Function') is not None
-                and group.inputs['Use Animation Function'].default_value):
+        if (group.inputs.get('Animation Function') is not None and
+                (group.node_tree.get('h1_minimal_revision') or
+                 (group.inputs.get('Use Animation Function') is not None and group.inputs['Use Animation Function'].default_value))):
             copy_menu(illumination, 'animation function', 'Animation Function')
             copy_value(illumination, 'animation period', 'Animation Period')
             shader.required_field(illumination, 'flags').set_flag(
@@ -142,7 +166,10 @@ def write_shader(shader):
         else:
             activation(illumination, 'animation function', 'Animation Color Bound Factor')
         color_source = group.inputs.get('Use Self-Illumination Color Source')
-        if color_source is not None:
+        source_menu = group.inputs.get('Self-Illumination Color Source')
+        if source_menu is not None and source_menu.type == 'MENU':
+            copy_menu(illumination, 'color source', 'Self-Illumination Color Source')
+        elif color_source is not None:
             source = 'none'
             if color_source.default_value:
                 attribute = utils.find_linked_node(group, 'self-illumination color source', 'ATTRIBUTE')
@@ -193,8 +220,13 @@ def write_shader(shader):
         for layer in ('primary', 'secondary', 'plasma'):
             copy_value(illumination, layer + ' on color')
             copy_value(illumination, layer + ' off color')
-            activation(illumination, layer + ' animation function',
-                       layer.title() + ' Self-Illumination Activation Level')
+            if group.inputs.get(layer.title() + ' Animation Function') is not None:
+                copy_menu(illumination, layer + ' animation function', layer.title() + ' Animation Function')
+                copy_value(illumination, layer + ' animation period', layer.title() + ' Animation Period')
+                copy_value(illumination, layer + ' animation phase', layer.title() + ' Animation Phase')
+            else:
+                activation(illumination, layer + ' animation function',
+                           layer.title() + ' Self-Illumination Activation Level')
         set_value(illumination, 'map scale', image(illumination, 'map', 'Self-Illumination Map')[0])
         specular = child(root, 'specular')
         socket = group.inputs.get('Lightmap Is Specular')

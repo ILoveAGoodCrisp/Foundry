@@ -4,10 +4,51 @@ import ast
 import hashlib
 
 
+CHANGE_COLOR_PROPERTIES = ('Primary Color', 'Secondary Color', 'Tertiary Color', 'Quaternary Color')
+
+
+def refresh_driver_dependencies(owner, *sources):
+    """Expose newly written custom properties to evaluated shader attributes."""
+    import bpy
+    for data in dict.fromkeys((*sources, owner)):
+        if data is not None:
+            if isinstance(data, bpy.types.Object):
+                data.update_tag(refresh={'DATA'})
+            else:
+                # Scene and NodeTree IDs do not accept Object's DATA flag.
+                data.update_tag()
+
+
+def bind_property_driver(owner, source, name, source_name=None):
+    """Bind scalar or array properties after refreshing the source ID's data."""
+    import bpy
+    path = f'["{bpy.utils.escape_identifier(name)}"]'
+    source_path = f'["{bpy.utils.escape_identifier(source_name or name)}"]'
+    # Refresh before binding: otherwise a newly created property can remain
+    # absent from the evaluated target until an unrelated shader edit.
+    refresh_driver_dependencies(source)
+    curves = owner.driver_add(path)
+    is_array = isinstance(curves, list)
+    for index, curve in enumerate(curves if is_array else [curves]):
+        driver = curve.driver
+        driver.type = 'SCRIPTED'
+        while driver.variables:
+            driver.variables.remove(driver.variables[0])
+        variable = driver.variables.new()
+        variable.name = 'var'
+        variable.type = 'SINGLE_PROP'
+        variable.targets[0].id_type = 'SCENE' if isinstance(source, bpy.types.Scene) else 'OBJECT'
+        variable.targets[0].id = source
+        variable.targets[0].data_path = source_path + (f'[{index}]' if is_array else '')
+        driver.expression = variable.name
+    refresh_driver_dependencies(owner)
+
+
 def set_scalar_driver_expression(owner, curve, expression):
     """Write only simple expressions, splitting at Blender's driver limit."""
     bindings = {var.name: (var.targets[0].id_type, var.targets[0].id, var.targets[0].data_path)
                 for var in curve.driver.variables}
+    refresh_driver_dependencies(owner, *(target for _, target, _ in bindings.values()))
     prefix = '_foundry_driver_' + hashlib.sha1(curve.data_path.encode()).hexdigest()[:10]
     for name in list(owner.keys()):
         if name.startswith(prefix + '_'):
@@ -62,12 +103,30 @@ def set_scalar_driver_expression(owner, curve, expression):
 
     expression_node = shorten(ast.parse(expression, mode='eval').body)
     configure(curve.driver, ast.unparse(expression_node))
+    refresh_driver_dependencies(owner)
 
 
 class ObjectFunctions(dict):
     def __init__(self, *args, decoded=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.decoded = decoded or {}
+
+
+@dataclass
+class Halo1NumericCounter:
+    limit: int
+    permutation: int
+
+    def driver_expression(self, variable, time='frame/30'):
+        # Numeric H1 shaders read object function A. Each model shader
+        # permutation selects a decimal place (zero is the ones digit).
+        # Object function properties are evaluated as 32-bit floats. Recover
+        # integer counts such as 13/60 without rounding down to 12.
+        if self.permutation > 2:
+            return '0.0'  # The tag's counter limit is an unsigned byte.
+        value = f'floor(min(max({variable("a out")},0),1)*{self.limit}+0.0001)'
+        place = 10 ** self.permutation
+        return f'(floor(({value})/{place})-10*floor(({value})/{place*10}))'
 
 
 def linear_expression(points, value):

@@ -104,17 +104,60 @@ def _emissive_fields(shader, create=False):
     return pairs
 
 
+def _read_halo2_emissive(shader):
+    """Resolve authored lightmap properties, including template defaults."""
+    root = shader.tag.root()
+    parameters = {str(shader.value(item, 'name')): item
+                  for item in shader.block(root, 'parameters')}
+    names = {'lightmap emissive power': 'emissive_power',
+             'lightmap emissive color': 'emissive_color'}
+    defaults = {}
+    reference = shader.reference(root, 'template')
+    if reference is not None and Path(reference.Filename).is_file():
+        with TagDocument(reference.Filename, tags_root=shader.tags_root,
+                         game='halo2', must_exist=True) as template:
+            template_root = template.tag.root()
+            for item in template.block(template_root, 'properties'):
+                kind = template.required_field(item, 'property').options().current_name
+                if kind in names:
+                    names[kind] = str(template.value(item, 'parameter name'))
+            for category in template.block(template_root, 'categories'):
+                for item in template.block(category, 'parameters'):
+                    name = str(template.value(item, 'name'))
+                    if name in names.values():
+                        defaults[name] = (template.value(item, 'default const value'),
+                                          template.value(item, 'default const color'))
+
+    runtime = shader.block(root, 'runtime properties')
+    values = []
+    for index, (kind, name) in enumerate(names.items()):
+        # Older Foundry tags used the property name as the parameter name.
+        parameter = parameters.get(name)
+        if parameter is None:
+            parameter = parameters.get(kind.replace(' ', '_'))
+        if parameter is not None:
+            value = shader.value(parameter, 'const value' if index == 0 else 'const color')
+        elif name in defaults:
+            value = defaults[name][index]
+        elif len(runtime):
+            value = shader.value(runtime[0], kind)
+        else:
+            value = 0.0 if index == 0 else RealRgbColor(1.0, 1.0, 1.0)
+        values.append(value)
+    return values
+
+
 @read_only_tags()
 def read_material_emissive(tag_path, tags_root, game='halo1'):
     path = shader_environment_path(tag_path, tags_root, game)
     with TagDocument(path, tags_root=tags_root, game=game, must_exist=True) as shader:
-        pairs = _emissive_fields(shader)
-        if not pairs:
-            return 0.0, (1.0, 1.0, 1.0)
-        power, color = pairs[0]
-        color = color.value
-        return float(power.value), tuple(max(0.0, float(v)) ** 2.2
-                                         for v in (color.red, color.green, color.blue))
+        if game == 'halo2':
+            power, color = _read_halo2_emissive(shader)
+        else:
+            power_field, color_field = _emissive_fields(shader)[0]
+            power, color = power_field.value, color_field.value
+        return float(power), tuple(max(0.0, float(v)) ** 2.2
+                                   for v in (color.red, color.green, color.blue))
 
 
 def _matches(pair, power, color):

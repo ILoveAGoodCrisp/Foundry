@@ -1,4 +1,5 @@
 """Halo 1 BSP auxiliary geometry and surface annotations."""
+from .. import face_attributes
 import bmesh
 import bpy
 import numpy as np
@@ -234,11 +235,7 @@ def replace_collision_only(objects, tag=None):
             prop = mesh.nwo.face_props[index]
             if prop.type != 'face_mode' or prop.face_mode != 'collision_only':
                 continue
-            attribute = mesh.attributes.get(prop.attribute_name)
-            if attribute is None:
-                continue
-            mask = np.empty(len(mesh.polygons), dtype=np.int32)
-            attribute.data.foreach_get('value', mask)
+            mask = face_attributes.mask(mesh, prop)
             for face in mesh.polygons:
                 if mask[face.index]:
                     # The native decoder uses an untextured "default" slot
@@ -271,10 +268,9 @@ def replace_collision_only(objects, tag=None):
                     face.material_index = slot
                     mask[face.index] = 0
             if mask.any():
-                attribute.data.foreach_set('value', mask)
+                face_attributes.set_mask(mesh, prop, mask)
             else:
-                mesh.attributes.remove(attribute)
-                mesh.nwo.face_props.remove(index)
+                face_attributes.delete(mesh, index)
         utils.calc_face_prop_counts(mesh)
     # if unresolved:
     #     utils.print_warning(f'Could not resolve clusters for {unresolved} H1 shell faces; kept +sky fallback')
@@ -344,9 +340,7 @@ def apply_collision_surface_flags(tag, objects):
         render_only = np.zeros(len(mesh.polygons), dtype=bool)
         for prop in mesh.nwo.face_props:
             if prop.type == 'face_mode' and prop.face_mode == 'render_only':
-                attribute = mesh.attributes.get(prop.attribute_name)
-                if attribute is not None:
-                    render_only |= np.array([entry.value for entry in attribute.data], dtype=bool)
+                render_only |= face_attributes.mask(mesh, prop)
         for face in mesh.polygons:
             # The merge already established that these faces have no matching
             # collision surface. A nearby wall must not supply its flags.
@@ -365,11 +359,9 @@ def apply_collision_surface_flags(tag, objects):
         if sphere_only is not None and sphere_only.any():
             for prop in mesh.nwo.face_props:
                 if prop.type == 'face_mode':
-                    attribute = mesh.attributes.get(prop.attribute_name)
-                    if attribute is not None:
-                        values = np.array([v.value for v in attribute.data], dtype=np.int8)
-                        values[sphere_only.astype(bool)] = 0
-                        attribute.data.foreach_set('value', values)
+                    values = face_attributes.mask(mesh, prop)
+                    values[sphere_only.astype(bool)] = False
+                    face_attributes.set_mask(mesh, prop, values)
             if 'breakable' in masks:
                 masks['breakable'] &= ~sphere_only
         for name, mask in masks.items():
