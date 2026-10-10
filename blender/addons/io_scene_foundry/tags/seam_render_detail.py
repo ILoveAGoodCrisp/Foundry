@@ -3,6 +3,7 @@
 import bmesh
 from mathutils import kdtree
 
+from .. import face_attributes
 from .. import utils
 
 
@@ -43,9 +44,7 @@ def separate_seam_render_detail(ob, seam_meshes, name, *, render_only=False):
         rendered = set()
         for prop in ob.data.nwo.face_props:
             if prop.type == 'face_mode' and prop.face_mode == 'render_only':
-                attribute = ob.data.attributes.get(prop.attribute_name)
-                if attribute is not None:
-                    rendered.update(i for i, value in enumerate(attribute.data) if value.value)
+                rendered.update(i for i, value in enumerate(face_attributes.mask(ob.data, prop)) if value)
         selected.intersection_update(rendered)
     if not selected:
         return None
