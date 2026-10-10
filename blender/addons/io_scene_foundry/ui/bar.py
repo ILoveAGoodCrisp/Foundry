@@ -468,7 +468,7 @@ class NWO_HaloExportSettings(bpy.types.Panel):
     bl_idname = "NWO_PT_HaloExportSettings"
     bl_space_type = "VIEW_3D"
     bl_region_type = "HEADER"
-    bl_ui_units_x = 12
+    bl_ui_units_x = 18
 
     def draw(self, context):
         layout = self.layout
@@ -487,7 +487,10 @@ class NWO_HaloExportSettings(bpy.types.Panel):
             align=False,
         )
         col = flow.column()
-        workflow.draw_export_controls(col, scene_nwo, scene_nwo_export, context)
+        workflow.draw_export_controls(
+            col, scene_nwo, scene_nwo_export, context,
+            show_scope=not NWO_HaloExportSettingsScope.poll(context),
+        )
         if asset_type in {'cinematic', 'model', 'animation'}:
             col.prop(scene_nwo_export, "faster_animation_export")
         col.separator()
@@ -528,9 +531,9 @@ class NWO_HaloExportSettings(bpy.types.Panel):
                         col.prop(scene_nwo_export, "lightmap_quality")
                     if not halo1 and (not h4 or scene_nwo_export.lightmap_quality_h4 in {'__custom__', '__asset__'}):
                         col.prop(scene_nwo_export, "lightmap_region")
+                    col.prop(scene_nwo_export, "lightmap_all_bsps")
                     if not scene_nwo_export.lightmap_all_bsps:
                         col.prop(scene_nwo_export, "lightmap_specific_bsp")
-                    col.prop(scene_nwo_export, "lightmap_all_bsps")
                     if not h4 and not halo1:
                         col.prop(scene_nwo_export, "lightmap_threads")
 
@@ -552,11 +555,19 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
     def poll(self, context):
         return utils.poll_ui(('model', 'scenario', 'prefab', 'animation', 'cinematic', 'multi_model', 'multi_prefab', 'camera_track_set'))
 
+    def draw_header_preset(self, context):
+        nwo = utils.get_scene_props()
+        row = self.layout.row()
+        row.alignment = 'RIGHT'
+        row.prop(nwo, 'workflow_export_scope_expanded', text='Export Scope',
+                 icon='TRIA_DOWN' if nwo.workflow_export_scope_expanded else 'TRIA_RIGHT', emboss=False)
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
         scene_nwo_export = utils.get_export_props()
         scene_nwo = utils.get_scene_props()
+        workflow.draw_export_scope_details(layout, scene_nwo, scene_nwo_export, context)
         if scene_nwo.asset_type == 'camera_track_set':
             layout.prop(scene_nwo_export, "camera_track_scope", expand=True)
             return
@@ -588,9 +599,9 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
         col.use_property_split = False
         if scene_nwo.asset_type == "scenario":
             col.separator()
+            col.prop(scene_nwo_export, "lightmap_all_bsps")
             if not scene_nwo_export.lightmap_all_bsps:
                 col.prop(scene_nwo_export, "lightmap_specific_bsp")
-            col.prop(scene_nwo_export, "lightmap_all_bsps")
             col.separator()
         if scene_nwo.asset_type == 'model' or (
             scene_nwo.asset_type in {'scenario', 'prefab'}
@@ -1616,7 +1627,10 @@ def foundry_toolbar(layout, context):
             icon_value=get_icon_id("tags"),
         )
         sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
-            
+
+        sub_output = row.row(align=True)
+        sub_output.operator("nwo.show_foundry_output", text="", icon='CONSOLE')
+
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
         
