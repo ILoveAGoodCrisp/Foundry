@@ -147,7 +147,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
         if utils.poll_ui('scenario'):
             for index, (kind, label, icon) in enumerate((('decal', 'Decal', 'marker'), ('decorator', 'Decorator', 'decorator'),
                                                         ('player_start', 'Player Starting Location', 'marker'), ('cutscene_flag', 'Cutscene Flag', 'marker'),
-                                                        ('scenario_object', 'Scenario Object', 'game_object')), 5):
+                                                        ('scenario_object', 'Scenario Object', 'scenario')), 5):
                 items.append(('_connected_geometry_marker_type_' + kind, label, '', get_icon_id(icon), index))
         return items
     

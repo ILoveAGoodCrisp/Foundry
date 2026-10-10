@@ -1,5 +1,6 @@
 """Blender properties for the authored portion of scenario object schemas."""
 from functools import lru_cache
+from hashlib import sha1
 import bpy
 from .. import utils
 from ..tags.backend import PROFILES
@@ -37,11 +38,22 @@ def variant_callback(field):
     return update
 
 
+def expansion_property(path):
+    return 'scenario_section_' + sha1('/'.join(path).encode()).hexdigest()[:20] + '_expanded'
+
+
 def add_object_properties(cls):
     annotations = cls.__annotations__
     for game in PROFILES:
         for block, *_ in object_types(game):
             for field in object_fields(game, block):
+                sections = [field.path[:-1]]
+                if field.kind.endswith('_flags'):
+                    sections.append(field.path)
+                for path in sections:
+                    expansion_key = expansion_property(path)
+                    if expansion_key not in annotations:
+                        annotations[expansion_key] = bpy.props.BoolProperty(default=True, options=set())
                 base = dict(name=field.path[-1].split('{')[0].title(), options=set())
                 key = field.property_name()
                 if field.kind.endswith('_flags'):

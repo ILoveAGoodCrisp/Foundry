@@ -30,7 +30,7 @@ OBJECT_VISIBILITY_TYPES = (
     ('marker', 'physics_constraint', 'Physics Constraint', 'physics_constraint'),
     ('marker', 'target', 'Target', 'target'),
     ('marker', 'airprobe', 'Airprobe', 'airprobe'),
-    ('marker', 'scenario_object', 'Scenario Object', 'game_object'),
+    ('marker', 'scenario_object', 'Scenario Object', 'scenario'),
     ('marker', 'game_instance', 'Game Object', 'game_object'),
     ('marker', 'decal', 'Decal', 'marker'),
     ('marker', 'decorator', 'Decorator', 'decorator'),

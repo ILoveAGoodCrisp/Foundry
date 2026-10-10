@@ -2733,7 +2733,19 @@ class IndexBuffer:
                 faces.append(Face(indices=i, subpart=None, index=idx))
                 idx += 1
                 
-        return faces
+        # Triangle lists can retain degenerate compiler faces just like strips.
+        # Repeated corners create self-edges which can crash Blender's native
+        # custom-normal calculation. Keep source triangle IDs for BSP mappings,
+        # while callers enumerate the surviving faces for Blender assignments.
+        vertex_count = len(mesh.raw_positions)
+        valid_faces = [face for face in faces
+                       if len(set(face.indices)) == 3
+                       and all(0 <= index < vertex_count for index in face.indices)]
+        if len(valid_faces) != len(faces):
+            utils.print_warning(
+                f"Mesh {mesh.index}: skipping {len(faces) - len(valid_faces)} "
+                "degenerate or out-of-range render triangles")
+        return valid_faces
 
     def _get_indices(self, start: int, count: int):
         end = len(self.indices) if count < 0 else start + count
@@ -3168,12 +3180,12 @@ class Mesh:
         mesh.all_triangle_indices = [face.indices for face in mesh.tris]
         mesh.triangle_indices_by_subpart = {}
         mesh.face_indices_by_subpart = {}
-        for face in mesh.tris:
+        for face_index, face in enumerate(mesh.tris):
             if face.subpart is None:
                 continue
             index = face.subpart.index
             mesh.triangle_indices_by_subpart.setdefault(index, []).append(face.indices)
-            mesh.face_indices_by_subpart.setdefault(index, []).append(face.index)
+            mesh.face_indices_by_subpart.setdefault(index, []).append(face_index)
         mesh.node_map = []
         mesh.vertex_keys = []
         mesh.mesh_keys = []
@@ -3448,7 +3460,9 @@ class Mesh:
             collision_coords = [mesh_matrix @ Vector(collision_vertices[index]) for index in vertex_indices]
             matching_faces = self._find_matching_render_faces(collision_coords, render_faces)
             if matching_faces:
-                mapping.triangle_indices = [DirectTriangleMapping(face_index, section_index) for face_index in matching_faces]
+                mapping.triangle_indices = [
+                    DirectTriangleMapping(self.tris[face_index].index, section_index)
+                    for face_index in matching_faces]
                 mapping.collision_only = False
 
     def remove_render_duplicate_faces(self, collision_mesh: bpy.types.Mesh, render_mesh: bpy.types.Mesh):
@@ -3702,12 +3716,12 @@ class Mesh:
         self.all_triangle_indices = [face.indices for face in self.tris]
         self.triangle_indices_by_subpart = {}
         self.face_indices_by_subpart = {}
-        for face in self.tris:
+        for face_index, face in enumerate(self.tris):
             if face.subpart is None:
                 continue
             subpart_index = face.subpart.index
             self.triangle_indices_by_subpart.setdefault(subpart_index, []).append(face.indices)
-            self.face_indices_by_subpart.setdefault(subpart_index, []).append(face.index)
+            self.face_indices_by_subpart.setdefault(subpart_index, []).append(face_index)
 
         if cache_entry["water_texcoords_local"]:
             water_subparts = [sp for sp in self.subparts if sp.is_water_surface]
@@ -3843,7 +3857,6 @@ class Mesh:
                 lighting_texcoords = [(u, 1 - v) for u, v in lighting_texcoords]
             self._set_uv_layer_data(lighting_uv_layer, lighting_texcoords, loop_vertex_indices)
 
-        # normalised_normals = [Vector(n).normalized() for n in normals]
         mesh.normals_split_custom_set_from_vertices(normals)
         if source_geometry is not None:
             from .halo1_bsp_blender import attach_source_attributes
@@ -3920,7 +3933,8 @@ class Mesh:
 
         # for IG figure out what tris are render only
         if surface_triangle_mapping:
-            indices = [t.index for t in self.tris]
+            triangle_to_face = {triangle.index: face_index
+                                for face_index, triangle in enumerate(self.tris)}
             collision_face_indices = set()
             face_count = len(mesh.polygons)
             slip_mask = np.zeros(face_count, dtype=np.int8)
@@ -3940,8 +3954,8 @@ class Mesh:
                     if t.section != section_index:
                         continue
 
-                    idx = t.tri
-                    if idx < 0 or idx >= face_count:
+                    idx = triangle_to_face.get(t.tri)
+                    if idx is None:
                         continue
 
                     collision_face_indices.add(idx)
@@ -3974,7 +3988,7 @@ class Mesh:
                             global_material_override_masks.setdefault(override, np.zeros(face_count, dtype=np.int8))[idx] = 1
                         
             render_only_mask = np.zeros(face_count, dtype=np.int8)
-            for f in indices:
+            for f in range(face_count):
                 if f not in collision_face_indices:
                     render_only_mask[f] = 1
             

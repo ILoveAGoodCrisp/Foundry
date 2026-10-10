@@ -2440,7 +2440,7 @@ def get_marker_display(mesh_type, ob):
         case '_connected_geometry_marker_type_cutscene_flag':
             return 'Cutscene Flag', get_icon_id('marker')
         case '_connected_geometry_marker_type_scenario_object':
-            return 'Scenario Object', get_icon_id('game_object')
+            return 'Scenario Object', get_icon_id('scenario')
         case '_connected_geometry_marker_type_effects':
             return 'Effects', get_icon_id('effects')
         case '_connected_geometry_marker_type_garbage':

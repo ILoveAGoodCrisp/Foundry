@@ -1457,7 +1457,7 @@ class NWO_MT_MarkerTypes(bpy.types.Menu):
             if utils.poll_ui('scenario'):
                 for kind, label, icon in (('decal', 'Decal', 'marker'), ('decorator', 'Decorator', 'decorator'),
                                           ('player_start', 'Player Starting Location', 'marker'), ('cutscene_flag', 'Cutscene Flag', 'marker'),
-                                          ('scenario_object', 'Scenario Object', 'game_object')):
+                                          ('scenario_object', 'Scenario Object', 'scenario')):
                     layout.operator('nwo.apply_type_marker_single', text=label, icon_value=get_icon_id(icon)).m_type = kind
             layout.operator('nwo.apply_type_marker_single', text='Airprobe', icon_value=get_icon_id('airprobe')).m_type = 'airprobe'
             if h4:

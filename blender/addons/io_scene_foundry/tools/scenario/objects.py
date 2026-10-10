@@ -6,7 +6,7 @@ import bpy
 from mathutils import Euler, Matrix, Vector
 
 from ... import utils, import_transform
-from ...props.scenario_objects import authored_options
+from ...props.scenario_objects import authored_options, expansion_property
 from ...tags.backend import read_only_tags
 from ...tags.scenario import ScenarioDocument
 from ...tags.scenario_objects import (ObjectExport, object_types, object_fields, native_field,
@@ -387,6 +387,18 @@ def draw_child_scenario(layout, nwo, game):
         row.operator('nwo.select_child_scenario', text='', icon='VIEWZOOM')
 
 
+def _expandable_box(layout, nwo, path, title):
+    box = layout.box()
+    key = expansion_property(path)
+    expanded = getattr(nwo, key)
+    header = box.row(align=True)
+    header.use_property_split = False
+    header.alignment = 'LEFT'
+    header.prop(nwo, key, text=title,
+                icon='TRIA_DOWN' if expanded else 'TRIA_RIGHT', emboss=False)
+    return box.column(align=True) if expanded else None
+
+
 def draw_scenario_object(layout, nwo, game):
     from ...ui.panel import draw_tag_path
     layout.prop(nwo, 'scenario_object_type')
@@ -398,15 +410,17 @@ def draw_scenario_object(layout, nwo, game):
         layout.prop(nwo, 'scenario_editor_folder')
     groups = {}
     for field in object_fields(game, nwo.scenario_object_type):
+        path = field.path[:-1]
         heading = ' / '.join(name.replace('_', ' ').removesuffix(' data').title() for name in field.path[:-1]) or 'Placement'
-        box = groups.get(heading)
+        if path not in groups:
+            groups[path] = _expandable_box(layout, nwo, path, heading)
+        box = groups[path]
         if box is None:
-            box = layout.box().column(align=True)
-            box.label(text=heading)
-            groups[heading] = box
+            continue
         if field.kind.endswith('_flags'):
-            flags = box.box().column(align=True)
-            flags.label(text=field.path[-1].title())
+            flags = _expandable_box(box, nwo, field.path, field.path[-1].title())
+            if flags is None:
+                continue
             for name in field.options:
                 if not name.lower().startswith(('unused', 'obsolete')):
                     flags.prop(nwo, field.property_name(name))

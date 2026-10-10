@@ -561,7 +561,7 @@ class NWO_OT_ApplyTypeMarker(bpy.types.Operator):
         if asset_type in {'scenario', 'resource'}:
             for kind, label, icon in (('decal', 'Decal', 'marker'), ('decorator', 'Decorator', 'decorator'),
                                       ('player_start', 'Player Starting Location', 'marker'), ('cutscene_flag', 'Cutscene Flag', 'marker'),
-                                      ('scenario_object', 'Scenario Object', 'game_object')):
+                                      ('scenario_object', 'Scenario Object', 'scenario')):
                 index += 1
                 items.append(utils.nwo_enum(kind, label, '', icon, index))
         return items
