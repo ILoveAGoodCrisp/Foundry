@@ -29,6 +29,13 @@ def update_selected_project(self, context):
         set_scene_project(scene.nwo, self.projects[self.current_project_index])
 
 
+def update_sidebar_icons_only(self, context):
+    for window in context.window_manager.windows:
+        for area in window.screen.areas:
+            if area.type == 'VIEW_3D':
+                area.tag_redraw()
+
+
 class NWO_Project_ListItems(bpy.types.PropertyGroup):
     project_id: StringProperty()
     available: BoolProperty(default=True)
@@ -579,10 +586,11 @@ class NWO_OT_InstallXRGBColorspace(Operator):
             confirm_text="Install",
         )
 
-def _settings_box(layout, title: str):
+def _settings_box(layout, title: str, prefs, property_name):
     box = layout.box()
-    box.label(text=title)
-    return box
+    expanded = getattr(prefs, property_name)
+    box.row().prop(prefs, property_name, text=title, icon='TRIA_DOWN' if expanded else 'TRIA_RIGHT', emboss=False)
+    return box if expanded else None
 
 def _welcome_text_width(context):
     region = context.region
@@ -648,115 +656,128 @@ def draw_first_project_setup(layout):
     # row.operator('wm.url_open', text='Foundry Forum', icon='HELP').url = FOUNDRY_DISCORD_FORUM
     col = box.column(align=True)
     text(col, 'Add a project or load the Foundry panel to begin')
+    col = layout.column(align=True)
+    text(col, 'Adjust settings now or revisit them later in Foundry Preferences.')
+    draw_foundry_preferences(layout, get_prefs(), context, show_setup=False, show_projects=False)
 
 
-def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False, show_setup=True):
-    if show_setup and not prefs.projects:
+def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False, show_setup=True, show_projects=True):
+    if show_setup and not prefs.projects and not startup.load_handler_complete:
         draw_first_project_setup(layout)
-    box = _settings_box(layout, "Projects")
-    row = box.row()
-    rows = 5
-    row.template_list(
-        "NWO_UL_Projects",
-        "",
-        prefs,
-        "projects",
-        prefs,
-        "current_project_index",
-        rows=rows,
-    )
-    col = row.column(align=True)
-    col.operator("nwo.project_add", text="", icon="ADD")
-    col.operator("nwo.project_remove", icon="REMOVE", text="")
-    col.separator()
-    col.operator("nwo.project_edit", icon="SETTINGS", text="")
-    col.operator("nwo.project_edit", icon="DUPLICATE", text="").duplicate = True
-    col.separator()
-    col.operator("nwo.project_move", text="", icon="TRIA_UP").direction = 'up'
-    col.operator("nwo.project_move", icon="TRIA_DOWN", text="").direction = 'down'
-    if prefs.projects and 0 <= prefs.current_project_index < len(prefs.projects):
-        project = prefs.projects[prefs.current_project_index]
-        box.label(text=f'Editing Kit: {project.project_path}')
-        if project.game in CUSTOM_DIRECTORY_GAMES:
-            box.label(text=f'Tags: {project.tags_directory}')
-            box.label(text=f'Data: {project.data_directory}')
+        return
 
-    box = _settings_box(layout, "Halo Tools")
-    row = box.row(align=True)
-    row.label(text="Tag Editor")
-    row.prop(prefs, "tag_editor", expand=True)
-    if prefs.tag_editor == "baboon":
+    box = _settings_box(layout, "Interface", prefs, 'settings_interface_expanded')
+    if box is not None:
         row = box.row(align=True)
-        row.prop(prefs, "baboon_path")
-    row = box.row(align=True, heading="Tool Version")
-    row.prop(prefs, "tool_type", expand=True)
-    row = box.row(align=True)
-    row.prop(prefs, "allow_tool_patches")
-    row = box.row(align=True)
-    row.enabled = prefs.allow_tool_patches
-    row.prop(prefs, "patch_tool_node_depth_sort")
-    row = box.row(align=True)
-    row.enabled = prefs.allow_tool_patches
-    row.prop(prefs, "patch_tool_uncompressed_vertex_weights")
-    row = box.row(align=True)
-    row.enabled = prefs.allow_tool_patches
-    row.prop(prefs, "patch_tool_skip_vertex_compression")
-    row = box.row(align=True)
-    row.enabled = prefs.allow_tool_patches
-    row.prop(prefs, "patch_tool_skip_import_source_data")
-    row = box.row(align=True)
-    row.prop(prefs, "allow_foundation_plugin_install")
-    row = box.row(align=True)
-    row.prop(prefs, "granny_viewer_path")
-    row = box.row(align=True)
-    row.prop(prefs, "copy_scenario_path_on_sapien_launch")
+        row.prop(prefs, "toolbar_icons_only", text="Toolbar Icons Only")
+        row = box.row(align=True)
+        row.prop(prefs, "sidebar_icons_only")
 
-    box = _settings_box(layout, "Import & Bitmaps")
-    row = box.row(align=True)
-    row.prop(prefs, "default_import_template")
-    row = box.row(align=True)
-    row.prop(prefs, "default_scale_model")
-    row = box.row(align=True)
-    row.prop(prefs, "import_shaders_with_time_period")
-    row = box.row(align=True)
-    row.prop(prefs, "link_resource_nodes")
-    row = box.row(align=True)
-    row.prop(prefs, "bitmap_color_space_conversion")
-    row.operator("nwo.install_xrgb_colorspace", text="Install xRGB")
+    box = _settings_box(layout, "Projects", prefs, 'settings_projects_expanded') if show_projects else None
+    if box is not None:
+        row = box.row()
+        rows = 5
+        row.template_list(
+            "NWO_UL_Projects",
+            "",
+            prefs,
+            "projects",
+            prefs,
+            "current_project_index",
+            rows=rows,
+        )
+        col = row.column(align=True)
+        col.operator("nwo.project_add", text="", icon="ADD")
+        col.operator("nwo.project_remove", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.project_edit", icon="SETTINGS", text="")
+        col.operator("nwo.project_edit", icon="DUPLICATE", text="").duplicate = True
+        col.separator()
+        col.operator("nwo.project_move", text="", icon="TRIA_UP").direction = 'up'
+        col.operator("nwo.project_move", icon="TRIA_DOWN", text="").direction = 'down'
+        if prefs.projects and 0 <= prefs.current_project_index < len(prefs.projects):
+            project = prefs.projects[prefs.current_project_index]
+            box.label(text=f'Editing Kit: {project.project_path}')
+            if project.game in CUSTOM_DIRECTORY_GAMES:
+                box.label(text=f'Tags: {project.tags_directory}')
+                box.label(text=f'Data: {project.data_directory}')
 
-    box = _settings_box(layout, "Objects & Materials")
-    row = box.row(align=True, heading="Default Object Prefixes")
-    row.prop(prefs, "apply_prefix", expand=True)
-    row = box.row(align=True)
-    row.prop(prefs, "apply_materials", text="Update Materials on Object Type Change")
-    row = box.row(align=True)
-    row.prop(prefs, "apply_empty_display")
-    row = box.row(align=True)
-    row.prop(prefs, "update_materials_on_shader_path")
-    row = box.row(align=True)
-    row.prop(prefs, "import_classic_shader_emission")
-    row = box.row(align=True)
-    row.prop(prefs, "rename_halo_collections")
-    row = box.row(align=True)
-    row.prop(prefs, "rename_material")
+    box = _settings_box(layout, "Halo Tools", prefs, 'settings_tools_expanded')
+    if box is not None:
+        row = box.row(align=True)
+        row.label(text="Tag Editor")
+        row.prop(prefs, "tag_editor", expand=True)
+        if prefs.tag_editor == "baboon":
+            row = box.row(align=True)
+            row.prop(prefs, "baboon_path")
+        row = box.row(align=True, heading="Tool Version")
+        row.prop(prefs, "tool_type", expand=True)
+        row = box.row(align=True)
+        row.prop(prefs, "granny_viewer_path")
+        row = box.row(align=True)
+        row.prop(prefs, "copy_scenario_path_on_sapien_launch")
 
-    box = _settings_box(layout, "Animation & Debug")
-    row = box.row(align=True)
-    row.prop(prefs, "sync_timeline_range")
-    row = box.row(align=True)
-    row.prop(prefs, "animation_switch_frame")
-    row = box.row(align=True)
-    row.prop(prefs, "load_animation_snapshots")
-    row = box.row(align=True)
-    row.prop(prefs, "ignore_final_frame")
-    row = box.row(align=True)
-    row.prop(prefs, "debug_menu_on_export")
-    row = box.row(align=True)
-    row.prop(prefs, "debug_menu_on_launch")
+    box = _settings_box(layout, "Import & Bitmaps", prefs, 'settings_import_expanded')
+    if box is not None:
+        row = box.row(align=True)
+        row.prop(prefs, "default_import_template")
+        row = box.row(align=True)
+        row.prop(prefs, "default_dragged_object_type")
+        row = box.row(align=True)
+        row.prop(prefs, "default_scale_model")
+        row = box.row(align=True)
+        row.prop(prefs, "import_shaders_with_time_period")
+        row = box.row(align=True)
+        row.prop(prefs, "link_resource_nodes")
+        row = box.row(align=True)
+        row.prop(prefs, "bitmap_color_space_conversion")
+        row.operator("nwo.install_xrgb_colorspace", text="Install xRGB")
 
-    box = _settings_box(layout, "Interface")
-    row = box.row(align=True)
-    row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
+    box = _settings_box(layout, "Objects & Materials", prefs, 'settings_objects_expanded')
+    if box is not None:
+        row = box.row(align=True, heading="Default Object Prefixes")
+        row.prop(prefs, "apply_prefix", expand=True)
+        row = box.row(align=True)
+        row.prop(prefs, "apply_materials", text="Update Materials on Object Type Change")
+        row = box.row(align=True)
+        row.prop(prefs, "apply_empty_display")
+        row = box.row(align=True)
+        row.prop(prefs, "update_materials_on_shader_path")
+        row = box.row(align=True)
+        row.prop(prefs, "import_classic_shader_emission")
+        row = box.row(align=True)
+        row.prop(prefs, "rename_halo_collections")
+        row = box.row(align=True)
+        row.prop(prefs, "rename_material")
+
+    box = _settings_box(layout, "Animation", prefs, 'settings_animation_expanded')
+    if box is not None:
+        row = box.row(align=True)
+        row.prop(prefs, "sync_timeline_range")
+        row = box.row(align=True)
+        row.prop(prefs, "animation_switch_frame")
+        row = box.row(align=True)
+        row.prop(prefs, "load_animation_snapshots")
+        row = box.row(align=True)
+        row.prop(prefs, "ignore_final_frame")
+    box = _settings_box(layout, "Advanced", prefs, 'settings_advanced_expanded')
+    if box is not None:
+        from .utils import get_project
+        project = get_project(use_external=False)
+        box.prop(prefs, 'allow_tool_patches')
+        patches = box.column()
+        patches.enabled = prefs.allow_tool_patches
+        if project and project.game == 'reach':
+            patches.prop(prefs, 'patch_tool_node_depth_sort')
+            patches.prop(prefs, 'patch_tool_uncompressed_vertex_weights')
+            patches.prop(prefs, 'patch_tool_skip_vertex_compression')
+        if project and project.game in {'reach', 'halo4', 'halo2a'}:
+            patches.prop(prefs, 'patch_tool_skip_import_source_data')
+        box.prop(prefs, 'allow_foundation_plugin_install')
+        row = box.row(align=True)
+        row.prop(prefs, "debug_menu_on_export")
+        row = box.row(align=True)
+        row.prop(prefs, "debug_menu_on_launch")
 
     if not show_save_button or context is None:
         return
@@ -807,6 +828,19 @@ class FoundryPreferences(AddonPreferences):
     projects : CollectionProperty(type=NWO_Project_ListItems)
 
     toolbar_icons_only : BoolProperty(name="Toolbar Icons Only", description="Toggle whether the Foundry Toolbar should only show icons")
+    sidebar_icons_only: BoolProperty(
+        name="Sidebar Icons Only",
+        description="Show only icons in the Foundry sidebar; disable to show panel names beside them",
+        default=False,
+        update=update_sidebar_icons_only,
+    )
+    settings_projects_expanded: BoolProperty(default=False)
+    settings_tools_expanded: BoolProperty(default=False)
+    settings_import_expanded: BoolProperty(default=False)
+    settings_objects_expanded: BoolProperty(default=False)
+    settings_animation_expanded: BoolProperty(default=False)
+    settings_interface_expanded: BoolProperty(default=True)
+    settings_advanced_expanded: BoolProperty(default=False)
 
     apply_materials : BoolProperty(
         name="Apply Materials on Setting Mesh Type",
@@ -906,6 +940,16 @@ class FoundryPreferences(AddonPreferences):
         description="The preset selected by default in the Foundry drag and drop importer",
         default=IMPORT_TEMPLATE_DEFAULT,
         items=IMPORT_TEMPLATE_ITEMS,
+    )
+
+    default_dragged_object_type: EnumProperty(
+        name="Dragged Scenario Objects",
+        description="Default type for object tags dragged into scenario assets. Object types unsupported as game objects use scenario objects when available",
+        default='game_object',
+        items=[
+            ('game_object', "Game Object", "Use game objects when supported by the destination game"),
+            ('scenario_object', "Scenario Object", "Use scenario objects for tags with a scenario placement category"),
+        ],
     )
     
     allow_tool_patches: BoolProperty(
