@@ -186,3 +186,27 @@ ASS model instances, collision, convex physics, animation samples, no-sidecar
 output and scene restoration. Isolated Tool acceptance compiled H1 gbxmodel,
 model-collision and physics tags and an H2 model/render-model pair from the
 folder layouts used by this exporter.
+
+## Standalone file exports
+
+**File > Export** also offers Halo JMS, Halo ASS, Halo Animation and Granny GR2.
+These save directly to the chosen file, without an asset folder, sidecar, tag
+processing or editing-kit tools. A configured project is optional.
+
+The file browser can limit export to selected objects, visible objects and the
+active collection (including children). Filters intersect; required skeleton
+dependencies are included. Scale and forward conversion can each be disabled.
+JMS/ASS/JMA versions start at the project default and can be changed in the
+dialog. Supported versions are JMS 8197–8213, ASS 1–7 and JMA 16392–16395.
+Halo Animation offers JMA, JMM, JMT, JMZ, JMO, JMR, JMW, JMV and JMH.
+
+GR2's **Halo Properties** switch controls BungieExportInfo and Halo metadata on
+materials, meshes, faces and bones. Disabling it also permits multiple root
+bones. **Include Animation** samples currently assigned skeletal and object
+actions together over the scene frame range, alongside geometry. Independent
+rigs use separate track groups. JMA exports the currently assigned skeletal
+actions over the same frame range. Export restores the scene even after failure.
+
+`blender/tests/test_standalone_export_blender.py` checks the registered operators,
+all supported text versions and animation extensions, scope and conversion
+options, skinned geometry, physics, non-Halo GR2, assigned actions and restoration.

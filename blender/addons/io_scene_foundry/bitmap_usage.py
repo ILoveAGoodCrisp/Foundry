@@ -125,9 +125,7 @@ def resolve_bitmap_usage(name, usage, game):
 
 def bitmap_import_command(path, game):
     path = Path(path).with_suffix('') if Path(path).suffix in {'.bitmap', '.tif', '.tiff'} else Path(path)
-    if game == 'halo1':
-        return ['bitmap', str(path)]
-    if game == 'halo2':
-        # Halo 2 Tool has no single-bitmap import command.
+    if game in CLASSIC_GAMES:
+        # Prepare the folder's tags before compiling its TIFFs together.
         return ['bitmaps', str(path.parent)]
     return ['reimport-bitmaps-single', str(path)] + (['default'] if game in {'halo4', 'halo2a'} else [])
