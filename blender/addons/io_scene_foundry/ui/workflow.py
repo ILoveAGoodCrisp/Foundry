@@ -123,19 +123,23 @@ def draw_export_scope(layout, nwo, settings, context=None):
         draw_text(layout, line, context)
 
 
-def draw_export_controls(layout, nwo, settings, context=None):
-    """Use identical names and semantics in both export entry points."""
-    layout.prop(settings, 'export_quick', text='Use Saved Settings')
-    layout.prop(settings, 'show_output', text='Open Output on Export')
-    layout.operator('nwo.show_foundry_output', text='Open Foundry Output', icon='CONSOLE')
-    layout.prop(nwo, 'workflow_export_scope_expanded', text='Export Scope',
-                icon='TRIA_DOWN' if nwo.workflow_export_scope_expanded else 'TRIA_RIGHT', emboss=False)
+def draw_export_scope_details(layout, nwo, settings, context=None):
     if nwo.workflow_export_scope_expanded:
         draw_export_scope(layout, nwo, settings, context)
         destination = asset_destination(nwo, utils.get_project(use_external=False))
         if destination:
             draw_text(layout, f'Destination: {destination}', context)
             layout.operator('nwo.workflow_open_destination', text='Open Asset Folder', icon='FILE_FOLDER')
+
+
+def draw_export_controls(layout, nwo, settings, context=None, *, show_scope=True):
+    """Use identical names and semantics in both export entry points."""
+    layout.prop(settings, 'export_quick', text='Use Saved Settings')
+    layout.prop(settings, 'show_output', text='Open Output on Export')
+    if show_scope:
+        layout.prop(nwo, 'workflow_export_scope_expanded', text='Export Scope',
+                    icon='TRIA_DOWN' if nwo.workflow_export_scope_expanded else 'TRIA_RIGHT', emboss=False)
+        draw_export_scope_details(layout, nwo, settings, context)
     if nwo.workflow_export_result:
         layout.prop(nwo, 'workflow_export_result_expanded', text='Last Export: ' + nwo.workflow_export_result.replace('_', ' ').title(),
                     icon='TRIA_DOWN' if nwo.workflow_export_result_expanded else 'TRIA_RIGHT', emboss=False)
