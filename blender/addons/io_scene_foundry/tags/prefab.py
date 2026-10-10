@@ -82,6 +82,7 @@ class StructureBspRenderMaterial:
     breakable_surface_index: int
     analytical_absorb: float
     normal_absorb: float
+    shader_permutation: int | None = None
 
 
 @dataclass(frozen=True)
@@ -355,12 +356,12 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
         return paths
 
     def classic_render_scene(
-        self,
+        self, *, import_collision=True,
     ) -> tuple[list[str], list[str], list[StructureBspRenderMesh | None], list[ClassicBspInstance]]:
         """Decode a complete H1/H2 BSP scene through the native classic extractor."""
         if self.game == 'halo1':
             from .halo1_geometry import render_scene
-            scene = cast(ClassicBspScene, render_scene(self))
+            scene = cast(ClassicBspScene, render_scene(self, import_collision=import_collision))
         else:
             decoder = getattr(self.tag, 'classic_sbsp_scene', None)
             if decoder is None:
@@ -814,6 +815,13 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 surface, 'first_structure_surface_to_triangle_mapping_index'))
             count = int(self.value(
                 surface, 'structure_surface_to_triangle_mapping_count'))
+            # H3's serialized short fields hold unsigned mapping offsets.
+            # Large BSPs such as Zanzibar cross the signed 16-bit boundary.
+            first_field = surface.field('first_structure_surface_to_triangle_mapping_index')
+            if first_field.type_name == 'short integer':
+                first &= 0xffff
+            if count == 0:
+                first = 0
             if first < 0 or count < 0 or first + count > value_count:
                 raise ValueError(
                     f'{self.path}: structure surface {index} has an invalid triangle mapping range')

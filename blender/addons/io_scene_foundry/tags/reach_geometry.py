@@ -2,6 +2,7 @@
 import bpy
 import numpy as np
 
+from .. import face_attributes
 from .. import utils
 
 
@@ -15,9 +16,7 @@ def preserve_two_sided_sealers(mesh):
     two_sided = set()
     for prop in mesh.nwo.face_props:
         if prop.type == 'face_sides' and prop.two_sided:
-            attribute = mesh.attributes.get(prop.attribute_name)
-            if attribute is not None:
-                two_sided.update(i for i, value in enumerate(attribute.data) if value.value)
+            two_sided.update(i for i, value in enumerate(face_attributes.mask(mesh, prop)) if value)
     indices = [face.index for face in mesh.polygons if face.index in two_sided
                and face.material_index < len(mesh.materials)
                and mesh.materials[face.material_index] is not None
