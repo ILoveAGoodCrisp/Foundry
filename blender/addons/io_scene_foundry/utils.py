@@ -1394,31 +1394,31 @@ def fix_tag_copy_fail(project_dir, tags_dir, line):
         print("failure...")
         print_warning(line)
 
-def set_project_in_registry():
-    """Sets the current project in the users registry"""
+def set_project_in_registry(project=None):
+    """Select the editing kit's native project before launching its tools."""
     key_path = r"SOFTWARE\Halo\Projects"
-    name = get_scene_props().scene_project
-    if not name:
-        return
-    # Get project name
-    project = get_project(name)
     if project is None:
+        project = get_project()
+    if project is None or not getattr(project, 'available', True):
         return
-    project_name = project.project_name
     try:
-        # Open the registry key
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_WRITE) as key:
+        # Foundation uses project.xml's name, which can differ from Foundry's
+        # project.json name and the user-facing configuration label.
+        project_name = ET.parse(Path(project.project_path, 'project.xml')).getroot().get('name')
+        if not project_name:
+            return
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_WRITE) as key:
             winreg.SetValueEx(key, "Current", 0, winreg.REG_SZ, project_name)
-    except:
+    except (OSError, ET.ParseError):
         pass
 
 def run_ek_cmd(args: list, in_background=False):
     """Executes a cmd line argument at the root editing kit directory"""
-    # Set the current project in the users registry, this avoids the switch project prompt
-    set_project_in_registry()
     project = get_project()
     if project is None or not getattr(project, 'available', True):
         raise ValueError('Select an available Foundry project before launching editing kit tools')
+    # Use the same resolved project for the registry and executable launch.
+    set_project_in_registry(project)
     executable = Path(args[0])
     if not executable.is_absolute():
         executable = Path(project.project_path) / executable
