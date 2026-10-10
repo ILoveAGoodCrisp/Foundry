@@ -21,6 +21,10 @@
 
 *.patch
 *.lock
+!/rust/granny_writer/Cargo.lock
+!/rust/pcatool/Cargo.lock
+/rust/pcatool/target/
+/rust/granny_writer/target/
 copy to add-ons.bat
 
 *.htm
