@@ -1,11 +1,11 @@
 from ..exceptions import ExportCancelled
 from collections import defaultdict
 from enum import Enum
-from math import degrees, isfinite
+from math import atan, degrees, isfinite
 from pathlib import Path
 from types import SimpleNamespace
 import bpy
-from mathutils import Euler
+from ..coordinate_system import axis_rotation
 
 from ..tags.cinematic_lighting import CinematicLightingTag
 from ..tags.cinematic_script import script_from_text
@@ -15,7 +15,7 @@ from ..tags.model_blender import ModelTag
 from ..tags.animation_graph import AnimationGraphTag
 from ..tags.animation_compression import export_animation_compression
 from ..tags.cinematic_scene import CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicMusic, CinematicObjectFunctionKeyframe, NativeCinematicSceneTag
-from ..tags.cinematic import CinematicSceneDataTag
+from ..tags.cinematic import CinematicSceneDataTag, cinematic_runtime_aperture
 
 from .. import utils
 from ..tags.camera_track import camera_correction_matrix
@@ -54,11 +54,11 @@ class CinematicScene:
         if self.anchor is not None:
             transform_scale = 0.03048 * utils.WU_SCALAR if transform_nwo.scale == 'max' else utils.WU_SCALAR
             rotation_offset = utils.blender_halo_rotation_diff(transform_nwo.forward_direction)
-            anchor_matrix = utils.halo_transforms_matrix(self.anchor.matrix_world.inverted_safe(), transform_scale, rotation_offset)
+            anchor_matrix = (utils.halo_transforms_matrix(self.anchor.matrix_world.inverted_safe(), transform_scale, rotation_offset)
+                             @ axis_rotation(-rotation_offset))
             self.anchor_location = anchor_matrix.translation.to_tuple()
-            rot = anchor_matrix.to_euler()
-            rotation = Euler((rot.z, -rot.y, rot.x), 'ZYX')
-            self.anchor_ypr = degrees(rotation.x - rotation_offset), degrees(rotation.y), degrees(rotation.z)
+            rot = anchor_matrix.to_euler('ZYX')
+            self.anchor_ypr = degrees(rot.z), degrees(-rot.y), degrees(rot.x)
         
 class CinematicDof:
     def __init__(self):
@@ -159,6 +159,11 @@ def calculate_focal_distances(camera):
 
 def calculate_cinematic_dof(camera: bpy.types.Object, transform_scale: float = None) -> CinematicDof:
     dof = CinematicDof()
+    settings = getattr(camera, 'nwo', None)
+    if getattr(settings, 'cinematic_dof_source', 'BLENDER') == 'HALO':
+        for name in vars(dof):
+            setattr(dof, name, getattr(settings, 'cinematic_dof_' + name))
+        return dof
     data = camera.data
     data: bpy.types.Camera
     if not data.dof.use_dof:
@@ -229,6 +234,7 @@ class ActorLighting(Enum):
     NONE = 0
     PERSIST = 1
     PER_SHOT = 2
+    TEMPLATE = 3
 
 def set_actor_animation_compression(graph: AnimationGraphTag, actor) -> bool:
     graph.set_compression(
@@ -240,12 +246,16 @@ class Actor:
     def __init__(self, ob: bpy.types.Object, scene_name: str, asset_path: str, child_asset_name="", export_name=""):
         self.ob = ob
         self.name = utils.clean_text(export_name or ob.name, replace_spaces=True)
-        self.original_tag = utils.relative_path(ob.nwo.cinematic_object)
+        self.original_tag = utils.relative_path(ob.nwo.cinematic_object) if ob.nwo.cinematic_object.strip() else ''
         self.weapon_tag = None
         path_tag = Path(self.original_tag)
+        objectless = not self.original_tag and (ob.nwo.object_source != 'CREATE' or ob.nwo.cinematic_objectless)
+        self.scenario_only = objectless and not ob.data.bones
         
         tag_type = path_tag.suffix.lower()
-        if tag_type in {'.scenery', '.biped'}:
+        if objectless:
+            self.tag = ''
+        elif tag_type in {'.scenery', '.biped'}:
             self.tag = self.original_tag
         else:
             self.tag = str(path_tag.with_suffix(".scenery"))
@@ -253,6 +263,8 @@ class Actor:
                 self.weapon_tag = self.original_tag
         
         self.graph = str(Path(asset_path, "objects", scene_name, f"{self.name}.model_animation_graph"))
+        if self.scenario_only:
+            self.graph = ''
         if child_asset_name:
             self.sidecar = str(Path(asset_path, child_asset_name, "export", "models", self.name))
         else:
@@ -273,6 +285,8 @@ class Actor:
     def validate(self) -> str | None:
         """Ensures that the tag will function for the cinematic. Returns a string with the reason for validation for failure, else None"""
         self.validation_complete = True
+        if not self.original_tag:
+            return
         tags_dir = utils.get_tags_path()
         object_path = Path(tags_dir, self.original_tag)
         # Check that there is an animation graph
@@ -313,8 +327,50 @@ class ShotActor:
         self.name = ob.name
         self.animation_name = f"{self.name}_{shot_index}"
     
+def cinematic_camera_projection(data: bpy.types.Camera, scene: bpy.types.Scene) -> tuple[float, float]:
+    """Horizontal FOV in degrees and film aperture in mm for Blender's render frame."""
+    if data.type != 'PERSP':
+        raise ExportCancelled('Halo cinematic cameras must use perspective projection')
+    # view_frame resolves horizontal/vertical/auto sensor fit, render aspect
+    # and pixel aspect. Camera.angle can describe the vertical sensor axis.
+    corners = data.view_frame(scene=scene)
+    width_at_unit_depth = (max(v.x for v in corners) - min(v.x for v in corners)) / abs(corners[0].z)
+    return degrees(2 * atan(width_at_unit_depth / 2)), data.lens * width_at_unit_depth
+
+
+def cinematic_extra_camera_tracks(scene):
+    """Resolve scene-local registrations without depending on active selection."""
+    tracks = []
+    names = set()
+    for item in scene.nwo.cinematic_extra_cameras:
+        name = item.name.strip()
+        camera = item.camera
+        if not name or name in names:
+            raise ExportCancelled('Extra camera export names must be nonempty and unique')
+        if camera is None or camera.type != 'CAMERA' or camera.name not in scene.objects:
+            raise ExportCancelled(f'Extra camera {name}: select a camera in this Blender scene')
+        if camera == scene.camera or any(m.camera == camera for m in scene.timeline_markers):
+            raise ExportCancelled(f'Extra camera {name} is also a main shot camera; use a separate camera')
+        if not item.camera_type.strip():
+            raise ExportCancelled(f'Extra camera {name}: missing camera type')
+        names.add(name)
+        tracks.append(SimpleNamespace(name=name, camera=camera, camera_type=item.camera_type))
+    if sum(t.camera_type == 'texture' for t in tracks) > 1:
+        raise ExportCancelled('Halo has one texture-camera feed; register one Texture Camera per scene')
+    return tracks
+
+
+def texture_camera_film_width(data, aspect):
+    """Blender's horizontal sensor gate for the auxiliary render target."""
+    if not isfinite(aspect) or aspect <= 0:
+        raise ExportCancelled('Texture camera aspect ratio must be positive')
+    horizontal = data.sensor_fit == 'HORIZONTAL' or (data.sensor_fit == 'AUTO' and aspect >= 1)
+    sensor_size = data.sensor_height if data.sensor_fit == 'VERTICAL' else data.sensor_width
+    return sensor_size if horizontal else sensor_size * aspect
+
+
 class Frame:
-    def __init__(self, ob: bpy.types.Object, corinth: bool, film_aperture: float, transform_scale: float = None, rotation: float = None):
+    def __init__(self, ob: bpy.types.Object, corinth: bool, film_aperture: float, transform_scale: float = None, rotation: float = None, *, game: str = None, scene: bpy.types.Scene = None, extra_camera_aspect: float = None):
         assert(ob.type == 'CAMERA')
         data = ob.data
         data: bpy.types.Camera
@@ -328,9 +384,40 @@ class Frame:
         forward = matrix_3x3.col[0]
         self.up = up.normalized().to_tuple()
         self.forward = forward.normalized().to_tuple()
-        # (game aperture from globals * blender focal length) / blender sensor width
-        self.focal_length = (film_aperture * data.lens) / max(data.sensor_width, 0.000001)
-        # print(film_aperture, data.lens, data.sensor_width, self.focal_length)
+        if game is None:
+            project = utils.get_project()
+            game = project.game if project is not None else ('halo4' if corinth else 'reach')
+        if extra_camera_aspect is not None:
+            if data.type != 'PERSP' or data.shift_x or data.shift_y:
+                raise ExportCancelled('Extra cameras must use perspective projection without lens shift')
+            width = texture_camera_film_width(data, extra_camera_aspect)
+            if not all(isfinite(v) and v > 0 for v in (data.lens, width, film_aperture)):
+                raise ExportCancelled('Extra camera lens and film aperture must be positive')
+            # Texture playback supplies globals/lens FOV as the renderer's
+            # VERTICAL FOV. Resolve Blender's gate against the feed aspect,
+            # without the main observer/letterbox conversion.
+            self.focal_length = film_aperture * data.lens * extra_camera_aspect / width
+            self.film_aperture = film_aperture * extra_camera_aspect
+            self.horizontal_fov = degrees(2 * atan(self.film_aperture / (2 * self.focal_length)))
+        elif game in {'halo3', 'halo3odst'}:
+            scene = scene or bpy.context.scene
+            _, blender_aperture = cinematic_camera_projection(data, scene)
+            render = scene.render
+            render_aspect = (render.resolution_x * render.pixel_aspect_x) / (render.resolution_y * render.pixel_aspect_y)
+            # Encode Blender's actual render frame into the game's final
+            # cinematic projection, including its letterbox fit. Sensor fit,
+            # both sensor dimensions and pixel aspect are already resolved by
+            # view_frame; no particular Blender sensor preset is required.
+            runtime_aperture = cinematic_runtime_aperture(film_aperture, render_aspect, game=game)
+            self.focal_length = runtime_aperture * data.lens / blender_aperture
+            # Keep the authoring metadata consistent with the converted lens
+            # and the game film back, rather than mixing Blender mm with
+            # a game-normalized lens. Playback does not consume these fields.
+            self.film_aperture = film_aperture
+            self.horizontal_fov = degrees(2 * atan(film_aperture / (2 * self.focal_length)))
+        else:
+            # Reach/H4 derive projection using the film aperture in globals.
+            self.focal_length = (film_aperture * data.lens) / max(data.sensor_width, 0.000001)
         self.depth_of_field = int(dof.enabled)
 
         self.near_focal_plane_distance = dof.near_focal_plane_distance
@@ -341,6 +428,13 @@ class Frame:
         self.far_focal_depth = dof.far_focal_depth
         self.near_blur_amount = dof.near_blur_amount
         self.far_blur_amount = dof.far_blur_amount
+        if extra_camera_aspect is not None:
+            self.enabled = ob.nwo.cinematic_extra_camera_enabled
+            if game in {'halo3', 'halo3odst'}:
+                # H3 texture-frame playback only consumes pose and lens.
+                for name in ('depth_of_field', 'near_focal_plane_distance', 'far_focal_plane_distance',
+                             'focal_depth', 'blur_amount'):
+                    setattr(self, name, 0)
 
     
 class Effect:
@@ -361,7 +455,10 @@ class QUA:
         self.scene_name = scene_name
         self.objects = actors
         self.shots = shots
-        self.extra_cameras = []
+        self.extra_cameras = [SimpleNamespace(
+            name=track.name, camera_type=track.camera_type,
+            shots=[getattr(shot, 'extra_camera_frames', {}).get(track.name, []) for shot in shots])
+            for track in cinematic_extra_camera_tracks(blender_scene)] if blender_scene is not None else []
         self.corinth = corinth
         self.tag_path = Path(asset_path, scene_name)
         self.shot_counts = [shot.frame_count for shot in shots]
@@ -614,6 +711,13 @@ class QUA:
         header = script_from_text(self.corinth, cin_scene_settings.header,
                                   cin_scene_settings.header_text,
                                   cin_scene_settings.header_use_text)
+        if blender_scene is not None and any(t.camera_type == 'texture' for t in self.extra_cameras):
+            settings = blender_scene.nwo
+            if settings.texture_camera_override_settings:
+                commands = (f'(texture_camera_set_resolution {settings.texture_camera_resolution_x} {settings.texture_camera_resolution_y})\n'
+                            f'(texture_camera_set_aspect_ratio {settings.texture_camera_aspect_ratio:g})')
+                commands = script_from_text(self.corinth, commands)
+                header = f'{header}\n{commands}' if header.strip() else commands
         footer = script_from_text(self.corinth, cin_scene_settings.footer,
                                   cin_scene_settings.footer_text,
                                   cin_scene_settings.footer_use_text)
@@ -622,6 +726,7 @@ class QUA:
         if self.corinth:
             with NativeCinematicSceneTag(path=scene_path, tag_must_exist=False) as native_scene, \
                  CinematicSceneDataTag(path=data_path, tag_must_exist=False) as native_data:
+                native_data.validate_extra_camera_frames(self.extra_cameras, self.shots, rebuild=not self.preserve_unexported_shots)
                 native_scene.write_export_header(
                     self.scene_name, cin_scene_settings.reset_object_lighting,
                     header, footer, data_path)
@@ -634,18 +739,21 @@ class QUA:
                     music, function_keyframes, self.get_shot_index_and_frame)
                 native_scene.write_lighting_events(lighting)
                 native_data.write_camera_frames(self.shots, True, rebuild=not self.preserve_unexported_shots)
+                native_data.write_extra_camera_frames(self.extra_cameras, self.shots, True, rebuild=not self.preserve_unexported_shots)
                 native_data.write_script_events(
                     scripts, self.get_shot_index_and_frame, True, script_from_text)
                 native_data.write_content_events(
                     dialogue, effects, self.get_shot_index_and_frame)
         else:
             with NativeCinematicSceneTag(path=scene_path, tag_must_exist=False) as native_scene:
+                native_scene.validate_extra_camera_frames(self.extra_cameras, self.shots, rebuild=not self.preserve_unexported_shots)
                 native_scene.write_export_header(
                     self.scene_name, cin_scene_settings.reset_object_lighting,
                     header, footer)
                 native_scene.write_export_objects(self.objects, script_from_text)
                 native_scene.write_camera_shots(
                     self.shots, False, script_from_text, rebuild=not self.preserve_unexported_shots)
+                native_scene.write_extra_camera_frames(self.extra_cameras, self.shots, False, rebuild=not self.preserve_unexported_shots)
                 native_scene.write_camera_events(self.shots, False, utils.game_frame)
                 native_scene.write_timeline_events(
                     music, function_keyframes, self.get_shot_index_and_frame)
@@ -694,14 +802,17 @@ class QUA:
                     if index == 0:
                         weapon_attachments["0"] = attachment_object_name
 
-            def add_lighting(shot_index, persist=False):
+            def add_lighting(shot_index, persist=False, template='', marker=None, ordinal=1):
                 lighting_name = f"{self.scene_name}_sh{shot_index + 1}_{actor.name}"
+                if ordinal > 1:
+                    lighting_name += f"_{ordinal}"
                 lighting_path = Path(self.tag_path.parent, "lights", lighting_name)
                 with CinematicLightingTag(path=lighting_path) as cinematic_lighting:
+                    cinematic_lighting.seed_from_template(template or getattr(actor_nwo, 'cinematic_lighting_template', ''))
                     lighting_reference = cinematic_lighting.tag_path
                 lighting_assignments.append((shot_index, actor_index,
                                              lighting_reference,
-                                             actor.lighting_marker, persist))
+                                             actor.lighting_marker if marker is None else marker, persist))
 
             match actor.lighting:
                 case ActorLighting.PERSIST:
@@ -711,6 +822,16 @@ class QUA:
                 case ActorLighting.PER_SHOT:
                     for shot_index in actor.shots_active:
                         add_lighting(shot_index)
+                case ActorLighting.TEMPLATE:
+                    ordinals = {}
+                    for assignment in actor_nwo.cinematic_lighting_templates:
+                        shot_index = assignment.shot - 1
+                        if not 0 <= shot_index < len(self.shots):
+                            raise ExportCancelled(f"{actor.name}: lighting template refers to missing shot {assignment.shot}")
+                        ordinal = ordinals.get(shot_index, 0) + 1
+                        ordinals[shot_index] = ordinal
+                        add_lighting(shot_index, assignment.persist, assignment.lighting,
+                                     assignment.marker, ordinal)
 
         fps = blender_scene.render.fps / blender_scene.render.fps_base
 

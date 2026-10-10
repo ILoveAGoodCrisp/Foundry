@@ -6,6 +6,31 @@ from .blender import BlenderTag
 from .cinematic_script import encode_script_data
 
 
+# Playback derives FOV from globals and lens. After the observer's 4:3
+# conversion, the cinematic renderer applies a separate widescreen/letterbox
+# adjustment. The normal 16:9 projection therefore uses globals as its
+# horizontal aperture directly, not globals * 4/3.
+CINEMATIC_REFERENCE_ASPECT = 4 / 3
+CINEMATIC_WIDESCREEN_ASPECT = 16 / 9
+CINEMATIC_LETTERBOX_ASPECT = 2.35
+
+
+def cinematic_runtime_aperture(film_aperture: float, render_aspect: float, *, game: str = 'halo3') -> float:
+    """Default widescreen H3 letterbox projection, including its final fit.
+
+    Between 16:9 and the cinematic gate, letterbox fitting preserves horizontal
+    FOV. Beyond that gate it preserves vertical FOV; a narrower widescreen
+    viewport likewise retains the 16:9 vertical gate.
+    """
+    # ODST gates the extra 0.75 correction separately. Keep its existing
+    # observer conversion until its active render configuration is verified.
+    if game == 'halo3odst':
+        return film_aperture * render_aspect / CINEMATIC_REFERENCE_ASPECT
+    if render_aspect < CINEMATIC_WIDESCREEN_ASPECT:
+        return film_aperture * render_aspect / CINEMATIC_WIDESCREEN_ASPECT
+    return film_aperture * max(1.0, render_aspect / CINEMATIC_LETTERBOX_ASPECT)
+
+
 class CinematicCameraDocument(TagDocument):
     def shot_frame_counts(self):
         counts = [self.value(shot, 'frame count') for shot in self.block(self.tag.root(), 'shots')]
@@ -96,34 +121,130 @@ class CinematicCameraDocument(TagDocument):
                 camera_frame = self.required_field(frame_element, 'camera frame').as_struct()
                 if camera_frame is None:
                     raise TypeError(f'{self.path}: camera frame is not a struct')
-                if corinth:
-                    dynamic = self.required_field(camera_frame, 'dynamic data').as_struct()
-                    constant = self.required_field(camera_frame, 'constant data').as_struct()
-                    if dynamic is None or constant is None:
-                        raise TypeError(f'{self.path}: split camera data is not a struct')
-                    self._write_vector(dynamic, 'camera position', frame.position)
-                    self._write_vector(dynamic, 'camera forward', frame.forward)
-                    self._write_vector(dynamic, 'camera up', frame.up)
-                    values = (
-                        ('focal length', frame.focal_length), ('depth of field', frame.depth_of_field),
-                        ('near focal plane distance', frame.near_focal_plane_distance),
-                        ('far focal plane distance', frame.far_focal_plane_distance),
-                        ('near focal depth', frame.near_focal_depth), ('far focal depth', frame.far_focal_depth),
-                        ('near blur amount', frame.near_blur_amount), ('far blur amount', frame.far_blur_amount))
-                    for name, value in values:
-                        self._write_value(constant, name, value)
-                else:
-                    self._write_vector(camera_frame, 'camera position', frame.position)
-                    self._write_vector(camera_frame, 'camera forward', frame.forward)
-                    self._write_vector(camera_frame, 'camera up', frame.up)
-                    values = (
-                        ('focal length', frame.focal_length), ('depth of field', frame.depth_of_field),
-                        ('near focal plane distance', frame.near_focal_plane_distance),
-                        ('far focal plane distance', frame.far_focal_plane_distance),
-                        ('focal depth', frame.focal_depth), ('blur amount', frame.blur_amount))
-                    for name, value in values:
-                        self._write_value(camera_frame, name, value)
+                self._write_camera_payload(camera_frame, frame, corinth)
             self.tag_has_changes = True
+
+    def _write_camera_payload(self, camera, frame, corinth):
+        dynamic = self.required_field(camera, 'dynamic data').as_struct() if corinth else camera
+        constant = self.required_field(camera, 'constant data').as_struct() if corinth else camera
+        if dynamic is None or constant is None:
+            raise TypeError(f'{self.path}: camera data is not a struct')
+        for name, value in (('camera position', frame.position),
+                            ('camera forward', frame.forward), ('camera up', frame.up)):
+            self._write_vector(dynamic, name, value)
+        names = ('focal length', 'depth of field', 'near focal plane distance', 'far focal plane distance')
+        names += (('near focal depth', 'far focal depth', 'near blur amount', 'far blur amount')
+                  if corinth else ('focal depth', 'blur amount'))
+        if self.game in {'halo3', 'halo3odst'}:
+            names += ('horizontal field of view', 'horizontal film aperture')
+        for name in names:
+            attribute = {'horizontal field of view': 'horizontal_fov',
+                         'horizontal film aperture': 'film_aperture'}.get(name, name.replace(' ', '_'))
+            self._write_value(constant, name, getattr(frame, attribute))
+
+    def validate_extra_camera_frames(self, tracks, shots, rebuild=True):
+        """Validate everything before changing either main or extra shot arrays."""
+        field = self.tag.root().field('extra camera frame data')
+        if field is None:
+            if tracks:
+                raise ValueError(f'{self.path}: extra cameras are unavailable in this tag layout')
+            return
+        if rebuild and tracks and any(not getattr(shot, 'in_scope', True) for shot in shots):
+            raise ValueError('Rebuilding extra camera tracks requires exporting all shots')
+        names = [track.name for track in tracks]
+        if any(not name.strip() for name in names) or len(set(names)) != len(names):
+            raise ValueError('Extra camera export names must be nonempty and unique')
+        for track in tracks:
+            if not track.camera_type.strip() or len(track.shots) != len(shots):
+                raise ValueError(f'Extra camera {track.name}: invalid type or shot count')
+            for shot, frames in zip(shots, track.shots):
+                if getattr(shot, 'in_scope', True) and len(frames) != shot.frame_count:
+                    raise ValueError(f'Extra camera {track.name}: frame count differs from the main shot')
+                for frame in frames:
+                    axes = (*frame.position, *frame.forward, *frame.up, frame.focal_length)
+                    if not all(isfinite(v) for v in axes) or frame.focal_length <= 0:
+                        raise ValueError(f'Extra camera {track.name}: invalid camera values')
+                    cross = tuple(frame.forward[(i+1)%3] * frame.up[(i+2)%3]
+                                  - frame.forward[(i+2)%3] * frame.up[(i+1)%3] for i in range(3))
+                    if sum(v*v for v in cross) < 1e-12:
+                        raise ValueError(f'Extra camera {track.name}: degenerate camera axes')
+        if rebuild:
+            return
+        existing = field.as_block()
+        identities = [(self.value(e, 'name'), self.value(e, 'type')) for e in existing]
+        if len(identities) != len(tracks) or set(identities) != {(t.name, t.camera_type) for t in tracks}:
+            raise ValueError('Extra cameras were added, renamed, or removed; export all shots first')
+        if self.shot_frame_counts() != [s.frame_count for s in shots]:
+            raise ValueError('Cinematic shot boundaries changed; export all shots first')
+        for extra in existing:
+            extra_shots = self.block(extra, 'shots')
+            if len(extra_shots) != len(shots) or any(
+                    len(self.block(e, 'frame data')) != s.frame_count for e, s in zip(extra_shots, shots)):
+                raise ValueError('Extra camera shot layout changed; export all shots first')
+
+    def write_extra_camera_frames(self, tracks, shots, corinth, rebuild=True):
+        self.validate_extra_camera_frames(tracks, shots, rebuild)
+        field = self.tag.root().field('extra camera frame data')
+        if field is None:
+            return
+        extras = field.as_block()
+        if rebuild:
+            extras.clear()
+            for track in tracks:
+                extra = extras[extras.add()]
+                self._write_value(extra, 'name', track.name)
+                self._write_value(extra, 'type', track.camera_type)
+                for _ in shots:
+                    self.block(extra, 'shots').add()
+        by_name = {self.value(extra, 'name'): extra for extra in extras}
+        for track in tracks:
+            extra_shots = self.block(by_name[track.name], 'shots')
+            for shot, extra_shot, frames in zip(shots, extra_shots, track.shots):
+                if not getattr(shot, 'in_scope', True):
+                    continue
+                block = self.block(extra_shot, 'frame data')
+                block.clear()
+                for frame in frames:
+                    element = block[block.add()]
+                    self.required_field(element, 'flags').set_flag('enabled', bool(frame.enabled))
+                    self._write_camera_payload(self.required_field(element, 'frame data').as_struct(), frame, corinth)
+        self.tag_has_changes = True
+
+    def extra_camera_tracks(self):
+        """Detach auxiliary frames from the tag, including inactive samples."""
+        field = self.tag.root().field('extra camera frame data')
+        if field is None:
+            return []
+        counts = self.shot_frame_counts()
+        tracks = []
+        for extra in field.as_block():
+            shots = []
+            for shot in self.block(extra, 'shots'):
+                frames = []
+                for element in self.block(shot, 'frame data'):
+                    camera = self.required_field(element, 'frame data').as_struct()
+                    dynamic = camera.field('dynamic data')
+                    constant = camera.field('constant data')
+                    dynamic = dynamic.as_struct() if dynamic is not None else camera
+                    constant = constant.as_struct() if constant is not None else camera
+                    frame = SimpleNamespace(enabled=self.required_field(element, 'flags').get_flag('enabled'))
+                    for name, attribute in (('camera position', 'position'), ('camera forward', 'forward'), ('camera up', 'up')):
+                        setattr(frame, attribute, tuple(self.value(dynamic, name).to_array()))
+                    for name in ('focal length', 'depth of field', 'near focal plane distance', 'far focal plane distance',
+                                 'focal depth', 'blur amount', 'near focal depth', 'far focal depth',
+                                 'near blur amount', 'far blur amount'):
+                        item = constant.field(name)
+                        setattr(frame, name.replace(' ', '_'), item.value if item is not None else 0)
+                    for name, attribute in (('horizontal field of view', 'horizontal_fov'), ('horizontal film aperture', 'film_aperture')):
+                        item = constant.field(name)
+                        setattr(frame, attribute, item.value if item is not None else None)
+                    frame.lens = frame.focal_length
+                    frames.append(frame)
+                shots.append(frames)
+            if len(shots) != len(counts) or any(len(frames) != count for frames, count in zip(shots, counts)):
+                raise ValueError(f'{self.path}: extra camera shots do not match the main camera')
+            tracks.append(SimpleNamespace(name=self.value(extra, 'name'), camera_type=self.value(extra, 'type'), shots=shots))
+        return tracks
 
     def write_camera_shots(self, shots, corinth, script_from_text, rebuild=False):
         self.write_shot_settings(shots, corinth, script_from_text, rebuild)
@@ -373,7 +494,30 @@ class CinematicCameraDocument(TagDocument):
                     object_type=self.reference(attachment, 'attachment type'),
                     invisible=attachment_flags.get_flag('invisible') if attachment_flags is not None else False))
             object_flags = element.field('flags')
+            actor_settings = {}
+            for flag, prop in (
+                    ('Effect Object', 'effect_object'), ('No Lightmap Shadow', 'no_lightmap_shadow'),
+                    ('Apply Player Customization', 'apply_player_customization'),
+                    ('Use Master Chief player appearance', 'apply_player_customization'),
+                    ('Apply First Person Player Customization', 'apply_first_person_player_customization'),
+                    ('I will animate the English lipsync manually', 'english_lipsync_manual')):
+                if object_flags is not None and flag in object_flags.options().names:
+                    actor_settings[prop] = object_flags.get_flag(flag)
+            actor_settings['object_source'] = ('CREATE_ANEW' if object_flags is not None
+                and 'Placed Manually in Sapien' in object_flags.options().names
+                and object_flags.get_flag('Placed Manually in Sapien') else 'CREATE')
+            if (object_flags is not None and 'Object Comes From Game' in object_flags.options().names
+                    and object_flags.get_flag('Object Comes From Game')):
+                actor_settings['object_source'] = 'USE'
+            overrides = element.field('override creation flags')
+            if overrides is not None:
+                for player_index, flag in enumerate(('single player', '2 player co-op', '3 player co-op', '4 player co-op'), 1):
+                    actor_settings[f'override_{player_index}_player'] = not overrides.get_flag(flag)
+            condition = element.field("custom don't create condition")
+            if condition is not None:
+                actor_settings['override_script'] = bytes(self.value(condition.as_struct(), 'script')).rstrip(b'\x00').decode('utf-8-sig')
             records.append(SimpleNamespace(index=index, name=self.value(element, 'name'),
+                settings=actor_settings,
                 identifier=self.value(element, 'identifier') if element.field('identifier') is not None else '',
                 attachments=attachments,
                 placed_manually=object_flags.get_flag('Placed Manually in Sapien')
@@ -552,12 +696,24 @@ class CinematicCameraDocument(TagDocument):
                 forward = tuple(self.value(dynamic, 'camera forward').to_array())
                 up = tuple(self.value(dynamic, 'camera up').to_array())
                 lens = self.value(constant, 'focal length')
+                fov_field = constant.field('horizontal field of view')
+                aperture_field = constant.field('horizontal film aperture')
                 if not all(isfinite(v) for v in (*position, *forward, *up, lens)) or lens <= 0:
                     raise ValueError(f'Cinematic shot {shot_index}: invalid camera values')
                 cross = tuple(forward[(i+1)%3]*up[(i+2)%3] - forward[(i+2)%3]*up[(i+1)%3] for i in range(3))
                 if not any(cross):
                     raise ValueError(f'Cinematic shot {shot_index}: degenerate camera axes')
-                frames.append(SimpleNamespace(position=position, forward=forward, up=up, lens=lens))
+                dof = {}
+                for key in ('depth of field', 'near focal plane distance', 'far focal plane distance',
+                            'focal depth', 'blur amount', 'near focal depth', 'far focal depth',
+                            'near blur amount', 'far blur amount'):
+                    field = constant.field(key) or dynamic.field(key)
+                    if field is not None:
+                        dof['enabled' if key == 'depth of field' else key.replace(' ', '_')] = field.value
+                frames.append(SimpleNamespace(position=position, forward=forward, up=up, lens=lens,
+                    dof=dof,
+                    horizontal_fov=fov_field.value if fov_field is not None else None,
+                    film_aperture=aperture_field.value if aperture_field is not None else None))
             if not frames:
                 raise ValueError(f'Cinematic shot {shot_index}: no camera frames')
             shots.append(frames)

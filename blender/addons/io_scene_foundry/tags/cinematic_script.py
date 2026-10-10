@@ -997,6 +997,8 @@ def _looks_corinth_like(src: str) -> bool:
     stripped = src.strip()
     if not stripped:
         return False
+    if stripped.startswith(';'):
+        return False
     if stripped.startswith(("//", "/*")):
         return True
     if stripped.endswith(";"):
@@ -1024,7 +1026,7 @@ def _looks_lisp_like(src: str) -> bool:
 def _looks_corinth_document(src: str) -> bool:
     for line in src.splitlines():
         stripped = line.strip()
-        if not stripped:
+        if not stripped or stripped.startswith(';'):
             continue
         if _looks_corinth_like(stripped):
             return True

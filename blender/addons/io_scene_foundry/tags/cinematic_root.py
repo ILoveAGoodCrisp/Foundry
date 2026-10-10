@@ -307,19 +307,40 @@ class NativeCinematicTag(CinematicTag):
         return field.value if field is not None else None
 
     def to_blender(self, film_aperture, import_scenario=False, specific_scene=''):
+        root = self.tag.root()
+        settings = self.scene_nwo
+        channel = self.required_field(root, 'channel type')
+        value = channel.value
+        settings.cinematic_channel_type = str(channel.options().names.index(value) if isinstance(value, str) else value)
+        for direction in ('in', 'out'):
+            setattr(settings, f'cinematic_easing_{direction}_time', self.value(root, f'easing {direction} time') / 30)
+            color = root.field(f'fade {direction} color')
+            if color is not None:
+                value = color.value
+                setattr(settings, f'cinematic_fade_{direction}_color', (value.red, value.green, value.blue))
+                setattr(settings, f'cinematic_fade_{direction}_time', self.value(root, f'fade {direction} time') / 30)
+        for field, prop in (('header', 'cinematic_header'), ('footer', 'cinematic_footer'),
+                            ('early exit', 'cinematic_skip_footer')):
+            script = self.required_field(root, field).as_struct()
+            setattr(settings, prop, bytes(self.value(script, 'script')).rstrip(b'\x00').decode('utf-8-sig'))
+            setattr(settings, prop + '_use_text', False)
+        bink = self.reference(root, 'bink movie') if root.field('bink movie') is not None else None
+        settings.cinematic_bink_movie = bink.RelativePathWithExtension if bink is not None else ''
+        flags = root.field('flags')
+        settings.cinematic_outro = bool(flags is not None and flags.get_flag('Outro'))
         scenario_path, zone_set = None, ''
         self.scenario_bsp_mask = None
-        if import_scenario:
-            reference, index = self.scenario_reference()
-            with CinematicImportDocument(self.path, tags_root=self.tags_root,
-                    game=self.game, definitions=self.definitions, must_exist=True) as document:
-                environment = document.resolve_environment(reference, index)
-            scenario_path, zone_set = environment.scenario, environment.zone_set
-            self.scenario_bsp_mask = environment.bsp_mask
-            if environment.warning:
-                utils.print_warning(environment.warning)
-            if scenario_path and not self.path_exists(reference):
-                utils.print_step(f'Resolved cinematic scenario: {scenario_path}')
+        # Scenario metadata supplies placement even when scenery is not imported.
+        reference, index = self.scenario_reference()
+        with CinematicImportDocument(self.path, tags_root=self.tags_root,
+                game=self.game, definitions=self.definitions, must_exist=True) as document:
+            environment = document.resolve_environment(reference, index)
+        scenario_path, zone_set = environment.scenario, environment.zone_set
+        self.scenario_bsp_mask = environment.bsp_mask
+        if environment.warning:
+            utils.print_warning(environment.warning)
+        if scenario_path and not self.path_exists(reference):
+            utils.print_step(f'Resolved cinematic scenario: {scenario_path}')
         scenes = []
         for scene, data in self.scene_references():
             if not self.path_exists(scene) or (self.corinth and not self.path_exists(data)):
@@ -340,6 +361,7 @@ class SceneData:
         self.name = ""
         self.blender_scene = None
         self.camera_objects = []
+        self.extra_camera_objects = []
         self.object_animations = []
         self.anchor_name = ""
         self.actions = []
@@ -352,8 +374,16 @@ class SceneData:
     def from_scene(self, scene_tagpath):
         with NativeCinematicSceneTag(path=scene_tagpath) as scene:
             self.name, self.blender_scene, self.camera_objects, self.object_animations, self.anchor_name, self.actions, self.shot_frames, self.lighting_infos = scene.to_blender(self.film_aperture, self.cinematic_name, scene)
+            self._split_extra_cameras()
     
     def from_scene_corinth(self, scene_tagpath, scene_data_tagpath):
         with NativeCinematicSceneTag(path=scene_tagpath) as scene:
             with CinematicSceneDataTag(path=scene_data_tagpath) as data:
                 self.name, self.blender_scene, self.camera_objects, self.object_animations, self.anchor_name, self.actions, self.shot_frames, self.lighting_infos = scene.to_blender(self.film_aperture, self.cinematic_name, data)
+                self._split_extra_cameras()
+
+    def _split_extra_cameras(self):
+        # Shot-indexed actor/lighting consumers must only see the main cameras.
+        extras = {item.camera for item in self.blender_scene.nwo.cinematic_extra_cameras}
+        self.extra_camera_objects = [camera for camera in self.camera_objects if camera in extras]
+        self.camera_objects = [camera for camera in self.camera_objects if camera not in extras]

@@ -128,11 +128,14 @@ class CinLighting:
         self.cortana_lights: list[CinematicLight] = []
     
 class CinematicLightingTag(BlenderTag, CinematicLightingDocument):
+    tag_ext = 'new_cinematic_lighting'
+
     def __init__(self, path='', *, tag_must_exist=False, **kwargs):
         super().__init__(path, tag_must_exist=tag_must_exist, **kwargs)
 
     def to_cinematic_lighting(self, marker, persist, shot_index) -> CinLighting:
         lighting = CinLighting(marker, persist, shot_index)
+        lighting.template = self.tag_path.RelativePathWithExtension
         for record in self.dynamic_lights():
             light = DynamicLight()
             light.light_tag = record.reference

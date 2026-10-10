@@ -49,10 +49,13 @@ class CinematicImportDocument(TagDocument):
                     if zone.field('cinematic zones') is not None
                     and int(self.value(zone, 'cinematic zones')) & cinematic_mask]
         # An index in a missing scenario cannot be assumed to index its replacement.
-        if 0 <= requested_index < len(zones) and (not recovered or requested_index in matching):
+        if not recovered and 0 <= requested_index < len(zones):
             selected = [requested_index]
         else:
-            selected = matching
+            # Prefer the matching zone set with the most active BSPs. max keeps
+            # the first match when counts tie, including zero-BSP zone sets.
+            selected = [max(matching, key=lambda i:
+                (int(self.value(zones[i], 'bsp zone flags')) & 0xffffffff).bit_count())] if matching else []
         if not selected:
             return CinematicEnvironment(str(self.system_path), bsp_mask=0,
                 warning=f'{self.path}: no zone set could be resolved for {cinematic}; skipping BSP import')

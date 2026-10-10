@@ -434,6 +434,87 @@ class NWO_OT_CinematicAnchorOffsetMain(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class NWO_UL_CinematicExtraCameras(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        row = layout.row(align=True)
+        row.label(text=item.name, icon='CAMERA_DATA')
+        row.label(text=item.camera.name if item.camera else "Select a camera", icon='NONE' if item.camera else 'ERROR')
+
+
+class NWO_OT_CinematicExtraCameraAdd(bpy.types.Operator):
+    bl_idname = "nwo.cinematic_extra_camera_add"
+    bl_label = "Add Texture Camera"
+    bl_description = "Register the selected camera, or create a new camera, for the live texture feed"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        settings = context.scene.nwo
+        if any(item.camera_type == 'texture' for item in settings.cinematic_extra_cameras):
+            self.report({'ERROR'}, "This scene already has a texture camera")
+            return {'CANCELLED'}
+        camera = context.object
+        if (camera is None or camera.type != 'CAMERA' or camera == context.scene.camera
+                or any(marker.camera == camera for marker in context.scene.timeline_markers)):
+            data = bpy.data.cameras.new("Texture Camera")
+            camera = bpy.data.objects.new(data.name, data)
+            context.collection.objects.link(camera)
+            camera.location = context.scene.cursor.location
+        item = settings.cinematic_extra_cameras.add()
+        names = {other.name for other in settings.cinematic_extra_cameras if other != item}
+        name = "texture_camera"
+        suffix = 1
+        while name in names:
+            name = f"texture_camera_{suffix}"
+            suffix += 1
+        item.name, item.camera, item.camera_type = name, camera, 'texture'
+        settings.active_cinematic_extra_camera_index = len(settings.cinematic_extra_cameras) - 1
+        settings.texture_camera_override_settings = True
+        return {'FINISHED'}
+
+
+class NWO_OT_CinematicExtraCameraRemove(bpy.types.Operator):
+    bl_idname = "nwo.cinematic_extra_camera_remove"
+    bl_label = "Remove Extra Camera Track"
+    bl_description = "Remove the track registration while keeping its Blender camera"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        settings = context.scene.nwo
+        index = settings.active_cinematic_extra_camera_index
+        if 0 <= index < len(settings.cinematic_extra_cameras):
+            settings.cinematic_extra_cameras.remove(index)
+            settings.active_cinematic_extra_camera_index = max(0, index - 1)
+        return {'FINISHED'}
+
+
+class NWO_OT_CinematicExtraCameraPreview(bpy.types.Operator):
+    bl_idname = "nwo.cinematic_extra_camera_preview"
+    bl_label = "Preview Extra Camera"
+    bl_description = "Toggle this viewport's local camera without changing the main shot camera"
+
+    @classmethod
+    def poll(cls, context):
+        return context.area is not None and context.area.type == 'VIEW_3D'
+
+    def execute(self, context):
+        settings = context.scene.nwo
+        index = settings.active_cinematic_extra_camera_index
+        if not 0 <= index < len(settings.cinematic_extra_cameras):
+            return {'CANCELLED'}
+        camera = settings.cinematic_extra_cameras[index].camera
+        if camera is None or camera.name not in context.view_layer.objects:
+            self.report({'ERROR'}, "Select a camera in the current view layer")
+            return {'CANCELLED'}
+        space = context.space_data
+        if space.use_local_camera and space.camera == camera:
+            space.use_local_camera = False
+        else:
+            space.use_local_camera = True
+            space.camera = camera
+        space.region_3d.view_perspective = 'CAMERA'
+        return {'FINISHED'}
+
+
 # CINEMATIC EVENTS
 class NWO_UL_CinematicEvents(bpy.types.UIList):
     
@@ -681,6 +762,8 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
+        if not utils.poll_project(cls):
+            return False
         ob = context.object
         return bool(context.scene.nwo.asset_type == 'cinematic' and ob is not None and ob.type == 'ARMATURE' and ob.nwo.cinematic_object.strip())
 
@@ -689,6 +772,8 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
         return ob is not None and Path(utils.relative_path(ob.nwo.cinematic_object)).suffix.lower() == ".biped"
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         if not self._tag_is_biped(context):
             self.import_biped_weapon = False
         return context.window_manager.invoke_props_dialog(self, width=360)
@@ -763,6 +848,8 @@ class NWO_OT_UpdateActor(bpy.types.Operator):
             context.scene.collection.objects.link(armature)
 
     def execute(self, context: bpy.types.Context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         from ...tools import importer as importer_module
 
         armature = context.object
@@ -882,6 +969,7 @@ class NWO_OT_OpenCinematicLightingTag(bpy.types.Operator):
     bl_label = "Open Cinematic Lighting Tag"
     bl_description = "Creates the current actor's cinematic lighting tag for the matching shot if needed and opens it in Foundation"
     bl_options = {"UNDO"}
+    assignment_index: bpy.props.IntProperty(default=-1, options={'HIDDEN', 'SKIP_SAVE'})
 
     @classmethod
     def poll(cls, context: bpy.types.Context):
@@ -891,7 +979,7 @@ class NWO_OT_OpenCinematicLightingTag(bpy.types.Operator):
             and utils.get_scene_props().asset_type == 'cinematic'
             and ob is not None
             and ob.type == 'ARMATURE'
-            and ob.nwo.cinematic_lighting in {'PERSIST', 'PER_SHOT'}
+            and ob.nwo.cinematic_lighting in {'PERSIST', 'PER_SHOT', 'TEMPLATE'}
         )
 
     def _lighting_shot_index(self, context: bpy.types.Context, actor: bpy.types.Object) -> int | None:
@@ -907,11 +995,24 @@ class NWO_OT_OpenCinematicLightingTag(bpy.types.Operator):
 
     def execute(self, context: bpy.types.Context):
         actor = context.object
-        shot_index = self._lighting_shot_index(context, actor)
+        template = actor.nwo.cinematic_lighting_template
+        ordinal = 1
+        if actor.nwo.cinematic_lighting == 'TEMPLATE':
+            assignments = actor.nwo.cinematic_lighting_templates
+            if not 0 <= self.assignment_index < len(assignments):
+                self.report({'WARNING'}, 'Choose an imported lighting assignment')
+                return {'CANCELLED'}
+            assignment = assignments[self.assignment_index]
+            shot_index, template = assignment.shot - 1, assignment.lighting
+            ordinal = sum(item.shot == assignment.shot for item in assignments[:self.assignment_index + 1])
+        else:
+            shot_index = self._lighting_shot_index(context, actor)
         if shot_index is None:
             return {"CANCELLED"}
 
         lighting_path = _cinematic_lighting_tag_path(context, actor, shot_index)
+        if lighting_path is not None and ordinal > 1:
+            lighting_path = lighting_path.with_name(f'{lighting_path.name}_{ordinal}')
         if lighting_path is None:
             self.report({"WARNING"}, "Current Blender scene is not linked to a cinematic scene")
             return {"CANCELLED"}
@@ -922,6 +1023,7 @@ class NWO_OT_OpenCinematicLightingTag(bpy.types.Operator):
 
         try:
             with CinematicLightingTag(path=lighting_path) as lighting_tag:
+                lighting_tag.seed_from_template(template)
                 relative_tag_path = lighting_tag.tag_path.RelativePathWithExtension
         except Exception as exc:
             self.report({"ERROR"}, f"Failed to create cinematic lighting tag: {exc}")
@@ -1317,10 +1419,14 @@ class NWO_OT_GetSoundEffects(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         scene_nwo = context.scene.nwo # scene specific
         return scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events)
     
     def fx_items(self, context):
+        if not utils.current_project_valid():
+            return []
         items = []
         if not Path(utils.get_tags_path(), SOUND_FX_TAG).exists():
             return items
@@ -1336,6 +1442,8 @@ class NWO_OT_GetSoundEffects(bpy.types.Operator):
     )
     
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         if not Path(utils.get_tags_path(), SOUND_FX_TAG).exists():
             self.report({'WARNING'}, f"Could not find tag {SOUND_FX_TAG}")
             return {'CANCELLED'}
@@ -1352,10 +1460,14 @@ class NWO_OT_GetSoundClasses(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         scene_nwo = context.scene.nwo # scene specific
         return scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events)
     
     def sound_class_items(self, context):
+        if not utils.current_project_valid():
+            return []
         items = []
         if not Path(utils.get_tags_path(), SOUND_CLASSES_TAG).exists():
             return items
@@ -1371,6 +1483,8 @@ class NWO_OT_GetSoundClasses(bpy.types.Operator):
     )
     
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         if not Path(utils.get_tags_path(), SOUND_CLASSES_TAG).exists():
             self.report({'WARNING'}, f"Could not find tag {SOUND_CLASSES_TAG}")
             return {'CANCELLED'}
@@ -1405,10 +1519,14 @@ class GetCinematicBase(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         scene_nwo = context.scene.nwo # scene specific
         return scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events)
     
     def items(self, context):
+        if not utils.current_project_valid():
+            return []
         global variants
         global regions
         global permutations
@@ -1462,6 +1580,8 @@ class GetCinematicBase(bpy.types.Operator):
     )
     
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         nwo = utils.get_scene_props()
         event = nwo.cinematic_events[nwo.active_cinematic_event_index]
         setattr(event, self.get_type, self.item)
@@ -1488,7 +1608,7 @@ class NWO_OT_GetCinematicRegion(GetCinematicBase):
     )
     
 class NWO_OT_GetCinematicPermutation(GetCinematicBase):
-    bl_label = "Get Permuation"
+    bl_label = "Get Permutation"
     bl_idname = 'nwo.get_cinematic_permutation'
     bl_description = "Returns a searchable list of permutations"
     
@@ -1729,6 +1849,8 @@ class NWO_GetScenarioCustsceneTitles(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         nwo = utils.get_scene_props()
         if nwo.asset_type == 'cinematic':
             tag_path = Path(utils.get_tags_path(), utils.relative_path(nwo.cinematic_scenario))
@@ -1739,6 +1861,8 @@ class NWO_GetScenarioCustsceneTitles(bpy.types.Operator):
         return False
     
     def title_items(self, context):
+        if not utils.current_project_valid():
+            return []
         nwo = utils.get_scene_props()
         items = []
         with ScenarioMetadataTag(path=nwo.cinematic_scenario) as scenario:
@@ -1755,6 +1879,8 @@ class NWO_GetScenarioCustsceneTitles(bpy.types.Operator):
     )
     
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         nwo = context.scene.nwo # scene specific
         event = nwo.cinematic_events[nwo.active_cinematic_event_index]
         event.script_text = self.cutscene_title
@@ -1808,6 +1934,8 @@ class NWO_OT_GetCinematicFunctions(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         nwo = utils.get_scene_props()
         scene_nwo = context.scene.nwo # scene specific
         if nwo.asset_type == 'cinematic' and scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events):
@@ -1820,6 +1948,8 @@ class NWO_OT_GetCinematicFunctions(bpy.types.Operator):
         return False
     
     def function_items(self, context):
+        if not utils.current_project_valid():
+            return []
         export_names = []
         is_weapon = False
         event = context.scene.nwo.cinematic_events[context.scene.nwo.active_cinematic_event_index]
@@ -1858,6 +1988,8 @@ class NWO_OT_GetCinematicFunctions(bpy.types.Operator):
     )
     
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         nwo = context.scene.nwo # scene specific
         event = nwo.cinematic_events[nwo.active_cinematic_event_index]
         event.function_name = self.function

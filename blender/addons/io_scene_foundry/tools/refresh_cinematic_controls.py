@@ -14,6 +14,7 @@ def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, 
     # using cache_file_builder_unshare_unique_map_locations as a variable for looping. It is enabled by default in reach+
     menu_commands = []
     cin_name = cinematic_path.with_suffix("").name
+    playback_suffix = ' (fade_in 0 0 0 0) (cinematic_show_letterbox_immediate 0)' if utils.get_game() in {'halo3', 'halo3odst'} else ''
     scene_index = -1
     with NativeCinematicTag(path=cinematic_path) as cinematic:
         for index, (scene, _) in enumerate(cinematic.scene_references()):
@@ -36,7 +37,7 @@ def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, 
         if corinth:
             command = f'cinematic_debug_play \\"{cin_name}\\" \\"\\" cache_file_builder_unshare_unique_map_locations {bsp_zone_flags}'
         else:
-            body = f'({cin_name}_debug)'
+            body = f'({cin_name}_debug){playback_suffix}'
             if REACH_LOOP_IT_WORKS:
                 command = f'(loop_clear) (if cache_file_builder_unshare_unique_map_locations (loop_it {{{body}}}) {body})'
             else:
@@ -49,7 +50,7 @@ def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, 
             if corinth:
                 command = f'cinematic_debug_play \\"{cin_name}\\" \\"1 {scene_index} 0\\" cache_file_builder_unshare_unique_map_locations {bsp_zone_flags}'
             else:
-                body = f'(begin_{cin_name}_debug) (!{scene_name}) (end_{cin_name}_debug)'
+                body = f'(begin_{cin_name}_debug) (!{scene_name}) (end_{cin_name}_debug){playback_suffix}'
                 if REACH_LOOP_IT_WORKS:
                     command = f"(loop_clear) (if cache_file_builder_unshare_unique_map_locations (loop_it {{(begin {body})}}) (begin {body}))"
                 else:
@@ -62,7 +63,7 @@ def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, 
             if corinth:
                 command = f'cinematic_debug_play \\"{cin_name}\\" \\"1 {scene_index} 1 {shot_index}\\" cache_file_builder_unshare_unique_map_locations {bsp_zone_flags}'
             else:
-                body = f'(begin_{cin_name}_debug) (cinematic_print \\"beginning scene {scene_index + 1}\\") (cinematic_scripting_create_scene {scene_index}) ({scene_name}_sh{shot_index}) (cinematic_scripting_destroy_scene {scene_index}) (end_{cin_name}_debug)'
+                body = f'(begin_{cin_name}_debug) (cinematic_print \\"beginning scene {scene_index + 1}\\") (cinematic_scripting_create_scene {scene_index}) ({scene_name}_sh{shot_index}) (cinematic_scripting_destroy_scene {scene_index}) (end_{cin_name}_debug){playback_suffix}'
                 if REACH_LOOP_IT_WORKS:
                     command  = f'(loop_clear) (if cache_file_builder_unshare_unique_map_locations (loop_it {{(begin {body})}}) (begin {body}))'
                 else:

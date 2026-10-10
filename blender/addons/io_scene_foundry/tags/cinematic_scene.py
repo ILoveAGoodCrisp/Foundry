@@ -4,9 +4,10 @@ from mathutils import Matrix, Vector
 
 from .cinematic_lighting import CinematicLightingTag
 
-from .cinematic import CinematicCameraDocument, CinematicSceneDataTag
+from .cinematic import CinematicCameraDocument, CinematicSceneDataTag, cinematic_runtime_aperture
 from .blender import BlenderTag
 from .cinematic_script import encode_script_data
+from .cinematic_extra import import_extra_camera_tracks, read_texture_camera_settings
 from .. import utils
 from ..props.scene import NWO_CinematicEvent
 from .. import import_transform
@@ -49,6 +50,7 @@ class CinematicDialogue:
         event.subtitle = self.subtitle
         event.female_subtitle = self.female_subtitle
         event.subtitle_character = self.character
+        event['cinematic_lipsync_actor'] = self.actor
         
         return event
         
@@ -65,7 +67,7 @@ class CinematicDialogue:
             self.female_dialogue = self.dialogue
             
         self.scale = event.sound_scale
-        self.actor = actor_objects.get(event.actor, "")
+        self.actor = actor_objects.get(event.actor, event.get('cinematic_lipsync_actor', ""))
         self.default_sound_effect = event.default_sound_effect
         self.subtitle = event.subtitle
         self.female_subtitle = event.female_subtitle if event.female_subtitle.strip() else self.subtitle
@@ -455,6 +457,7 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                     ('Apply First Person Player Customization', actor_nwo.apply_first_person_player_customization),
                     ('I will animate the English lipsync manually', actor_nwo.english_lipsync_manual)):
                 self._set_available_flag(flags, name, value)
+            self._set_available_flag(flags, 'Use Master Chief player appearance', actor_nwo.apply_player_customization)
             if self.corinth:
                 self._set_available_flag(flags, 'Primary Cortana', actor_nwo.primary_cortana)
                 self._set_available_flag(flags, 'Preload Textures', actor_nwo.preload_textures)
@@ -471,7 +474,7 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                 actor_nwo.override_script_use_text))
 
             if data_objects is None:
-                self._set_value(element, 'identifier', actor.name)
+                self._set_value(element, 'identifier', '' if getattr(actor, 'scenario_only', False) else actor.name)
                 self.set_reference(element, 'model animation graph', actor.graph or None)
                 self.set_reference(element, 'object type', actor.tag or None)
                 self._set_shot_flags(element, 'shots active flags', actor.shots_active)
@@ -496,6 +499,11 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
         with CinematicCameraDocument(data.tag_path.Filename, tags_root=utils.get_tags_path(),
                                      game=utils.get_project().game, must_exist=True) as native:
             camera_shots = native.camera_shots()
+            extra_camera_tracks = native.extra_camera_tracks()
+            scene_header = (bytes(native.value(native.required_field(native.tag.root(), 'header').as_struct(), 'script'))
+                            .rstrip(b'\x00').decode('utf-8-sig')) if not self.corinth else ''
+            scene_footer = (bytes(native.value(native.required_field(native.tag.root(), 'footer').as_struct(), 'script'))
+                            .rstrip(b'\x00').decode('utf-8-sig')) if not self.corinth else ''
             frame_counts = native.shot_frame_counts()
             scene_metadata = native.scene_metadata() if not self.corinth else None
             dialogue_shots = native.dialogue_shots()
@@ -518,6 +526,8 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                 lighting_shots = native_scene.lighting_shots()
                 native_scene_objects = native_scene.object_records()
                 scene_metadata = native_scene.scene_metadata()
+                scene_header = bytes(native_scene.value(native_scene.required_field(native_scene.tag.root(), 'header').as_struct(), 'script')).rstrip(b'\x00').decode('utf-8-sig')
+                scene_footer = bytes(native_scene.value(native_scene.required_field(native_scene.tag.root(), 'footer').as_struct(), 'script')).rstrip(b'\x00').decode('utf-8-sig')
         if len(music_shots) != len(camera_shots):
             raise ValueError('Cinematic scene and camera-data shot counts differ')
         if len(native_scene_objects) != len(native_data_objects):
@@ -530,8 +540,17 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
         actions = []
         shot_frames = []
         
-        scene_id = self.tag_path.ShortName[(len(cinematic_name) + 1):]
-        cin_scene = self.scene_nwo.cinematic_scenes.get(scene_id)
+        prefix = cinematic_name + '_'
+        scene_id = self.tag_path.ShortName.removeprefix(prefix)
+        cin_scene = next((item for item in self.scene_nwo.cinematic_scenes
+                          if item.scene is not None and item.scene.name == self.tag_path.ShortName), None)
+        if cin_scene is not None:
+            scene_id = cin_scene.name
+        if cin_scene is None and (not scene_id or len(scene_id) > 3):
+            scene_id = next(f'{index:03}' for index in range(1, 1000)
+                            if self.scene_nwo.cinematic_scenes.get(f'{index:03}') is None)
+        if cin_scene is None:
+            cin_scene = self.scene_nwo.cinematic_scenes.get(scene_id)
         if cin_scene is None:
             cin_scene = self.scene_nwo.cinematic_scenes.add()
         
@@ -542,7 +561,12 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
             blender_scene.nwo.is_main_scene = False
 
         cin_scene.scene = blender_scene
+        # Compiled cinematics are sampled at 30 Hz, including their actor clips.
+        blender_scene.render.fps = 30
+        blender_scene.render.fps_base = 1
         cin_scene_nwo = blender_scene.nwo
+        cin_scene.header, cin_scene.footer = scene_header, scene_footer
+        read_texture_camera_settings(blender_scene, scene_header)
         
         utils.print_tag(f"Importing cinematic scene: {self.tag_path.ShortName}")
         
@@ -559,21 +583,21 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
             
             for dialogue_record in dialogue_shots[shot_index]:
                 dialogue = CinematicDialogue.from_native(dialogue_record)
-                dialogue.to_event(cin_scene_nwo, self.corinth)
+                dialogue.to_event(cin_scene_nwo, self.corinth).frame = frame + dialogue.frame - int(self.corinth)
                 object_events[dialogue.actor].append(len(cin_scene_nwo.cinematic_events) - 1)
                 
             for music_record in music_shots[shot_index]:
                 music = CinematicMusic.from_native(music_record)
-                music.to_event(cin_scene_nwo, self.corinth)
+                music.to_event(cin_scene_nwo, self.corinth).frame = frame + music.frame - int(self.corinth)
                 
             for effect_record in effect_shots[shot_index]:
                 effect = CinematicEffect.from_native(effect_record)
-                effect.to_event(cin_scene_nwo, self.corinth)
+                effect.to_event(cin_scene_nwo, self.corinth).frame = frame + effect.frame - int(self.corinth)
                 object_events[effect.marker_parent].append(len(cin_scene_nwo.cinematic_events) - 1)
                 
             for function_record in function_shots[shot_index]:
                 keyframe = CinematicObjectFunctionKeyframe.from_native(function_record)
-                keyframe.to_event(cin_scene_nwo, self.corinth)
+                keyframe.to_event(cin_scene_nwo, self.corinth).frame = frame + keyframe.frame - int(self.corinth)
                 object_events[keyframe.object].append(len(cin_scene_nwo.cinematic_events) - 1)
                 
             for screen_effect in screen_effect_shots[shot_index]:
@@ -581,7 +605,7 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                 
             for script_record in script_shots[shot_index]:
                 script = CinematicCustomScript.from_native(script_record)
-                script.to_event(cin_scene_nwo)
+                script.to_event(cin_scene_nwo).frame = frame + script.frame - int(self.corinth)
                 
             for user in user_constraint_shots[shot_index]:
                 main_user_constraint = user
@@ -606,6 +630,21 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
             shot_camera_name = f"{self.tag_path.ShortName}_shot{shot_index + 1}"
             shot_camera_data = bpy.data.cameras.new(shot_camera_name)
             shot_camera = bpy.data.objects.new(shot_camera_name, shot_camera_data)
+            with CinematicCameraDocument(self.tag_path, tags_root=self.tags_root,
+                                         game=self.game, must_exist=True) as settings_tag:
+                shot_settings = settings_tag.block(settings_tag.tag.root(), 'shots')[shot_index]
+                for name in ('header', 'footer'):
+                    value = settings_tag.value(settings_tag.required_field(shot_settings, name).as_struct(), 'script')
+                    setattr(shot_camera.nwo, name, bytes(value).rstrip(b'\x00').decode('utf-8-sig'))
+                for name in ('environment darken', 'forced exposure'):
+                    field = shot_settings.field(name)
+                    if field is not None:
+                        setattr(shot_camera.nwo, name.replace(' ', '_'), field.value)
+                flags = settings_tag.required_field(shot_settings, 'flags')
+                for flag, prop in (('Instant Auto-Exposure', 'instant_auto_exposure'),
+                                    ('Force Exposure', 'force_exposure'),
+                                    ('Generate Looping Script', 'generate_looping_script')):
+                    setattr(shot_camera.nwo, prop, flag in flags.options().names and flags.get_flag(flag))
             shot_camera_data.display_size *= (1 / 0.03048) * import_transform.scale_factor()
             shot_camera_data.clip_end = 100000
             camera_objects.append(shot_camera)
@@ -650,7 +689,14 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
             camera_data_action = None
             camera_action = None
             shot_camera.matrix_world = matrices[0]
-            if keyframe_matrices:
+            dof_frames = [getattr(cf, 'dof', {}) for cf in camera_shots[shot_index]]
+            dof_keys = dof_frames[0].keys()
+            shot_camera.nwo.cinematic_dof_source = 'HALO'
+            for name in dof_keys:
+                value = dof_frames[0][name]
+                setattr(shot_camera.nwo, 'cinematic_dof_' + name, bool(value) if name == 'enabled' else value)
+            animated_dof = [name for name in dof_keys if len({cf[name] for cf in dof_frames}) > 1]
+            if keyframe_matrices or animated_dof:
                 camera_action = bpy.data.actions.new(f"{shot_camera.name}")
                 slot = camera_action.slots.new('OBJECT', shot_camera.name)
                 actions.append(camera_action)
@@ -660,16 +706,36 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                 shot_camera.animation_data.last_slot_identifier = slot.identifier
                 
                 camera_fcurves = utils.get_fcurves(camera_action, slot)
+            if keyframe_matrices:
                 loc_curves = [camera_fcurves.new(data_path="location", index=i) for i in range(3)]
 
                 shot_camera.rotation_mode = 'QUATERNION'
                 rot_curves = [camera_fcurves.new(data_path="rotation_quaternion", index=i) for i in range(4)]
+            for name in animated_dof:
+                curve = camera_fcurves.new(data_path='nwo.cinematic_dof_' + name)
+                for offset, values in enumerate(dof_frames):
+                    point = curve.keyframe_points.insert(frame + offset, values[name], options={'FAST'})
+                    point.interpolation = 'CONSTANT' if name == 'enabled' else 'LINEAR'
+                curve.update()
                 
-            fovs = [cf.lens for cf in cam_frames]
-            keyframe_fovs = len(set(fovs)) > 1
-            shot_camera_data.lens = fovs[0]
+            lenses = [cf.lens for cf in cam_frames]
+            keyframe_lenses = len(set(lenses)) > 1
+            shot_camera_data.lens = lenses[0]
             shot_camera_data.sensor_width = film_aperture
-            if keyframe_fovs:
+            if self.game in {'halo3', 'halo3odst'}:
+                render = blender_scene.render
+                render_aspect = (render.resolution_x * render.pixel_aspect_x) / (render.resolution_y * render.pixel_aspect_y)
+                # Use the final cinematic gate, not the observer's intermediate
+                # 4:3 gate, when constructing the Blender camera.
+                if self.game == 'halo3':
+                    shot_camera_data.sensor_width = cinematic_runtime_aperture(film_aperture, render_aspect, game=self.game)
+                    shot_camera_data.sensor_fit = 'HORIZONTAL'
+                else:
+                    # Preserve ODST's previous observer gate; its renderer
+                    # gates the additional widescreen correction separately.
+                    shot_camera_data.sensor_height = film_aperture / (4 / 3)
+                    shot_camera_data.sensor_fit = 'VERTICAL'
+            if keyframe_lenses:
                 camera_data_action = bpy.data.actions.new(f"{shot_camera.name}_data")
                 slot = camera_data_action.slots.new('CAMERA', shot_camera_data.name)
                 
@@ -680,7 +746,7 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                 camera_data_fcurves = utils.get_fcurves(camera_data_action, slot)
                 lens_curve = camera_data_fcurves.new(data_path="lens")
                 
-            if keyframe_matrices or keyframe_fovs:
+            if keyframe_matrices or keyframe_lenses:
                 shot_frame = frame
                 for cf in cam_frames:
                     if keyframe_matrices:
@@ -691,7 +757,7 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                         for i in range(4):
                             rot_curves[i].keyframe_points.insert(shot_frame, rot[i], options={'FAST'})
                         
-                    if keyframe_fovs:
+                    if keyframe_lenses:
                         lens_curve.keyframe_points.insert(shot_frame, cf.lens, options={'FAST'})
                         
                     shot_frame += 1
@@ -708,7 +774,7 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
             name, variant = scene_record.name, scene_record.variant
             graph, obj = data_record.graph, data_record.object_type
             
-            if self.path_exists(obj):
+            if self.path_exists(obj) or obj is None:
                 cin_object = CinObject()
                 cin_object.name = name
                 cin_object.identifier = data_record.identifier or name
@@ -717,7 +783,8 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                 cin_object.graph_path = graph.Filename if self.path_exists(graph) else ''
                 if graph is not None and not cin_object.graph_path:
                     utils.print_warning(f'{name}: missing cinematic animation graph {graph.RelativePathWithExtension}')
-                cin_object.object_path = obj.Filename
+                cin_object.object_path = obj.Filename if obj is not None else ''
+                cin_object.settings = scene_record.settings
                 cin_object.cinematic_lighting = object_lighting.get(scene_record.index)
                 cin_object.events = object_events.get(name, [])
                 object_animations.append(cin_object)
@@ -727,11 +794,13 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                     cin_object.cameras[idx] = camera_objects[idx]
                         
                 utils.print_step(f"{name} is present in shots {shots}")
-            elif scene_record.placed_manually:
-                utils.print_warning(f'{name}: cinematic actor is placed in the scenario; enable scenario object import to include it')
             else:
                 utils.print_warning(f'{name}: missing cinematic object tag')
         
         light_tags = [path.Filename for path in scene_metadata.lights if self.path_exists(path)]
             
+        extra_objects, extra_actions = import_extra_camera_tracks(
+            blender_scene, extra_camera_tracks, film_aperture, shot_frames, self.scene_nwo)
+        camera_objects.extend(extra_objects)
+        actions.extend(extra_actions)
         return self.tag_path.ShortName, blender_scene, camera_objects, object_animations, scene_metadata.anchor, actions, shot_frames, light_tags
