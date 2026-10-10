@@ -1,20 +1,21 @@
 from mathutils import Matrix, Quaternion, Vector
 
-from . import utils
+from . import utils, marker_axis
+from .coordinate_system import CoordinateSystem, axis_rotation, geometry_matrix, placement_matrix
 
 
 def scale_factor(scene_nwo=None) -> float:
     scene_nwo = scene_nwo or utils.get_scene_props()
-    return 0.03048 if scene_nwo.scale == 'blender' else 1.0
+    return CoordinateSystem.from_scene(scene_nwo).from_halo_scale
 
 
 def rotation(scene_nwo=None) -> float:
     scene_nwo = scene_nwo or utils.get_scene_props()
-    return utils.rotation_diff_from_forward('x', scene_nwo.forward_direction)
+    return CoordinateSystem.from_scene(scene_nwo).from_halo_rotation
 
 
 def rotation_matrix(scene_nwo=None) -> Matrix:
-    return Matrix.Rotation(rotation(scene_nwo), 4, Vector((0, 0, 1)))
+    return axis_rotation(rotation(scene_nwo))
 
 
 def scale_matrix(scene_nwo=None) -> Matrix:
@@ -60,29 +61,20 @@ def matrix_from_axes(forward, left, up, pos, unit_scale: float = 100.0, scene_nw
 
 
 def object_matrix(matrix: Matrix, scene_nwo=None, rotate=True) -> Matrix:
-    result = matrix.copy()
-    result.translation = result.translation * scale_factor(scene_nwo)
-    if rotate:
-        result = rotation_matrix(scene_nwo) @ result
-    return result
+    return placement_matrix(matrix, scale_factor(scene_nwo), rotation(scene_nwo) if rotate else 0.)
 
 
-def keep_marker_axis(matrix: Matrix, scene_nwo=None) -> Matrix:
-    scene_nwo = scene_nwo or utils.get_scene_props()
-    if not scene_nwo.maintain_marker_axis:
-        return matrix
-    return matrix @ Matrix.Rotation(-rotation(scene_nwo), 4, 'Z')
+def marker_local_axes(matrix: Matrix, scene_nwo=None) -> Matrix:
+    """Convert Halo local marker axes to the scene forward convention."""
+    return marker_axis.local_axes(matrix, rotation(scene_nwo))
 
 
 def marker_matrix(matrix: Matrix, scene_nwo=None) -> Matrix:
-    return keep_marker_axis(object_matrix(matrix, scene_nwo), scene_nwo)
+    return placement_matrix(matrix, scale_factor(scene_nwo), rotation(scene_nwo), marker=True)
 
 
 def transform_matrix(matrix: Matrix, scene_nwo=None, rotate=True) -> Matrix:
-    result = scale_matrix(scene_nwo) @ matrix
-    if rotate:
-        result = rotation_matrix(scene_nwo) @ result
-    return result
+    return geometry_matrix(matrix, scale_factor(scene_nwo), rotation(scene_nwo) if rotate else 0.)
 
 
 def loc_rot_scale(loc, rot, scale, unit_scale: float = 100.0, scene_nwo=None, rotate=True) -> Matrix:
@@ -94,11 +86,7 @@ def loc_rot_scale(loc, rot, scale, unit_scale: float = 100.0, scene_nwo=None, ro
 
 
 def armature_bone_matrix(matrix: Matrix, scene_nwo=None, root=False) -> Matrix:
-    result = matrix.copy()
-    result.translation = result.translation * scale_factor(scene_nwo)
-    if root:
-        result = rotation_matrix(scene_nwo) @ result
-    return result
+    return CoordinateSystem.from_scene(scene_nwo or utils.get_scene_props()).bone_matrix(matrix, root=root)
 
 
 def mesh_matrix(scene_nwo=None) -> Matrix:
