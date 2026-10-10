@@ -167,10 +167,22 @@ class ModelDocument(TagDocument):
             return render.required_field(render.tag.root(), 'flags').get_flag('this is supposed to be a sky')
 
     def variant_region_options(self, variant, state=-1, render_regions=None):
+        return {region: list(dict.fromkeys(name for name, _ in choices if name))
+                for region, choices in self._variant_region_choices(
+                    variant, state, render_regions).items()}
+
+    def _variant_region_choices(self, variant, state=-1, render_regions=None):
+        """Resolve render names and weights, retaining blank (hidden) choices."""
         if not variant:
             return {}
         if render_regions is None:
             render_regions = self.render_regions()
+        weighted = self.game in {'halo3', 'halo3odst'} and state != -1
+
+        def default_permutation(region):
+            names = render_regions.get(region, ())
+            return 'default' if 'default' in names else next(iter(names), 'default')
+
         default_region = 'default' if 'default' in render_regions else next(iter(render_regions), 'default')
         for element in self.variants():
             if self.value(element, 'name') != variant:
@@ -183,13 +195,21 @@ class ModelDocument(TagDocument):
                 options = result.setdefault(name, [])
                 permutations = self.block(region, 'permutations')
                 if not len(permutations):
-                    options.append('default')
+                    options.append((default_permutation(name), 1.0))
                 for permutation in permutations:
-                    name_in_render = self.value(permutation, 'permutation name')
-                    if not name_in_render:
+                    # A sole entry explicitly selects the region's part, even
+                    # when its unused random-selection weight is zero (ODST body).
+                    weight = (float(self.value(permutation, 'probability'))
+                              if weighted and len(permutations) > 1 else 1.0)
+                    if weight <= 0:
                         continue
+                    name_in_render = self.value(permutation, 'permutation name')
+                    if not name_in_render and not weighted:
+                        continue
+                    if name_in_render == 'default':
+                        name_in_render = default_permutation(name)
                     if state == 0:
-                        options.append(name_in_render)
+                        options.append((name_in_render, weight))
                         continue
                     state_options = []
                     for state_element in self.block(permutation, 'states'):
@@ -197,19 +217,23 @@ class ModelDocument(TagDocument):
                                           ('default', 'minor damage', 'medium damage', 'major damage', 'destroyed'))
                         if state == -1 or kind == state:
                             state_name = self.value(state_element, 'permutation name')
-                            if state_name:
+                            if state_name == 'default':
+                                state_name = default_permutation(name)
+                            if state_name or weighted:
                                 state_options.append(state_name)
                     # Damage states replace the base permutation. Only the
                     # all-states selection includes both base and damaged meshes.
                     if state == -1:
-                        options.append(name_in_render)
-                    options.extend(state_options or [name_in_render])
-                # Preserve "default" as a sentinel even when no such render permutation exists.
-                result[name] = list(dict.fromkeys(p for p in options if p))
+                        options.append((name_in_render, weight))
+                    options.extend((p, weight) for p in (state_options or [name_in_render]))
+                # Keep a hidden choice so an entirely hidden variant does not
+                # become an empty selection (which means import everything).
+                if not options:
+                    options.append(('', 1.0))
             for name, permutations in render_regions.items():
                 # Unspecified regions use their default, not a random damage mesh.
-                default = 'default' if 'default' in permutations else next(iter(permutations), 'default')
-                result.setdefault(name, list(permutations) if state == -1 else [default])
+                defaults = permutations if state == -1 else [default_permutation(name)]
+                result.setdefault(name, [(p, 1.0) for p in defaults])
             return result
         return {}
 
@@ -218,9 +242,15 @@ class ModelDocument(TagDocument):
             return set()
         if not self.path_exists(self.reference_render_model.Path):
             return set()
-        region_options = self.variant_region_options(variant, state)
         if state == -1:
+            region_options = self.variant_region_options(variant, state)
             return {(region, permutation) for region, options in region_options.items()
                     for permutation in options}
-        return {(region, random.choice(options)) for region, options in
-                region_options.items() if options}
+        selected = set()
+        for region, choices in self._variant_region_choices(variant, state).items():
+            if not choices:
+                continue
+            names, weights = zip(*choices)
+            permutation = random.choices(names, weights=weights, k=1)[0]
+            selected.add((region, permutation))
+        return selected

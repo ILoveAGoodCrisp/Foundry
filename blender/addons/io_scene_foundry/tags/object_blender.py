@@ -47,7 +47,20 @@ class ObjectTag(BlenderTag, ObjectDocument):
             function.make_node_group(name)
         dependencies = ObjectFunctions(decoded=decoded)
         for name, function in decoded.items():
-            function.to_blend_nodes(name=name)
+            if self.game in {'reach', 'halo3', 'halo3odst'}:
+                # The importer evaluates decoded functions on each object's
+                # properties. A shared shader helper must read that value;
+                # baking a particular object's curve into a globally named
+                # group makes other objects with the same export name inherit it.
+                tree = function.make_node_group(name)
+                tree.nodes.clear()
+                output = tree.nodes.new('NodeGroupOutput'); output.location = (240, 0)
+                attribute = tree.nodes.new('ShaderNodeAttribute'); attribute.location = (0, 0)
+                attribute.attribute_type = 'INSTANCER'; attribute.attribute_name = name
+                tree.links.new(attribute.outputs['Fac'], output.inputs[0])
+                tree['foundry_object_function_proxy'] = True
+            else:
+                function.to_blend_nodes(name=name)
             dependencies[name] = []
             if function.input.strip():
                 dependencies[name].append(function.input)
@@ -109,8 +122,7 @@ class ObjectTag(BlenderTag, ObjectDocument):
                     # along local -Z. This is a marker-local transform, so do
                     # not apply the Blender-to-Halo world rotation again.
                     local_rotation = Matrix.Rotation(radians(-90.0), 4, 'Y')
-                    if utils.get_scene_props().maintain_marker_axis:
-                        local_rotation = import_transform.rotation_matrix() @ local_rotation
+                    local_rotation = import_transform.rotation_matrix() @ local_rotation
                     ob.matrix_basis = utils.halo_transforms_matrix(local_rotation, rotation=0)
                     ob.scale *= (1 / 0.03048) * import_transform.scale_factor()
                 attachment.objects.append(ob)

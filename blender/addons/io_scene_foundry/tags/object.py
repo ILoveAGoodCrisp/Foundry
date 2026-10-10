@@ -205,8 +205,9 @@ class ObjectDocument(TagDocument):
         """Unit/device inputs override the flattened base-object slots in H1."""
         inputs = {f'{letter} in': 'none' for letter in 'abcd'}
         for field in self.object_struct().fields():
-            if field.name in inputs and str(field.value) != 'none':
-                inputs[field.name] = str(field.value)
+            name = field.name.removeprefix('weapon ')
+            if name in inputs and str(field.value) != 'none':
+                inputs[name] = str(field.value)
         return inputs
 
     def get_attachments(self):

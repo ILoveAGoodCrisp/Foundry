@@ -95,9 +95,9 @@ class PhysicsTag(BlenderTag, PhysicsDocument):
         ob.empty_display_size *= import_transform.scale_factor()
         local_matrix = import_transform.object_matrix(constraint.matrix_a, rotate=armature is None)
         if armature is None:
-            ob.matrix_world = import_transform.keep_marker_axis(local_matrix)
+            ob.matrix_world = import_transform.marker_local_axes(local_matrix)
             return
         ob.parent = armature
         ob.parent_type = 'BONE'
         ob.parent_bone = bone
-        ob.matrix_world = import_transform.keep_marker_axis(armature.matrix_world @ armature.pose.bones[bone].matrix @ local_matrix)
+        ob.matrix_world = import_transform.marker_local_axes(armature.matrix_world @ armature.pose.bones[bone].matrix @ local_matrix)
