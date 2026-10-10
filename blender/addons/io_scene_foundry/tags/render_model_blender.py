@@ -216,7 +216,7 @@ class RenderModelTag(RenderModelMetadataTag):
         original_meshes_by_perm_name = {}
         regions_by_name = {region.name: region for region in self.regions}
         selected_lod = selected_lod.upper()
-        if selected_lod not in {'ALL', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6'}:
+        if selected_lod not in {'HIGHEST', 'ALL', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6'}:
             selected_lod = 'ALL'
         lod_collections: dict[str, bpy.types.Collection] = {}
 
@@ -261,11 +261,21 @@ class RenderModelTag(RenderModelMetadataTag):
                 if allowed_region_permutations and region_perm not in allowed_region_permutations:
                     continue
                     
-                meshes = (permutation.lod_mesh_indices if self.game in {'halo1', 'halo2'}
-                          else tuple(('', permutation.mesh_index + i)
-                                     for i in range(permutation.mesh_count)))
-                if self.game in {'halo1', 'halo2'} and selected_lod != 'ALL':
-                    meshes = tuple(mesh for mesh in meshes if mesh[0] == selected_lod)
+                # Instance-only permutations can have a nonzero mesh count
+                # with a -1 mesh index. It is a sentinel, not Python's last
+                # mesh: that mesh contains unplaced instance definitions.
+                if self.game in {'halo1', 'halo2'}:
+                    meshes = permutation.lod_mesh_indices
+                elif permutation.mesh_index >= 0:
+                    meshes = tuple(('', permutation.mesh_index + i)
+                                   for i in range(permutation.mesh_count))
+                else:
+                    meshes = ()
+                if self.game in {'halo1', 'halo2'}:
+                    if selected_lod == 'HIGHEST':
+                        meshes = (max(meshes, key=lambda mesh: int(mesh[0][1:])),) if meshes else ()
+                    elif selected_lod != 'ALL':
+                        meshes = tuple(mesh for mesh in meshes if mesh[0] == selected_lod)
                 for i, (lod, mesh_index) in enumerate(meshes):
                     real_mesh_idx = None
                     geometry_record = native_render_meshes[mesh_index]

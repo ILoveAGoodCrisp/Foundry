@@ -359,6 +359,7 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
                     breakable_surface_index=-1,
                     analytical_absorb=0.0,
                     normal_absorb=0.0,
+                    shader_permutation=int(self.value(element, 'permutation')) if self.game == 'halo1' else None,
                 ))
             return records
         return ScenarioStructureBspMetadataTag.render_materials(self)
