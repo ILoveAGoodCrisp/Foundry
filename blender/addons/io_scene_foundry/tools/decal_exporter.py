@@ -40,11 +40,10 @@ def decal_placement(ob, game='halo1'):
         pitch = -pitch
     q = matrix.to_quaternion()
     scale = ob.matrix_world.to_scale()
-    bsps = frozenset(int(value.strip()) for value in ob.nwo.decal_manual_bsps.split(',') if value.strip())
     return ScenarioDecalExport(utils.relative_path(ob.nwo.marker_decal_tag_name.strip()),
                               tuple(matrix.translation), yaw, pitch, (q.x, q.y, q.z, q.w),
-                              (abs(scale.x), abs(scale.y)), bsps, int(ob.nwo.decal_force_planar),
-                              ob.nwo.decal_cull_angle, ob.nwo.scenario_bsp_index)
+                              (abs(scale.x), abs(scale.y)), flags=int(ob.nwo.decal_force_planar),
+                              cull_angle=ob.nwo.decal_cull_angle)
 
 
 def export_decals(decal_objects=None, *, scenario_path=None, tags_root=None, game=None):

@@ -170,7 +170,13 @@ class NWO_OT_InstanceImposterGenerate(bpy.types.Operator):
         default=True,
     )
 
+    @classmethod
+    def poll(cls, context):
+        return utils.poll_project(cls)
+
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         if not self.filepath or Path(self.filepath).suffix.lower() != ".scenario":
             self.report({"WARNING"}, "No scenario path given. Operation cancelled")
             return {'CANCELLED'}
@@ -196,6 +202,8 @@ class NWO_OT_InstanceImposterGenerate(bpy.types.Operator):
         return {"FINISHED"}
     
     def invoke(self, context, event):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         tags_dir = utils.get_tags_path() + os.sep
         self.filepath = tags_dir
         if utils.valid_nwo_asset() and utils.get_scene_props().asset_type == "scenario":

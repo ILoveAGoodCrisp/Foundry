@@ -1,6 +1,7 @@
 
 
 import bpy
+from .. import face_attributes
 
 
 class NWO_JoinHalo(bpy.types.Operator):
@@ -19,14 +20,20 @@ class NWO_JoinHalo(bpy.types.Operator):
 
     def execute(self, context):
         active = context.object
-        non_active_objects = (ob for ob in context.selected_objects if ob != active and ob.type == 'MESH' and ob.data != active.data)
-        unique_non_active = list({ob.data: ob for ob in non_active_objects}.values())
-        face_attributes = yield_face_attributes(unique_non_active)
-        for old_layer in face_attributes:
-            new_layer = active.data.nwo.face_props.add()
-            update_layer_props(new_layer, old_layer)
-
+        objects = [active, *(ob for ob in context.selected_objects if ob != active and ob.type == 'MESH')]
+        try:
+            for ob in objects:
+                face_attributes.resolved_masks(ob.data, strict=True)
+        except ValueError as error:
+            self.report({'ERROR'}, str(error))
+            return {'CANCELLED'}
+        # Never rewrite the assignments of an unselected linked duplicate.
+        for ob in objects:
+            if ob.data.users > 1:
+                ob.data = ob.data.copy()
+        face_attributes.prepare_join([ob.data for ob in objects])
         bpy.ops.object.join()
+        face_attributes.refresh_counts(active.data)
 
         return {"FINISHED"}
     

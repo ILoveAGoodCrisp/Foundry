@@ -5,7 +5,7 @@ import bpy
 from .decorator_exporter import NWO_OT_DecoratorCloudToInstances, NWO_OT_ExportDecorators, NWO_OT_GetDecoratorTypes
 from .airprobe_exporter import NWO_OT_ExportAirprobes
 from .decal_exporter import NWO_OT_ExportDecals
-from .scenario.objects import NWO_OT_RefreshScenarioObjects, NWO_OT_SelectChildScenario
+from .scenario.objects import NWO_OT_RefreshScenarioObjects, NWO_OT_SelectChildScenario, NWO_OT_GetScenarioAirprobes
 
 from .scenario.wetness import NWO_OT_GenerateWetnessData
 from .scenario.decal_export import NWO_OT_ExportHalo1DecalPlacements
@@ -39,13 +39,14 @@ from .animation.generate_frames import NWO_OT_GenerateFrames
 from .rigging.convert_to_halo_rig import NWO_OT_ConvertToHaloRig
 from .rigging.create_rig import NWO_OT_AddRig, NWO_OT_BakeIKControl, NWO_OT_BakeToControl, NWO_OT_BuildControlRig, NWO_OT_ClearControlRig, NWO_OT_ClearControlRigKeyframes, NWO_OT_ClearPoseControlKeyframes, NWO_OT_InvertAimControl, NWO_OT_InvertControlRig, NWO_OT_KeyframeControlRigSettings, NWO_OT_SelectArmature
 from .rigging.validation import NWO_AddPoseBones, NWO_FixArmatureTransforms, NWO_FixPoseBones, NWO_FixRootBone, NWO_ValidateRig,NWO_OT_AddAimDisplay
-from .scene_scaler import NWO_ScaleScene
+from .scene_scaler import NWO_ScaleScene, NWO_TransformSelected
 from .append_foundry_materials import NWO_AppendFoundryMaterials
 from .find_foundry_shader_nodes import NWO_OT_FindFoundryShaderNodes
 from .auto_seam import NWO_AutoSeam
 from .clear_duplicate_materials import NWO_ClearShaderPaths, NWO_StompMaterials
 from .export_bitmaps import NWO_ExportBitmapsSingle, NWO_OT_ReloadImages
 from .importer import NWO_FH_Import, NWO_FH_ImportCollision, NWO_FH_ImportGR2, NWO_FH_ImportSidecar, NWO_FH_ImportAI, NWO_FH_ImportCinematic, NWO_FH_ImportBitmapAsImage, NWO_FH_ImportBitmapAsNode, NWO_FH_ImportShaderAsMaterial, NWO_Import, NWO_ImportGameInstanceTag, NWO_OT_ConvertScene, NWO_OT_ImportBitmap, NWO_OT_ImportFromDrop, NWO_OT_ImportShader, NWO_OT_InstancerToInstance
+from .import_mesh import NWO_OT_MakeMeshesEditable
 from .mesh_to_marker import NWO_MeshToMarker
 from .set_sky_permutation_index import NWO_ScenarioSkyAdd, NWO_ScenarioSkyMove, NWO_ScenarioSkyRemove, NWO_ScenarioSkiesUpdate, NWO_SetDefaultSky, NWO_SetSky, NWO_UL_ScenarioSkies
 from .sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_MaterialRegionAssignSingle, NWO_ModelVariantViewerNameItem, NWO_ModelVariantViewerRegion, NWO_OT_HideObjectType, NWO_OT_ModelVariantViewer, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle, NWO_UpdateSets
@@ -158,6 +159,7 @@ classes = (
     NWO_ShaderPropertiesGroup,
     NWO_OT_AddScaleModel,
     NWO_JoinHalo,
+    NWO_OT_MakeMeshesEditable,
     NWO_FarmShaders,
     NWO_AddPoseBones,
     NWO_OT_AddAimDisplay,
@@ -203,6 +205,7 @@ classes = (
     NWO_ClearShaderPaths,
     NWO_UpdateSets,
     NWO_ScaleScene,
+    NWO_TransformSelected,
     NWO_OT_ConvertToHaloRig,
     NWO_OT_Cubemap,
     NWO_OT_SkyGenerate,
@@ -270,6 +273,7 @@ classes = (
     NWO_OT_ExportAirprobes,
     NWO_OT_ExportDecals,
     NWO_OT_RefreshScenarioObjects,
+    NWO_OT_GetScenarioAirprobes,
     NWO_OT_SelectChildScenario,
     NWO_OT_GetDecoratorTypes,
     NWO_OT_DecoratorCloudToInstances,

@@ -49,7 +49,7 @@ import bpy
 
 from ..constants import VALID_FRAMES, VALID_MESHES
 from ..utils import is_corinth, get_prefs, is_frame, material_add_visibility
-from ..tools.materials import convention_materials
+from ..tools.materials import convention_materials, find_standard_material
 
 special_materials = (
     "InvisibleSky",
@@ -83,10 +83,10 @@ def clear_special_mats(materials):
             materials.pop(index=idx)
             clear_special_mats(materials)
 
-def halo_material(mat_name):
+def halo_material(mat_name, *, exclude=()):
     """Adds a halo material to the blend if it doesn't exist and applies settings, then returning the material"""
     # first check if the material already exists
-    mat = bpy.data.materials.get(mat_name)
+    mat = find_standard_material(mat_name, exclude)
     if mat:
         material_add_visibility(mat)
         return mat
@@ -99,6 +99,7 @@ def halo_material(mat_name):
         raise ValueError(f"halo material of name {mat_name} does not exist in nwo_materials.py")
     
     new_material = bpy.data.materials.new(mat_name)
+    new_material['foundry_standard_material'] = mat_name
     new_material.diffuse_color = convention.color
     new_material.use_nodes = True
     bsdf = next(node for node in new_material.node_tree.nodes if node.type == 'BSDF_PRINCIPLED')

@@ -45,3 +45,13 @@ WeatherPolyhedron = ConventionMaterial('+weather', [0.2, 0.45, 0.8, 0.2])
         
 convention_materials = (InvisibleSky, Physics, Seam, Portal, Collision, PlayCollision, WallCollision, BulletCollision, 
                         CookieCutter, Fog, WaterVolume, WaterDirection, Structure, SoftCeiling, SoftKill, SlipSurface, StreamingVolume, LightmapExcludeVolume, LightmapRegion, WeatherPolyhedron)
+
+
+def find_standard_material(name, exclude=()):
+    """Reuse a standard material without modifying source-scene materials."""
+    import bpy
+    material = bpy.data.materials.get(name)
+    if material is not None and material not in exclude and material.library is None:
+        return material
+    return next((m for m in bpy.data.materials if m not in exclude and m.library is None
+                 and m.get('foundry_standard_material') == name), None)

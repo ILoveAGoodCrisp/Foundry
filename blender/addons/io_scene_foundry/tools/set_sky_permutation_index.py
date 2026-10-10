@@ -88,7 +88,13 @@ class NWO_ScenarioSkiesUpdate(bpy.types.Operator):
     bl_label = 'Update Scenario Skies'
     bl_description = 'Write the ordered Blender skies list to the scenario tag'
 
+    @classmethod
+    def poll(cls, context):
+        return utils.poll_project(cls) and utils.valid_nwo_asset(context) and utils.poll_ui(('scenario',))
+
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         paths = [item.path for item in utils.get_scene_props().scenario_skies]
         try:
             with ScenarioMetadataTag() as scenario:

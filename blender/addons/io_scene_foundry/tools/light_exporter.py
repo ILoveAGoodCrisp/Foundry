@@ -63,10 +63,8 @@ class BlamLightDefinition:
         # export_scale = utils.get_export_scale(bpy.context)
         unit_factor = utils.get_unit_conversion_factor(bpy.context)
         corinth = utils.is_corinth()
-        if corinth:
-            atten_scalar = 1
-        else:
-            atten_scalar = 100
+        # Only Reach stores attenuation distances at 100 times world units.
+        atten_scalar = 100 if utils.get_game() == 'reach' else 1
         nwo = data.nwo
         self.data_name = data.name
         self.id = utils.id_from_string(self.data_name)

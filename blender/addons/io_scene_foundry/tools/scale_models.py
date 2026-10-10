@@ -103,7 +103,7 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
             
         add_auto_smooth(context, ob, apply_mod=True)
         old_loc = ob.location.copy()
-        transform_scene(context, scale_factor, rotation_diff_from_forward('x', scene_nwo.forward_direction), 'x', scene_nwo.forward_direction, keep_marker_axis=False, objects=[ob], actions=[], apply_rotation=True)
+        transform_scene(context, scale_factor, rotation_diff_from_forward('x', scene_nwo.forward_direction), 'x', scene_nwo.forward_direction, objects=[ob], actions=[], apply_rotation=True)
         ob.location = old_loc
         
     

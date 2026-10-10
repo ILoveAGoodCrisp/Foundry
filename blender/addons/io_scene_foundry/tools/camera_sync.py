@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import math
 from pathlib import Path
-import re
 
 import bpy
 from mathutils import Matrix, Vector
@@ -11,7 +10,8 @@ from .. import utils
 
 CAMERA_SYNC_NAME = utils.CAMERA_SYNC_DEBUG_NAME
 CAMERA_SYNC_FILENAME = f"{CAMERA_SYNC_NAME}.txt"
-FLOAT_PATTERN = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
+NAMED_CAMERA_GAMES = {'halo2', 'halo3', 'halo3odst'}
+SIMPLE_CAMERA_GAMES = {'halo1', 'reach', 'halo4', 'halo2a'}
 MIN_FOV = math.radians(1.0)
 MAX_FOV = math.radians(150.0)
 VECTOR_EPSILON = 1e-6
@@ -35,6 +35,65 @@ def camera_sync_path() -> Path:
         raise CameraSyncError("No valid Halo project is selected")
 
     return Path(project_path, CAMERA_SYNC_FILENAME)
+
+
+def camera_sync_game() -> str:
+    project = utils.get_project(utils.get_scene_props().scene_project)
+    game = project.game if project else None
+    if game not in NAMED_CAMERA_GAMES | SIMPLE_CAMERA_GAMES:
+        raise CameraSyncError("No supported Halo project is selected")
+    return game
+
+
+def camera_sync_read_path() -> Path:
+    """Find the game's latest Foundry save, including map-dependent names.
+
+    save_name in H2/H3/ODST appends the running scenario's name. The game
+    may have a different scenario open from Blender, so discover its output
+    rather than guessing from the asset or last launched scenario.
+    """
+    path = camera_sync_path()
+    candidates = [path, path.with_name(f"camera_{CAMERA_SYNC_FILENAME}")]
+    if camera_sync_game() in NAMED_CAMERA_GAMES:
+        candidates.extend(path.parent.glob(f"{CAMERA_SYNC_NAME}_*.txt"))
+    candidates = [candidate for candidate in candidates if candidate.is_file()]
+    if not candidates:
+        _, save_command = camera_sync_commands()
+        raise CameraSyncError(f"No camera sync file found in {path.parent}. Save in game with {save_command}")
+    return max(candidates, key=lambda candidate: (candidate.stat().st_mtime_ns, candidate.name))
+
+
+def camera_sync_commands() -> tuple[str, str]:
+    """Console commands shared by the operator and the game debug menu."""
+    game = camera_sync_game()
+    if game in SIMPLE_CAMERA_GAMES:
+        return (
+            f'(debug_camera_load_simple_name "{CAMERA_SYNC_NAME}")',
+            f'(debug_camera_save_simple_name "{CAMERA_SYNC_NAME}")',
+        )
+
+    save_command = f'(debug_camera_save_name "{CAMERA_SYNC_NAME}")'
+    path = camera_sync_path()
+    if not path.is_file():
+        # Before the first Blender write, the symmetric named commands can
+        # still load a camera saved by the game for its current scenario.
+        return f'(debug_camera_load_name "{CAMERA_SYNC_NAME}")', save_command
+
+    # All supported kits have load_text. Embedding the Blender camera avoids
+    # having to predict which scenario the old engine will append on load.
+    state = state_from_text(path.read_text(encoding="utf-8-sig"))
+    values = " ".join(state_to_text(state).split())
+    return f'(debug_camera_load_text "{values}")', save_command
+
+
+def camera_debug_menu_commands() -> list[str]:
+    commands = camera_sync_commands()
+    names = ("Load Game Camera from Blender", "Save Game Camera for Blender")
+    entries = []
+    for name, command in zip(names, commands):
+        escaped = command.replace('"', '\\"').replace('(', '\\(').replace(')', '\\)')
+        entries.append(f'<item type = command name = "Foundry: {name}" variable = "{escaped}">\n')
+    return entries
 
 
 def clamp_fov(fov: float) -> float:
@@ -130,7 +189,12 @@ def blender_matrix_from_state(state: CameraState) -> Matrix:
         )
     )
 
-    return utils.blender_transform_matrix(halo_matrix)
+    matrix = utils.blender_transform_matrix(halo_matrix)
+    # Geometry conversion scales the linear part as well as translation.
+    # A camera's basis describes direction, so keep it at unit scale.
+    result = matrix.to_3x3().normalized().to_4x4()
+    result.translation = matrix.translation
+    return result
 
 
 def state_to_text(state: CameraState) -> str:
@@ -143,9 +207,14 @@ def state_to_text(state: CameraState) -> str:
 
 
 def state_from_text(text: str) -> CameraState:
-    values = [float(match.group(0)) for match in FLOAT_PATTERN.finditer(text)]
-    if len(values) < 10:
+    tokens = text.lstrip("\ufeff").split()
+    if len(tokens) != 10:
         raise CameraSyncError("Camera file must contain position, forward, up, and FOV values")
+
+    try:
+        values = [float(token) for token in tokens]
+    except ValueError as error:
+        raise CameraSyncError("Camera file contains invalid numeric values") from error
 
     if any(not math.isfinite(value) for value in values[:10]):
         raise CameraSyncError("Camera file contains non-finite values")
@@ -165,12 +234,13 @@ def write_camera_state(state: CameraState) -> Path:
     return path
 
 
-def read_camera_state() -> CameraState:
-    path = camera_sync_path()
-    if not path.exists():
-        raise CameraSyncError(f"Camera sync file does not exist: {path}")
-
-    return state_from_text(path.read_text(encoding="utf-8"))
+def read_camera_state(path: Path | None = None) -> CameraState:
+    if path is None:
+        path = camera_sync_read_path()
+    try:
+        return state_from_text(path.read_text(encoding="utf-8-sig"))
+    except CameraSyncError as error:
+        raise CameraSyncError(f"{path.name}: {error}") from error
 
 
 def viewport_region_3d(context: bpy.types.Context) -> bpy.types.RegionView3D:
@@ -209,7 +279,8 @@ def write_scene_camera(context: bpy.types.Context) -> Path:
 
 def read_to_viewport(context: bpy.types.Context):
     region_3d = viewport_region_3d(context)
-    state = read_camera_state()
+    path = camera_sync_read_path()
+    state = read_camera_state(path)
     matrix = apply_cinematic_anchor_offset(context, blender_matrix_from_state(state))
 
     region_3d.view_perspective = 'PERSP'
@@ -223,9 +294,12 @@ def read_to_viewport(context: bpy.types.Context):
     set_viewport_fov(context, state.fov)
     if context.area:
         context.area.tag_redraw()
+    return path
 
 
 def read_to_scene_camera(context: bpy.types.Context):
+    path = camera_sync_read_path()
+    state = read_camera_state(path)
     camera = context.scene.camera
     if not camera:
         name = "Game Camera"
@@ -234,12 +308,13 @@ def read_to_scene_camera(context: bpy.types.Context):
         context.scene.collection.objects.link(camera)
         context.scene.camera = camera
 
-    state = read_camera_state()
     camera.matrix_world = apply_cinematic_anchor_offset(context, blender_matrix_from_state(state))
     camera.data.angle = state.fov
+    return path
 
 
 def update_camera_debug_menu() -> bool:
+    camera_sync_game()
     utils.update_debug_menu(update_type=utils.DebugMenuType.CAMERA)
     return True
 
@@ -247,7 +322,7 @@ def update_camera_debug_menu() -> bool:
 class NWO_OT_CameraSync(bpy.types.Operator):
     bl_idname = "nwo.camera_sync"
     bl_label = "Camera Sync"
-    bl_description = "Reads and writes camera positions between Blender the game. Please note that writing camera positions to the game in Halo 4 Sapien is bugged and will always put the camera to the world origin"
+    bl_description = "Reads and writes camera positions between Blender and the game. Writing camera positions to Halo 4 Sapien puts the camera at the world origin"
     bl_options = {'REGISTER'}
 
     mode: bpy.props.EnumProperty(
@@ -272,22 +347,22 @@ class NWO_OT_CameraSync(bpy.types.Operator):
                 case "WRITE_VIEWPORT":
                     path = write_viewport_camera(context)
                     update_camera_debug_menu()
-                    self.report({'INFO'}, f"Wrote viewport camera to {path}")
+                    self.report({'INFO'}, f"Wrote viewport camera to {path}. Run debug_menu_rebuild in game")
                 case "WRITE_CAMERA":
                     path = write_scene_camera(context)
                     update_camera_debug_menu()
-                    self.report({'INFO'}, f"Wrote scene camera to {path}")
+                    self.report({'INFO'}, f"Wrote scene camera to {path}. Run debug_menu_rebuild in game")
                 case "READ_VIEWPORT":
-                    read_to_viewport(context)
+                    path = read_to_viewport(context)
                     update_camera_debug_menu()
-                    self.report({'INFO'}, f"Read camera sync file into viewport")
+                    self.report({'INFO'}, f"Read {path.name} into viewport")
                 case "READ_CAMERA":
-                    read_to_scene_camera(context)
+                    path = read_to_scene_camera(context)
                     update_camera_debug_menu()
-                    self.report({'INFO'}, f"Read camera sync file into scene camera")
+                    self.report({'INFO'}, f"Read {path.name} into scene camera")
                 case "UPDATE_DEBUG_MENU":
                     update_camera_debug_menu()
-                    self.report({'INFO'}, "Updated camera sync debug menu entries")
+                    self.report({'INFO'}, "Updated camera sync debug menu entries. Run debug_menu_rebuild in game")
                 case _:
                     raise CameraSyncError(f"Unknown camera sync mode: {self.mode}")
         except CameraSyncError as error:
@@ -307,10 +382,10 @@ class NWO_OT_CameraSync(bpy.types.Operator):
             case "WRITE_CAMERA":
                 return f"Write the active Blender camera to {CAMERA_SYNC_FILENAME}"
             case "READ_VIEWPORT":
-                return f"Move the current Blender viewport to the camera in {CAMERA_SYNC_FILENAME}"
+                return "Move the Blender viewport to the most recent Foundry camera saved by the game"
             case "READ_CAMERA":
-                return f"Move the active Blender camera to the camera in {CAMERA_SYNC_FILENAME}"
+                return "Move the Blender camera to the most recent Foundry camera saved by the game"
             case "UPDATE_DEBUG_MENU":
-                return "Create game debug menu entries for loading and saving the Foundry camera sync file"
+                return "Create camera load/save debug menu entries, then run debug_menu_rebuild in game"
 
         return cls.bl_description

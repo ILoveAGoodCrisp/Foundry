@@ -151,6 +151,7 @@ def _animation_name_type_items(_self, context):
 
 
 info_cache = None
+info_cache_key = None
 active_animation_name_editor = None
 vehicle_mode_operator_classes = []
 vehicle_mode_operator_ids = {}
@@ -238,11 +239,16 @@ def _build_vehicle_mode_groups(info: ExternalGraphInfo):
 
 
 def _get_external_graph_info() -> ExternalGraphInfo:
-    global info_cache
-    if info_cache is not None:
+    global info_cache, info_cache_key
+    project = utils.get_project(use_external=False)
+    tags_path = project.tags_directory if project and getattr(project, 'available', True) else ""
+    cache_key = (tags_path, getattr(project, 'game', ""))
+    if info_cache is not None and info_cache_key == cache_key:
         return info_cache
 
-    useful_tags = utils.paths_in_dir(utils.get_tags_path(), USEFUL_TAG_EXTS)
+    unregister_vehicle_mode_operators()
+    # Graph suggestions are optional; naming local animations does not need a project.
+    useful_tags = utils.paths_in_dir(tags_path, USEFUL_TAG_EXTS) if tags_path and Path(tags_path).is_dir() else []
     info = ExternalGraphInfo()
 
     for path in useful_tags:
@@ -290,6 +296,7 @@ def _get_external_graph_info() -> ExternalGraphInfo:
         include_any=False,
     )
     info_cache = info
+    info_cache_key = cache_key
     return info_cache
 
 

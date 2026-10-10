@@ -15,7 +15,7 @@ from .material_bitmap_mapping import DataTextureBaker
 GAME_LIBRARIES = {
     'halo1': ('h1_nodes', 'foundry_h1.'),
     'halo3': ('h3_nodes', 'foundry_h3.'),
-    'halo3odst': ('h3_nodes', 'foundry_h3.'),
+    'halo3odst': ('h3_nodes', 'foundry_h3odst.'),
     'reach': ('reach_nodes', 'foundry_reach.'),
     'halo4': ('h4_nodes', ''),
     'halo2a': ('h4_nodes', ''),
@@ -337,7 +337,7 @@ def _modern_to_modern(m):
             m.set('material_model', 'foliage')
             m.set('alpha_test', 'simple')
         m.notes.add(f'{_family(m.source)} uses the closest {_family(m.target)} family')
-    if _name(m.source).startswith('foundry_reach.') and _name(m.target).startswith('foundry_h3.'):
+    if _name(m.source).startswith('foundry_reach.') and _name(m.target).startswith(('foundry_h3.', 'foundry_h3odst.')):
         if _value(m.source, 'specular_mask') == 'specular_mask_mult_diffuse':
             m.set('specular_mask', 'specular_mask_from_texture')
             m.bitmap('specular_mask_texture.a', m.math('MULTIPLY', m.get('base_map.a', 1),
@@ -546,6 +546,8 @@ def _target_group(tree, source, target_game):
     available = {'shader', 'shader_custom', 'shader_decal', 'shader_halogram', 'shader_terrain'}
     if target_game == 'reach':
         available.update({'shader_glass', 'shader_foliage'})
+    elif target_game in {'halo3', 'halo3odst'}:
+        available.update({'shader_foliage', 'shader_cortana', 'shader_water', 'shader_skin'})
     return _new_group(tree, library, prefix + (family if family in available else 'shader'))
 
 
@@ -561,7 +563,7 @@ def _surface_nodes(tree):
         seen.add(node)
         name = _name(node)
         if node.type == 'BSDF_PRINCIPLED' or (node.type == 'GROUP' and
-                (name.startswith(('foundry_h1.', 'foundry_h3.', 'foundry_reach.', 'srf_')))):
+                (name.startswith(('foundry_h1.', 'foundry_h3.', 'foundry_h3odst.', 'foundry_reach.', 'srf_')))):
             yield node
             continue
         pending.extend(link.from_node for socket in node.inputs for link in socket.links)

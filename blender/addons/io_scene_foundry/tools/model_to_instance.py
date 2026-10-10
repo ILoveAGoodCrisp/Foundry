@@ -14,6 +14,7 @@ from ..tags.model_blender import ModelTag
 from ..tags.object_blender import ObjectTag
 from ..tags.shader import MaterialMetadataTag, ShaderMetadataTag
 
+from .. import face_attributes
 from .. import utils
 
 class ModelInstance:
@@ -141,10 +142,7 @@ class ModelInstance:
                 copy_prop[k] = v
                 
         # Always add precise since we don't know whether the model was imported with precise, and not being precise may cause issues
-        precise_prop = new_mesh.nwo.face_props.add()
-        precise_prop.type = 'precise_position'
-        precise_prop.color = utils.random_color(len(new_mesh.nwo.face_props))
-        precise_prop.attribute_name = utils.add_face_attribute(new_mesh).name
+        utils.add_face_prop(new_mesh, 'precise_position')
                 
     def _global_materials_to_shaders_mesh(self, materials_shaders: dict, mesh: bpy.types.Mesh):
         attributes = []
@@ -168,17 +166,14 @@ class ModelInstance:
             if blender_material is None:
                 continue
             
-            attribute = mesh.attributes.get(prop.attribute_name)
-            if attribute is not None:
-                attributes.append(attribute)
-                to_remove_props.append(idx)
-                mesh.materials.append(blender_material)
+            attributes.append((face_attributes.mask(mesh, prop), len(mesh.materials)))
+            to_remove_props.append(idx)
+            mesh.materials.append(blender_material)
                 
-        material_indices = np.zeros(len(mesh.polygons), dtype=np.int32)
-        for idx, attribute in enumerate(attributes):
-            buffer = np.empty(len(mesh.polygons), dtype=np.int8)
-            attribute.data.foreach_get("value", buffer)
-            material_indices[buffer] = idx
+        material_indices = np.empty(len(mesh.polygons), dtype=np.int32)
+        mesh.polygons.foreach_get('material_index', material_indices)
+        for selection, slot in attributes:
+            material_indices[selection] = slot
             
         mesh.polygons.foreach_set("material_index", material_indices)
         

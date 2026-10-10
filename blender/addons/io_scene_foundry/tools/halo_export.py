@@ -1,9 +1,7 @@
 
 
 def export(export_op):
-    export_op("INVOKE_DEFAULT")
-    return {"FINISHED"}
+    return export_op("INVOKE_DEFAULT")
 
 def export_quick(export_op):
-    export_op()
-    return {"FINISHED"}
+    return export_op()

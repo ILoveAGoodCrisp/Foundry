@@ -1,6 +1,7 @@
 
 from pathlib import Path
 import bpy
+from .. import utils
 
 from ..tags.render_model import RenderModelMetadataTag
 from ..tags.model_blender import ModelTag
@@ -16,6 +17,8 @@ class NWO_OT_GetModelMarkersForEvent(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         nwo = get_scene_props()
         scene_nwo = context.scene.nwo # scene specific
         if nwo.asset_type == 'cinematic' and scene_nwo.cinematic_events and scene_nwo.active_cinematic_event_index > -1 and scene_nwo.active_cinematic_event_index < len(scene_nwo.cinematic_events):
@@ -28,6 +31,8 @@ class NWO_OT_GetModelMarkersForEvent(bpy.types.Operator):
         return False
     
     def marker_items(self, context):
+        if not utils.current_project_valid():
+            return []
         scene_nwo = context.scene.nwo # scene specific
         event = scene_nwo.cinematic_events[scene_nwo.active_cinematic_event_index]
         ob = event.marker
@@ -56,6 +61,8 @@ class NWO_OT_GetModelMarkersForEvent(bpy.types.Operator):
     )
     
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         nwo = context.scene.nwo # scene specific
         event = nwo.cinematic_events[nwo.active_cinematic_event_index]
         event.marker_name = self.marker
@@ -195,4 +202,10 @@ class NWO_GetModelVariants(bpy.types.Operator):
     def execute(self, context):
         nwo = context.object.nwo
         nwo.marker_game_instance_tag_variant_name = self.variant
+        if nwo.marker_type == '_connected_geometry_marker_type_scenario_object':
+            from ..props.scenario_objects import current_game
+            from ..tags.scenario_objects import object_fields
+            for field in object_fields(current_game(), nwo.scenario_object_type):
+                if field.path[-1] == 'variant name':
+                    setattr(nwo, field.property_name(), self.variant)
         return {'FINISHED'}

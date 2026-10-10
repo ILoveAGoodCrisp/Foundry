@@ -1,158 +1,106 @@
-
-
+"""Scene convention conversion and independent selected-object transforms."""
 import bpy
 
-from ..icons import get_icon_id
 from .. import utils
+from ..coordinate_system import CoordinateSystem, FORWARD_ITEMS
+from ..scene_conversion import collect_objects, convert_scene, isolate_scope
+
 
 class NWO_ScaleScene(bpy.types.Operator):
     bl_idname = "nwo.scale_scene"
-    bl_label = "Transform Scene"
-    bl_description = "Scales and rotates the blender scene"
-    bl_options = {"REGISTER","UNDO"}
-    
-    scale_factor: bpy.props.FloatVectorProperty(
-        default=(1, 1, 1),
-        options={'SKIP_SAVE'},
-        description='Scale factor to apply to the scene. Change this to override the default set by the Blender/Halo Scale'
-        )
-    
-    def scale_items(self, context):
-        items = []
-        items.append(('none', 'None', "Does not scale the scene", 'MATPLANE', 0))
-        items.append(('blender', 'To Blender', "Scales the scene by a factor of roughly 32.8", 'BLENDER', 1))
-        items.append(('max', 'To Halo', "Scales the scene by a factor of roughly 0.03", get_icon_id("halo_scale"), 2))
-        items.append(('custom', 'Custom', "Scales the scene by the given factor", 'FULLSCREEN_ENTER', 3))
-        return items
-    
-    scale: bpy.props.EnumProperty(
-        name="Scale",
-        options={'SKIP_SAVE'},
-        description="Select the scaling for this asset. Scale is applied at export to ensure units displayed in Blender match with in game units",
-        items=scale_items,
-    )
-    
-    def update_forward(self, context):
-        rot = utils.blender_rotation_diff(self.forward, utils.get_scene_props().forward_direction)
-        self.rotation = rot
-    
-    forward: bpy.props.EnumProperty(
-        name="Scene Forward",
-        options={'SKIP_SAVE'},
-        description="The forward direction you are using for the scene. By default Halo uses X forward. Whichever option is set as the forward direction in Blender will be oriented to X forward in game i.e. a model facing -Y in Blender will face X in game",
-        default="y-",
-        items=[
-            ("y-", "-Y", "Model is facing Y negative"),
-            ("y", "Y", "Model is facing Y positive"),
-            ("x-", "-X", "Model is facing X negative"),
-            ("x", "X", "Model is facing X positive"),   
-        ],
-        update=update_forward,
-    )
-    
-    rotation: bpy.props.FloatProperty(
-        name='Rotation',
-        options={'SKIP_SAVE'},
-        subtype='ANGLE',
-    )
-    
-    maintain_marker_axis: bpy.props.BoolProperty(
-        name="Keep Marker Axis",
-        options=set(),
-        description="Maintains the forward direction of markers when the scene coordinate system is transformed. Use this if you're working with mesh markers and want their visuals in Blender to match in game",
-        default=True,
-    )
-    
-    selected_only: bpy.props.BoolProperty(
-        name="Selected Objects Only",
-        description="Transforms selected objects only",
-        options=set(),
-    )
-    
-    animations: bpy.props.EnumProperty(
-        name="Animations",
-        description="Animations to include in transform",
-        options=set(),
-        items=[
-            ("all", "All", ""),
-            ("active", "Active", ""),
-            ("none", "None", ""),
-        ]
-    )
-    
-    exclude_scale_models: bpy.props.BoolProperty(
-        name="Exclude Scale Models",
-        description="Excludes Halo scale models from transform so that size differences can more easily be compared",
-        options=set(),
-        default=True,
-    )
-    
-    def execute(self, context):
-        scale_factor = max(self.scale_factor)
-        scale_vector = self.scale_factor if self.scale == 'custom' else None
-        if self.scale == 'none':
-            scale_factor = 1
-        elif self.scale == 'blender':
-            scale_factor = 0.03048
-        elif self.scale == 'max':
-            scale_factor = (1 / 0.03048)
-        
-        if not (scale_factor != 1 or self.rotation or scale_vector is not None):
-            self.report({'INFO'}, "No scaling or rotation applied")
-            return {'FINISHED'}
-            
-        utils.exit_local_view(context)
-        old_mode = context.mode
-        old_object = context.object
-        old_selection = context.selected_objects
-        context.scene.tool_settings.use_keyframe_insert_auto = False
-        utils.set_object_mode(context)
-        utils.deselect_all_objects()
-        objects_to_transform = old_selection if self.selected_only else None
-        actions_to_transform = None
-        scene_nwo = utils.get_scene_props()
-        if self.animations != "all":
-            active_animation_index = scene_nwo.active_animation_index
-            if self.animations == 'active' and active_animation_index >= 0:
-                actions_to_transform = {track.action for track in scene_nwo.animations[active_animation_index].action_tracks}
-            else:
-                actions_to_transform = set()
-                
-        utils.transform_scene(context, scale_factor, self.rotation, scene_nwo.forward_direction, self.forward, keep_marker_axis=self.maintain_marker_axis, objects=objects_to_transform, actions=actions_to_transform, exclude_scale_models=self.exclude_scale_models, scale_light_energy=True, scale_vector=scale_vector)
+    bl_label = "Convert Scene Coordinates"
+    bl_description = "Convert the active scene and its referenced collections while preserving in-game placement"
+    bl_options = {"REGISTER", "UNDO"}
 
-        if old_object:
-            utils.set_active_object(old_object)
-        [ob.select_set(True) for ob in old_selection]
-        
-        if 'EDIT' in old_mode:
-            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        if old_mode == 'POSE':
-            bpy.ops.object.posemode_toggle()
-        
-        if self.scale == 'blender' or self.scale == 'max':
-            scene_nwo.scale = self.scale
-            
-        scene_nwo.forward_direction = self.forward
-        scene_nwo.maintain_marker_axis = self.maintain_marker_axis
-        
-        return {"FINISHED"}
-    
-    def invoke(self, context: bpy.types.Context, _):
-        scene_nwo = utils.get_scene_props()
-        self.forward = scene_nwo.forward_direction
-        self.maintain_marker_axis = scene_nwo.maintain_marker_axis
-        return context.window_manager.invoke_props_dialog(self)
-            
+    scale: bpy.props.EnumProperty(
+        name="Destination Scale", options={'SKIP_SAVE'}, default='blender',
+        items=[('blender', 'Blender Scale', 'One scene unit represents one meter'),
+               ('max', 'Halo Scale', 'One scene unit represents 0.03048 meters')],
+    )
+    forward: bpy.props.EnumProperty(
+        name="Destination Forward", options={'SKIP_SAVE'}, default='y-', items=FORWARD_ITEMS,
+    )
+
+    def execute(self, context):
+        old_mode = context.mode
+        utils.set_object_mode(context)
+        try:
+            changed = convert_scene(context, CoordinateSystem(self.scale, self.forward))
+        finally:
+            if context.object and old_mode in {'EDIT_MESH', 'EDIT_ARMATURE', 'POSE'}:
+                bpy.ops.object.mode_set(mode='POSE' if old_mode == 'POSE' else 'EDIT')
+        self.report({'INFO'}, "Scene coordinates converted" if changed else "Scene already uses this convention")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        self.scale = context.scene.nwo.scale
+        self.forward = context.scene.nwo.forward_direction
+        return context.window_manager.invoke_props_dialog(self, width=420)
+
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
-        layout.prop(self, 'scale', text='New Scale')
-        if self.scale == 'custom':
-            layout.prop(self, 'scale_factor', text='Scale Factor')
+        current = CoordinateSystem.from_scene(context.scene.nwo)
+        label = 'Blender Scale' if current.scale == 'blender' else 'Halo Scale'
+        forward = dict((item[0], item[1]) for item in FORWARD_ITEMS)[current.forward]
+        layout.label(text=f"Current: {label}, {forward} forward, Z up")
+        layout.prop(self, 'scale')
         layout.prop(self, 'forward')
-        layout.prop(self, 'rotation')
-        layout.prop(self, 'maintain_marker_axis')
-        layout.label(text="Scope")
-        layout.prop(self, 'selected_only')
-        layout.prop(self, 'animations')
-        layout.prop(self, 'exclude_scale_models')
+        factor, angle = current.conversion_to(CoordinateSystem(self.scale, self.forward))
+        layout.label(text=f"Scale factor: {factor:.6g}   Rotation: {angle * 180 / 3.141592653589793:.0f}°")
+        layout.label(text="Converts this scene, referenced collections and animations.")
+        layout.label(text="Preserves in-game placement and keeps other scenes unchanged.")
+
+
+class NWO_TransformSelected(bpy.types.Operator):
+    bl_idname = "nwo.transform_selected"
+    bl_label = "Transform Selected Objects"
+    bl_description = "Resize or rotate selected objects around the world origin without changing the scene convention"
+    bl_options = {"REGISTER", "UNDO"}
+
+    scale_factor: bpy.props.FloatProperty(name="Scale Factor", default=1., min=0.000001,
+        description="Uniform object scale around the world origin")
+    rotation: bpy.props.FloatProperty(name="Z Rotation", default=0., subtype='ANGLE')
+
+    @classmethod
+    def poll(cls, context):
+        return bool(context.selected_objects) and context.mode == 'OBJECT'
+
+    def execute(self, context):
+        if self.scale_factor == 1. and self.rotation == 0.:
+            return {'FINISHED'}
+        selected, active = list(context.selected_objects), context.view_layer.objects.active
+        descendants = set(selected)
+        while True:
+            expanded = descendants | {ob for ob in collect_objects(context.scene) if ob.parent in descendants}
+            if expanded == descendants:
+                break
+            descendants = expanded
+        _, mapping = isolate_scope(context.scene, descendants, copy_data=False)
+        utils.deselect_all_objects()
+        selected = [mapping.get(ob, ob) for ob in selected]
+        for ob in selected:
+            ob.select_set(True)
+        context.view_layer.objects.active = mapping.get(active, active)
+        auto_key = context.scene.tool_settings.use_keyframe_insert_auto
+        context.scene.tool_settings.use_keyframe_insert_auto = False
+        try:
+            if self.scale_factor != 1.:
+                bpy.ops.transform.resize(value=(self.scale_factor,) * 3, orient_type='GLOBAL',
+                                         center_override=(0., 0., 0.))
+            if self.rotation:
+                bpy.ops.transform.rotate(value=self.rotation, orient_axis='Z', orient_type='GLOBAL',
+                                         center_override=(0., 0., 0.))
+        finally:
+            context.scene.tool_settings.use_keyframe_insert_auto = auto_key
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+    def draw(self, context):
+        self.layout.use_property_split = True
+        self.layout.prop(self, 'scale_factor')
+        self.layout.prop(self, 'rotation')
+        self.layout.label(text="Applies an object transform to the current pose.")
+        self.layout.label(text="The scene convention stays unchanged.")

@@ -11,6 +11,8 @@ from ..tags.shader_foliage import ShaderFoliageTag
 from ..tags.shader_glass import ShaderGlassTag
 from ..tags.shader_halogram import ShaderHalogramTag
 from ..tags.shader_terrain import ShaderTerrainTag
+from ..tags.shader_specialized import (ShaderCortanaTag, ShaderSkinTag, ShaderWaterTag,
+    ShaderFurTag, ShaderFurStencilTag, ShaderMuxTag, ShaderMuxMaterialTag, ShaderScreenTag)
 from ..tags.material import MaterialTag
 from .. import utils
 
@@ -28,6 +30,9 @@ REACH_GROUP_TO_CLASS = {
 }
 
 REACH_SUFFIX_TO_CLASS = {
+    ".shader_cortana": (ShaderCortanaTag, ".shader_cortana"),
+    ".shader_skin": (ShaderSkinTag, ".shader_skin"),
+    ".shader_water": (ShaderWaterTag, ".shader_water"),
     ".shader": (ShaderTag, ".shader"),
     ".shader_custom": (ShaderCustomTag, ".shader_custom"),
     ".shader_decal": (ShaderDecalTag, ".shader_decal"),
@@ -36,6 +41,20 @@ REACH_SUFFIX_TO_CLASS = {
     ".shader_halogram": (ShaderHalogramTag, ".shader_halogram"),
     ".shader_terrain": (ShaderTerrainTag, ".shader_terrain"),
 }
+
+# H3 groups must determine the specialized tag type even for a new path.
+REACH_GROUP_TO_CLASS.update({
+    prefix + suffix: value for prefix in ('foundry_h3', 'foundry_h3odst')
+    for suffix, value in REACH_SUFFIX_TO_CLASS.items()
+    if suffix != '.shader_glass'
+})
+
+# Reach-only families must not be advertised as H3 entry groups.
+REACH_SUFFIX_TO_CLASS.update({
+    '.'+cls.tag_ext:(cls,'.'+cls.tag_ext)
+    for cls in (ShaderFurTag,ShaderFurStencilTag,ShaderMuxTag,ShaderMuxMaterialTag,ShaderScreenTag)
+})
+REACH_GROUP_TO_CLASS.update({'foundry_reach'+suffix:value for suffix,value in REACH_SUFFIX_TO_CLASS.items()})
 
 
 def _normalize_group_name(name: str) -> str:
@@ -129,9 +148,12 @@ def build_shader(material, corinth, folder="", report=None):
                 group = _material_output_group(material)
                 if group is not None:
                     group_name = _normalize_group_name(group.node_tree.name)
-                    if group_name in {'foundry_h1.shader_model', 'foundry_h1.shader_environment'}:
+                    if group_name.startswith('foundry_h1.shader_') and not group_name.endswith('_vector'):
                         suffix = '.' + group_name.partition('.')[2]
-                if shader_path.suffix.lower() in {'.shader_model', '.shader_environment'}:
+                if shader_path.suffix.lower() in {'.shader_model', '.shader_environment',
+                        '.shader_transparent_generic', '.shader_transparent_chicago',
+                        '.shader_transparent_chicago_extended', '.shader_transparent_glass',
+                        '.shader_transparent_meter', '.shader_transparent_plasma', '.shader_transparent_water'}:
                     suffix = shader_path.suffix.lower()
         tag_class = ShaderTag if nwo.uses_blender_nodes else EmptyShaderTag
         try:
@@ -139,6 +161,19 @@ def build_shader(material, corinth, folder="", report=None):
                 path = (tag.write_tag(material, True) if nwo.uses_blender_nodes
                         else tag.tag_path.RelativePathWithExtension)
             nwo.shader_path = path
+        except ValueError as exc:
+            if report is None:
+                raise
+            report({'ERROR'}, str(exc))
+            return {'CANCELLED'}
+        if report is not None:
+            report({'INFO'}, f"Created Shader Tag for {material.name}")
+    elif game == 'halo2':
+        tag_class = ShaderTag if nwo.uses_blender_nodes else EmptyShaderTag
+        try:
+            with tag_class(path=shader_path.with_suffix('.shader'), tag_must_exist=False) as tag:
+                nwo.shader_path = (tag.write_tag(material, True) if nwo.uses_blender_nodes
+                                  else tag.tag_path.RelativePathWithExtension)
         except ValueError as exc:
             if report is None:
                 raise
@@ -160,6 +195,8 @@ def build_shader(material, corinth, folder="", report=None):
             tag_class = REACH_SUFFIX_TO_CLASS.get(shader_type, (EmptyShaderTag,))[0]
             with tag_class(path=shader_path.with_suffix(shader_type),
                            tag_must_exist=False) as tag:
+                from ..tags.texture_camera import write_texture_camera_source
+                write_texture_camera_source(tag, nwo.texture_camera_parameter, nwo.use_texture_camera)
                 nwo.shader_path = tag.tag_path.RelativePathWithExtension
                 
         if nwo.shader_path:
@@ -181,9 +218,13 @@ class NWO_ListMaterialShaders(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         return context.object and context.object.active_material and utils.is_corinth(context)
     
     def shader_info_items(self, context):
+        if not utils.current_project_valid():
+            return []
         global global_material_shaders
         if global_material_shaders:
             return global_material_shaders
@@ -211,6 +252,8 @@ class NWO_ListMaterialShaders(bpy.types.Operator):
     )
 
     def execute(self, context: bpy.types.Context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         if self.batch_panel:
             global material_shader_path
             material_shader_path = self.shader_info
@@ -219,6 +262,8 @@ class NWO_ListMaterialShaders(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context, event):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         wm = context.window_manager
         wm.invoke_search_popup(self)
         return {"FINISHED"}

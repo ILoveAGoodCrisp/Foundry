@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import bpy
+from .. import utils
 import os
 from ..utils import get_prefs, get_project, get_project_path, get_scene_props, get_tags_path, is_corinth, open_in_explorer, os_sep_partition, redraw_area, relative_path
 
@@ -39,7 +40,13 @@ class NWO_GetTagsList(bpy.types.Operator):
     bl_description = "Returns a searchable list of valid tags"
     bl_options = {"UNDO"}
 
+    @classmethod
+    def poll(cls, context):
+        return utils.poll_project(cls)
+
     def tag_list_items(self, context):
+        if not utils.current_project_valid():
+            return []
         global global_items
         tags_dir = get_tags_path()
         ext_list = extensions_from_type(self.list_type)
@@ -70,6 +77,8 @@ class NWO_GetTagsList(bpy.types.Operator):
     list_type: bpy.props.StringProperty()
     
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         scene_nwo = get_scene_props()
         if self.list_type == 'sky_path':
             if not scene_nwo.scenario_skies:
@@ -104,6 +113,8 @@ class NWO_GetTagsList(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         wm = context.window_manager
         wm.invoke_search_popup(self)
         return {"FINISHED"}
@@ -115,6 +126,9 @@ def extensions_from_type(list_type):
         case 'sky_path':
             return ('.sky', '.scenery')
         case "marker_game_instance_tag_name":
+            if project is not None and project.game in {'halo2', 'halo3', 'halo3odst'}:
+                from ..legacy.references import ASS_GAME_OBJECT_EXTENSIONS
+                return ASS_GAME_OBJECT_EXTENSIONS
             return (".crate", ".scenery", ".effect_scenery", ".device_control", ".device_machine", ".device_terminal",
                         ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment",
                         ".prefab", ".light", ".cheap_light", ".leaf")
@@ -161,7 +175,7 @@ def extensions_from_type(list_type):
         case 'shader_path':
             if halo1:
                 return HALO1_SHADER_EXTENSIONS
-            return (".material", '.shader', '.shader_cortana', '.shader_custom', '.shader_decal', '.shader_foliage', '.shader_fur', '.shader_fur_stencil', '.shader_glass', '.shader_halogram', '.shader_mux', '.shader_mux_material', '.shader_screen', '.shader_skin', '.shader_terrain', 'shader_water')
+            return (".material", '.shader', '.shader_cortana', '.shader_custom', '.shader_decal', '.shader_foliage', '.shader_fur', '.shader_fur_stencil', '.shader_glass', '.shader_halogram', '.shader_mux', '.shader_mux_material', '.shader_screen', '.shader_skin', '.shader_terrain', '.shader_water')
         case 'template_model':
             return (".model")
         case 'template_biped':
@@ -272,8 +286,14 @@ class NWO_TagExplore(bpy.types.Operator):
         options={'SKIP_SAVE'}
     )
 
+    @classmethod
+    def poll(cls, context):
+        return utils.poll_project(cls)
+
     def execute(self, context):
 
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         if not hasattr(self, "nwo"):
             return {'CANCELLED'}
             
@@ -319,6 +339,8 @@ class NWO_TagExplore(bpy.types.Operator):
         self.filepath = str(Path(get_tags_path(), relative_path(getattr(nwo, 'path' if self.prop == 'sky_path' else self.prop, ""))))
 
     def invoke(self, context, event):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         self.open_in_explorer = event.alt
         self.set_nwo(context)
         self.filter_glob = get_glob_from_prop(self.prop)
@@ -338,6 +360,8 @@ def get_glob_from_prop(prop):
         case 'sky_path':
             return '*.sky;*.scenery'
         case 'marker_game_instance_tag_name':
+            if project is not None and project.game in {'halo2', 'halo3', 'halo3odst'}:
+                return ';'.join('*' + extension for extension in extensions_from_type(prop))
             return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light"
         case 'marker_decal_tag_name':
             return '*.decal' if project and project.game in {'halo1', 'halo2'} else '*.decal_system'

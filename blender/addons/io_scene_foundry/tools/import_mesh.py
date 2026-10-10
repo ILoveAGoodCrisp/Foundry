@@ -3,6 +3,7 @@
 from math import cos, radians
 
 import bmesh
+import bpy
 
 from ..tags.classic_geometry import weld_classic_vertices
 
@@ -15,22 +16,7 @@ def make_mesh_editable(mesh):
     an authored normal split at either end makes that edge sharp. Allow one
     degree of encoding noise in the imported tag normals when replacing them.
     """
-    baseline = mesh.attributes.get('legacy_import_normal')
-    identities = mesh.attributes.get('legacy_source_vertex')
-    unchanged_normals = {}
-    if baseline is not None and identities is not None:
-        for identity, imported, normal in zip(identities.data, baseline.data, mesh.corner_normals):
-            matches = (imported.vector - normal.vector).length < 1e-7
-            unchanged_normals[identity.value] = unchanged_normals.get(identity.value, True) and matches
     weld_classic_vertices(mesh, preserve_deformation=True)
-    if unchanged_normals:
-        # Re-encoding custom normals against welded topology changes Blender's
-        # compression basis. Refresh only corners which were not edited.
-        baseline = mesh.attributes['legacy_import_normal']
-        identities = mesh.attributes['legacy_source_vertex']
-        for identity, imported, normal in zip(identities.data, baseline.data, mesh.corner_normals):
-            if unchanged_normals.get(identity.value, False):
-                imported.vector = normal.vector
     # Interchange files retain authoring normals, which need not be derivable
     # from smooth/sharp edges. Keep those corners through an unedited round trip.
     if not mesh.has_custom_normals or mesh.get('foundry_legacy_normals', False):
@@ -70,3 +56,25 @@ def make_mesh_editable(mesh):
         mesh.attributes.remove(attribute)
     mesh.nwo.from_vert_normals = False
     mesh.update()
+
+
+class NWO_OT_MakeMeshesEditable(bpy.types.Operator):
+    bl_idname = "nwo.make_meshes_editable"
+    bl_label = "Make Meshes Editable"
+    bl_description = "Merges coincident vertices and replaces custom normals with sharp and smooth edges. Shading may differ from the imported normals"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'OBJECT' and any(
+            ob.type == 'MESH' and ob.data.is_editable
+            for ob in context.selected_objects
+        )
+
+    def execute(self, context):
+        meshes = {ob.data for ob in context.selected_objects
+                  if ob.type == 'MESH' and ob.data.is_editable}
+        for mesh in meshes:
+            make_mesh_editable(mesh)
+        self.report({'INFO'}, f"Made {len(meshes)} mesh{'es' if len(meshes) != 1 else ''} editable")
+        return {'FINISHED'}

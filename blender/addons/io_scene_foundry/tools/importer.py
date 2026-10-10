@@ -83,7 +83,9 @@ from ..constants import (
     face_prop_game_supported,
 )
 from ..tags.connected_material import GameFunctionType, game_functions
+from ..tags.function_driver import CHANGE_COLOR_PROPERTIES, bind_property_driver, refresh_driver_dependencies
 from .. import utils
+from ..coordinate_system import CoordinateSystem
 from .model_to_instance import ModelInstance
 from .import_mesh import make_mesh_editable
 from functools import partial
@@ -357,7 +359,7 @@ IMPORT_TEMPLATE_VALUES = {
         "tag_bsp_import_havok": True,
         "tag_import_design": True,
         "tag_scenario_import_objects": False,
-        "tag_scenario_import_markers": True,
+        "tag_scenario_import_markers": False,
         "tag_scenario_import_decals": False,
         "tag_scenario_import_decorators": False,
     },
@@ -437,6 +439,32 @@ def apply_import_template(operator, template):
         if hasattr(operator, prop_name):
             setattr(operator, prop_name, value)
 
+def configure_dropped_object_marker(marker, scene_nwo, tag_path):
+    """Choose the placement type using the destination game's export support."""
+    if scene_nwo.asset_type != 'scenario':
+        return
+    from ..legacy.references import ASS_GAMES, ASS_GAME_OBJECT_EXTENSIONS
+    from ..tags.scenario_objects import object_types, object_fields
+
+    game = utils.get_game(scene_nwo.scene_project, use_external=False)
+    extension = Path(tag_path).suffix.casefold()
+    block = next((block for block, _, tag_type, _ in object_types(game)
+                  if extension == '.' + tag_type), None)
+    if block is None:
+        return
+    preference = getattr(utils.get_prefs(), 'default_dragged_object_type', 'game_object')
+    unsupported = game == 'halo1' or (game in ASS_GAMES and extension not in ASS_GAME_OBJECT_EXTENSIONS)
+    if preference != 'scenario_object' and not unsupported:
+        return
+
+    marker.nwo.marker_type = '_connected_geometry_marker_type_scenario_object'
+    marker.nwo.scenario_object_type = block
+    marker.empty_display_type = 'ARROWS'
+    for field in object_fields(game, block):
+        if field.path[-1] == 'variant name':
+            setattr(marker.nwo, field.property_name(), marker.nwo.marker_game_instance_tag_variant_name)
+
+
 def import_template_update(self, context):
     apply_import_template(self, self.import_template)
 
@@ -463,20 +491,28 @@ def set_default_import_template(operator):
 
 def draw_import_template(operator, layout):
     row = layout.row()
-    row.prop(operator, "import_template", text="Template")
+    row.prop(operator, 'import_template', text='Import Preset')
+    preset = operator.import_template
+    values = IMPORT_TEMPLATE_VALUES.get(preset, {})
+    changed = any(getattr(operator, name) != value for name, value in values.items()
+                  if hasattr(operator, name) and (name != 'tag_bsp_import_havok' or utils.is_corinth()))
+    if changed:
+        row.label(text='Custom')
+
 
 def draw_import_summary(operator, layout):
-    source_project = utils.get_project()
-    if source_project is not None and not Path(operator.filepath).resolve().is_relative_to(
-            Path(source_project.tags_directory).resolve()):
-        source_project = None
-    loaded_project = utils.get_project(use_external=False)
-    source_name = source_project.name if source_project is not None else "Unknown"
-    loaded_name = loaded_project.name if loaded_project is not None else "Unknown"
-    layout.label(
-        text=f"Importing: {Path(operator.filepath).name} from {source_name} into {loaded_name}",
-        translate=False,
-    )
+    from ..ui.workflow import draw_text
+    filepath = getattr(operator, 'filepath', '')
+    path = Path(filepath).resolve() if filepath else None
+    source = utils.project_for_file(path) if path else None
+    if source is None and path:
+        source = utils.project_for_file(path, data=True)
+    destination = utils.get_project(use_external=False)
+    source_name = source.name if source else ('External source folders' if getattr(operator, 'source_tags_directory', '') else 'Choose source files')
+    draw_text(layout, f"Source: {source_name}", icon='IMPORT')
+    draw_text(layout, f"Destination project: {destination.name if destination else 'Select a project'}")
+    if filepath:
+        draw_text(layout, f"File: {filepath}")
 
 
 def draw_animation_conversions(operator, layout, enabled=None):
@@ -607,7 +643,7 @@ def draw_model_tag_import_sections(operator, layout, corinth, show_template=True
 
     reimport_box = layout.box()
     reimport_box.label(text="Game Reimport")
-    reimport_box.prop(operator, "setup_as_asset")
+    reimport_box.prop(operator, "setup_as_asset", text="Set Up Scene as Export Asset")
     reimport_box.prop(operator, "tag_collision")
     reimport_box.prop(operator, "tag_physics")
     # reimport_box.prop(operator, "from_vert_normals")
@@ -648,7 +684,7 @@ def draw_scenario_import_sections(operator, layout, corinth, show_template=True,
     core_box.prop(operator, "tag_bsp_import_geometry")
     if game == 'halo1':
         merge_row = core_box.row()
-        merge_row.enabled = operator.tag_bsp_import_geometry
+        merge_row.enabled = operator.tag_bsp_import_geometry and not operator.tag_bsp_render_only
         merge_row.prop(operator, "tag_bsp_merge_render_collision")
     if not classic:
         core_box.prop(operator, "tag_import_lights")
@@ -658,7 +694,7 @@ def draw_scenario_import_sections(operator, layout, corinth, show_template=True,
     if show_setup_as_asset:
         setup_as_asset_row = reimport_box.row()
         setup_as_asset_row.enabled = not getattr(operator, "force_no_setup_as_asset", False)
-        setup_as_asset_row.prop(operator, "setup_as_asset")
+        setup_as_asset_row.prop(operator, "setup_as_asset", text="Set Up Scene as Export Asset")
     reimport_col = reimport_box.column(align=True)
     reimport_col.enabled = not operator.tag_bsp_render_only
     reimport_col.prop(operator, "tag_bsp_skip_structure_merge")
@@ -734,7 +770,7 @@ def _decorator_rotation_values(rotations, up):
     return np.mod(np.arctan2(sin, cos), 2.0 * np.pi) / (2.0 * np.pi)
 
 
-def _decorator_records_to_clouds(placements, path, name, types, collection, bvh=None):
+def _decorator_records_to_clouds(placements, path, name, types, collection, bvh=None, bsp_names=()):
     grouped = defaultdict(list)
     for placement in placements:
         decorator_type = types.get(placement.type_index)
@@ -743,11 +779,11 @@ def _decorator_records_to_clouds(placements, path, name, types, collection, bvh=
         position = Vector(tuple(value * 100 for value in placement.position))
         if bvh and not utils.test_point_bvh(bvh, position):
             continue
-        grouped[placement.type_index].append(placement)
+        grouped[(placement.type_index, placement.bsp_index if bsp_names else -1)].append(placement)
 
     clouds = []
     placement_count = 0
-    for type_index, records in grouped.items():
+    for (type_index, bsp_index), records in grouped.items():
         decorator_type = types[type_index]
         placement_count += len(records)
         cloud_name = f'{name}_{decorator_type.decorator_type_name}_decorator_cloud'
@@ -769,7 +805,7 @@ def _decorator_records_to_clouds(placements, path, name, types, collection, bvh=
         tint = np.ones((len(records), 4), dtype=np.float32)
         tint[:, :3] = np.asarray([record.tint for record in records], dtype=np.float32) ** 2.2
         _set_color_point_attribute(mesh, DECORATOR_ATTR_TINT, tint)
-        _set_color_point_attribute(mesh, 'decorator_source', [(getattr(record, 'bsp_index', -1), getattr(record, 'sprite_index', 0),
+        _set_color_point_attribute(mesh, 'decorator_source', [(-1, getattr(record, 'sprite_index', 0),
             getattr(record, 'permutation_index', 0), getattr(record, 'cluster_index', -1)) for record in records])
         mesh.transform(import_transform.mesh_matrix())
         mesh.update()
@@ -779,7 +815,9 @@ def _decorator_records_to_clouds(placements, path, name, types, collection, bvh=
         ob[DECORATOR_CLOUD_PROP] = True
         ob[DECORATOR_TAG_PROP] = path
         ob[DECORATOR_VARIANT_PROP] = decorator_type.decorator_type_name
-        ob.nwo.export_this = False
+        ob.nwo.decorator_type_index = type_index
+        if 0 <= bsp_index < len(bsp_names):
+            ob.nwo.region_name = bsp_names[bsp_index]
         collection.objects.link(ob)
         clouds.append(ob)
     return clouds, placement_count
@@ -1020,12 +1058,13 @@ IMPORT_OPERATOR_ENUM_DEFAULTS = {
     "tag_state": "default",
     "tag_model_override_type": "none",
     "decorator_lod": "1",
-    "render_lod": "ALL",
+    "render_lod": "HIGHEST",
     "import_fp_arms": "NONE",
     "legacy_type": "auto",
 }
 
 RENDER_LOD_ITEMS = [
+    ("HIGHEST", "Highest", "Import only the highest available level of detail for each region permutation"),
     ("ALL", "All", "Import every available level of detail"),
     ("L1", "L1", "Import the super-low detail geometry"),
     ("L2", "L2", "Import the low detail geometry"),
@@ -1036,6 +1075,7 @@ RENDER_LOD_ITEMS = [
 ]
 
 HALO1_RENDER_LOD_ITEMS = [
+    ("HIGHEST", "Highest", "Import only the highest available level of detail for each region permutation"),
     ("ALL", "All", "Import every available level of detail"),
     ("L1", "Super Low", "Import the super-low detail geometry"),
     ("L2", "Low", "Import the low detail geometry"),
@@ -1148,6 +1188,25 @@ tag_files_by_name_cache = {}
 objects_cache = {}
 
 deferred_ops = []
+
+def select_project_for_tag_drop(operator):
+    """Adopt a registered tag's project before preparing an unassigned scene."""
+    if utils.get_project(use_external=False) is not None:
+        return
+    suffix = Path(operator.filepath).suffix.lower()
+    tag_suffixes = {extension for kind, extensions in filetype_suffixes
+                    if kind not in {'sidecar', 'gr2', 'jms', 'jma', 'wrl'}
+                    for extension in extensions}
+    if suffix not in tag_suffixes and suffix not in IMPORT_SHADER_EXTENSIONS:
+        return
+    project = utils.project_for_file(operator.filepath)
+    if project is None:
+        return
+    utils.set_scene_project(utils.get_scene_props(), project)
+    if hasattr(operator, 'build_materials_for_project'):
+        operator.build_materials_for_project = False
+    if hasattr(operator, 'convert_animations'):
+        operator.convert_animations = False
 
 def asset_tag_paths(tag_root: str | Path, *paths: str) -> dict[str, str]:
     """Keep the tag references used for import, independent of extracted sources."""
@@ -1264,6 +1323,27 @@ def set_shader_permutation_property(ob, value=None):
 
 
 def add_function(scene: bpy.types.Scene, name: str, rename: str, ob: bpy.types.Object, armature: bpy.types.Object=None) -> bool:
+    if name in CHANGE_COLOR_PROPERTIES:
+        # H3/Reach shader metadata also lists change colors as dependencies.
+        # They are color arrays, not the scalar game functions below. Preserve
+        # authored colors and repair meshes previously overwritten with 0.0.
+        owner = armature if armature is not None else ob
+        value = owner.get(rename)
+        if value is None or not hasattr(value, '__len__') or len(value) not in {3, 4}:
+            value = ob.get(name)
+        if value is None or not hasattr(value, '__len__') or len(value) not in {3, 4}:
+            value = (1.0, 1.0, 1.0, 1.0)
+        value = tuple(float(component) for component in value)
+        owner[rename] = value
+        owner.id_properties_ui(rename).update(subtype='COLOR', min=0, max=1)
+        ob[name] = value
+        ob.id_properties_ui(name).update(subtype='COLOR', min=0, max=1)
+        if owner != ob:
+            bind_property_driver(ob, owner, name, rename)
+        else:
+            ob.update_tag(refresh={'DATA'})
+        return False
+
     func = game_functions.get(name)
     ammo = name.startswith(ammo_names)
     tether = name.startswith(tether_name)
@@ -1274,8 +1354,37 @@ def add_function(scene: bpy.types.Scene, name: str, rename: str, ob: bpy.types.O
     value_is_bool = False
     
     if ammo or tether:
-        ob[name] = 0.0
-        ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
+        owner = armature if has_armature else ob
+        owner[name] = 0.0
+        owner.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
+        owner.update_tag(refresh={'DATA'})
+        digit_driver = owner.driver_add(f'["{bpy.utils.escape_identifier(name)}"]').driver
+        digit_driver.type = 'SCRIPTED'
+        while digit_driver.variables:
+            digit_driver.variables.remove(digit_driver.variables[0])
+        digit = digit_driver.variables.new()
+        digit.name = 'var'
+        digit.type = 'SINGLE_PROP'
+        digit.targets[0].id = owner
+        digit.targets[0].data_path = '["Tether Distance"]' if tether else '["Ammo"]'
+        place = {'ones': 1, 'tens': 10, 'hundreds': 100}.get(name.rpartition('_')[2])
+        if place is not None:
+            # The game exposes decimal digits in tenths, independent of how
+            # many frames a particular shader's bitmap contains.
+            digit_driver.expression = f'(floor(var/{place})-10*floor(var/{place*10}))/10'
+        elif tether or name.startswith('airstrike_launch_count'):
+            digit_driver.expression = 'max(var,0)'
+        else:
+            capacity = digit_driver.variables.new()
+            capacity.name = 'capacity'
+            capacity.type = 'SINGLE_PROP'
+            capacity.targets[0].id = owner
+            capacity.targets[0].data_path = 'nwo["ammo_capacity"]'
+            digit_driver.expression = 'min(max(var/max(capacity,1),0),1)'
+        if owner != ob:
+            ob[name] = 0.0
+            bind_property_driver(ob, owner, name)
+        refresh_driver_dependencies(ob, owner)
         return value_is_bool
     
     if name == FORCED_SHADER_PERMUTATION:
@@ -1316,19 +1425,9 @@ def add_function(scene: bpy.types.Scene, name: str, rename: str, ob: bpy.types.O
             ob.id_properties_ui(name).update(min=0, max=1, subtype='FACTOR')
     
     if id is not None:
-        result = ob.driver_add(f'["{name}"]')
-        driver = result.driver
-        driver.type = 'SCRIPTED'
-        var = driver.variables.new()
-        var.name = "var"
-        var.type = 'SINGLE_PROP'
-        if value_comes_from_scene:
-            var.targets[0].id_type = 'SCENE'
-        else:
-            id.update_tag(refresh={'DATA'})
-        var.targets[0].id = id
-        var.targets[0].data_path = f'["{rename}"]'
-        driver.expression = var.name
+        bind_property_driver(ob, id, name, name if value_comes_from_scene else rename)
+    else:
+        ob.update_tag(refresh={'DATA'})
         
     return value_is_bool
 
@@ -1411,24 +1510,12 @@ def bind_sequence_drivers(scene, ob, slot_index):
             add_function(scene, name, name, ob, ob.parent)
             func = game_functions.get(name)
             from_scene = func is not None and func.attribute_type == 'VIEW_LAYER'
+            target = scene if from_scene else owner
+            refresh_driver_dependencies(target)
             var.targets[0].id_type = 'SCENE' if from_scene else 'OBJECT'
-            var.targets[0].id = scene if from_scene else owner
-            ammo = name.startswith(ammo_names)
-            tether = name.startswith(tether_name)
-            if ammo or tether:
-                var.targets[0].id = ob
-                digit_driver = ob.driver_add(f'["{name}"]').driver
-                digit_driver.type = 'SCRIPTED'
-                while digit_driver.variables:
-                    digit_driver.variables.remove(digit_driver.variables[0])
-                digit = digit_driver.variables.new()
-                digit.name = 'var'
-                digit.type = 'SINGLE_PROP'
-                digit.targets[0].id = owner
-                digit.targets[0].data_path = '["Tether Distance"]' if tether else '["Ammo"]'
-                place = {'ones': 1, 'tens': 10, 'hundreds': 100}.get(name.rpartition('_')[2], 1)
-                length = material.node_tree.path_resolve(curve.data_path.removesuffix('.frame_offset')).frame_duration
-                digit_driver.expression = f'(floor(var/{place})-10*floor(var/{place*10}))/{max(length-1, 1)}'
+            var.targets[0].id = target
+    if curves:
+        refresh_driver_dependencies(material.node_tree)
     return material
         
 
@@ -1479,12 +1566,12 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
     include_disabled_collections: bpy.props.BoolProperty(
         name="Include Disabled Collections", default=True,
         description="Include objects in collections excluded from the current view layer or disabled in the viewport; Selected Only still limits conversion to selected objects")
-    convert_scale: bpy.props.BoolProperty(
-        name="Convert Scale", default=True,
-        description="Convert geometry from Halo scale to the current Foundry scene scale; ignored when the scene uses Halo scale")
-    convert_forward: bpy.props.BoolProperty(
-        name="Convert Forward", default=True,
-        description="Rotate geometry from Halo +X forward to the current Foundry scene forward; ignored when the scene uses +X forward")
+    keep_halo: bpy.props.BoolProperty(
+        name="Keep Halo", default=False,
+        description="Set the Foundry scene to Halo scale and +X forward without scaling or rotating the scene")
+    apply_special_materials: bpy.props.BoolProperty(
+        name="Apply Foundry Special Materials", default=True,
+        description="Replace source helper materials with Foundry's standard portal, sky, seam, seam-sealer and other special materials")
     jms_type: bpy.props.EnumProperty(
         name="Scene Type", default='auto',
         items=[('auto', "Auto", "Use the current asset type"),
@@ -1510,15 +1597,11 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
         self.layout.prop(self, 'selected_only')
         self.layout.prop(self, 'include_disabled_collections')
         self.layout.label(text="Source: Halo Scale, +X Forward")
-        scale = 'Blender Scale' if scene_nwo.scale == 'blender' else 'Halo Scale'
-        forward = {'x': '+X', 'x-': '-X', 'y': '+Y', 'y-': '-Y'}[scene_nwo.forward_direction]
+        scale = 'Blender Scale' if not self.keep_halo and scene_nwo.scale == 'blender' else 'Halo Scale'
+        forward = '+X' if self.keep_halo else {'x': '+X', 'x-': '-X', 'y': '+Y', 'y-': '-Y'}[scene_nwo.forward_direction]
         self.layout.label(text=f"Scene: {scale}, {forward} Forward")
-        row = self.layout.row()
-        row.enabled = scene_nwo.scale != 'max'
-        row.prop(self, 'convert_scale')
-        row = self.layout.row()
-        row.enabled = scene_nwo.forward_direction != 'x'
-        row.prop(self, 'convert_forward')
+        self.layout.prop(self, 'keep_halo')
+        self.layout.prop(self, 'apply_special_materials')
         self.layout.prop(self, 'jms_type', expand=True)
         if self.jms_type == 'scenario' or (self.jms_type == 'auto' and
                 utils.get_scene_props().asset_type in {'scenario', 'prefab'}):
@@ -1551,10 +1634,14 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
             return {'CANCELLED'}
         is_model = self.jms_type == 'model' or (self.jms_type == 'auto' and
                     utils.get_scene_props().asset_type not in {'scenario', 'prefab'})
+        if self.keep_halo:
+            context.scene.nwo.scale = 'max'
+            context.scene.nwo.forward_direction = 'x'
         converter = HaloSceneConverter(NWOImporter(context, existing_scene=True), is_model,
-                                       bsp_name=self.bsp_name, top_level_bsps=self.top_level_bsps)
-        converted = converter.convert(objects, convert_scale=self.convert_scale,
-                                      convert_forward=self.convert_forward)
+                                       bsp_name=self.bsp_name, top_level_bsps=self.top_level_bsps,
+                                       apply_special_materials=self.apply_special_materials)
+        converted = converter.convert(objects, convert_scale=not self.keep_halo,
+                                      convert_forward=not self.keep_halo)
         if converter.warnings:
             for warning in sorted(converter.warnings):
                 utils.print_warning(warning)
@@ -1841,19 +1928,19 @@ class NWO_Import(bpy.types.Operator):
     )
     
     tag_scenario_import_markers: bpy.props.BoolProperty(
-        name="Import Player Starts and Cutscene Flags", default=True,
-        description="Import editable scenario Player Start and Cutscene Flag markers",
+        name="Import Metadata", default=False,
+        description="Import scenario Player Starting points, Cutscene Camera Points, Cutscene Flags, and Airprobes",
     )
 
     tag_scenario_import_objects: bpy.props.BoolProperty(
         name="Import Scenario Objects",
-        description="Imports scenario objects. Added to an exclude collection by default",
+        description="Imports scenario objects with editable scenario placement settings",
         default=False,
     )
     
     tag_scenario_import_decals: bpy.props.BoolProperty(
         name="Import Scenario Decals",
-        description="Imports scenario decals. Added to an exclude collection by default",
+        description="Imports scenario decal placements and previews",
         default=False,
     )
     
@@ -2123,6 +2210,7 @@ class NWO_Import(bpy.types.Operator):
                         marker.nwo.marker_game_instance_tag_variant_name = self.decorator_type
                     else:
                         marker.nwo.marker_game_instance_tag_variant_name = self.tag_variant
+                    configure_dropped_object_marker(marker, scene_nwo, tag_path)
                     
                     marker.matrix_world = mouse_matrix
                 
@@ -2208,10 +2296,7 @@ class NWO_Import(bpy.types.Operator):
                                 imported_objects.extend(to_instance_objects)
                                 converter.clean_up()
                                 
-                                if scene_nwo.maintain_marker_axis:
-                                    converter.instance.matrix_world = mouse_matrix @ Matrix.Rotation(importer.from_x_rot, 4, 'Z')
-                                else:
-                                    converter.instance.matrix_world = mouse_matrix
+                                converter.instance.matrix_world = mouse_matrix @ Matrix.Rotation(importer.from_x_rot, 4, 'Z')
                                 
                         else:
                             key = marker.nwo.marker_game_instance_tag_name, marker.nwo.marker_game_instance_tag_variant_name
@@ -2577,6 +2662,10 @@ class NWO_Import(bpy.types.Operator):
                         scene_datas, scenario, zone_set = importer.import_cinematic(file, film_aperture)
                         
                         if scenario:
+                            scene_nwo.cinematic_scenario = scenario
+                            scene_nwo.cinematic_zone_set = zone_set
+
+                        if scenario and self.tag_cinematic_import_scenario:
                             importer.tag_zone_set = zone_set
                             importer.tag_bsp_import_geometry = True
                             importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
@@ -2592,9 +2681,6 @@ class NWO_Import(bpy.types.Operator):
                             
                             imported_cinematic_objects.extend(imported_cinematic_scenario_objects)
                             
-                            scene_nwo.cinematic_scenario = scenario
-                            scene_nwo.cinematic_zone_set = zone_set
-                        
                         first_scene = True
                         for sdata in scene_datas:
                             if first_scene:
@@ -2609,14 +2695,15 @@ class NWO_Import(bpy.types.Operator):
                             context.scene.collection.children.link(camera_collection)
                             scene_imported_objects = []
                             scene_imported_actions = []
-                            for ob in sdata.camera_objects:
+                            cinematic_camera_objects = sdata.camera_objects + sdata.extra_camera_objects
+                            for ob in cinematic_camera_objects:
                                 camera_collection.objects.link(ob)
                                 
                             # scene_collection_map[sdata.blender_scene].add(camera_collection)
                                 
-                            imported_cinematic_objects.extend(sdata.camera_objects)
+                            imported_cinematic_objects.extend(cinematic_camera_objects)
                             imported_cinematic_actions.extend(sdata.actions)
-                            scene_imported_objects.extend(sdata.camera_objects)
+                            scene_imported_objects.extend(cinematic_camera_objects)
                             scene_imported_actions.extend(sdata.actions)
                             
                             camera_light_mask = {cam: set() for cam in sdata.camera_objects}
@@ -2649,7 +2736,19 @@ class NWO_Import(bpy.types.Operator):
                                 actor_event_links = []
                                 for cin_object in sdata.object_animations:
                                     importer.tag_variant = cin_object.variant
-                                    imported_cinematic_object_objects, armature, render_path, model_collection = importer.import_object([cin_object.object_path], None, return_cin_stuff=True, parent_collection=cinematic_objects_collection)
+                                    if cin_object.object_path:
+                                        imported_cinematic_object_objects, armature, render_path, model_collection = importer.import_object([cin_object.object_path], None, return_cin_stuff=True, parent_collection=cinematic_objects_collection)
+                                    else:
+                                        # Scenario-owned effect objects need a selectable actor
+                                        # for event links, but have no model or animation graph.
+                                        armature = bpy.data.objects.new(cin_object.name, bpy.data.armatures.new(cin_object.name))
+                                        model_collection = bpy.data.collections.new(cin_object.name)
+                                        cinematic_objects_collection.children.link(model_collection)
+                                        model_collection.objects.link(armature)
+                                        imported_cinematic_object_objects, render_path = [armature], None
+                                        armature.nwo.cinematic_objectless = True
+                                        if cin_object.graph_path:
+                                            importer.import_cinematic_graph_skeleton(cin_object.graph_path, armature)
                                     imported_cinematic_objects.extend(imported_cinematic_object_objects)
                                     scene_imported_objects.extend(imported_cinematic_object_objects)
                                     cin_object.armature = armature
@@ -2657,6 +2756,17 @@ class NWO_Import(bpy.types.Operator):
                                         utils.print_warning(f'{cin_object.name}: object has no imported armature; skipping cinematic animation')
                                         continue
                                     armature.name = cin_object.name
+                                    armature.nwo.cinematic_variant = cin_object.variant
+                                    for prop, value in cin_object.settings.items():
+                                        setattr(armature.nwo, prop, value)
+                                    armature.nwo.cinematic_lighting_templates.clear()
+                                    for assignment in cin_object.cinematic_lighting or ():
+                                        template = armature.nwo.cinematic_lighting_templates.add()
+                                        template.shot = assignment.shot_index + 1
+                                        template.lighting = assignment.template
+                                        template.marker = assignment.marker
+                                        template.persist = assignment.persist
+                                    armature.nwo.cinematic_lighting = 'TEMPLATE' if cin_object.cinematic_lighting else 'NONE'
 
                                     for event_index in cin_object.events:
                                         actor_event_links.append((event_index, armature))
@@ -2755,18 +2865,30 @@ class NWO_Import(bpy.types.Operator):
                                         for l in lights:
                                             cam_lights.add().light = l
 
-                            if imported_cinematic_scenario_objects:
-                                anchor_position = Vector.Fill(3, 0)
-                                anchor_facing = Vector.Fill(3, 0)
+                            anchor_position = Vector.Fill(3, 0)
+                            anchor_facing = Vector.Fill(3, 0)
+                            if scenario:
                                 with ScenarioMetadataTag(path=scenario) as scenario_tag:
-                                    anchor = scenario_tag.cutscene_anchor(sdata.anchor_name)
-                                    if anchor is not None:
-                                        anchor_position = Vector(anchor[0]) * 100
-                                        anchor_facing = Vector(anchor[1])
-                                
-                                anchor_euler = Euler((anchor_facing[2], -anchor_facing[1], anchor_facing[0]), 'ZYX')
-                                anchor_matrix = Matrix.LocRotScale(anchor_position, anchor_euler, Vector.Fill(3, 1))
-                                
+                                    source_anchor = scenario_tag.cutscene_anchor(sdata.anchor_name)
+                                    if source_anchor is not None:
+                                        anchor_position = Vector(source_anchor[0]) * 100
+                                        anchor_facing = Vector(source_anchor[1])
+                            anchor_euler = Euler((anchor_facing[2], -anchor_facing[1], anchor_facing[0]), 'ZYX')
+                            anchor_matrix = Matrix.LocRotScale(anchor_position, anchor_euler, Vector.Fill(3, 1))
+                            anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
+                            anchor.nwo.is_frame = True
+                            anchor.nwo.export_this = False
+                            anchor.empty_display_size = (1 / 0.03048) * import_transform.scale_factor()
+                            # This empty transforms scenery already expressed in
+                            # Blender axes, so convert both sides of the basis.
+                            anchor.matrix_world = (import_transform.object_matrix(anchor_matrix.inverted_safe())
+                                                   @ import_transform.rotation_matrix().inverted_safe())
+                            context.scene.collection.objects.link(anchor)
+                            sdata.blender_scene.nwo.cinematic_anchor = anchor
+                            imported_cinematic_objects.append(anchor)
+                            scene_imported_objects.append(anchor)
+
+                            if imported_cinematic_scenario_objects:
                                 scenario_instance_empty = bpy.data.objects.new(scenario_collection.name, object_data=None)
                                 context.scene.collection.objects.link(scenario_instance_empty)
                                 # scene_collection_map[sdata.blender_scene].add(scenario_instance_empty)
@@ -2775,31 +2897,11 @@ class NWO_Import(bpy.types.Operator):
                                 imported_cinematic_objects.append(scenario_instance_empty)
                                 scene_imported_objects.append(scenario_instance_empty)
                                 
-                                anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
-                                anchor.nwo.is_frame = True
-                                anchor.empty_display_size = (1 / 0.03048) * import_transform.scale_factor()
-                                anchor.matrix_world = import_transform.object_matrix(anchor_matrix.inverted_safe())
-                                context.scene.collection.objects.link(anchor)
-                                sdata.blender_scene.nwo.cinematic_anchor = anchor
-                                imported_cinematic_objects.append(anchor)
-                                scene_imported_objects.append(anchor)
                                 anchor_objects[anchor] = imported_cinematic_scenario_objects
-                                anchor.nwo.export_this = False
                                 scenario_instance_empty.parent = anchor
                                 scenario_instance_empty.parent_type = 'OBJECT'
                                 scenario_instance_empty.matrix_parent_inverse = Matrix.Identity(4)
-                                if scene_nwo.maintain_marker_axis:
-                                    scenario_instance_empty.matrix_local = Matrix.Rotation(
-                                        -import_transform.rotation(scene_nwo), 4, 'Z'
-                                    )
-                                else:
-                                    scenario_instance_empty.matrix_local = Matrix.Identity(4)
-                            else:
-                                anchor = bpy.data.objects.new(name=sdata.anchor_name, object_data=None)
-                                anchor.nwo.is_frame = True
-                                anchor.nwo.export_this = False
-                                0
-                                scene_imported_objects.append(anchor)
+                                scenario_instance_empty.matrix_local = Matrix.Identity(4)
                             
                             for ob in light_objects_corinth:
                                 ob.parent = anchor
@@ -2911,8 +3013,6 @@ class NWO_Import(bpy.types.Operator):
                 if self.make_meshes_editable:
                     make_imported_meshes_editable(starting_meshes)
                 set_imported_face_prop_colors(starting_meshes)
-                from ..legacy.source_preservation import finalize_import
-                finalize_import(imported_objects, scene_nwo)
                     
                 # # Clamp lights
                 # utils.print_tag("Clamping Lights")
@@ -3073,6 +3173,7 @@ class NWO_Import(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.scale_y = 1.25
+        draw_import_summary(self, layout)
         corinth = utils.is_corinth(context)
         project = render_lod_source_project(self)
         game = project.game if project is not None else None
@@ -3103,7 +3204,7 @@ class NWO_Import(bpy.types.Operator):
         if 'sidecar' in scope_items:
             box = layout.box()
             box.label(text="Sidecar Settings")
-            box.prop(self, 'setup_as_asset')
+            box.prop(self, 'setup_as_asset', text='Set Up Scene as Export Asset')
             if not loose_gr2:
                 box.prop(self, 'reuse_armature')
         if not self.scope or ('jms' in self.scope or 'model' in self.scope or 'object' in self.scope or 'render_model' in self.scope or 'collision_model' in self.scope or 'physics_model' in self.scope or 'sky' in self.scope):
@@ -3139,7 +3240,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'tag_markers')
             if 'sky' in scope_items:
                 box.prop(self, 'tag_animation')
-                box.prop(self, 'setup_as_asset')
+                box.prop(self, 'setup_as_asset', text='Set Up Scene as Export Asset')
 
         if {'collision_model', 'physics_model'}.intersection(scope_items) and 'model' not in scope_items and 'object' not in scope_items:
             box = layout.box()
@@ -3183,7 +3284,7 @@ class NWO_Import(bpy.types.Operator):
             box = layout.box()
             box.label(text='Camera Track Settings')
             box.prop(self, 'camera_track_animation_scale')
-            box.prop(self, "setup_as_asset")
+            box.prop(self, "setup_as_asset", text="Set Up Scene as Export Asset")
             
         if game != 'halo1' and (not self.scope or 'decorator_set' in scope_items):
             box = layout.box()
@@ -3195,7 +3296,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'build_blender_materials', text="Build Blender Material")
             draw_material_project_option(self, box)
             box.prop(self, 'always_extract_bitmaps')
-            box.prop(self, "setup_as_asset")
+            box.prop(self, "setup_as_asset", text="Set Up Scene as Export Asset")
             
         if game not in {'halo1', 'halo2'} and (not self.scope or 'cinematic' in scope_items):
             box = layout.box()
@@ -3214,7 +3315,7 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, "tag_scenario_import_markers")
             box.prop(self, "tag_scenario_import_decals")
             box.prop(self, "tag_scenario_import_decorators")
-            box.prop(self, "setup_as_asset")
+            box.prop(self, "setup_as_asset", text="Set Up Scene as Export Asset")
             box.prop(self, "build_blender_materials")
             draw_material_project_option(self, box)
             box.prop(self, "always_extract_bitmaps")
@@ -3224,7 +3325,8 @@ class JMSMaterialSlot:
     def from_material(cls, material, game, scale=1):
         """Read toolset properties without renaming or editing the source material."""
         props = material.ass_jms
-        result = cls.from_name(props.name_override.strip() or material.name)
+        source_name = props.name_override.strip() or re.sub(r'\.\d{3}$', '', material.name)
+        result = cls.from_name(source_name)
         for target, source in (
             ('two_sided', 'two_sided'), ('transparent_one_sided', 'transparent_1_sided'),
             ('transparent_two_sided', 'transparent_2_sided'), ('render_only', 'render_only'),
@@ -3486,7 +3588,7 @@ class NWOImporter:
         self.prefix_setting = utils.get_prefs().apply_prefix
         self.corinth = utils.is_corinth(context)
         self.tag_render = False
-        self.render_lod = 'ALL'
+        self.render_lod = 'HIGHEST'
         self.tag_markers = False
         self.tag_collision = False
         self.tag_physics = False
@@ -3514,7 +3616,7 @@ class NWOImporter:
         self.tag_import_lights = False
         self.tag_import_design = False
         self.tag_scenario_import_objects = False
-        self.tag_scenario_import_markers = True
+        self.tag_scenario_import_markers = False
         self.tag_scenario_import_decals = False
         self.tag_scenario_import_decorators = False
         self.decorator_lod = 0
@@ -3543,9 +3645,10 @@ class NWOImporter:
         else:
             self.sorted_filepaths = []
         
-        self.scale_factor = 0.03048 if self.scene_nwo.scale == 'blender' else 1
-        self.to_x_rot = utils.rotation_diff_from_forward(self.scene_nwo.forward_direction, 'x')
-        self.from_x_rot = utils.rotation_diff_from_forward('x', self.scene_nwo.forward_direction)
+        convention = CoordinateSystem.from_scene(self.scene_nwo)
+        self.scale_factor = convention.from_halo_scale
+        self.to_x_rot = convention.to_halo_rotation
+        self.from_x_rot = convention.from_halo_rotation
         self.needs_scaling = self.scale_factor != 1 or self.to_x_rot
         self.from_vert_normals = False
         
@@ -3856,13 +3959,17 @@ class NWOImporter:
                 utils.print_warning(f'Could not import GR2 animation source {Path(path).name}: {exc}. Keeping compiled animation')
         return [replacements.get(action, action) for action in actions]
 
+    def _scene_game_object_collections(self):
+        from ..scene_conversion import collect_collections
+        return collect_collections(self.scene)
+
     def _ensure_game_object_collection_cache(self):
         if self.game_object_collection_cache is not None:
             return self.game_object_collection_cache
 
         self.game_object_collection_cache = {
             (collection.nwo.game_object_path, collection.nwo.game_object_variant): collection
-            for collection in bpy.data.collections
+            for collection in self._scene_game_object_collections()
             if collection.nwo.game_object_path
         }
         return self.game_object_collection_cache
@@ -4056,7 +4163,7 @@ class NWOImporter:
 
         return tag_files_by_name_cache
 
-    def _resolve_xref_tag_path(self, xref: 'XREF'):
+    def _resolve_xref_tag_path(self, xref: 'XREF', allowed_types=None):
         tag_path = ""
         fallback_tag_path = ""
         if xref.preferred_dir is not None:
@@ -4066,7 +4173,7 @@ class NWOImporter:
             fallback_tag_path = utils.relative_path(
                 candidates[0].with_name(xref.name + xref.preferred_type))
             for base in candidates:
-                for extension in (xref.preferred_type, *xref_tag_types):
+                for extension in (allowed_types or (xref.preferred_type, *xref_tag_types)):
                     path = base.with_name(xref.name + extension)
                     if path.is_file():
                         return utils.relative_path(path), fallback_tag_path
@@ -4078,7 +4185,7 @@ class NWOImporter:
                 tag_path = utils.relative_path(path)
                 break
 
-            for xtype in xref_tag_types:
+            for xtype in (allowed_types or xref_tag_types):
                 path = path_no_ext.with_suffix(xtype)
                 if path.exists():
                     tag_path = utils.relative_path(path)
@@ -4092,6 +4199,7 @@ class NWOImporter:
     def _set_color_id_property(self, ob: bpy.types.Object, name: str, value):
         ob[name] = value
         ob.id_properties_ui(name).update(subtype="COLOR", min=0, max=1)
+        ob.update_tag(refresh={'DATA'})
 
 
     def _apply_change_color_properties(self, ob: bpy.types.Object, change_colors):
@@ -4102,27 +4210,7 @@ class NWOImporter:
             self._set_color_id_property(ob, name, value)
 
     def _add_id_prop_driver(self, ob: bpy.types.Object, armature: bpy.types.Object, prop: str):
-        result = ob.driver_add(f'["{prop}"]')
-        if isinstance(result, list):
-            for idx, fcurve in enumerate(result):
-                driver = fcurve.driver
-                driver.type = 'SCRIPTED'
-                var = driver.variables.new()
-                var.name = "var"
-                var.type = 'SINGLE_PROP'
-                var.targets[0].id = armature
-                var.targets[0].data_path = f'["{prop}"][{idx}]'
-                driver.expression = var.name
-            return
-
-        driver = result.driver
-        driver.type = 'SCRIPTED'
-        var = driver.variables.new()
-        var.name = "var"
-        var.type = 'SINGLE_PROP'
-        var.targets[0].id = armature
-        var.targets[0].data_path = f'["{prop}"]'
-        driver.expression = var.name
+        bind_property_driver(ob, armature, prop)
 
     def _apply_jms_material_props(self, mesh: bpy.types.Mesh, nwo, jms_mat: 'JMSMaterialSlot', indices=None, apply_object_props=True):
         game = getattr(self, 'game', None)
@@ -4137,7 +4225,9 @@ class NWOImporter:
             utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'render_only'
         if jms_mat.collision_only and supports('face_mode', 'collision_only'):
             utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'collision_only'
-        if jms_mat.sphere_collision_only and supports('face_mode', 'sphere_collision_only'):
+        # ASS can encode @ and * together. The collision mode represents @;
+        # ass_sphere_collision preserves the additional * bit on those faces.
+        if jms_mat.sphere_collision_only and not jms_mat.collision_only and supports('face_mode', 'sphere_collision_only'):
             utils.add_face_prop(mesh, "face_mode", indices).face_mode = 'sphere_collision_only'
 
         if jms_mat.ladder and supports('ladder'):
@@ -4717,6 +4807,7 @@ class NWOImporter:
                                                 
                                             if has_ammo:
                                                 ob["Ammo"] = magazine_size
+                                                ob.nwo['ammo_capacity'] = magazine_size
                                                 ob.id_properties_ui("Ammo").update(min=0, max=int('9' * len(str(magazine_size))))
                                             if uses_tether:
                                                 ob["Tether Distance"] = 0
@@ -5068,6 +5159,7 @@ class NWOImporter:
                                 
                             if has_ammo:
                                 ob["Ammo"] = magazine_size
+                                ob.nwo['ammo_capacity'] = magazine_size
                                 ob.id_properties_ui("Ammo").update(min=0, max=int('9' * len(str(magazine_size))))
                             if uses_tether:
                                 ob["Tether Distance"] = 0
@@ -5544,13 +5636,17 @@ class NWOImporter:
         return actions
     
     def _scenario_objects_to_blender(self, scenario, parent_collection=None, bvh=None, bsp_indices=None):
+        from .scenario.objects import read_scenario_objects, apply_object_properties, object_import_matrix
+        from ..tags.scenario_objects import object_types
+        records = read_scenario_objects(scenario)
+        authored = {(point.block, point.name): point for point, _, _ in records}
+        named = {index: (point, parent) for point, parent, index in records if point.unique_name}
         object_name_count, folder_records, placements = scenario.object_placements()
         objects = []
         child_objects = {}
         skeleton_poses = []
 
         objects_collection = bpy.data.collections.new(name=f"{scenario.tag_path.ShortName}_objects")
-        objects_collection.nwo.type = 'exclude'
         if parent_collection is None:
             bpy.context.scene.collection.children.link(objects_collection)
         else:
@@ -5568,7 +5664,7 @@ class NWOImporter:
 
         named_objects = [None] * object_name_count
         used_folders = set()
-        for block_name, _ in scenario.OBJECT_BLOCKS:
+        for block_name, *_ in object_types(scenario.game):
             block_placements = [placement for placement in placements
                                 if placement.block_name == block_name]
             if not block_placements:
@@ -5588,16 +5684,11 @@ class NWOImporter:
                     if not utils.test_point_bvh(bvh, point):
                         continue
 
-                position = Vector(tuple(value * 100 for value in placement.position))
-                yaw, pitch, roll = placement.rotation
-                rotation = Euler((roll, -pitch, yaw), 'ZYX')
-                ob = bpy.data.objects.new(name=placement.name, object_data=None)
+                point = authored[(block_name, placement.name)]
+                ob = bpy.data.objects.new(name=point.name, object_data=None)
                 ob.empty_display_type = "ARROWS"
-                ob.matrix_world = import_transform.marker_matrix(Matrix.LocRotScale(
-                    position, rotation, Vector.Fill(3, placement.scale)))
-                ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
-                ob.nwo.marker_game_instance_tag_name = placement.definition
-                ob.nwo.marker_game_instance_tag_variant_name = placement.variant
+                apply_object_properties(ob.nwo, point, scenario.game)
+                ob.matrix_world = object_import_matrix(point, placement.parent_index, named, scenario.game)
 
                 if 0 <= placement.name_index < len(named_objects):
                     named_objects[placement.name_index] = ob
@@ -5610,6 +5701,9 @@ class NWOImporter:
                 else:
                     collection.objects.link(ob)
                     used_collection = True
+                if placement.not_automatically:
+                    ob.hide_set(True)
+                    ob.hide_render = True
                 objects.append(ob)
                 skeleton_poses.append(None)
 
@@ -5620,7 +5714,9 @@ class NWOImporter:
             if 0 <= parent_index < len(named_objects):
                 parent = named_objects[parent_index]
                 if parent is not None:
+                    world = ob.matrix_world.copy()
                     ob.parent = parent
+                    ob.matrix_world = world
 
         for folder in folders:
             if folder in used_folders:
@@ -5637,7 +5733,6 @@ class NWOImporter:
             return []
         print("Creating Scenario Decals")
         collection = bpy.data.collections.new(name=f"{scenario.tag_path.ShortName}_decals")
-        collection.nwo.type = 'exclude'
         if parent_collection is None:
             bpy.context.scene.collection.children.link(collection)
         else:
@@ -5703,17 +5798,17 @@ class NWOImporter:
                         material = bpy.data.materials.new(decal_name)
                         material.nwo.shader_path = placement.definition
                         with ShaderTag(path=placement.definition) as decal:
-                            decal.to_nodes(material, generated_uvs=True)
+                            decal.to_nodes(material)
                 else:
                     tag_type = DecalSystemCorinthTag if scenario.corinth else DecalSystemTag
                     with tag_type(path=placement.definition) as decal:
-                        for element in decal.tag.SelectField("Block:decals").Elements:
+                        for element in decal._native_root.SelectField("Block:decals").Elements:
                             decal_name = f'{decal.tag_path.ShortName}_{element.SelectField("StringId:decal name").GetStringData()}'
                             material = bpy.data.materials.get(decal_name)
                             if material is None:
                                 decal.reread_fields(element.ElementIndex)
                                 material = bpy.data.materials.new(decal_name)
-                                decal.to_nodes(material, generated_uvs=True)
+                                decal.to_nodes(material)
                 material_cache[placement.definition] = material
 
             scale_x, scale_y = (value * 100 for value in placement.scale)
@@ -5724,6 +5819,11 @@ class NWOImporter:
                 (scale_x / 2, scale_y / 2, 0),
                 (-scale_x / 2, scale_y / 2, 0),
             ), [], ((0, 1, 2, 3),))
+            # Decal samplers (including ODST dependent sampling and H2's
+            # bitmap shader) use UV coordinates, not generated bounds.
+            uv_layer = mesh.uv_layers.new(name='UVMap')
+            for loop, uv in zip(uv_layer.data, ((0., 0.), (1., 0.), (1., 1.), (0., 1.))):
+                loop.uv = uv
             mesh.transform(import_transform.mesh_matrix())
             ob = bpy.data.objects.new(name=placement.name, object_data=mesh)
             rotation = utils.ijkw_to_wxyz(placement.rotation)
@@ -5740,8 +5840,6 @@ class NWOImporter:
             control.nwo.marker_decal_tag_name = placement.definition
             control.nwo.decal_force_planar = bool(placement.flags & 1)
             control.nwo.decal_cull_angle = placement.cull_angle
-            control.nwo.decal_manual_bsps = ','.join(str(i) for i in sorted(placement.bsps)) if scenario.game in {'reach', 'halo4', 'halo2a'} else ''
-            control.nwo.scenario_bsp_index = placement.bsp_index
             control.matrix_world = import_transform.object_matrix(Matrix.LocRotScale(position, rotation,
                 Vector((placement.scale[0], placement.scale[1], 1.)) if scenario.game not in {'halo1', 'halo2'} else Vector.Fill(3, 1.)))
             collection.objects.link(control)
@@ -5769,7 +5867,8 @@ class NWOImporter:
             for path, placements in grouped.items():
                 with DecoratorSetTag(path=path) as definition:
                     types = {item.decorator_type_index: item for item in definition.get_decorator_types()}
-                clouds, _ = _decorator_records_to_clouds(placements, path, Path(path).stem, types, collection, bvh)
+                clouds, _ = _decorator_records_to_clouds(placements, path, Path(path).stem, types, collection, bvh,
+                    bsp_names=[Path(bsp).stem for bsp in scenario.get_bsp_paths()])
                 objects.extend(clouds)
             return objects
         decorator_sets = scenario.decorator_sets()
@@ -5897,6 +5996,7 @@ class NWOImporter:
                                             space.clip_end = sky_view
                                             
                     def import_scenario_data(child_scenario, child_collection):
+                        first_object = len(imported_objects)
                         if self.tag_scenario_import_objects:
                             game_objects, skeleton_poses = self._scenario_objects_to_blender(
                                 child_scenario, child_collection, structure_collision, bsp_indices)
@@ -5904,6 +6004,9 @@ class NWOImporter:
                                 print("Importing Game Object Geometry")
                                 imported_objects.extend(game_objects)
                                 for ob, skeleton_pose in zip(game_objects, skeleton_poses):
+                                    if not (Path(self.tags_dir) / ob.nwo.marker_game_instance_tag_name).is_file():
+                                        utils.print_warning(f'{ob.name}: object tag is missing; retaining its scenario placement without a preview')
+                                        continue
                                     has_skeleton_pose = bool(skeleton_pose)
 
                                     if has_skeleton_pose:
@@ -5933,8 +6036,10 @@ class NWOImporter:
                                     ob.nwo.marker_instance = True
                                     
                         if self.tag_scenario_import_markers:
-                            from .scenario.markers import markers_to_blender
+                            from .scenario.markers import markers_to_blender, camera_points_to_blender, airprobes_to_blender
                             imported_objects.extend(markers_to_blender(child_scenario, child_collection, structure_collision, bsp_indices))
+                            imported_objects.extend(camera_points_to_blender(child_scenario, child_collection))
+                            imported_objects.extend(airprobes_to_blender(child_scenario, child_collection))
 
                         if self.tag_scenario_import_decals:
                             imported_objects.extend(self._scenario_decals_to_blender(
@@ -5979,6 +6084,10 @@ class NWOImporter:
                                     ob.instance_collection = game_object_collection
                                     ob.nwo.marker_instance = True
                                             
+                        if child_scenario is not scenario:
+                            for ob in imported_objects[first_object:]:
+                                ob.nwo.scenario_child_scenario = child_scenario.tag_path.ShortName
+
                     import_content = (
                         self.tag_scenario_import_objects
                         or self.tag_scenario_import_markers
@@ -6320,6 +6429,33 @@ class NWOImporter:
             
         return decorator_objects
     
+    def import_cinematic_graph_skeleton(self, graph_path, armature):
+        """Recover animation-only actors even when the cinematic has a null object reference."""
+        from mathutils import Quaternion
+        with AnimationGraphTag(path=graph_path) as graph:
+            nodes = graph.nodes()
+            defaults = {record.name: record for record in graph.additional_nodes()}
+        utils.set_active_object(armature)
+        bpy.ops.object.mode_set(mode='EDIT')
+        try:
+            bones = []
+            for index, record in enumerate(nodes):
+                bone = armature.data.edit_bones.new(record.name)
+                bone.length = 5 * import_transform.scale_factor()
+                value = defaults.get(record.name)
+                local = Matrix.Identity(4) if value is None else Matrix.LocRotScale(
+                    Vector(value.translation) * 100,
+                    Quaternion((value.rotation[3], *value.rotation[:3])), Vector.Fill(3, value.scale))
+                local = import_transform.armature_bone_matrix(local, root=record.parent_index < 0)
+                if record.parent_index >= 0:
+                    bone.parent = bones[record.parent_index]
+                    local = bone.parent.matrix @ local
+                bone.matrix = local
+                bone['cinematic_node_index'] = index
+                bones.append(bone)
+        finally:
+            bpy.ops.object.mode_set(mode='OBJECT')
+
     def import_cinematic(self, file, film_aperture: float):
         # Cinematic actors and scenery must use compiled tag geometry throughout.
         self.use_import_info = False
@@ -6865,19 +7001,19 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     )
     
     tag_scenario_import_markers: bpy.props.BoolProperty(
-        name="Import Player Starts and Cutscene Flags", default=True,
-        description="Import editable scenario Player Start and Cutscene Flag markers",
+        name="Import Metadata", default=False,
+        description="Import scenario Player Starting points, Cutscene Camera Points, Cutscene Flags, and Airprobes",
     )
 
     tag_scenario_import_objects: bpy.props.BoolProperty(
         name="Import Objects",
-        description="Imports scenario objects. Added to an exclude collection by default",
+        description="Imports scenario objects with editable scenario placement settings",
         default=False,
     )
     
     tag_scenario_import_decals: bpy.props.BoolProperty(
         name="Import Decals",
-        description="Imports scenario decals. Added to an exclude collection by default",
+        description="Imports scenario decal placements and previews",
         default=False,
     )
     
@@ -7124,6 +7260,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     
     def invoke(self, context, event):
         try:
+            select_project_for_tag_drop(self)
             utils.set_import_context_from_filepath(Path(self.filepath))
         except (OSError, ValueError, RuntimeError) as error:
             self.report({'WARNING'}, str(error))
@@ -7269,7 +7406,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, 'gr2_convert_scale')
                 layout.prop(self, 'reuse_armature')
             case 'sidecar':
-                layout.prop(self, 'setup_as_asset')
+                layout.prop(self, 'setup_as_asset', text='Set Up Scene as Export Asset')
                 layout.prop(self, 'reuse_armature')
                 layout.prop(self, 'build_blender_materials')
                 draw_material_project_option(self, layout)
@@ -7302,7 +7439,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                     layout.prop(self, "decorator_single_lod")
                     if self.decorator_single_lod:
                         layout.prop(self, "decorator_lod")
-                    layout.prop(self, "setup_as_asset")
+                    layout.prop(self, "setup_as_asset", text="Set Up Scene as Export Asset")
                 layout.prop(self, "build_blender_materials")
                 draw_material_project_option(self, layout)
                 layout.prop(self, "always_extract_bitmaps")
@@ -7315,7 +7452,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_markers")
                 if self.import_type == 'sky':
                     layout.prop(self, "tag_animation")
-                    layout.prop(self, "setup_as_asset")
+                    layout.prop(self, "setup_as_asset", text="Set Up Scene as Export Asset")
                 # layout.prop(self, "from_vert_normals")
                 layout.prop(self, "build_blender_materials")
                 draw_material_project_option(self, layout)
@@ -7348,7 +7485,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 draw_graph_import_options(self, layout, corinth)
             case "camera_track":
                 layout.prop(self, "camera_track_animation_scale")
-                layout.prop(self, "setup_as_asset")
+                layout.prop(self, "setup_as_asset", text="Set Up Scene as Export Asset")
             case 'cinematic':
                 layout.prop(self, "tag_cinematic_import_scenario")
                 layout.prop(self, "tag_cinematic_import_actors")
@@ -7364,7 +7501,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                 layout.prop(self, "tag_scenario_import_markers")
                 layout.prop(self, "tag_scenario_import_decals")
                 layout.prop(self, "tag_scenario_import_decorators")
-                layout.prop(self, "setup_as_asset")
+                layout.prop(self, "setup_as_asset", text="Set Up Scene as Export Asset")
                 layout.prop(self, "build_blender_materials")
                 draw_material_project_option(self, layout)
                 layout.prop(self, "always_extract_bitmaps")
@@ -7488,6 +7625,11 @@ class NWO_OT_ImportBitmap(bpy.types.Operator):
         return {"FINISHED"}
     
     def invoke(self, context, event):
+        try:
+            select_project_for_tag_drop(self)
+        except (OSError, ValueError, RuntimeError) as error:
+            self.report({'WARNING'}, str(error))
+            return {'CANCELLED'}
         self.mouse_x = event.mouse_region_x
         self.mouse_y = event.mouse_region_y
         return self.execute(context)
@@ -7586,6 +7728,11 @@ class NWO_OT_ImportShader(bpy.types.Operator):
         return {"FINISHED"}
     
     def invoke(self, context, event):
+        try:
+            select_project_for_tag_drop(self)
+        except (OSError, ValueError, RuntimeError) as error:
+            self.report({'WARNING'}, str(error))
+            return {'CANCELLED'}
         self.mouse_x = event.mouse_region_x
         self.mouse_y = event.mouse_region_y
         self.area = context.area.type
@@ -7685,7 +7832,8 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                 continue
             shader_path = mat.nwo.shader_path
             if shader_path:
-                shader_key = (shader_path, mat.get('halo1_decal_bitmap_index'))
+                shader_key = (shader_path, mat.get('halo1_decal_bitmap_index'),
+                              mat.get('halo1_shader_permutation'))
                 existing_mat = processed_shader_paths.get(shader_key)
                 if existing_mat is None:
                     result = tag_to_nodes(
@@ -7770,7 +7918,11 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
             previous_nodes = {mat: set(mat.node_tree.nodes) if mat.node_tree else set()
                               for mat in materials}
             for mesh in meshes:
-                utils.update_foundry_mesh(mesh, preview_game, arrange_nodes=False)
+                utils.update_foundry_mesh(mesh, preview_game, arrange_nodes=False, update_materials=False)
+            # Shared materials need one refresh for the entire import, regardless
+            # of how many meshes use them.
+            for mat in materials:
+                utils.update_foundry_material(mat, preview_game, arrange_nodes=False)
             # Imported shaders already have their final layout. Only place a
             # material here if the preview refresh added/replaced its wrapper,
             # and do this once even when many meshes share that material.
@@ -7788,6 +7940,8 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         ob = context.object
         if ob is None or ob.type != 'EMPTY':
             return False
@@ -7823,6 +7977,8 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
     )
 
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         ob = context.object
         scene_nwo = utils.get_scene_props()
         tag_path = ob.nwo.marker_game_instance_tag_name
@@ -7891,9 +8047,13 @@ class NWO_OT_InstancerToInstance(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         return context.object and context.object.type == 'EMPTY' and context.object.nwo.marker_type == '_connected_geometry_marker_type_game_instance' and context.object.nwo.marker_game_instance_tag_name.strip()
 
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         cache = {}
         corinth = utils.is_corinth(context)
         collection = context.scene.collection
@@ -7926,8 +8086,7 @@ class NWO_OT_InstancerToInstance(bpy.types.Operator):
                 new_objects = converter.to_instance(collection)
                 cache[(ob.nwo.marker_game_instance_tag_name, ob.nwo.marker_game_instance_tag_variant_name)] = converter.instance
                 
-                if scene_nwo.maintain_marker_axis:
-                    rotation_matrix = Matrix.Rotation(importer.from_x_rot, 4, 'Z')
+                rotation_matrix = Matrix.Rotation(importer.from_x_rot, 4, 'Z')
                 
                 converter.instance.matrix_world = ob.matrix_world @ rotation_matrix
                 

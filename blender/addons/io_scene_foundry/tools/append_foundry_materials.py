@@ -3,7 +3,7 @@
 import bpy
 
 from .. import utils
-from ..tools.materials import special_materials
+from ..tools.materials import special_materials, find_standard_material
 
 class NWO_AppendFoundryMaterials(bpy.types.Operator):
     bl_idname = "nwo.append_foundry_materials"
@@ -26,19 +26,25 @@ class NWO_AppendFoundryMaterials(bpy.types.Operator):
             self.report({'INFO'}, f'Added {count} material{"s" if count > 1 else ""} to blend file')
         return {"FINISHED"}
     
-def ensure_special_material(definition):
+def ensure_special_material(definition, *, name=None, exclude=()):
     """Ensure a Foundry special material uses the invisible preview."""
-    mat = bpy.data.materials.get(definition.name)
+    name = name or definition.name
+    mat = find_standard_material(name, exclude)
     if mat is not None:
         utils.material_add_visibility(mat)
         return mat
-    mat = bpy.data.materials.new(definition.name)
+    mat = bpy.data.materials.new(name)
+    mat['foundry_standard_material'] = name
     mat.use_fake_user = True
+    mat.use_nodes = True
     mat.diffuse_color = definition.color
     bsdf = next(node for node in mat.node_tree.nodes if node.type == 'BSDF_PRINCIPLED')
     bsdf.inputs['Base Color'].default_value = definition.color
     bsdf.inputs['Alpha'].default_value = definition.color[3]
-    mat.blend_method = 'BLEND'
+    if hasattr(mat, 'surface_render_method'):
+        mat.surface_render_method = 'BLENDED'
+    else:
+        mat.blend_method = 'BLEND'
     utils.material_add_visibility(mat)
     return mat
 

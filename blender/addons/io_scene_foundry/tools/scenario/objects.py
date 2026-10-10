@@ -69,10 +69,8 @@ def object_placement(ob, game, scenario):
     euler = rotation.to_euler('ZYX')
     return ObjectExport(nwo.scenario_object_type, ob.name, utils.relative_path(nwo.marker_game_instance_tag_name.strip()),
         tuple(position), (euler.z, -euler.y, euler.x), abs(scale.x), nwo.scenario_object_unique_name,
-        authored_options(nwo, game),
-        tuple(sorted({int(value.strip()) for value in nwo.scenario_object_manual_bsps.split(',') if value.strip()})),
-        tuple(sorted({int(value.strip()) for value in nwo.scenario_object_attach_bsps.split(',') if value.strip()})),
-        origin, placement.determinant() < 0, parent_name)
+        authored_options(nwo, game), origin_bsp=origin, mirrored=placement.determinant() < 0,
+        parent_name=parent_name, editor_folder=nwo.scenario_editor_folder)
 
 
 def export_scenario_objects(*, context=None, objects=None, scenario_path=None, tags_root=None, game=None):
@@ -100,6 +98,7 @@ def export_scenario_objects(*, context=None, objects=None, scenario_path=None, t
 
 def read_scenario_objects(scenario, inherited_bsps=()):
     """Keep native authored settings for every supported placement category."""
+    from ...tags.scenario_markers import editor_folder_name
     result = []
     names = [str(scenario.value(row, 'name')) for row in scenario.block(scenario.tag.root(), 'object names')]
     for block, palette, extension, _ in object_types(scenario.game):
@@ -138,7 +137,7 @@ def read_scenario_objects(scenario, inherited_bsps=()):
                 options[field.path] = value
             parent_index = -1
             mirrored = False
-            manual, attach = (), ()
+            folder = ''
             if scenario.game != 'halo1':
                 owner = row.field('object data').as_struct()
                 transform_flags = owner.field('transform flags')
@@ -149,32 +148,53 @@ def read_scenario_objects(scenario, inherited_bsps=()):
                         if field.type_name == 'word flags' and field.options() and any(name == 'mirrored' for _, name, _ in field.options().flags))
                 if owner.field('parent id') is not None:
                     parent_index = owner.field('parent id').as_struct().field('parent object').value
-                masks = []
-                for key in ('manual bsp flags', 'can attach to bsp flags'):
-                    native = owner.field(key)
-                    if native is None:
-                        masks.append(())
-                    elif native.as_struct() is not None:
-                        references = native.as_struct().field('references block').as_block()
-                        flags = native.as_struct().field('flags').value
-                        paths = bsp_references(scenario) or inherited_bsps
-                        indices = []
-                        for i, reference in enumerate(references):
-                            if flags & (1 << i):
-                                ref = scenario.reference(reference, reference.fields()[0].clean_name)
-                                index = next((j for j, bsp in enumerate(paths) if bsp is not None and ref is not None and bsp.RelativePathWithExtension == ref.RelativePathWithExtension), None)
-                                if index is not None:
-                                    indices.append(index)
-                        masks.append(tuple(indices))
-                    else:
-                        masks.append(tuple(i for i in range(32 if scenario.game in {'halo4', 'halo2a'} else 16) if native.value & (1 << i)))
-                manual, attach = masks
-            elif row.field('bsp indices') is not None:
-                manual = tuple(i for i in range(16) if row.field('bsp indices').value & (1 << i))
+                folder_field = owner.field('editor folder')
+                if folder_field is not None:
+                    folder = editor_folder_name(scenario, folder_field.value)
             result.append((ObjectExport(block, name, definition, position,
                 (rotation.yaw, rotation.pitch, rotation.roll), scale, unique_name, options,
-                manual, attach, mirrored=mirrored), parent_index, name_index))
+                mirrored=mirrored, editor_folder=folder), parent_index, name_index))
     return result
+
+
+def apply_object_properties(nwo, point, game):
+    """Share authoring settings between the full importer and placement refresh."""
+    nwo.marker_type = SCENARIO_OBJECT
+    nwo.scenario_object_type = point.block
+    nwo.marker_game_instance_tag_name = point.definition
+    nwo.scenario_object_unique_name = point.unique_name
+    nwo.scenario_editor_folder = point.editor_folder
+    for field in object_fields(game, point.block):
+        if field.path not in point.options:
+            continue
+        value = point.options[field.path]
+        if field.kind.endswith('_flags'):
+            for i, name in enumerate(field.options):
+                if not name.lower().startswith(('unused', 'obsolete')):
+                    setattr(nwo, field.property_name(name), bool(value & (1 << i)))
+        else:
+            try:
+                setattr(nwo, field.property_name(), str(value) if field.kind.endswith('_enum') else value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f'{point.block}: cannot import {field.path}: {value!r}') from exc
+    nwo.marker_game_instance_tag_variant_name = next(
+        (value for path, value in point.options.items() if path[-1] == 'variant name'), '')
+
+
+def object_import_matrix(point, parent_index, named, game):
+    def native_world(point, parent_index, ancestors=()):
+        yaw, pitch, roll = point.rotation
+        local = Matrix.LocRotScale(Vector(point.position), Euler((roll, -pitch, yaw), 'ZYX'),
+            Vector.Fill(3, -point.scale if point.mirrored else point.scale))
+        if parent_index in named:
+            if parent_index in ancestors:
+                raise ValueError('Scenario object attachments contain a parent cycle')
+            parent, grandparent = named[parent_index]
+            return native_world(parent, grandparent, (*ancestors, parent_index)) @ local
+        return local
+    world = scenario_object_orientation(native_world(point, parent_index), game, importing=True)
+    world.translation *= 100
+    return import_transform.marker_matrix(world)
 
 
 def refresh_scenario_objects(context, *, scenario_path=None, tags_root=None, game=None):
@@ -219,45 +239,13 @@ def refresh_scenario_objects(context, *, scenario_path=None, tags_root=None, gam
             named = {}
             parents = []
             native_named = {name_index: (point, parent_index) for point, parent_index, name_index in placements if point.unique_name}
-            def native_world(point, parent_index, ancestors=()):
-                yaw, pitch, roll = point.rotation
-                local = Matrix.LocRotScale(Vector(point.position), Euler((roll, -pitch, yaw), 'ZYX'), Vector.Fill(3, -point.scale if point.mirrored else point.scale))
-                if parent_index in native_named:
-                    if parent_index in ancestors:
-                        raise ValueError('Scenario object attachments contain a parent cycle')
-                    parent_point, grandparent = native_named[parent_index]
-                    return native_world(parent_point, grandparent, (*ancestors, parent_index)) @ local
-                return local
             for point, parent_index, name_index in placements:
                 ob = bpy.data.objects.new(point.name, None)
                 generated.append(ob)
                 ob.empty_display_type = 'ARROWS'
-                nwo = ob.nwo
-                nwo.marker_type = SCENARIO_OBJECT
-                nwo.scenario_object_type = point.block
-                nwo.marker_game_instance_tag_name = point.definition
-                nwo.scenario_object_unique_name = point.unique_name
-                nwo.scenario_child_scenario = child_name
-                nwo.scenario_object_manual_bsps = ', '.join(map(str, point.manual_bsps))
-                nwo.scenario_object_attach_bsps = ', '.join(map(str, point.attach_bsps))
-                for field in object_fields(game, point.block):
-                    if field.path not in point.options:
-                        continue
-                    value = point.options[field.path]
-                    if field.kind.endswith('_flags'):
-                        for i, name in enumerate(field.options):
-                            if not name.lower().startswith(('unused', 'obsolete')):
-                                setattr(nwo, field.property_name(name), bool(value & (1 << i)))
-                    else:
-                        try:
-                            setattr(nwo, field.property_name(), str(value) if field.kind.endswith('_enum') else value)
-                        except (TypeError, ValueError) as exc:
-                            raise ValueError(f'{point.block}: cannot import {field.path}: {value!r}') from exc
-                variant = next((value for path, value in point.options.items() if path[-1] == 'variant name'), '')
-                nwo.marker_game_instance_tag_variant_name = variant
-                world = scenario_object_orientation(native_world(point, parent_index), game, importing=True)
-                world.translation *= 100
-                ob.matrix_world = import_transform.marker_matrix(world)
+                apply_object_properties(ob.nwo, point, game)
+                ob.nwo.scenario_child_scenario = child_name
+                ob.matrix_world = object_import_matrix(point, parent_index, native_named, game)
                 collection.objects.link(ob)
                 if point.unique_name:
                     named[name_index] = ob
@@ -305,6 +293,47 @@ class NWO_OT_RefreshScenarioObjects(bpy.types.Operator):
 
 
 _child_items = []
+_airprobe_items = []
+
+
+class NWO_OT_GetScenarioAirprobes(bpy.types.Operator):
+    bl_idname = 'nwo.get_scenario_airprobes'
+    bl_label = 'Scenario Airprobes'
+    bl_description = 'Select a light airprobe from the asset scenario'
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return utils.poll_project(cls) and context.object is not None
+
+    def items(self, context):
+        global _airprobe_items
+        if not utils.current_project_valid():
+            _airprobe_items = [('', 'None', 'Use automatic lighting')]
+            return _airprobe_items
+        names = []
+        project = utils.get_project()
+        path = utils.get_asset_tag('.scenario', True)
+        if project and path and (Path(utils.get_tags_path()) / path).is_file():
+            with read_only_tags(), ScenarioDocument(path, tags_root=utils.get_tags_path(),
+                    game=project.game, must_exist=True) as scenario:
+                block = scenario.tag.root().field('airprobes')
+                if block is not None:
+                    names = sorted({str(scenario.value(row, 'airprobe name')) for row in block.as_block()
+                                    if scenario.value(row, 'airprobe name')})
+        _airprobe_items = [('', 'None', 'Use automatic lighting')] + [(name, name, '') for name in names]
+        return _airprobe_items
+
+    airprobe: bpy.props.EnumProperty(name='Light Airprobe', items=items)
+
+    def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
+        nwo = context.object.nwo
+        for field in object_fields(utils.get_project().game, nwo.scenario_object_type):
+            if field.path[-1] == 'light airprobe name':
+                setattr(nwo, field.property_name(), self.airprobe)
+        return {'FINISHED'}
 
 
 class NWO_OT_SelectChildScenario(bpy.types.Operator):
@@ -314,13 +343,21 @@ class NWO_OT_SelectChildScenario(bpy.types.Operator):
     bl_options = {'UNDO'}
     bl_property = 'child_scenario'
 
+    @classmethod
+    def poll(cls, context):
+        return utils.poll_project(cls) and utils.valid_nwo_asset(context)
+
     def items(self, context):
+        if not utils.current_project_valid():
+            return []
         return _child_items
 
     child_scenario: bpy.props.EnumProperty(name='Child Scenario', items=items)
     scene_property: bpy.props.StringProperty(options={'HIDDEN'})
 
     def invoke(self, context, event):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         global _child_items
         main = Path(utils.get_asset_tag('.scenario', True))
         folder = Path(utils.get_tags_path()) / main.parent
@@ -332,9 +369,13 @@ class NWO_OT_SelectChildScenario(bpy.types.Operator):
         return {'FINISHED'}
 
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         if self.scene_property:
             setattr(utils.get_scene_props(), self.scene_property, self.child_scenario)
         else:
+            if context.object is None:
+                return {'CANCELLED'}
             context.object.nwo.scenario_child_scenario = self.child_scenario
         return {'FINISHED'}
 
@@ -354,9 +395,7 @@ def draw_scenario_object(layout, nwo, game):
     layout.operator('nwo.import_game_instance_tag', text='Import Object Geometry', icon='IMPORT')
     layout.prop(nwo, 'scenario_object_unique_name')
     if game != 'halo1':
-        layout.prop(nwo, 'scenario_object_manual_bsps')
-    if game not in {'halo1', 'halo2'}:
-        layout.prop(nwo, 'scenario_object_attach_bsps')
+        layout.prop(nwo, 'scenario_editor_folder')
     groups = {}
     for field in object_fields(game, nwo.scenario_object_type):
         heading = ' / '.join(name.replace('_', ' ').removesuffix(' data').title() for name in field.path[:-1]) or 'Placement'
@@ -372,4 +411,9 @@ def draw_scenario_object(layout, nwo, game):
                 if not name.lower().startswith(('unused', 'obsolete')):
                     flags.prop(nwo, field.property_name(name))
         else:
-            box.prop(nwo, field.property_name())
+            row = box.row(align=True)
+            row.prop(nwo, field.property_name())
+            if field.path[-1] == 'variant name' and bpy.ops.nwo.get_model_variants.poll():
+                row.operator_menu_enum('nwo.get_model_variants', 'variant', text='', icon='DOWNARROW_HLT')
+            elif field.path[-1] == 'light airprobe name':
+                row.operator_menu_enum('nwo.get_scenario_airprobes', 'airprobe', text='', icon='DOWNARROW_HLT')

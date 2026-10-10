@@ -10,6 +10,7 @@ from ..tags.shader_custom import ShaderCustomTag
 from ..tags.shader_halogram import ShaderHalogramTag
 from ..tags.shader_foliage import ShaderFoliageTag
 from ..tags.shader_terrain import ShaderTerrainTag
+from ..tags.shader_specialized import ShaderCortanaTag, ShaderSkinTag, ShaderWaterTag
 from ..tags.material import MaterialTag
 from ..tags.shader_converter import ShaderTag, build_templates
 from ..tags.shader_decal import ShaderDecalTag
@@ -253,12 +254,19 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
                 with ShaderGlassTag(path=tag_path) as shader:
                     shader.to_nodes(mat, always_extract_bitmaps, layout=False)
             case 'shader_water':
-                mat.node_tree.nodes.clear()
-                output = mat.node_tree.nodes.new("ShaderNodeOutputMaterial")
-                group = mat.node_tree.nodes.new("ShaderNodeGroup")
-                group.node_tree = utils.add_node_from_resources("shared_nodes", "Basic Water")
-                group.location.x -= 300
-                mat.node_tree.links.new(input=output.inputs[0], output=group.outputs[0])
+                with ShaderWaterTag(path=tag_path) as shader:
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
+            case ('shader_fur' | 'shader_fur_stencil' | 'shader_mux' | 'shader_mux_material' | 'shader_screen'):
+                from .shader_builder import REACH_SUFFIX_TO_CLASS
+                cls = REACH_SUFFIX_TO_CLASS['.'+shader_type][0]
+                with cls(path=tag_path) as shader:
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
+            case 'shader_cortana':
+                with ShaderCortanaTag(path=tag_path) as shader:
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
+            case 'shader_skin':
+                with ShaderSkinTag(path=tag_path) as shader:
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
             case ('shader_model' | 'shader_environment' |
                   'shader_transparent_chicago' | 'shader_transparent_chicago_extended' |
                   'shader_transparent_generic' | 'shader_transparent_glass' |

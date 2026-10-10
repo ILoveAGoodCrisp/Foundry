@@ -6,6 +6,7 @@ import random
 from pathlib import Path
 
 import bpy
+from .. import utils
 
 from ..constants import VALID_MESHES
 from ..icons import get_icon_id
@@ -13,6 +14,7 @@ from ..tags.model_blender import ModelTag
 from ..tags.object_blender import ObjectTag
 from ..tags.scenario import ScenarioMetadataTag
 from ..tools.collection_manager import get_full_name
+from .object_visibility import OBJECT_VISIBILITY_TYPES, visibility_type_id
 
 from ..utils import create_parent_mapping, get_asset_tag, get_asset_tags, get_rig_prioritize_active, get_tags_path, get_scene_props, is_corinth, is_frame, is_marker, is_mesh, poll_ui, set_type_from_asset, update_tables_from_objects, valid_nwo_asset
 
@@ -460,6 +462,8 @@ class NWO_OT_ModelVariantViewer(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not utils.poll_project(cls):
+            return False
         nwo = get_scene_props()
         return poll_ui(('model', 'sky')) and nwo.regions_table and nwo.permutations_table
 
@@ -508,6 +512,8 @@ class NWO_OT_ModelVariantViewer(bpy.types.Operator):
         return True
 
     def invoke(self, context, event):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         if not self._populate(context):
             return {'CANCELLED'}
 
@@ -528,6 +534,8 @@ class NWO_OT_ModelVariantViewer(bpy.types.Operator):
             perm_row.prop(item, "permutation", text="")
 
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         global last_model_variant_viewer_variant
 
         selected_region_items = [(item.name, item.permutation) for item in self.regions if item.enabled and item.permutation]
@@ -1631,15 +1639,13 @@ def unhide_objects(objects, nwo, collection_map):
         if not permutation:
             permutation = ob.nwo.permutation_name  
 
-        if get_entry(regions_table, region).hidden or get_entry(permutations_table, permutation).hidden:
+        region_entry = get_entry(regions_table, region)
+        permutation_entry = get_entry(permutations_table, permutation)
+        if ((region_entry is not None and region_entry.hidden)
+                or (permutation_entry is not None and permutation_entry.hidden)):
+            ob.hide_set(True)
             continue
-        if ob.type == 'LIGHT' and not nwo.connected_geometry_object_type_light_visible:
-            continue
-        elif is_frame(ob) and not nwo.connected_geometry_object_type_frame_visible:
-            continue
-        elif is_marker(ob) and not getattr(nwo, f"{ob.nwo.marker_type[1:]}_visible"):
-            continue
-        elif is_mesh(ob) and not getattr(nwo, f"{ob.data.nwo.mesh_type[1:]}_visible"):
+        if not _object_type_visible_for_variant(ob, nwo):
             continue
         
         ob.hide_set(False)
@@ -1647,19 +1653,47 @@ def unhide_objects(objects, nwo, collection_map):
 class NWO_OT_HideObjectType(bpy.types.Operator):
     bl_idname = "nwo.hide_object_type"
     bl_label = "Hide Object Type"
-    bl_description = "Hides/Unhides an object type"
+    bl_description = "Toggle visibility of this object type. Alt-click to show only this type"
     bl_options = {"UNDO", "INTERNAL"}
     
     object_type: bpy.props.StringProperty()
+    toggle: bpy.props.BoolProperty(default=False, options={'HIDDEN', 'SKIP_SAVE'})
+    isolate: bpy.props.BoolProperty(default=False, options={'HIDDEN', 'SKIP_SAVE'})
+
+    @classmethod
+    def description(cls, context, properties):
+        for category, kind, label, _ in OBJECT_VISIBILITY_TYPES:
+            if visibility_type_id(category, kind) == properties.object_type:
+                return f"Toggle {label} visibility. Alt-click to show only this type"
+        return cls.bl_description
 
     @classmethod
     def poll(cls, context):
         return True
 
     def execute(self, context):
-        collection_map = create_parent_mapping(context)
         nwo = get_scene_props()
         visible_str = f"{self.object_type[1:]}_visible"
+        if not hasattr(nwo, visible_str):
+            return {'CANCELLED'}
+        if self.isolate:
+            # Batch the saved flags without firing a callback for every type.
+            # Apply visibility once below, including unsupported/untyped objects.
+            for category, kind, _, _ in OBJECT_VISIBILITY_TYPES:
+                object_type = visibility_type_id(category, kind)
+                nwo[f"{object_type[1:]}_visible"] = object_type == self.object_type
+            valid_objects = objects_by_type(context, self.object_type)
+            visible_objects = set(valid_objects)
+            for ob in context.view_layer.objects:
+                if ob not in visible_objects:
+                    ob.hide_set(True)
+            unhide_objects(valid_objects, nwo, create_parent_mapping(context))
+            return {'FINISHED'}
+        if self.toggle:
+            # The property's existing update callback applies the new state.
+            setattr(nwo, visible_str, not getattr(nwo, visible_str))
+            return {'FINISHED'}
+        collection_map = create_parent_mapping(context)
         valid_objects = objects_by_type(context, self.object_type)
         if valid_objects:
             if getattr(nwo, visible_str):
@@ -1669,6 +1703,10 @@ class NWO_OT_HideObjectType(bpy.types.Operator):
                     ob.hide_set(True)
             
         return {"FINISHED"}
+
+    def invoke(self, context, event):
+        self.isolate = event.alt
+        return self.execute(context)
     
 def objects_by_type(context: bpy.types.Context, object_type: str) -> list[bpy.types.Object]:
     if object_type == '_connected_geometry_object_type_light':
@@ -1676,6 +1714,7 @@ def objects_by_type(context: bpy.types.Context, object_type: str) -> list[bpy.ty
     elif object_type == '_connected_geometry_object_type_frame':
         return [ob for ob in context.view_layer.objects if is_frame(ob)]
     elif object_type.startswith("_connected_geometry_marker_type"):
-        return [ob for ob in context.view_layer.objects if is_marker(ob) and ob.nwo.marker_type == object_type]
+        return [ob for ob in context.view_layer.objects if is_marker(ob) and not is_frame(ob) and ob.nwo.marker_type == object_type]
     elif object_type.startswith("_connected_geometry_mesh_type"):
         return [ob for ob in context.view_layer.objects if is_mesh(ob) and ob.data.nwo.mesh_type == object_type]
+    return []

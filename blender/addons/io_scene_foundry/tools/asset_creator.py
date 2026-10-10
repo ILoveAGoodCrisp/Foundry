@@ -12,6 +12,7 @@ from ..tools.append_foundry_materials import add_special_materials
 from ..icons import get_icon_id
 from ..tools.asset_types import asset_type_items_creator
 from .. import utils
+from ..coordinate_system import FORWARD_ITEMS
 
 protected_folder_names = "models", "export", "animations", "cinematics", "work", "000"
 
@@ -20,6 +21,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     bl_label = "New Asset"
     bl_description = "Create an asset folder in data, with a matching tags folder used on export"
     bl_options = set()
+    show_advanced_options: bpy.props.BoolProperty(name="Advanced Creation Options", default=False, options={'SKIP_SAVE'})
 
     @classmethod
     def poll(cls, context):
@@ -205,15 +207,14 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     
     def scale_display_items(self, context):
         items = []
-        unit_length: str = context.scene.unit_settings.length_unit
-        items.append(('meters', unit_length.title(), "Meters displayed in Blender are equal to 0.328 in game world units", 'DRIVER_DISTANCE', 0))
-        items.append(('world_units', 'World Units', "Meters displayed in Blender are equal to in game world units i.e. 1 Meter = 1 World Unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('wu_scale'), 1))
+        items.append(('meters', 'Meters', 'Display physical distances in meters; exported size is unchanged', 'DRIVER_DISTANCE', 0))
+        items.append(('world_units', 'World Units (WU)', 'Display distances in Halo world units (1 WU = 3.048 meters); exported size is unchanged', get_icon_id('wu_scale'), 1))
         return items
     
     def scale_items(self, context):
         items = []
-        items.append(('blender', 'Blender', "For working at a Blender friendly scale. Scene will be appropriately scaled at export to account for Halo's scale", 'BLENDER', 0))
-        items.append(('max', 'Halo', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", get_icon_id("halo_scale"), 1))
+        items.append(('blender', 'Blender', "One scene unit represents one meter", 'BLENDER', 0))
+        items.append(('max', 'Halo', "One scene unit represents 0.03048 meters", get_icon_id("halo_scale"), 1))
         return items
     
     scale: bpy.props.EnumProperty(
@@ -224,16 +225,8 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     )
     
     forward_direction: bpy.props.EnumProperty(
-        name="Scene Forward",
-        options=set(),
-        description="The forward direction you are using for the scene. By default Halo uses X forward. Whichever option is set as the forward direction in Blender will be oriented to X forward in game i.e. a model facing -Y in Blender will face X in game",
-        default="y-",
-        items=[
-            ("y-", "-Y", "Model is facing Y negative. This is the default for Blender"),
-            ("y", "Y", "Model is facing Y positive"),
-            ("x-", "-X", "Model is facing X negative"),
-            ("x", "X", "Model is facing X positive. This is the default for Halo"),   
-        ],
+        name="Forward", options=set(), default='y-', items=FORWARD_ITEMS,
+        description="Choose the forward axis for this new scene; Halo geometry uses +X forward",
     )
 
     def asset_location(self, project, directory=None, filename=None):
@@ -278,7 +271,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
                 asset_num += 1
                 asset_name = f"asset_{asset_num:03}"
                 if asset_num > 999:
-                    self.report({"WARNING"}, f"Failed to create asset. What have you done")
+                    self.report({"WARNING"}, "No automatic asset names are available. Enter a unique asset name and try again")
                     return {'CANCELLED'}
                 
             asset_directory = Path(project.data_directory, asset_name)
@@ -386,18 +379,26 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         col.prop(self, 'filename', text='Asset Name')
         col.separator()
         col.prop(self, "asset_type", text="")
-        col.label(text="Scale")
-        col.row().prop(self, 'scale', text=" ", expand=True)
-        col.label(text="Scene Forward")
-        col.row().prop(self, 'forward_direction', text=" ", expand=True)
-        col.separator()
+        from ..ui.workflow import draw_text
+        name, destination = self.asset_location(project)
+        draw_text(col, f"Data folder: {destination}", context)
+        draw_text(col, f"Asset type: {self.asset_type.replace('_', ' ').title()} · {project.game}", context)
+        if not destination.resolve().is_relative_to(Path(project.data_directory).resolve()):
+            draw_text(col, "Choose a destination inside this project's data folder.", context, 'ERROR')
         col.prop(self, 'save_new_blend_file')
-        # col.prop(self, "work_dir", text="Save to work directory")
-        col.prop(self, "selected_only")
-        col.prop(self, 'append_special_materials')
-        col.prop(self, 'append_grid_materials')
+        col.prop(self, 'selected_only', text=f'Use Only {len(context.selected_objects)} Selected Objects')
+        col.prop(self, 'show_advanced_options', icon='TRIA_DOWN' if self.show_advanced_options else 'TRIA_RIGHT', emboss=False)
+        if self.show_advanced_options:
+            advanced = col.box()
+            advanced.label(text='New Scene Convention')
+            advanced.prop(self, 'scale')
+            advanced.prop(self, 'forward_direction')
+            advanced.prop(self, 'append_special_materials')
+            advanced.prop(self, 'append_grid_materials')
+            if self.asset_type == 'model':
+                advanced.prop(self, 'generate_halo_skeleton')
+        draw_text(col, "Output tags determine the game object types created from this asset.", context)
         if self.asset_type == "model":
-            col.prop(self, 'generate_halo_skeleton')
             col.separator()
             col.label(text="Output Tags")
             flow = col.grid_flow(

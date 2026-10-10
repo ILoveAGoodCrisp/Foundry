@@ -1,7 +1,7 @@
 from pathlib import Path
 import bpy
 
-from ..utils import base_material_name, get_tags_path
+from ..utils import base_material_name, get_tags_path, current_project_valid, require_project
 
 class NWO_ClearShaderPaths(bpy.types.Operator):
     bl_idname = "nwo.clear_shader_paths"
@@ -20,12 +20,16 @@ class NWO_ClearShaderPaths(bpy.types.Operator):
     
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, 'cull_only_bad_paths')
+        row = layout.row()
+        row.enabled = current_project_valid()
+        row.prop(self, 'cull_only_bad_paths')
         
     def invoke(self, context, _):
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context):
+        if self.cull_only_bad_paths and not require_project(self):
+            return {'CANCELLED'}
         tags_dir = get_tags_path()
         count = 0
         for mat in bpy.data.materials:

@@ -38,7 +38,10 @@ class NWO_OT_AnimationNameSearch(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         scene_nwo = utils.get_scene_props()
-        return scene_nwo.animations or Path(utils.get_tags_path(), utils.relative_path(scene_nwo.animation_cmd_path)).exists()
+        if scene_nwo.animations and not scene_nwo.animation_cmd_path.strip():
+            return True
+        return (utils.poll_project(cls) and bool(scene_nwo.animation_cmd_path.strip())
+                and Path(utils.get_tags_path(), utils.relative_path(scene_nwo.animation_cmd_path)).is_file())
     
     def animation_name_items(self, context):
         if animation_names:
@@ -63,6 +66,13 @@ class NWO_OT_AnimationNameSearch(bpy.types.Operator):
         global animation_names
         global last_graph_path
         nwo = utils.get_scene_props()
+        if not nwo.animation_cmd_path.strip() and nwo.animations:
+            animation_names = [(a.name, a.name, "") for a in nwo.animations]
+            last_graph_path = None
+            context.window_manager.invoke_search_popup(self)
+            return {'FINISHED'}
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         path = utils.relative_path(nwo.animation_cmd_path)
         using_asset_path = False
         if not nwo.animation_cmd_path and utils.valid_nwo_asset(context):
@@ -71,8 +81,9 @@ class NWO_OT_AnimationNameSearch(bpy.types.Operator):
             path = str(Path(asset_path, asset_name))
             using_asset_path = True
             
-        if animation_names is None or last_graph_path != path:
-            last_graph_path = path
+        cache_key = (utils.get_tags_path(), path, using_asset_path)
+        if animation_names is None or last_graph_path != cache_key:
+            last_graph_path = cache_key
             if using_asset_path:
                 if nwo.animations:
                     animation_names = [(a.name, a.name, "") for a in nwo.animations]
@@ -93,7 +104,13 @@ class NWO_OT_PlayGameAnimation(bpy.types.Operator):
     bl_description = "Copies to the clipboard the command to play the selected animation on the given object"
     bl_options = {"REGISTER"}
 
+    @classmethod
+    def poll(cls, context):
+        return utils.poll_project(cls)
+
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         nwo = utils.get_scene_props()
         anim_name = nwo.animation_cmd_name.strip()
         if not anim_name:

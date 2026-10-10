@@ -1,5 +1,6 @@
 import os
 import bpy
+from .. import utils
 from ..utils import (
     base_material_name,
     dot_partition,
@@ -28,10 +29,18 @@ class NWO_ShaderFinder_Find(bpy.types.Operator):
         default=False,
     )
     
+    @classmethod
+    def poll(cls, context):
+        return utils.poll_project(cls)
+
     def invoke(self, context: bpy.types.Context, _):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         return context.window_manager.invoke_props_dialog(self, width=600)
 
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         return find_shaders(
             bpy.data.materials,
             self.report,
@@ -61,9 +70,13 @@ class NWO_ShaderFinder_FindSingle(NWO_ShaderFinder_Find):
     bl_description = 'Finds the first shader/material tag'
     
     def invoke(self, context: bpy.types.Context, _):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         return self.execute(context)
 
     def execute(self, context):
+        if not utils.require_project(self):
+            return {'CANCELLED'}
         scene = context.scene
         return find_shaders(
             [context.object.active_material],
