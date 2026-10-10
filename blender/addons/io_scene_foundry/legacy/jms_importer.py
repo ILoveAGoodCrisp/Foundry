@@ -548,8 +548,8 @@ class JMSImporter:
                         modifier.object = self.armature
                 ob['legacy_import_matrix'] = json.dumps([list(row) for row in ob.matrix_world])
 
-        if skipped_triangles:
-            utils.print_warning(f'{self.path.name}: skipped {skipped_triangles} triangles with repeated vertex indices')
+        # if skipped_triangles:
+        #     utils.print_warning(f'{self.path.name}: skipped {skipped_triangles} triangles with repeated vertex indices')
 
     def place(self, ob, transform, parent=-1, local=True, marker=False):
         matrix = self.transform(transform)
