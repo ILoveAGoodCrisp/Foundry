@@ -272,7 +272,12 @@ class StandaloneScene(LegacyExportScene):
 
     def legacy_shader_name(self, material):
         # File exports do not require a tags directory or modify shader collections.
-        return getattr(material, 'legacy_shader_name', '') or material.name
+        name = getattr(material, 'legacy_shader_name', '') or material.name
+        path = getattr(material, 'shader_path', '')
+        if (self.target_game == 'halo1' and not name.startswith('+')
+                and (not path.strip() or path in {'override', 'shaders\\invalid'})):
+            return 'invalid'
+        return name
 
     def sample_loaded_animation(self, options):
         if not self.virtual_scene.skeleton_model or not self.bones:

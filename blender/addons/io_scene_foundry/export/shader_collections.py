@@ -103,8 +103,8 @@ class ShaderCollections:
 
         Reserve the export's paths together before writing material records so
         no earlier face is assigned a name that a later shader makes ambiguous.
-        Ordinary unique names stay unchanged. Alias tags are copied by the
-        legacy exporter; this class only allocates their material names.
+        Ordinary unique names stay unchanged. Tool uses temporary alias tags
+        for ambiguous names; compiled references are restored to full paths.
         """
         if self.game != 'halo1':
             return

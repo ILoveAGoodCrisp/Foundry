@@ -32,12 +32,14 @@ class NWO_OT_UpdateHaloMaterialEmissive(bpy.types.Operator):
                 raise ValueError('Select a Halo 1 or Halo 2 project')
             if not scene.is_valid_asset:
                 raise ValueError('Set up and save the asset before updating shader emission')
-            folder = asset_shader_folder(
-                scene.sidecar_path, project.data_directory, project.tags_directory)
             source = shader_environment_path(
                 utils.relative_path(material.nwo.shader_path), project.tags_directory, project.game)
-            target, copied = localize_shader_environment(
-                source, folder, project.tags_directory, project.game)
+            target, copied = source, False
+            if project.game == 'halo2':
+                folder = asset_shader_folder(
+                    scene.sidecar_path, project.data_directory, project.tags_directory)
+                target, copied = localize_shader_environment(
+                    source, folder, project.tags_directory, project.game)
             tag_path = str(target.relative_to(Path(project.tags_directory).resolve()))
             changed = write_material_emissive(
                 tag_path, project.tags_directory,

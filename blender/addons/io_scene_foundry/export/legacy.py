@@ -6,6 +6,7 @@ the reusable legacy format models and writes files below the data asset folder.
 """
 from ..exceptions import ExportCancelled
 from collections import defaultdict
+from contextlib import nullcontext
 from copy import copy
 from datetime import datetime
 from getpass import getuser
@@ -21,14 +22,13 @@ from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
 import bpy
-from blam_tags import RealRgbColor
 from mathutils import Matrix, Quaternion, Vector
 
 from .process import ExportScene
 from .cinematic import CinematicScene, set_actor_animation_compression
 from .legacy_materials import material_variant
 from .cleanup import ANIMATION_EXTENSIONS, prune_intermediates
-from .shader_collections import ShaderCollections, halo1_export_shader_name, halo1_shader_lookup
+from .shader_collections import ShaderCollections, halo1_shader_lookup
 from ..legacy import jms_format as jms
 from ..legacy import ass_format as ass
 from ..legacy.mirror import mirror_ass, mirror_jms, mirror_transform
@@ -41,6 +41,8 @@ from ..tags.sky import SkyDocument, SkyLightRecord, MAX_SKY_LIGHTS
 from ..tags.halo1_emissive import (asset_shader_folder, localize_shader_environment,
                                  shader_environment_path,
                                  write_material_emissive)
+from ..tags.halo1_shader_paths import (INVALID_SHADER_PATH, ensure_invalid_shader,
+                                      shader_import_paths, repair_shader_references)
 from ..tags.animation_graph import AnimationGraphTag
 from ..tags.render_model import RenderModelMetadataTag
 from ..tags.model_blender import ModelTag
@@ -210,6 +212,7 @@ class LegacyExportScene(ExportScene):
                                  for col in bpy.data.collections
                                  if col.get('jms_source_key') and col.get('jms_nodes')}
         self.halo1_two_sided_shaders = set()
+        self.halo1_shader_paths = {}
         self.skipped_legacy_animations = set()
 
     def export_legacy(self, single_animation=False):
@@ -331,10 +334,11 @@ class LegacyExportScene(ExportScene):
                       if hasattr(animation, 'legacy_tracks')]
         geometry_count = 0 if single_animation else len(grouped)
         if self.target_game == 'halo1' and geometry_count:
-            paths = [slot.material.nwo.shader_path
+            ensure_invalid_shader(self.tags_dir)
+            paths = [str(INVALID_SHADER_PATH), *(slot.material.nwo.shader_path
                      for ob in self.ob_halo_data
                      for slot in getattr(ob, 'material_slots', ())
-                     if slot.material is not None]
+                     if slot.material is not None)]
             for nodes in grouped.values():
                 for node in nodes:
                     for material, _, _ in node.mesh.groups:
@@ -535,11 +539,6 @@ class LegacyExportScene(ExportScene):
                 raise ExportCancelled(
                     f'No {structure_extension} structure sources were found in {structure_dir}')
             if self.target_game == 'halo1':
-                shader_folder = Path(self.tags_dir, self.asset_path_relative, 'shaders').absolute()
-                if shader_folder.resolve() != shader_folder:
-                    raise ExportCancelled('The asset shader folder redirects outside this asset')
-                self.ensure_halo1_shaders(
-                    structure_sources, 'shader_environment')
                 self.update_halo1_material_emissives()
             for source in [*structure_sources, *design_sources]:
                 is_design = source in design_sources
@@ -558,11 +557,18 @@ class LegacyExportScene(ExportScene):
                     command.append('true')
                 tool_failed = False
                 try:
-                    utils.run_tool(
-                        command,
-                        event_level=self.export_settings.event_level,
-                        force_tool=True,
-                    )
+                    shaders = (self.ensure_halo1_shaders([source], 'shader_environment')
+                               if self.target_game == 'halo1' else nullcontext({}))
+                    with shaders as expected:
+                        utils.run_tool(
+                            command,
+                            event_level=self.export_settings.event_level,
+                            force_tool=True,
+                        )
+                        if self.target_game == 'halo1':
+                            destination = Path(self.tags_dir, self.asset_path_relative,
+                                               source.stem).with_suffix('.scenario_structure_bsp')
+                            self.repair_halo1_shader_paths(destination, expected)
                 except subprocess.CalledProcessError:
                     tool_failed = True
                     raise
@@ -610,10 +616,17 @@ class LegacyExportScene(ExportScene):
                 physics = Path(self.asset_path, 'physics')
                 model_sources = sorted(models.glob('*.jms')) if models.is_dir() else []
                 if model_sources:
-                    self.ensure_halo1_shaders(model_sources, 'shader_model')
-                    utils.run_tool(['model', self.asset_path_relative],
-                                   event_level=self.export_settings.event_level,
-                                   **halo1_tool_options)
+                    with self.ensure_halo1_shaders(model_sources, 'shader_model') as expected:
+                        utils.run_tool(['model', self.asset_path_relative],
+                                       event_level=self.export_settings.event_level,
+                                       **halo1_tool_options)
+                        base = Path(self.tags_dir, self.asset_path_relative, self.asset_name)
+                        destinations = [base.with_suffix(extension) for extension in ('.gbxmodel', '.model')
+                                        if base.with_suffix(extension).is_file()]
+                        if not destinations:
+                            raise ExportCancelled(f'Model compilation did not create the expected tag: {base}')
+                        for destination in destinations:
+                            self.repair_halo1_shader_paths(destination, expected)
                 if physics.is_dir() and any(physics.glob('*.jms')):
                     for command in ('collision-geometry', 'physics'):
                         utils.run_tool([command, self.asset_path_relative],
@@ -857,12 +870,8 @@ class LegacyExportScene(ExportScene):
                 material.nwo.shader_path = path
 
     def update_halo1_material_emissives(self) -> None:
-        """Apply material emission only to shaders localized into this asset."""
+        """Apply material emission to the selected shader paths."""
         requested = {}
-        expected_folder = Path(self.tags_dir, self.asset_path_relative, 'shaders').absolute()
-        shader_folder = expected_folder.resolve()
-        if shader_folder != expected_folder:
-            raise ExportCancelled('The asset shader folder redirects outside this asset')
         for ob in self.ob_halo_data:
             for slot in getattr(ob, 'material_slots', ()):
                 material = slot.material
@@ -872,13 +881,10 @@ class LegacyExportScene(ExportScene):
                              if item.type == 'emissive'), None)
                 if prop is None:
                     continue
-                tag_path = utils.relative_path(material.nwo.shader_path)
-                shader_environment_path(tag_path, self.tags_dir, 'halo1')
-                shader_path = Path(self.tags_dir, tag_path).resolve()
-                if shader_path.parent != shader_folder:
-                    self.warnings.append(
-                        f'{material.name}: emissive shader was not localized to the asset; skipping tag update')
+                if not material.nwo.shader_path.strip():
                     continue
+                tag_path = utils.relative_path(material.nwo.shader_path)
+                shader_path = shader_environment_path(tag_path, self.tags_dir, 'halo1')
                 key = str(shader_path).casefold()
                 values = (float(prop.material_lighting_emissive_power),
                           tuple(float(channel) for channel in prop.material_lighting_emissive_color[:3]))
@@ -892,126 +898,85 @@ class LegacyExportScene(ExportScene):
             if write_material_emissive(tag_path, self.tags_dir, power, color):
                 print(f'--- Updated emissive shader {tag_path}')
 
-    def ensure_halo1_shaders(self, source_paths: list[Path], shader_type: str) -> None:
-        """Localize referenced H1 shaders before Tool resolves JMS material names."""
+    def ensure_halo1_shaders(self, source_paths: list[Path], shader_type: str):
+        """Resolve JMS names to selected paths, providing temporary Tool aliases."""
         if self.target_game != 'halo1':
-            return
-        shader_root = Path(self.tags_dir, self.asset_path_relative)
-
-        def enable_two_sided(path):
-            # Model JMS has no face-side flags. Promote the shared asset shader
-            # if any of its faces require two-sided rendering.
-            if (shader_type != 'shader_model' or path.suffix.lower() != '.shader_model'
-                    or path.stem.casefold() not in self.halo1_two_sided_shaders):
-                return
-            with TagDocument(path, tags_root=self.tags_dir, game='halo1', must_exist=True) as shader:
-                properties = shader.required_field(shader.tag.root(), 'properties').as_struct()
-                shader.required_field(properties, 'flags').set_flag('two sided', True)
-                shader.tag_has_changes = True
-
+            return nullcontext({})
+        ensure_invalid_shader(self.tags_dir)
         if not self.shader_collections.halo1_names_reserved:
             self.shader_collections.reserve_halo1_paths(
-                slot.material.nwo.shader_path for ob in self.ob_halo_data
-                for slot in getattr(ob, 'material_slots', ()) if slot.material is not None)
-        materials = {}
+                [str(INVALID_SHADER_PATH), *(slot.material.nwo.shader_path for ob in self.ob_halo_data
+                 for slot in getattr(ob, 'material_slots', ()) if slot.material is not None)])
+        candidates = defaultdict(set)
+        for name, path in getattr(self, 'halo1_shader_paths', {}).items():
+            candidates[name].add(path)
         for ob in self.ob_halo_data:
             for slot in getattr(ob, 'material_slots', ()):
-                mat = slot.material
-                if mat is None:
+                material = slot.material
+                if material is None:
                     continue
-                shader_path = mat.nwo.shader_path.strip()
-                path = Path(self.tags_dir, utils.relative_path(shader_path)) if shader_path else None
+                path = material.nwo.shader_path.strip()
                 try:
-                    key = (self.shader_collections.material_name(shader_path) if shader_path
-                           else halo1_export_shader_name(mat.get('foundry_legacy_shader_name', '') or mat.name))
-                    key = filename(key).casefold()
-                except ValueError:
-                    self.warnings.append(f'{mat.name}: invalid Halo 1 shader path {mat.nwo.shader_path}. Using a default shader')
-                    continue
-                materials.setdefault(key, {})[mat.name] = (mat, path)
-                # Tags Only can reuse JMS written before safe aliases existed.
-                old_name = (Path(shader_path).stem if shader_path else
-                            mat.get('foundry_legacy_shader_name', '') or mat.name)
+                    target = shader_environment_path(utils.relative_path(path), self.tags_dir) if path else None
+                except (OSError, ValueError):
+                    target = None
+                wanted = (target.relative_to(Path(self.tags_dir).resolve())
+                          if target is not None else INVALID_SHADER_PATH)
+                name = self.shader_collections.material_name(path) if target is not None else 'invalid'
+                candidates[name.casefold()].add(wanted)
+                # Tags Only may use JMS from before full-path aliases existed.
+                old_name = (target.stem if target is not None else
+                            material.get('foundry_legacy_shader_name', '') or material.name)
                 old_key = halo1_shader_lookup(old_name, model=shader_type == 'shader_model')
-                materials.setdefault(old_key, {})[mat.name] = (mat, path)
-        existing = {
-            path.stem.casefold()
-            for path in shader_root.rglob('*')
-            if path.is_file() and path.suffix.lower().startswith('.shader')
-        } if shader_root.is_dir() else set()
+                candidates[old_key].add(wanted)
+        expected = {}
         for source in source_paths:
-            for material in jms.JMS.from_file(source).materials:
+            asset = jms.JMS.from_file(source)
+            rewritten = False
+            for material in asset.materials:
                 name = halo1_shader_lookup(material.name, model=shader_type == 'shader_model')
-                if not name or name.startswith('+'):
+                if name.startswith('+'):
                     continue
-                # A numeric suffix can leave a trailing dot (Material.001 ->
-                # material.). Validate the complete tag filename, not its stem.
-                filename(name + '.' + shader_type)
-                candidates = list(materials.get(name.casefold(), {}).values())
-                if candidates:
-                    paths = {path.resolve() if path is not None else None for _, path in candidates}
-                    shader_source = candidates[0][1]
-                    if (len(paths) != 1 or shader_source is None or not shader_source.is_file()
-                            or not shader_source.suffix.lower().startswith('.shader')
-                            or not shader_source.resolve().is_relative_to(Path(self.tags_dir).resolve())):
-                        if shader_source is not None or len(paths) != 1:
-                            self.warnings.append(f'{name}: invalid or conflicting Halo 1 shader path. Using an asset shader')
-                    else:
-                        destination = shader_root / 'shaders' / (name + shader_source.suffix)
-                        destination.parent.mkdir(parents=True, exist_ok=True)
-                        if shader_source.resolve() != destination.resolve():
-                            utils.copy_file(shader_source, destination)
-                            print(f'--- Copied shader {destination}')
-                        # A previous blank shader may have a different class. Keep
-                        # a backup, but remove it from Tool's shader-name search.
-                        for old in destination.parent.iterdir():
-                            if (old.is_file() and old.stem.casefold() == name.casefold()
-                                    and old.suffix.lower().startswith('.shader')
-                                    and old.resolve() != destination.resolve()):
-                                backup = old.with_name(old.name + '.foundry-backup')
-                                index = 1
-                                while backup.exists():
-                                    backup = old.with_name(old.name + f'.foundry-backup-{index}')
-                                    index += 1
-                                old.rename(backup)
-                        for mat, _ in candidates:
-                            mat.nwo.shader_path = utils.relative_path(destination)
-                        materials[name.casefold()] = {
-                            mat.name: (mat, destination) for mat, _ in candidates}
-                        existing.add(name.casefold())
-                        enable_two_sided(destination)
-                        continue
-                if name.casefold() in existing:
-                    for path in shader_root.rglob('*'):
-                        if path.is_file() and path.stem.casefold() == name.casefold():
-                            enable_two_sided(path)
-                    if candidates:
-                        fallback = next((path for path in shader_root.rglob('*')
-                                         if path.is_file() and path.stem.casefold() == name.casefold()
-                                         and path.suffix.lower().startswith('.shader')), None)
-                        if fallback is not None:
-                            for mat, _ in candidates:
-                                mat.nwo.shader_path = utils.relative_path(fallback)
-                    continue
-                destination = Path(
-                    shader_root, 'shaders', name + '.' + shader_type
-                )
-                with TagDocument(
-                    destination,
-                    tags_root=self.tags_dir,
-                    game='halo1',
-                ) as shader:
-                    if shader_type == 'shader_environment':
-                        diffuse = shader.required_field(shader.tag.root(), 'diffuse').as_struct()
-                        channel = 80 / 255
-                        shader.required_field(diffuse, 'material color').set(
-                            RealRgbColor(channel, channel, channel))
-                        shader.tag_has_changes = True
-                existing.add(name.casefold())
-                enable_two_sided(destination)
-                for mat, _ in candidates:
-                    mat.nwo.shader_path = utils.relative_path(destination)
-                print(f'--- Created {destination}')
+                paths = candidates.get(name, {INVALID_SHADER_PATH})
+                if len(paths) != 1:
+                    raise ExportCancelled(
+                        f'{source.name}: shader name {material.name!r} has multiple selected paths. '
+                        'Run a full export to distinguish these shaders in JMS')
+                wanted = next(iter(paths))
+                if wanted == INVALID_SHADER_PATH:
+                    flags = (material.name[len(material.name.rstrip('%#!@*$^-&')):]
+                             if shader_type == 'shader_environment' else '')
+                    replacement = 'invalid' + flags
+                    if material.name != replacement:
+                        material.name = replacement
+                        rewritten = True
+                    name = 'invalid'
+                filename(name + Path(wanted).suffix)
+                previous = expected.get(name)
+                if previous is not None and previous != wanted:
+                    raise ExportCancelled(f'{source.name}: conflicting shader paths for {name}')
+                expected[name] = wanted
+                # Model JMS has no face-side flags; update the selected shader.
+                if (shader_type == 'shader_model' and Path(wanted).suffix.lower() == '.shader_model'
+                        and name in self.halo1_two_sided_shaders):
+                    with TagDocument(wanted, tags_root=self.tags_dir, game='halo1', must_exist=True) as shader:
+                        properties = shader.required_field(shader.tag.root(), 'properties').as_struct()
+                        flags = shader.required_field(properties, 'flags')
+                        if not flags.get_flag('two sided'):
+                            flags.set_flag('two sided', True)
+                            shader.tag_has_changes = True
+            if rewritten:
+                with source.open('w', encoding='utf-8') as stream:
+                    write_jms(asset, stream)
+        return shader_import_paths(self.tags_dir, expected)
+
+    def repair_halo1_shader_paths(self, destination, expected):
+        try:
+            changed = repair_shader_references(destination, self.tags_dir, expected)
+        except (OSError, ValueError) as error:
+            raise ExportCancelled(str(error)) from error
+        if changed:
+            print(f'--- Corrected {changed} shader reference(s) in {destination}')
 
     def halo1_object_references(self, base, object_template=''):
         """Resolve components from the asset, never from stale output files alone."""
@@ -1285,9 +1250,13 @@ class LegacyExportScene(ExportScene):
 
     def legacy_shader_name(self, mat):
         source_name = getattr(mat, 'legacy_shader_name', '') or mat.name
-        if self.target_game == 'halo1' and not source_name.startswith('+'):
-            source_name = halo1_export_shader_name(source_name)
         path = mat.shader_path
+        if self.target_game == 'halo1':
+            if source_name.startswith('+'):
+                return source_name
+            if not path or not path.strip() or path in {'override', 'shaders\\invalid'}:
+                self.halo1_shader_paths['invalid'] = INVALID_SHADER_PATH
+                return 'invalid'
         if not path or not path.strip() or path in {'override', 'shaders\\invalid'}:
             return source_name
         # VirtualMaterial stores the tag class separately from its path.
@@ -1301,17 +1270,17 @@ class LegacyExportScene(ExportScene):
             name = self.shader_collections.material_name(path)
         except ValueError as exc:
             if path not in self.warned_shader_paths:
-                self.warnings.append(f'{mat.name}: {exc}. Using material name')
+                self.warnings.append(f'{mat.name}: {exc}. Using ' + ('invalid shader' if self.target_game == 'halo1' else 'material name'))
                 self.warned_shader_paths.add(path)
-            return source_name
+            return 'invalid' if self.target_game == 'halo1' else source_name
         if self.target_game == 'halo1':
             try:
                 filename(name)
             except ValueError:
                 if path not in self.warned_shader_paths:
-                    self.warnings.append(f'{mat.name}: invalid Halo 1 shader path {path}. Using material name')
+                    self.warnings.append(f'{mat.name}: invalid Halo 1 shader path {path}. Using invalid shader')
                     self.warned_shader_paths.add(path)
-                return source_name
+                return 'invalid'
         source = Path(self.tags_dir, utils.relative_path(path))
         if self.target_game == 'halo2' and not source.suffix:
             source = source.with_suffix('.shader')
@@ -1321,6 +1290,10 @@ class LegacyExportScene(ExportScene):
         if invalid_source and path not in self.warned_shader_paths:
             self.warnings.append(f'{mat.name}: shader path is invalid or missing: {path}')
             self.warned_shader_paths.add(path)
+        if self.target_game == 'halo1':
+            if invalid_source:
+                return 'invalid'
+            self.halo1_shader_paths[name.casefold()] = source.resolve().relative_to(Path(self.tags_dir).resolve())
         self.shader_name_cache[path] = name
         return name
 

@@ -2811,7 +2811,8 @@ class VirtualScene:
         self.morph_vertex_data = defaultdict(list)
         
         self.default_shader_path = "shaders\\invalid"
-        self.default_shader_type = "material" if corinth else "shader"
+        self.default_shader_type = ("shader_environment" if self.game == 'halo1'
+                                    else "material" if corinth else "shader")
         
         # Create default material
         fallback_material = VirtualMaterial("invalid", self, f"{self.default_shader_path}.{self.default_shader_type}")
