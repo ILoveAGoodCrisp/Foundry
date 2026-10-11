@@ -2611,7 +2611,7 @@ class VirtualSkeleton:
                     bone_inverse_matrices[fb.bone] = b.matrix_world.inverted_safe()
                     b.matrix_local = bone_inverse_matrices[fb.parent.bone] @ b.matrix_world
                 else:
-                    if root_bone_found:
+                    if root_bone_found and getattr(scene, 'halo_metadata', True):
                         raise ExportCancelled(f"Armature {ob.name} has multiple root bones: {[bone.name for bone in valid_bones if not bone.parent]}. Halo requires that models have a single root bone. If one of the root bones is a control bone, ensure the deform checkbox is toggled off")
                     root_bone_found = True
                     root_bone = fb.bone

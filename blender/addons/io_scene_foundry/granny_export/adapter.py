@@ -96,7 +96,7 @@ def mesh_metadata(properties, siblings=(), *, corinth=False, name=None):
 
 
 def vertex_data(source, *, corinth=False, placement=IDENTITY, reflect_y=False, morph=False,
-                positions=None, normals=None, tension=None):
+                positions=None, normals=None, tension=None, halo_attributes=True):
     """Copy separate attribute buffers, preserving declaration/component names."""
     attributes = []
 
@@ -115,13 +115,15 @@ def vertex_data(source, *, corinth=False, placement=IDENTITY, reflect_y=False, m
         colors = getattr(source, 'vertex_colors', ())
         for index, value in enumerate(texcoords):
             add(f'TextureCoordinates{index}', f'TextureCoordinates{index}', value)
-        add('TextureCoordinateslighting', 'lighting', getattr(source, 'lighting_texcoords', None))
+        if halo_attributes:
+            add('TextureCoordinateslighting', 'lighting', getattr(source, 'lighting_texcoords', None))
         for index, value in enumerate(colors):
             add(f'DiffuseColor{index}', f'colorSet{index + 1}' if corinth else f'DiffuseColor{index}', value)
-        tension = getattr(source, 'tension', None) if tension is None else tension
-        add(f'DiffuseColor{len(colors)}', 'tension', tension)
-        add(f'DiffuseColor{len(colors) + int(tension is not None)}', 'pca_mask', getattr(source, 'pca_mask', None))
-        add(f'TextureCoordinates{len(texcoords)}', 'vertex_id', getattr(source, 'vertex_ids', None), 2)
+        if halo_attributes:
+            tension = getattr(source, 'tension', None) if tension is None else tension
+            add(f'DiffuseColor{len(colors)}', 'tension', tension)
+            add(f'DiffuseColor{len(colors) + int(tension is not None)}', 'pca_mask', getattr(source, 'pca_mask', None))
+            add(f'TextureCoordinates{len(texcoords)}', 'vertex_id', getattr(source, 'vertex_ids', None), 2)
     return VertexData(tuple(attributes), matrix_rows(placement), reflect_y)
 
 
@@ -169,7 +171,8 @@ def animation_bone_properties(animation, name):
 
 
 def build_export_file(scene, nodes, *, animation=None, export_info=None, file_name='',
-                      art_tool_name='Blender', art_tool_version=(0, 0), exporter_version=(0, 0, 0), scale=.03048):
+                      art_tool_name='Blender', art_tool_version=(0, 0), exporter_version=(0, 0, 0), scale=.03048,
+                      halo_metadata=True):
     corinth, mirror = bool(scene.corinth), bool(scene.mirror)
     animated = animation is not None
     include_geometry = not animated or bool(animation.is_pca)
@@ -183,8 +186,9 @@ def build_export_file(scene, nodes, *, animation=None, export_info=None, file_na
         if key not in material_cache:
             # No fallback to granny_material pointers: preparation must supply
             # real names and shader metadata, even without a runtime.
-            result = Material(source.name, metadata({'bungie_shader_path': source.shader_path,
-                'bungie_shader_type': source.shader_type}), getattr(source, 'export_texture', None))
+            properties = {'bungie_shader_path': source.shader_path,
+                          'bungie_shader_type': source.shader_type} if halo_metadata else {}
+            result = Material(source.name, metadata(properties), getattr(source, 'export_texture', None))
             if result.texture is not None:
                 result.maps = (MaterialMap('diffuse', result),)
             material_cache[key] = result
@@ -204,7 +208,8 @@ def build_export_file(scene, nodes, *, animation=None, export_info=None, file_na
             if override is not None or pca is not None:
                 result = replace(override or pca, placement=placement, reflect_y=mirror)
             else:
-                result = vertex_data(source, corinth=corinth, placement=placement, reflect_y=mirror)
+                result = vertex_data(source, corinth=corinth, placement=placement, reflect_y=mirror,
+                                     halo_attributes=halo_metadata)
             vertex_cache[key] = result
             vertices.append(result)
         source_indices = getattr(source, 'pca_indices', None) if is_pca else None
@@ -214,7 +219,7 @@ def build_export_file(scene, nodes, *, animation=None, export_info=None, file_na
         topology_key = (id(source), is_pca, invert, mirror)
         if topology_key not in topology_cache:
             annotations = []
-            for name, face_set in source.face_properties.items():
+            for name, face_set in (source.face_properties.items() if halo_metadata else ()):
                 value = face_set.array
                 dtype = getattr(value, 'dtype', None)
                 first = value[0] if len(value) else 0
@@ -235,7 +240,7 @@ def build_export_file(scene, nodes, *, animation=None, export_info=None, file_na
                 vertices.append(morph.vertex_data)
         result = Mesh(node.name, vertex_cache[key], topology_cache[topology_key],
             tuple(material(source_material) for source_material in source.materials), tuple(node.bone_bindings),
-            mesh_metadata(node.props, siblings, corinth=corinth, name=node.name), morph_targets)
+            mesh_metadata(node.props, siblings, corinth=corinth, name=node.name) if halo_metadata else Metadata(), morph_targets)
         meshes.append(result)
         return result
 
@@ -251,9 +256,10 @@ def build_export_file(scene, nodes, *, animation=None, export_info=None, file_na
             parent = source_bone.parent_index
             if parent != -1 and parent not in remap:
                 raise ExportDataError(f'Exported bone {source_bone.name} has an excluded parent')
-            properties = dict(source_bone.props)
-            properties.update(animation_bone_properties(animation, source_bone.name))
-            if exporting_physics and source_bone.physics_subshapes:
+            properties = dict(source_bone.props) if halo_metadata else {}
+            if halo_metadata:
+                properties.update(animation_bone_properties(animation, source_bone.name))
+            if halo_metadata and exporting_physics and source_bone.physics_subshapes:
                 properties['_granny_subshapes'] = source_bone.physics_subshapes
             bones.append(Bone(source_bone.name, remap.get(parent, -1), matrix_rows(source_bone.matrix_local),
                               matrix_rows(source_bone.matrix_world), metadata=metadata(properties)))
@@ -263,7 +269,7 @@ def build_export_file(scene, nodes, *, animation=None, export_info=None, file_na
         skeleton = Skeleton(model_node.name, tuple(bones))
         skeletons.append(skeleton)
         models.append(Model(source_model.name, skeleton, tuple(bindings), matrix_rows(source_model.node.matrix_local)))
-    if export_info:
+    if export_info and halo_metadata:
         header = Skeleton('BungieExportInfo', (Bone('BungieExportInfo', -1, metadata=metadata(export_info)),))
         skeletons.insert(0, header)
         models.append(Model('BungieExportInfo', header))

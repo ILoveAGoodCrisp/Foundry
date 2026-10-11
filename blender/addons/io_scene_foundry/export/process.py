@@ -2809,6 +2809,7 @@ class ExportScene:
             not self.export_settings.current_scene_only
             and self.export_settings.cinematic_scope != 'CAMERA')
         self.sidecar.build(cleanup=cleanup)
+        self.warnings.extend(self.sidecar.animation_alias_warnings)
                     
         print(f"--- Saved to: {self.sidecar.sidecar_path}")
         
@@ -3035,7 +3036,16 @@ class ExportScene:
                         else:
                             set_actor_animation_compression(graph, actor)
 
+    def validate_sidecar_animation_aliases(self, sidecar_path):
+        sidecar = ET.parse(Path(self.data_dir, sidecar_path))
+        for content in sidecar.findall(".//ContentObject[@Type='model_animation_graph']"):
+            self.sidecar._validate_animation_aliases(content)
+            for warning in self.sidecar.animation_alias_warnings:
+                if warning not in self.warnings:
+                    self.warnings.append(warning)
+
     def tool_import_simple(self, sidecar_path):
+        self.validate_sidecar_animation_aliases(sidecar_path)
         self.apply_sidecar_graph_compression(sidecar_path)
         import_failed, error = utils.run_tool_sidecar(
             [
@@ -3063,6 +3073,8 @@ class ExportScene:
         self.apply_sidecar_graph_compression(sidecar_path)
     
     def invoke_tool_import(self):
+        if self.export_settings.export_mode == 'TAGS':
+            self.validate_sidecar_animation_aliases(self.sidecar_path)
         if self.has_no_virtual_scene:
             structure = [region.name for region in self.scene_settings.regions_table]
             design = []

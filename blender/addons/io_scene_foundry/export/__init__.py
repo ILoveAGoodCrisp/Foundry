@@ -851,8 +851,12 @@ class NWO_ExportScene(Operator, ExportHelper):
 def register():
     bpy.utils.register_class(NWO_ExportScene)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
+    from . import standalone
+    standalone.register()
 
 def unregister():
+    from . import standalone
+    standalone.unregister()
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.utils.unregister_class(NWO_ExportScene)
 

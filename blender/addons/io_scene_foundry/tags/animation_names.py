@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 import re
 
 
@@ -262,12 +262,14 @@ def renames_from_paths(
 def copies_from_paths(
         name_to_paths: Mapping[str, Iterable[str]],
         ) -> list[tuple[str, str, frozenset[tuple[str, str]]]]:
-    """Find complete hierarchy copies among graph aliases.
+    """Find complete animation-set copies among graph aliases.
 
     The first four path components are mode, class, type and set. A copy is
     inferred only when at least two distinct source animations have canonical
-    paths in the source subtree and *every* such path occurs in the destination
-    subtree with the same animation index/name and unchanged remainder.
+    paths in the source set and every source entry occurs in the destination
+    with the same animation reference and remainder. Tool merges these entries,
+    preserving additional destination states. All four labels must exist
+    literally; ``any`` is not a wildcard or a request to copy a whole mode.
     """
     paths: dict[tuple[str, ...], set[str]] = defaultdict(set)
     canonical: dict[tuple[str, ...], str] = {}
@@ -283,45 +285,123 @@ def copies_from_paths(
             if normalized_animation_graph_path(path) == normalized_name:
                 canonical[tokens] = name
 
-    source_groups: dict[tuple[int, tuple[str, ...]], dict[tuple[str, ...], set[str]]] = defaultdict(dict)
+    source_groups: dict[tuple[str, ...], dict[tuple[str, ...], set[str]]] = defaultdict(dict)
     for path, names in paths.items():
-        for depth in range(1, 5):
-            source_groups[depth, path[:depth]][path] = names
+        source_groups[path[:4]][path[4:]] = names
 
     candidates = set()
     for source_path, source_name in canonical.items():
         for destination_path in paths_by_name[source_name]:
-            for depth in range(1, 5):
-                source_prefix = source_path[:depth]
-                destination_prefix = destination_path[:depth]
-                if (source_prefix == destination_prefix or
-                        source_path[depth:] != destination_path[depth:]):
-                    continue
-                members = source_groups[depth, source_prefix]
-                if len(set().union(*members.values())) < 2:
-                    continue
-                if any(paths.get(destination_prefix + path[depth:]) != names
-                       for path, names in members.items()):
-                    continue
-                covered = frozenset(
-                    (name, normalized_animation_graph_path(
-                        ':'.join(destination_prefix + path[depth:])))
-                    for path, names in members.items() for name in names)
-                if not covered:
-                    continue
-                source_copy = ' '.join(source_prefix + ('any',) * (4 - depth))
-                destination_copy = ' '.join(destination_prefix + ('any',) * (4 - depth))
-                candidates.add((depth, source_copy, destination_copy, covered))
+            source_prefix = source_path[:4]
+            destination_prefix = destination_path[:4]
+            if (source_prefix == destination_prefix or
+                    source_path[4:] != destination_path[4:]):
+                continue
+            members = source_groups[source_prefix]
+            if len(set().union(*members.values())) < 2:
+                continue
+            destination_members = source_groups[destination_prefix]
+            if any(destination_members.get(tail) != names for tail, names in members.items()):
+                continue
+            covered = frozenset(
+                (name, normalized_animation_graph_path(':'.join(destination_prefix + tail)))
+                for tail, names in members.items() for name in names)
+            if covered:
+                candidates.add((' '.join(source_prefix), ' '.join(destination_prefix), covered))
 
     result = []
     claimed: set[tuple[str, str]] = set()
-    for _, source, destination, covered in sorted(
-            candidates, key=lambda item: (item[0], -len(item[3]), item[1], item[2])):
+    for source, destination, covered in sorted(
+            candidates, key=lambda item: (-len(item[2]), item[0], item[1])):
         if covered & claimed:
             continue
         result.append((source, destination, covered))
         claimed.update(covered)
     return result
+
+
+def validate_animation_aliases(
+        animation_names: Iterable[str], renames: Iterable[tuple[str, str]],
+        copies: Iterable[tuple[str, str]],
+        graph_path: Callable[[str], tuple[str, ...] | None]) -> list[str]:
+    """Check the networks actually exported, including child assets/composites.
+
+    ``graph_path`` uses the exporter's animation-name parser and includes the
+    variant in its terminal path. Custom names have no graph path. Copies are
+    evaluated in sidecar order, after renames, so later copies can use earlier
+    destinations without treating ``any`` as a wildcard.
+    """
+    warnings: list[str] = []
+    networks = {animation_name_key(name): name for name in animation_names}
+    paths: dict[tuple[str, ...], str] = {}
+    for key, name in networks.items():
+        try:
+            path = graph_path(name)
+        except ValueError:
+            warnings.append(f'Animation {name!r}: invalid exported animation name.')
+            continue
+        if path is not None:
+            paths[path] = key
+
+    for source, destination in renames:
+        label = f'Animation rename {source!r} -> {destination!r}'
+        source_key, destination_key = map(animation_name_key, (source, destination))
+        if source_key not in networks:
+            warnings.append(f'{label}: source animation is not exported.')
+            continue
+        if not destination_key:
+            warnings.append(f'{label}: destination name is empty.')
+            continue
+        if source_key == destination_key:
+            warnings.append(f'{label}: source and destination are the same animation.')
+            continue
+        if destination_key in networks:
+            warnings.append(f'{label}: destination animation already exists.')
+            continue
+        try:
+            path = graph_path(destination)
+        except ValueError:
+            warnings.append(f'{label}: invalid destination animation name.')
+            continue
+        reference = animation_name_key(networks[source_key])
+        if path is not None and path in paths and paths[path] != reference:
+            warnings.append(f'{label}: destination graph state references another animation.')
+            continue
+        networks[destination_key] = networks[source_key]
+        if path is not None:
+            paths[path] = reference
+
+    seen_copies: set[tuple[tuple[str, ...], tuple[str, ...]]] = set()
+    for source, destination in copies:
+        label = f'Animation copy {source!r} -> {destination!r}'
+        source_tokens = tuple(animation_name_key(source).split(':'))
+        destination_tokens = tuple(animation_name_key(destination).split(':'))
+        if (len(source_tokens) != 4 or len(destination_tokens) != 4
+                or not all(source_tokens + destination_tokens)):
+            warnings.append(f'{label}: names must contain mode, weapon class, weapon type and set.')
+            continue
+        if source_tokens == destination_tokens:
+            warnings.append(f'{label}: source and destination are the same hierarchy.')
+            continue
+        key = source_tokens, destination_tokens
+        if key in seen_copies:
+            warnings.append(f'{label}: duplicate copy.')
+            continue
+        seen_copies.add(key)
+        members = {path[4:]: name for path, name in paths.items()
+                   if path[:4] == source_tokens}
+        if not members:
+            warnings.append(f'{label}: source hierarchy has no exported animations.')
+            continue
+        destination_members = {path[4:]: name for path, name in paths.items()
+                               if path[:4] == destination_tokens}
+        if any(path in destination_members and destination_members[path] != name
+               for path, name in members.items()):
+            warnings.append(f'{label}: copy would replace existing destination graph entries.')
+        # Tool merges source entries into the destination set. Keep unrelated
+        # destination states when checking dependent copies.
+        paths.update({destination_tokens + path: name for path, name in members.items()})
+    return warnings
 
 
 def detect_renames(graph: dict[str, object]) -> list[tuple[str, str]]:

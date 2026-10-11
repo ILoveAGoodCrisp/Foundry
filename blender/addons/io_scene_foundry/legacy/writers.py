@@ -143,14 +143,14 @@ def node_checksum(nodes, halo1=False, maya_order=False):
 def write_jms(asset, stream, *, maya_order=False):
     """Write the game-selected H1, H2 or H3 dialect, without mutating the asset."""
     v = asset.version
-    if v not in {8200, 8210, 8213}:
+    if v not in range(8197, 8214):
         raise ExportCancelled(f'Unsupported JMS output version {v}')
-    nodes = hierarchy(asset.nodes, halo1=v == 8200, maya_order=maya_order)
+    nodes = hierarchy(asset.nodes, halo1=v < 8205, maya_order=maya_order)
     w = TextWriter(stream)
     w.line(v)
     if v < 8205:
-        if asset.shapes or asset.constraints or asset.xrefs or asset.instances:
-            raise ExportCancelled('H1 JMS cannot represent these physics or instance records')
+        if asset.shapes or asset.constraints or (v < 8201 and (asset.xrefs or asset.instances)):
+            raise ExportCancelled(f'JMS {v} cannot represent these physics or instance records')
         w.line(asset.checksum)
     w.line(len(nodes))
     for n in nodes:
@@ -164,26 +164,30 @@ def write_jms(asset, stream, *, maya_order=False):
     w.line(len(asset.materials))
     for m in asset.materials:
         w.line(m.name)
+        if 8202 <= v <= 8204:
+            w.line(m.texture or '<none>')
         w.line(m.definition or '<none>')
     w.line(len(asset.markers))
     for m in asset.markers:
         w.line(m.name)
-        if v < 8205:
+        if 8198 <= v < 8205:
             w.line(m.region)
         w.line(m.parent)
         w.transform(m.transform)
-        w.vector((m.radius,))
-    if v >= 8205:
+        if v >= 8200:
+            w.vector((m.radius,))
+    if v >= 8201:
         w.line(len(asset.xrefs))
         for path, name in asset.xrefs:
             w.line(path)
-            w.line(name)
+            if v >= 8208:
+                w.line(name)
         w.line(len(asset.instances))
         for name, uid, xref, transform in asset.instances:
-            for value in (name, uid, xref):
+            for value in ((name, uid, xref) if v >= 8203 else (name, xref)):
                 w.line(value)
             w.transform(transform)
-    else:
+    if v < 8205:
         w.line(len(asset.regions))
         for region in asset.regions:
             w.line(region)
@@ -205,19 +209,30 @@ def write_jms(asset, stream, *, maya_order=False):
             if v >= 8211:
                 w.vector(vertex.color or (1, 1, 1))
         else:
-            if len(weights) > 2:
-                raise ExportCancelled('H1 JMS supports at most two influences per vertex')
-            weights += [(-1, 0)] * (2 - len(weights))
+            max_influences = 4 if v == 8204 else 2
+            if len(weights) > max_influences:
+                raise ExportCancelled(f'JMS {v} supports at most {max_influences} influences per vertex')
+            weights += [(-1, 0)] * (max_influences - len(weights))
+            if v == 8197:
+                w.line(vertex.region)
             w.line(weights[0][0])
+            if v == 8204:
+                w.vector((weights[0][1],))
             w.vector(vertex.position)
             w.vector(vertex.normal)
             w.line(weights[1][0])
             w.vector((weights[1][1],))
-            w.vector(vertex.uvs[0][:2] if vertex.uvs else (0, 0))
-            w.line(0)
+            if v == 8204:
+                for index, weight in weights[2:]:
+                    w.line(index)
+                    w.vector((weight,))
+            for index in range(4 if v >= 8202 else 1):
+                w.vector(vertex.uvs[index][:2] if index < len(vertex.uvs) else (0, 0))
+            if v >= 8199:
+                w.line(0)
     w.line(len(asset.triangles))
     for t in asset.triangles:
-        if v < 8205:
+        if 8198 <= v < 8205:
             w.line(t.region)
         w.line(t.material)
         for i in t.vertices:
@@ -227,7 +242,7 @@ def write_jms(asset, stream, *, maya_order=False):
             shapes = [s for s in asset.shapes if s.kind == kind]
             w.line(len(shapes))
             for s in shapes:
-                for value in (s.name, s.parent, s.material):
+                for value in ((s.name, s.parent, s.material) if v >= 8207 else (s.name, s.parent)):
                     w.line(value)
                 w.transform(s.transform)
                 if s.dimensions:
@@ -237,6 +252,10 @@ def write_jms(asset, stream, *, maya_order=False):
                     for p in s.vertices:
                         w.vector(p)
         for kind in ('ragdoll', 'hinge', 'car_wheel', 'point_to_point', 'prismatic'):
+            if v < 8210 and kind in {'car_wheel', 'point_to_point', 'prismatic'}:
+                if any(c.kind == kind for c in asset.constraints):
+                    raise ExportCancelled(f'JMS {v} cannot represent {kind} constraints')
+                continue
             constraints = [c for c in asset.constraints if c.kind == kind]
             w.line(len(constraints))
             for c in constraints:
@@ -244,11 +263,12 @@ def write_jms(asset, stream, *, maya_order=False):
                     w.line(value)
                 w.transform(c.parent_transform)
                 w.transform(c.child_transform)
-                w.vector(c.limits)
-        w.line(len(asset.bounding_spheres))
-        for position, radius in asset.bounding_spheres:
-            w.vector(position)
-            w.vector((radius,))
+                w.vector(c.limits[:6] if kind == 'ragdoll' and v < 8213 else c.limits)
+        if v >= 8209:
+            w.line(len(asset.bounding_spheres))
+            for position, radius in asset.bounding_spheres:
+                w.vector(position)
+                w.vector((radius,))
         if v >= 8212:
             w.line(len(asset.skylights))
             for direction, color, power in asset.skylights:

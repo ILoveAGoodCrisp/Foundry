@@ -1534,7 +1534,7 @@ class LegacyExportScene(ExportScene):
             identifier = utils.id_from_string(identity)
         return path, xref_name, identifier
 
-    def jms_asset(self, name, nodes, markers, folder):
+    def jms_asset(self, name, nodes, markers, folder, *, include_physics=False, filter_markers=True):
         asset = jms.JMS(name=name, version=self.jms_version)
         if self.bones:
             for bone in self.bones:
@@ -1586,7 +1586,7 @@ class LegacyExportScene(ExportScene):
                     float(node.props['bungie_mesh_primitive_sphere_radius'])))
                 continue
             materials = self.face_materials(node, asset, cache)
-            if folder == 'physics' and self.jms_version >= 8206:
+            if (folder == 'physics' or (include_physics and node.tag_type == 'physics')) and self.jms_version >= 8206:
                 if len({m[0] for m in materials.values()}) > 1:
                     raise ExportCancelled(f'{node.name}: split physics shapes with different collision materials into separate objects')
                 parent = self.parent_index(node, implied_root=True)
@@ -1640,7 +1640,7 @@ class LegacyExportScene(ExportScene):
                 if node.negative_scaling:
                     indices = indices[0], indices[2], indices[1]
                 asset.triangles.append(jms.Triangle(material, indices, asset.regions.index(region)))
-        if folder == 'physics' and self.jms_version >= 8206:
+        if (folder == 'physics' or include_physics) and self.jms_version >= 8206:
             for node in markers:
                 marker_type = node.props.get('bungie_marker_type')
                 if marker_type not in {
@@ -1688,7 +1688,7 @@ class LegacyExportScene(ExportScene):
                     kind, node.name.lstrip('$'), parent, child,
                     transform(parent_matrix, self.to_halo_scale),
                     transform(child_matrix, self.to_halo_scale), limits))
-        if folder in {'render', 'models', 'collision'} and 'markers' in self.export_tag_types:
+        if (folder in {'render', 'models', 'collision'} or include_physics) and 'markers' in self.export_tag_types:
             xref_indices = {}
             merged_render = (folder == 'render' and self.target_game in {'halo3', 'halo3odst'}
                 and any(getattr(n.ob, 'ob', n.ob).get('foundry_converted_from_toolset') for n in nodes))
@@ -1702,12 +1702,12 @@ class LegacyExportScene(ExportScene):
                     continue
                 permutations = {p.name for p in nwo.marker_permutations}
                 scoped_permutations = None
-                if merged_render and nwo.marker_uses_regions and permutations:
+                if filter_markers and merged_render and nwo.marker_uses_regions and permutations:
                     scoped_permutations = (asset_permutations - permutations if
                         nwo.marker_permutation_type == 'exclude' else asset_permutations & permutations)
                     if not scoped_permutations:
                         continue
-                elif nwo.marker_uses_regions and permutations:
+                elif filter_markers and nwo.marker_uses_regions and permutations:
                     if (name in permutations) == (nwo.marker_permutation_type == 'exclude'):
                         continue
                 if nwo.marker_type == '_connected_geometry_marker_type_game_instance':
@@ -1774,7 +1774,7 @@ class LegacyExportScene(ExportScene):
                 utils.print_step(f'Stabilized {repaired} thin sky collision surface(s)')
         return asset
 
-    def ass_asset(self, name, nodes, markers=(), lights=()):
+    def ass_asset(self, name, nodes, markers=(), lights=(), *, filter_region=True, preserve_imported=True):
         if self.target_game in ASS_GAMES:
             for marker in markers:
                 if marker.ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance':
@@ -1809,7 +1809,7 @@ class LegacyExportScene(ExportScene):
         if self.supports_bsp:
             for node in ordered_nodes:
                 source = getattr(node.ob, 'ob', node.ob)
-                if (node.proxy_parent is None and source.get('ass_instance') and source.get('ass_source_key')
+                if (preserve_imported and node.proxy_parent is None and source.get('ass_instance') and source.get('ass_source_key')
                         and source.get('ass_import_matrix')
                         and node.ob.matrix_world == Matrix(json.loads(source['ass_import_matrix']))):
                     instance = json.loads(source['ass_instance'])
@@ -1846,7 +1846,7 @@ class LegacyExportScene(ExportScene):
             source = getattr(node.ob, 'ob', node.ob)
             get = getattr(source, 'get', lambda _name, default=None: default)
             preserved_matrix = None
-            if node.proxy_parent is None and get('ass_source_matrix') and get('ass_import_matrix'):
+            if preserve_imported and node.proxy_parent is None and get('ass_source_matrix') and get('ass_import_matrix'):
                 imported = Matrix(json.loads(get('ass_import_matrix')))
                 current = node.ob.matrix_world
                 unchanged = current == imported
@@ -1951,7 +1951,7 @@ class LegacyExportScene(ExportScene):
         if 'markers' in self.export_tag_types or self.supports_bsp:
             xref_geometries = {}
             for node in markers:
-                if self.supports_bsp and node.region != name:
+                if filter_region and self.supports_bsp and node.region != name:
                     continue
                 nwo = node.ob.nwo
                 permutations = {p.name for p in nwo.marker_permutations}
@@ -1988,7 +1988,7 @@ class LegacyExportScene(ExportScene):
                     value = transform(node.matrix_world, self.to_halo_scale)
                     source = getattr(node.ob, 'ob', node.ob)
                     instance_name = ass_reference_prefix(nwo.marker_game_instance_tag_name) + ass_reference_name(node.name)
-                    if (source.get('ass_instance') and source.get('ass_import_matrix')
+                    if (preserve_imported and source.get('ass_instance') and source.get('ass_import_matrix')
                             and source.matrix_world == Matrix(json.loads(source['ass_import_matrix']))):
                         original = json.loads(source['ass_instance'])
                         ancestry = json.loads(source.get('ass_source_ancestry', '[]'))
@@ -2009,7 +2009,7 @@ class LegacyExportScene(ExportScene):
                 value = transform(matrix, self.to_halo_scale)
                 marker_name = f'#({name} {node.region}){node.name}' if nwo.marker_uses_regions else '#' + node.name
                 source = getattr(node.ob, 'ob', node.ob)
-                if (self.supports_bsp and source.get('ass_instance') and source.get('ass_import_matrix')
+                if (preserve_imported and self.supports_bsp and source.get('ass_instance') and source.get('ass_import_matrix')
                         and source.matrix_world == Matrix(json.loads(source['ass_import_matrix']))):
                     original = json.loads(source['ass_instance'])
                     ancestry = json.loads(source.get('ass_source_ancestry', '[]'))

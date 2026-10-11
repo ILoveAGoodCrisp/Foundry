@@ -12,6 +12,7 @@ from .cinematic import Actor
 from .cleanup import prune_intermediates
 
 from ..props.scene import NWO_ScenePropertiesGroup
+from ..tags.animation_names import validate_animation_aliases
 from ..tools.asset_types import AssetType
 from ..tools.animation.composites import CompositeXML
 
@@ -83,6 +84,7 @@ class Sidecar:
         self.file_data: dict[list[SidecarFileData]] = defaultdict(list)
         self.child_sidecar_paths = []
         self.child_animation_elements = []
+        self.animation_alias_warnings = []
         self.child_physics_elements = []
         self.child_collision_elements = []
         self.child_render_elements = []
@@ -844,6 +846,8 @@ class Sidecar:
                 
             for element in self.child_animation_elements:
                 content_object.append(element)
+
+            self._validate_animation_aliases(content_object)
                 
             output = ET.SubElement(content_object, "OutputTagCollection")
             if self.game not in {'halo1', 'halo2', 'halo3', 'halo3odst'}:
@@ -861,6 +865,29 @@ class Sidecar:
                 
             for path in self.child_sidecar_paths:
                 self.append_animation_content_from_file(path, content)
+
+    def _validate_animation_aliases(self, content_object):
+        def graph_path(name):
+            parsed = utils.AnimationName(name)
+            if parsed.custom:
+                return None
+            if not parsed.valid:
+                raise ValueError(name)
+            return (parsed.mode, parsed.weapon_class, parsed.weapon_type, parsed.set,
+                    parsed.state, parsed.direction, parsed.region,
+                    parsed.destination_mode, parsed.destination_state, parsed.variant)
+
+        networks = content_object.findall('ContentNetwork')
+        aliases = {'Rename', 'Copy'}
+        names = [network.get('Name', '') for network in networks
+                 if network.get('Type') not in aliases]
+        renames = [(network.get('NetworkReference', ''), network.get('Name', ''))
+                   for network in networks if network.get('Type') == 'Rename']
+        copies = [(network.get('NetworkReference', ''), network.get('Name', ''))
+                  for network in networks if network.get('Type') == 'Copy']
+        self.animation_alias_warnings = validate_animation_aliases(names, renames, copies, graph_path)
+        for warning in self.animation_alias_warnings:
+            utils.print_warning(warning)
 
     def _region_active_state(self, region_name):
         region = self.nwo.regions_table[region_name]
