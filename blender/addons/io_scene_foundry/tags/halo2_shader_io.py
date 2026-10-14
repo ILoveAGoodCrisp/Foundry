@@ -224,7 +224,8 @@ def write_shader(shader):
         return write_basic_shader(shader)
     metadata=json.loads(group.node_tree.get('h2_parameter_metadata','{}'))
     template=group.node_tree.get('h2_template_path')
-    if not metadata or not template:raise ValueError('This H2 group has no reviewed parameter-export metadata yet')
+    if 'h2_parameter_metadata' not in group.node_tree or not template:
+        raise ValueError('This H2 group has no reviewed parameter-export metadata yet')
     root=shader.tag.root();shader.set_reference(root,'template',template+'.shader_template')
     block=root.field('parameters').as_block();by_name={p.field('name').value:p for p in block}
     def ensure(name):
