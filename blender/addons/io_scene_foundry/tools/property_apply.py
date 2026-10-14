@@ -78,10 +78,11 @@ special_materials = (
 
 def clear_special_mats(materials):
     """Removes special materials from an objects material slots i.e. ones that are not used as Halo shaders/materials"""
-    for idx, mat in enumerate(materials):
-        if mat.get("name", 0) and mat.name in special_materials:
+    # Remove backwards so slot indices remain valid, and leave empty slots for cleanup_empty_slots.
+    for idx in range(len(materials) - 1, -1, -1):
+        mat = materials[idx]
+        if mat is not None and mat.get("name", 0) and mat.name in special_materials:
             materials.pop(index=idx)
-            clear_special_mats(materials)
 
 def halo_material(mat_name, *, exclude=()):
     """Adds a halo material to the blend if it doesn't exist and applies settings, then returning the material"""
