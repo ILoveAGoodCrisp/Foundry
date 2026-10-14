@@ -47,7 +47,7 @@ from ..tags.sky_blender import SkyTag
 from .animation.generate_frames import FrameGenerator
 
 from ..legacy.jma import JMA
-from ..legacy.import_info import bsp_shader_paths
+from ..legacy.import_info import bsp_game_object_paths, bsp_shader_paths
 from ..ui.panel.cinematic import bake_vis_to_keyframes
 
 from ..tags.object import ObjectDocument, circular_aiming_for_graph
@@ -6208,12 +6208,15 @@ class NWOImporter:
         ]
         if source_files:
             shader_paths = {}
+            game_object_paths = ()
             if self.game in {'halo2', 'halo3', 'halo3odst'}:
                 with utils.TagImportMover(self.tags_dir, file) as mover:
                     with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                         shader_paths = bsp_shader_paths(bsp)
+                        game_object_paths = bsp_game_object_paths(bsp)
             bsp_objects = self.import_jms_files(source_files, 'bsp', parent_collection=scenario_collection,
-                                               shader_paths=shader_paths, render_only=self.tag_bsp_render_only)
+                                               shader_paths=shader_paths, render_only=self.tag_bsp_render_only,
+                                               game_object_paths=game_object_paths)
             game_objects = [ob for ob in bsp_objects if ob.type == 'EMPTY'
                             and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance']
             self._import_bsp_game_objects(bsp_objects, game_objects)
@@ -6596,7 +6599,7 @@ class NWOImporter:
 
     def import_jms_files(self, jms_files, legacy_type, *, tag_armature=None,
                          parent_collection=None, geometry_only=False, allowed_region_permutations=(), shader_paths=None,
-                         render_only=False, validate_tag_bones=False):
+                         render_only=False, validate_tag_bones=False, game_object_paths=()):
         """Import JMS and ASS natively, with conversion inside each adapter."""
         from ..legacy.jms_importer import JMSImporter, import_jms
         from ..legacy.ass_importer import ASSImporter, import_ass
@@ -6604,13 +6607,14 @@ class NWOImporter:
         prepared = []
         for path in reversed(jms_files):
             reader = import_ass if Path(path).suffix.lower() == '.ass' else import_jms
+            reference_options = {'game_object_paths': game_object_paths} if reader is import_ass else {}
             import_info_kind = self.import_info_source_kinds.get(os.path.normcase(os.path.abspath(path)), '')
             if validate_tag_bones and tag_armature is not None:
                 adapter = ASSImporter if Path(path).suffix.lower() == '.ass' else JMSImporter
                 source = adapter(self, path, legacy_type, tag_armature=tag_armature,
                     parent_collection=parent_collection, geometry_only=geometry_only,
                     allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths,
-                    import_info_kind=import_info_kind, render_only=render_only or self.for_cinematic)
+                    import_info_kind=import_info_kind, render_only=render_only or self.for_cinematic, **reference_options)
                 source.node_matrices()
                 source.build_armature()
                 prepared.append(source)
@@ -6620,11 +6624,11 @@ class NWOImporter:
                                       parent_collection=parent_collection,
                                       geometry_only=geometry_only,
                                       allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths,
-                                      import_info_kind=import_info_kind, render_only=render_only or self.for_cinematic))
+                                      import_info_kind=import_info_kind, render_only=render_only or self.for_cinematic, **reference_options))
             else:
                 objects.extend(reader(self, path, legacy_type, parent_collection=parent_collection,
                                       allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths,
-                                      import_info_kind=import_info_kind, render_only=render_only or self.for_cinematic))
+                                      import_info_kind=import_info_kind, render_only=render_only or self.for_cinematic, **reference_options))
         for source in prepared:
             objects.extend(source.build())
         self.emissive_meshes.update(ob.data for ob in objects if ob.type == 'MESH'
