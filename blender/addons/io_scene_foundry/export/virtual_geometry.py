@@ -28,6 +28,7 @@ from ..granny_export.model import MorphTarget, Texture, TextureImage
 from .export_info import AdditionalCompression, ExportInfo, FaceDrawDistance, FaceMode, FaceType, LightmapType, MeshTessellationDensity, MeshType, ObjectType
 from .pca_mesh import pca_sample_mesh
 from .pca_tension import TensionBasis
+from .vertex_weights import quantize_weights as quantize_tool_weights, uses_compressed_weights
 
 from ..props.mesh import NWO_MeshPropertiesGroup
 
@@ -317,29 +318,25 @@ class VirtualShot:
     def perform(self, scene: 'VirtualScene', film_aperture: float):
         legacy_export = backend_for_scene(scene) is ExportBackend.LEGACY
         if self.in_scope and (scene.cinematic_scope != 'OBJECT' or not backend_for_scene(scene).uses_native):
-            fps = utils.real_frame_rate()
-            start, end = self.frame_start, self.frame_end
-
-            start_time = start / fps
-            end_time = end / fps
-            duration = end_time - start_time
-
+            render = scene.context.scene.render
+            if scene.game in {'halo3', 'halo3odst'} and abs(render.fps / render.fps_base - 30) > 0.00001:
+                raise ExportCancelled('Halo 3 cinematics require 30 FPS; retime the camera and actor animation to 30 FPS before exporting')
+            if scene.game in {'halo3', 'halo3odst'} and scene.cinematic_scope != 'OBJECT':
+                aspect = (render.resolution_x * render.pixel_aspect_x) / (render.resolution_y * render.pixel_aspect_y)
+                if abs(aspect - 16 / 9) > 0.0001:
+                    utils.print_warning('Halo 3/ODST cinematics use a 16:9 frame. This export preserves horizontal FOV; '
+                        'use a 16:9 render aspect for matching vertical framing')
             for i in range(self.frame_count):
-                t = i / (self.frame_count - 1) if self.frame_count > 1 else 0.0
-                time = start_time + t * duration
-
-                frame_float = time * fps
-                frame = int(frame_float)
-                subframe = frame_float - frame
-
-                if frame > end:
-                    frame = end
-                    subframe = 0.0
-
-                scene.context.scene.frame_set(frame, subframe=subframe)
+                # Each tag sample corresponds to an integer authoring frame.
+                # Converting through seconds can land just before a frame and
+                # select the previous value of a stepped camera/actor curve.
+                scene.context.scene.frame_set(self.frame_start + i, subframe=0.0)
                 if scene.cinematic_scope != 'OBJECT':
-                    self.frames.append(Frame(self.camera, scene.corinth, film_aperture, scene.halo_transform_scale, scene.halo_rotation, game=scene.game, scene=scene.context.scene))
                     depsgraph = scene.context.evaluated_depsgraph_get()
+                    if self.camera.name not in scene.context.view_layer.objects:
+                        raise ExportCancelled(f'Cinematic camera {self.camera.name} is excluded from the active view layer')
+                    evaluated = self.camera.evaluated_get(depsgraph)
+                    self.frames.append(Frame(evaluated, scene.corinth, film_aperture, scene.halo_transform_scale, scene.halo_rotation, game=scene.game, scene=scene.context.scene))
                     for track in self.extra_camera_tracks:
                         if track.camera.name not in scene.context.view_layer.objects:
                             raise ExportCancelled(f'Extra camera {track.name} is excluded from the active view layer')
@@ -1710,6 +1707,19 @@ class VirtualMesh:
                     for b in bone_ids[positive_mask]:
                         bone_use_counter[b] = bone_use_counter.get(b, 0) + 1
 
+            if scene.compress_vertex_weights and not (is_physics or is_collision):
+                # Round before deriving the palette: otherwise Tool can discard
+                # a tiny secondary influence after deciding the mesh is skinned.
+                # GR2 carries byte weights, so mirror Tool's input precision too.
+                weights = bone_weights if legacy_weights else bone_weights.astype(np.float32) / 255.0
+                weights, bone_indices = quantize_tool_weights(weights, bone_indices)
+                if legacy_weights:
+                    bone_weights = weights
+                else:
+                    packed, bone_indices = quantize_tool_weights(weights, bone_indices, steps=255)
+                    bone_weights = np.rint(packed * 255.0).astype(np.uint8)
+                unique_bone_indices = set(np.unique(bone_indices[bone_weights > 0]).tolist())
+
             if is_physics:
                 if bone_use_counter:
                     most_used_bone = max(bone_use_counter, key=bone_use_counter.get)
@@ -1993,19 +2003,17 @@ class VirtualMesh:
                         scene.warnings.append(f"Object '{ob.name}' has different mesh properties per face, this is not allowed for instanced objects. Forcing {prop_name} to {face_set.array[0]}")
                         face_set.array = new_array
         
-        unassigned = mesh.attributes.get('ass_unassigned_material')
-        if unassigned is not None and unassigned.domain == 'FACE':
-            self.legacy_no_material = np.empty(num_polygons, dtype=np.bool_)
-            unassigned.data.foreach_get('value', self.legacy_no_material)
+        if legacy:
+            # ASS stores a material index on each triangle and need not retain
+            # Granny's material grouping. Restore editable face order when
+            # serializing: Tool's collision splitter is sensitive to ordering.
+            self.legacy_face_order = None if sorted_order is None else np.argsort(sorted_order)
+            # Read actual material assignments, including intentionally empty slots.
+            self.legacy_no_material = np.array([
+                face.material_index >= len(mesh.materials) or mesh.materials[face.material_index] is None
+                for face in mesh.polygons], dtype=np.bool_)
             if sorted_order is not None:
                 self.legacy_no_material = self.legacy_no_material[sorted_order]
-        sphere_collision = mesh.attributes.get('ass_sphere_collision')
-        if sphere_collision is not None and sphere_collision.domain == 'FACE':
-            values = np.empty(num_polygons, dtype=np.int32)
-            sphere_collision.data.foreach_get('value', values)
-            if sorted_order is not None:
-                values = values[sorted_order]
-            self.face_properties['foundry_legacy_sphere_collision'] = FaceSet(values)
 
         if evaluated:
             eval_ob.to_mesh_clear()
@@ -2265,7 +2273,11 @@ class VirtualNode:
                 
                 case AssetType.SCENARIO:
                     mesh_type = self.props.get("bungie_mesh_type")
-                    if mesh_type in DESIGN_MESH_TYPES:
+                    # H1/H2 fog planes are BSP geometry and must export even
+                    # when structure-design export is disabled.
+                    bsp_fog = (scene.game in {'halo1', 'halo2'}
+                               and mesh_type == MeshType.planar_fog_volume.value)
+                    if mesh_type in DESIGN_MESH_TYPES and not bsp_fog:
                         self.tag_type = 'design'
                         scene.design.add(self.region)
                     elif self.region == 'shared':
@@ -2757,6 +2769,10 @@ class VirtualScene:
         # self.time_step = 1.0010000467300415 / 30
         self.corinth = corinth
         self.game = project.game if project else ('corinth' if corinth else 'reach')
+        prefs = utils.get_prefs()
+        self.compress_vertex_weights = uses_compressed_weights(
+            self.game, allow_tool_patches=prefs.allow_tool_patches,
+            uncompressed_vertex_weights=prefs.patch_tool_uncompressed_vertex_weights)
         self.export_info: ExportInfo = None
         self.valid_bones = []
         self.structure = set()
@@ -2811,7 +2827,7 @@ class VirtualScene:
         self.morph_vertex_data = defaultdict(list)
         
         self.default_shader_path = "shaders\\invalid"
-        self.default_shader_type = ("shader_environment" if self.game == 'halo1'
+        self.default_shader_type = ("shader_transparent_generic" if self.game == 'halo1'
                                     else "material" if corinth else "shader")
         
         # Create default material
@@ -3242,7 +3258,6 @@ class VirtualScene:
                 relative = utils.relative_path(shader_path)
                 virtual_mat = VirtualMaterial(material.name, scene, relative)
                 
-        virtual_mat.legacy_shader_name = material.get('foundry_legacy_shader_name', '')
         self.materials[virtual_mat.name] = virtual_mat
         return virtual_mat
         
@@ -3253,7 +3268,15 @@ class VirtualScene:
             for node in nodes:
                 # inverse the rotation matrix otherwise this will be rotated incorrectly
                 if node.ob.type == 'MESH':
-                    bbox = node.ob.ob.bound_box
+                    if node.ob.ob.type == 'POINTCLOUD':
+                        # Each generated component has its own local bounds;
+                        # the carrier's bounds describe the entire node output.
+                        minimum = node.mesh.positions.min(axis=0)
+                        maximum = node.mesh.positions.max(axis=0)
+                        bbox = [(x, y, z) for x in (minimum[0], maximum[0])
+                                for y in (minimum[1], maximum[1]) for z in (minimum[2], maximum[2])]
+                    else:
+                        bbox = node.ob.ob.bound_box
                     for co in bbox:
                         bounds = self.rotation_matrix.inverted_safe() @ node.matrix_world @ Vector((co[0], co[1], co[2]))
                         min_x = min(min_x, bounds.x - padding)
@@ -3346,6 +3369,7 @@ class VirtualScene:
         print(f"--- Adding Structure Geometry For BSPs: {[bsp for bsp in no_bsp_structure]}")
         
         for bsp in no_bsp_structure:
+            self.warnings.append(f"BSP [{bsp}] has no structure geometry. Structure geometry will be automatically generated")
             ob, props = wrap_bounding_box([node for node in self.nodes.values() if node.region == bsp], 0 if self.corinth else 1 * scalar)
             obs.add(ob.ob)
             self.models[ob] = VirtualModel(ob, self, props, bsp, default_permutation)
@@ -3475,6 +3499,8 @@ def update_legacy_emissive_faces(face_properties, mesh, num_faces, prop, scene, 
 
 def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh, num_faces: int, scene: VirtualScene, sorted_order, special_mats_dict: dict, prop_mats_dict: dict, props: dict, force_render_only: bool, bungie_attributes: list[bpy.types.Attribute]) -> dict:
     is_structure = props.get("bungie_mesh_type") == MeshType.default.value
+    scenario_collision = (scene.asset_type == AssetType.SCENARIO
+                          and mesh_props.mesh_type == '_connected_geometry_mesh_type_collision')
     face_properties = {}
     deferred_material_transparencies = []
     deferred_face_transparencies = []
@@ -3517,6 +3543,11 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     for material, material_indices in prop_mats_dict.items():
         for prop in material.nwo.material_props:
             if not face_prop_game_supported(prop.type, scene.game, prop.face_mode if prop.type == 'face_mode' else None):
+                continue
+            if scenario_collision and prop.type == 'face_mode':
+                mode = FaceMode.sphere_collision_only if prop.face_mode == 'sphere_collision_only' else FaceMode.collision_only
+                default = props.get('bungie_face_mode', FaceMode.collision_only.value)
+                face_properties.setdefault('bungie_face_mode', FaceSet(np.full(num_faces, default, dtype=np.int32))).update_from_material(mesh, material_indices, mode.value)
                 continue
             match prop.type:
                 case 'face_mode':
@@ -3659,6 +3690,11 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
     
     for prop in mesh_props.face_props:
         if not face_prop_game_supported(prop.type, scene.game, prop.face_mode if prop.type == 'face_mode' else None):
+            continue
+        if scenario_collision and prop.type == 'face_mode':
+            mode = FaceMode.sphere_collision_only if prop.face_mode == 'sphere_collision_only' else FaceMode.collision_only
+            default = props.get('bungie_face_mode', FaceMode.collision_only.value)
+            face_properties.setdefault('bungie_face_mode', FaceSet(np.full(num_faces, default, dtype=np.int32))).update(mesh, prop, mode.value)
             continue
         match prop.type:
             case 'face_mode':
@@ -3824,9 +3860,13 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_mode"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceMode.collision_only.value)
             else:
                 face_properties.setdefault("bungie_face_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_face_type"], dtype=np.int32))).update_from_material(mesh, material_indices, FaceType.seam_sealer.value)
-        elif is_structure and material.name.lower().startswith('+seam') and props.get("bungie_mesh_type") and props.get("bungie_mesh_type") != MeshType.seam.value:
-            props.pop("bungie_mesh_type")
-            face_properties.setdefault("bungie_mesh_type", FaceSet(np.full(num_faces, face_prop_defaults["bungie_mesh_type"], dtype=np.int32))).update_from_material(mesh, material_indices, MeshType.seam.value)
+        elif (material.name.lower().startswith('+seam') and not material.name.lower().startswith('+seams')
+                and (is_structure or (
+                scene.game in {'halo3', 'halo3odst'} and scene.asset_type == AssetType.SCENARIO
+                and material.name.casefold().startswith('+seam:')))):
+            if props.get("bungie_mesh_type") != MeshType.seam.value:
+                mesh_type = props.pop("bungie_mesh_type", face_prop_defaults["bungie_mesh_type"])
+                face_properties.setdefault("bungie_mesh_type", FaceSet(np.full(num_faces, mesh_type, dtype=np.int32))).update_from_material(mesh, material_indices, MeshType.seam.value)
         elif material.name.lower().startswith('+'):
             if not is_structure and scene.corinth:
                 if not poop_collision:
@@ -3891,7 +3931,11 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             #     face_properties[attribute.name] = FaceSet(array)
     
                         
-    if force_render_only:
+    if scenario_collision and 'bungie_face_mode' in face_properties:
+        modes = face_properties['bungie_face_mode'].array
+        modes[modes != FaceMode.sphere_collision_only.value] = FaceMode.collision_only.value
+
+    if force_render_only and not scenario_collision:
         existing_face_face_mode = face_properties.get("bungie_face_mode")
         if existing_face_face_mode is None:
             existing_mesh_face_mode = props.get("bungie_face_mode")

@@ -11,11 +11,11 @@ COLLISION_MESH_TYPES = ("_connected_geometry_mesh_type_default", "_connected_geo
 TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision", '_connected_geometry_mesh_type_object_instance', '_connected_geometry_mesh_type_water_surface')
 
 # Blender Halo Mesh Types
-VALID_MESHES = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT'}
+VALID_MESHES = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT', 'POINTCLOUD'}
 VALID_FRAMES = {'EMPTY', 'ARMATURE'}
 # Object types that we export
-VALID_OBJECTS = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT', 'EMPTY', 'CAMERA', 'LIGHT', 'ARMATURE'}
-GENERAL_OBJECTS = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT', 'EMPTY', 'LIGHT'}
+VALID_OBJECTS = VALID_MESHES | {'EMPTY', 'CAMERA', 'LIGHT', 'ARMATURE'}
+GENERAL_OBJECTS = VALID_MESHES | {'EMPTY', 'LIGHT'}
 
 CG_PROP_PREFIX = "bungie_"
 FORCED_SHADER_PERMUTATION = "Forced Shader Permutation"

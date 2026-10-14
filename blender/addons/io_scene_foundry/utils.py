@@ -43,7 +43,7 @@ from .project_config import (
 )
 from . import foundry_output, marker_axis, face_attributes
 from .coordinate_system import CoordinateSystem, axis_rotation, geometry_matrix, rotation_between
-from .tool_process import check_tool_process, shader_prompt_error, MonitoredToolProcess
+from .tool_process import check_tool_process, shader_prompt_error, MonitoredToolProcess, ToolOutputNormalizer
 from .tools.node_layout import layout_nodes as arrange
 from .constants import OBJECT_TAG_EXTS, VALID_MESHES, VALID_OBJECTS, WU_SCALAR
 from .tools.materials import special_materials, convention_materials
@@ -284,6 +284,16 @@ def get_game(project_name=None, *, use_external=True):
     """Use Reach properties until an editing-kit context is available."""
     project = get_project(project_name, use_external=use_external)
     return project.game if project is not None else 'reach'
+
+def supports_game_feature(feature, game=None):
+    from .game_capabilities import supports
+    return supports(game or get_game(use_external=False), feature)
+
+def require_game_feature(operator, feature):
+    if supports_game_feature(feature):
+        return True
+    operator.report({'ERROR'}, 'This function is not supported by the selected game')
+    return False
 
 
 def is_corinth(context=None):
@@ -639,19 +649,26 @@ def _check_call_tool(command, cwd, stdout=None, stderr=None, tool_patches=None, 
         
 def _tool_output_reader(pipe, q, source):
     pending = b''
+    tail = b''
+    normalizer = ToolOutputNormalizer()
     try:
         while data := os.read(pipe.fileno(), 4096):
-            pending += data
-            if shader_prompt_error(pending):
+            tail = (tail + data)[-8192:]
+            pending += normalizer.feed(data)
+            if shader_prompt_error(tail):
+                pending += normalizer.finish()
                 q.put((source, pending))
                 pending = b''
             else:
-                lines = pending.split(b'\n')
+                lines = re.split(rb'(?<=[\r\n])', pending)
                 pending = lines.pop()
                 for line in lines:
-                    q.put((source, line + b'\n'))
+                    q.put((source, line))
         if pending:
             q.put((source, pending))
+        ending = normalizer.finish()
+        if ending:
+            q.put((source, ending))
     finally:
         q.put((source, None))
 
@@ -907,7 +924,7 @@ def _create_patched_tool_process(command, cwd, stdout, stderr, tool_patches, std
             stderr_file.close()
         if isinstance(e, _ToolMemoryPatchError):
             raise
-        raise _ToolMemoryPatchError(f"Failed to apply in-memory Reach Tool patch: {e}") from e
+        raise _ToolMemoryPatchError(f"Failed to apply in-memory Tool patch: {e}") from e
 
     kernel32.CloseHandle(process_info.hThread)
     return _PatchedToolProcess(process_info.hProcess, process_info.dwProcessId, stdout_file, stderr_file)
@@ -982,6 +999,28 @@ def _apply_tool_memory_patches(process_handle, tool_path: Path, tool_patches):
 
 def _get_remote_image_base(process_handle):
     kernel32, ntdll = _windows_patch_api()
+    # A 64-bit Blender starts H1/H2 under WOW64. Their image base lives in the
+    # 32-bit PEB, not the native PEB returned by ProcessBasicInformation.
+    if ctypes.sizeof(ctypes.c_void_p) == 8:
+        wow64_peb = ctypes.c_void_p()
+        returned_length = wintypes.ULONG()
+        status = ntdll.NtQueryInformationProcess(
+            process_handle, 26, ctypes.byref(wow64_peb),
+            ctypes.sizeof(wow64_peb), ctypes.byref(returned_length),
+        )
+        if status != 0:
+            raise _ToolMemoryPatchError(
+                f'Failed to query Tool WOW64 information: 0x{status & 0xffffffff:X}')
+        if wow64_peb.value:
+            image_base = ctypes.c_uint32()
+            bytes_read = ctypes.c_size_t()
+            _check_windows_call(kernel32.ReadProcessMemory(
+                process_handle, ctypes.c_void_p(wow64_peb.value + 0x08),
+                ctypes.byref(image_base), ctypes.sizeof(image_base),
+                ctypes.byref(bytes_read),
+            ))
+            return image_base.value
+
     process_info = _PROCESS_BASIC_INFORMATION()
     returned_length = wintypes.ULONG()
     status = ntdll.NtQueryInformationProcess(
@@ -1211,7 +1250,7 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
                 failed = True
                 if not error:
                     error = line
-            if not cull_warnings or source == "stdout":
+            if not cull_warnings or source == "stdout" or item.endswith(b'\r') or not line:
                 output_stream.write(item)
                 if tmp_log is not None:
                     with tmp_log.open('ab') as file:
@@ -1322,6 +1361,10 @@ def run_tool_sidecar(tool_args: list, event_level='WARNING', tool_patches=None):
 def _is_tool_import_status(line):
     """Recognize routine Tool import output without hiding unknown diagnostics."""
     text = line.strip()
+    if re.fullmatch(r'error geometry saved to\s+.+\.wrl', text, re.IGNORECASE):
+        return True
+    if re.match(r'^message(?=\s|$)', text, re.IGNORECASE):
+        return True
     if re.fullmatch(
         r"(?:Finalizing tag .+ after import|Got import information|Done with tag import end|"
         r"Optimizing error state|Writing errors to vrml file|Writing errors to tag|"
@@ -1375,7 +1418,7 @@ def _tool_structured_output_text(line):
 
 def is_error_line(line):
     return (line.startswith("IMPORT FAILED") or "### ASSERTION FAILED" in line or "FATAL ERROR!" in line
-            or bool(re.match(r"^\s*###\s+ERROR\b", line, re.IGNORECASE)))
+            or bool(re.match(r"^\s*(?:###\s+ERROR\b|-(?:ERROR|FATAL)-(?=\s|$))", line, re.IGNORECASE)))
 
 def get_error_explanation(line):
     if "plane3d_passes_through_point" in line:
@@ -1390,7 +1433,7 @@ def get_error_explanation(line):
         return "You need to add a render mesh that has the region referenced above or change the named region on collision meshes to one in use by any render mesh"
     elif "no corresponding model region (will not be physical)" in line:
         return "You need to add a render mesh that has the region referenced above or change the named region on physics meshes to one in use by any render mesh"
-    elif re.match(r"^\s*###\s+ERROR\b", line, re.IGNORECASE):
+    elif re.match(r"^\s*(?:###\s+ERROR\b|-(?:ERROR|FATAL)-(?=\s|$))", line, re.IGNORECASE):
         return line.strip()
     
     
@@ -1992,7 +2035,8 @@ def has_face_props(ob) -> bool:
 def has_shader_path(mat):
     """Returns whether the given material supports shader paths"""
     name = mat.name
-    return not (mat.grease_pencil or name.startswith('+sky') or name in special_material_names or name in convention_material_names)
+    return not (mat.grease_pencil or name.startswith('+sky') or name.casefold().startswith('+seam:')
+                or name in special_material_names or name in convention_material_names)
 
 def get_halo_material_count() -> tuple:
     count = 0
@@ -2549,6 +2593,9 @@ def get_marker_display(mesh_type, ob):
 def is_mesh(ob):
     return ob.type in VALID_MESHES
 
+def valid_export_object_type(ob):
+    return ob.type in VALID_OBJECTS
+
 def is_marker(ob):
     return ob.type == 'EMPTY' and ob.empty_display_type != "IMAGE"
 
@@ -2699,17 +2746,27 @@ def source_tags_root(path, fallback=None):
     return next((parent for parent in Path(path).resolve().parents
                  if parent.name.casefold() == 'tags'), None)
 
-def set_import_context_from_filepath(path: Path, tags_root=None, data_root=None) -> None:
+def set_import_context_from_filepath(path: Path, tags_root=None, data_root=None, source_project_id=None) -> None:
     """Use a tag or GR2 asset's project without changing the scene project."""
     global _external_project
     _external_project = None
     path = Path(path).resolve()
     source_asset = path.suffix.lower() == '.gr2' or path.name.lower() == 'sidecar.xml' or path.name.lower().endswith('.sidecar.xml')
-    if tags_root and path.is_file():
+    if source_project_id:
+        project = get_project(source_project_id, use_external=False)
+        if project is None:
+            raise ValueError('The selected source project is no longer available')
+        roots = [Path(project.tags_directory).resolve()]
+        if source_asset:
+            roots.append(Path(project.data_directory).resolve())
+        if not any(path.is_relative_to(root) for root in roots):
+            raise ValueError('Choose a file inside the selected source project')
+    elif tags_root and path.is_file():
         discover = external_project_from_source if source_asset else external_project_from_tag
         _external_project = discover(path, tags_root, data_root)
         return
-    project = project_for_file(path, data=source_asset)
+    else:
+        project = project_for_file(path, data=source_asset)
     if project is None and source_asset:
         project = project_for_file(path)
     if project is not None:
@@ -2739,7 +2796,7 @@ def set_import_context_from_filepath(path: Path, tags_root=None, data_root=None)
     elif path.suffix.lower() not in {
             '.jms', '.ass', '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw',
             '.jmo', '.jmr', '.jmrx', '.wrl', '.fbx', '.xml'}:
-        raise ValueError('Choose Source Tags Folder in the Foundry import browser or register this tag set as a project')
+        raise ValueError('Choose Source Tags Folder in the Foundry importer or register this tag set as a project')
 
 
 def clear_external_project() -> None:
@@ -2820,7 +2877,9 @@ def get_light_intensity_factor(light_type=""):
                 return 3
         
 def calc_light_intensity(light_data, scale):
-    
+    if get_game() in {'halo3', 'halo3odst'} and light_data.type in {'POINT', 'SPOT', 'SUN'}:
+        from .lighting import h3_baked_intensity
+        return h3_baked_intensity(light_data.energy, light_data.type, 3.048 * scale)
     if light_data.type == 'SUN':
         return light_data.energy
 
@@ -2830,6 +2889,9 @@ def calc_light_intensity(light_data, scale):
         return light_data.energy * (scale ** 2) / 100
 
 def calc_light_energy(light_data, intensity, scale):
+    if get_game() in {'halo3', 'halo3odst'} and light_data.type in {'POINT', 'SPOT', 'SUN'}:
+        from .lighting import h3_baked_energy
+        return h3_baked_energy(intensity, light_data.type, 3.048 * scale)
     if light_data.type == 'SUN':
         return intensity
 
@@ -2864,6 +2926,11 @@ def emissive_export_attenuation(prop, power: float, game: str) -> tuple[float, f
     """
     falloff = prop.material_lighting_attenuation_falloff
     cutoff = prop.material_lighting_attenuation_cutoff
+    if (game in {'halo3', 'halo3odst'} and falloff == cutoff == 0
+            and getattr(prop, 'material_lighting_attenuation_mode', 'AUTO') == 'AUTO'):
+        # Faux uses this window even with authored attenuation disabled.
+        units = 1 / (WU_SCALAR * get_unit_conversion_factor(bpy.context))
+        return 20 * units, 21 * units
     if (getattr(prop, 'material_lighting_attenuation_mode', 'AUTO') == 'AUTO'
             and game not in {'halo1', 'halo2'} and falloff == 0 and cutoff == 0):
         # Match automatic light export's conversion from scene energy to meters.
@@ -3162,7 +3229,7 @@ def copy_file(from_path, to_path):
 
 def imported_material_name(name: str, project=None) -> str:
     """Remove Tool naming conventions using the import source's collections."""
-    if name.startswith('+sky') or name in special_material_names or name in convention_material_names:
+    if name.startswith('+sky') or name.casefold().startswith('+seam:') or name in special_material_names or name in convention_material_names:
         return name
     project = project or get_project()
     prefixes = set()
@@ -3171,7 +3238,7 @@ def imported_material_name(name: str, project=None) -> str:
         game = project.game if project.game in COLLECTION_PATHS else 'halo3'
         prefixes = ShaderCollections(project.tags_directory, game).used_prefixes
     parts = re.sub(r'\.\d{3,}$', '', name).split()
-    parts = [part for part in parts if not part.startswith(legacy_lightmap_prefixes)]
+    parts = [part for part in parts if not part.lower().startswith(legacy_lightmap_prefixes)]
     while len(parts) > 1 and parts[0].casefold() in prefixes:
         parts.pop(0)
     return ' '.join(parts).rstrip("%#?!@*$^-&=.;)><|~({]}[' ")
@@ -3186,13 +3253,13 @@ def base_material_name(name: str, strip_legacy_halo_names=False) -> str:
     # match lightmap prefixe/suffixes
     parts = material_name.split()
     if len(parts) > 1:
-        if parts[0].startswith(legacy_lightmap_prefixes):
+        if parts[0].lower().startswith(legacy_lightmap_prefixes):
             material_name = ' '.join(parts[1:])
-        elif parts[-1].startswith(legacy_lightmap_prefixes):
+        elif parts[-1].lower().startswith(legacy_lightmap_prefixes):
             material_name = ' '.join(parts[:-1])
             
     # ignore material suffixes
-    return material_name.rstrip("%#?!@*$^-&=.;)><|~({]}[' ") # excluding 0 here as it can interfere with normal naming convention
+    return material_name.lstrip("'").rstrip("%#?!@*$^-&=.;)><|~({]}[' ") # excluding 0 here as it can interfere with normal naming convention
 
 def reset_to_basis(keep_animation=False, record_current_action=False):
     ob_actions = {}
@@ -3655,6 +3722,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             curves = {ob.data for ob in objects if ob.type in {'CURVE', 'FONT'}}
             metaballs = {ob.data for ob in objects if ob.type =='METABALL'}
             meshes = {ob.data for ob in objects if ob.type =='MESH'}
+            pointclouds = {ob.data for ob in objects if ob.type == 'POINTCLOUD'}
             cameras = {ob.data for ob in objects if ob.type =='CAMERA'}
             lights = {ob.data for ob in objects if ob.type =='LIGHT'}
             
@@ -3816,6 +3884,21 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             
             for mesh in meshes:
                 mesh.transform(scale_matrix, shape_keys=True)
+
+            for points in pointclouds:
+                # PointCloud has no Mesh.transform equivalent. Placement
+                # rotations/scales are dimensionless attributes and stay intact.
+                positions = np.empty(len(points.points) * 3, dtype=np.float32)
+                points.attributes['position'].data.foreach_get('vector', positions)
+                positions = positions.reshape(-1, 3) @ np.asarray(scale_matrix.to_3x3(), dtype=np.float32).T
+                points.attributes['position'].data.foreach_set('vector', np.ascontiguousarray(positions).reshape(-1))
+                radius = points.attributes.get('radius')
+                if radius is not None:
+                    radii = np.empty(len(points.points), dtype=np.float32)
+                    radius.data.foreach_get('value', radii)
+                    radii *= max(abs(value) for value in scale_matrix.to_scale())
+                    radius.data.foreach_set('value', radii)
+                points.update_tag()
                 
             for camera in cameras:
                 camera.display_size *= scale_factor
@@ -3827,8 +3910,16 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             for light in lights:
                 light.nwo.light_far_attenuation_start *= scale_factor
                 light.nwo.light_far_attenuation_end *= scale_factor
-                # light.nwo.light_near_attenuation_start *= scale_factor
-                # light.nwo.light_near_attenuation_end *= scale_factor
+                light.nwo.light_near_attenuation_start *= scale_factor
+                light.nwo.light_near_attenuation_end *= scale_factor
+                light.nwo.light_half_life *= scale_factor
+                light.nwo.light_directional_hotspot *= scale_factor
+                light.nwo.light_directional_falloff *= scale_factor
+                for node in light.node_tree.nodes:
+                    if node.type == 'GROUP' and node.node_tree and node.node_tree.name == 'Halo Light':
+                        units = node.inputs.get('Scene Units Per WU')
+                        if units is not None:
+                            units.default_value *= scale_factor
                 light.shadow_soft_size *= scale_factor
                 if scale_light_energy and light.type != 'SUN':
                     light.energy *= energy_factor
@@ -5877,7 +5968,7 @@ def connect_verts_on_edge(mesh: bpy.types.Mesh, do_degen_dissolve=True, *, spati
             mesh.normals_split_custom_set(normals)
             mesh.attributes.remove(attribute)
 
-def set_two_sided(mesh, is_io=False, match_collision_patches=False):
+def set_two_sided(mesh, is_io=False, match_collision_patches=False, *, orient_two_sided=False):
     face_dict = {}
     verts = mesh.vertices
     for face in mesh.polygons:
@@ -5890,6 +5981,7 @@ def set_two_sided(mesh, is_io=False, match_collision_patches=False):
             vert_to_faces[v].append(f.index)
 
     to_remove = set()
+    opposite_pairs = {}
     two_sided = np.zeros(len(mesh.polygons), dtype=np.int8)
     render_only = set()
     for prop in mesh.nwo.face_props:
@@ -5926,7 +6018,19 @@ def set_two_sided(mesh, is_io=False, match_collision_patches=False):
                     to_remove.add(f2.index)
                     if f1.normal.dot(f2.normal) < -0.98:
                         two_sided[f1.index] = True
+                        opposite_pairs[f1.index] = f2.index
                     break
+
+    if orient_two_sided and opposite_pairs and not match_collision_patches:
+        from .two_sided import two_sided_faces_to_flip
+        active_faces = {face.index: tuple(verts[v].co.to_tuple() for v in face.vertices)
+                        for face in mesh.polygons if face.index not in to_remove}
+        for keep in two_sided_faces_to_flip(active_faces, set(opposite_pairs)):
+            remove = opposite_pairs[keep]
+            to_remove.remove(remove)
+            to_remove.add(keep)
+            two_sided[keep] = False
+            two_sided[remove] = True
 
     if match_collision_patches:
         from .tags.connected_geometry import get_blender_material
@@ -6248,9 +6352,15 @@ def update_foundry_material(material, game=None, *, arrange_nodes=True):
             tree.links.new(surface.links[0].from_socket, node.inputs['Shader'])
         tree.links.new(node.outputs['Shader'], surface)
     values = {'Force Two-Sided': False, 'Force Invisible': False,
-              'Engine': {'halo1': 'Halo 1', 'halo2': 'Halo 2'}.get(game, 'Halo 3+'),
+              'Engine': {'halo1': 'Halo 1', 'halo2': 'Halo 2', 'halo3': 'Halo 3 / ODST',
+                         'halo3odst': 'Halo 3 / ODST'}.get(game, 'Reach / Halo 4+'),
               'Emissive Color': (0.0, 0.0, 0.0, 1.0), 'Emissive Power': 0.0,
-              'Emissive Falloff': 0.0, 'Emissive Cutoff': 0.0}
+              'Emissive Falloff': 0.0, 'Emissive Cutoff': 0.0,
+              'Emissive Half Life': 0.0, 'Emissive Per Unit Area': 1.0,
+              'Emissive Focus': 0.0, 'Emissive Frustum Blend': 0.0,
+              'Emissive Use Attenuation': 0.0}
+    if game in {'halo2', 'halo3', 'halo3odst'}:
+        values['Scene Units Per WU'] = 1 / (WU_SCALAR * get_unit_conversion_factor(bpy.context))
     for prop in material.nwo.material_props:
         if prop.type == 'face_sides':
             values['Force Two-Sided'] = prop.two_sided
@@ -6261,9 +6371,18 @@ def update_foundry_material(material, game=None, *, arrange_nodes=True):
             values['Emissive Power'] = prop.material_lighting_emissive_power
             values['Emissive Falloff'] = prop.material_lighting_attenuation_falloff
             values['Emissive Cutoff'] = prop.material_lighting_attenuation_cutoff
+            values['Emissive Half Life'] = getattr(prop, 'material_lighting_emissive_half_life', 0.0)
+            values['Emissive Per Unit Area'] = float(getattr(prop, 'material_lighting_emissive_per_unit', True))
+            values['Emissive Focus'] = max(0.0, min(1.0, 1 - getattr(prop, 'material_lighting_emissive_focus', math.pi) / math.pi))
+            values['Emissive Frustum Blend'] = getattr(prop, 'material_lighting_frustum_blend', 0.0)
+            mode = getattr(prop, 'material_lighting_attenuation_mode', 'AUTO')
+            values['Emissive Use Attenuation'] = float(mode == 'ENABLED' or
+                (mode == 'AUTO' and (values['Emissive Falloff'] > 0 or values['Emissive Cutoff'] > 0)))
     for name, value in values.items():
         socket = node.inputs.get(name)
         if socket is not None:
+            if name == 'Engine' and node.inputs.get('Emissive Half Life') is None:
+                value = {'halo1': 'Halo 1', 'halo2': 'Halo 2'}.get(game, 'Halo 3+')
             for link in tuple(socket.links):
                 tree.links.remove(link)
             socket.default_value = value
@@ -6327,14 +6446,31 @@ def update_foundry_mesh(mesh, game=None, *, arrange_nodes=True, update_materials
                 values['foundry_color'][mask] = prop.material_lighting_emissive_color[:3]
                 values['foundry_power'][mask] = (
                     prop.material_lighting_emissive_power_scale if game == 'halo2' else prop.material_lighting_emissive_power,
-                    prop.material_lighting_attenuation_falloff,
+                    getattr(prop, 'material_lighting_emissive_half_life', 0) if game == 'halo2' else prop.material_lighting_attenuation_falloff,
                     prop.material_lighting_attenuation_cutoff)
+                if game in {'halo3', 'halo3odst'}:
+                    values.setdefault('foundry_emissive_settings', np.zeros((count, 3), dtype=np.single))[mask] = (
+                        float(getattr(prop, 'material_lighting_emissive_per_unit', True)),
+                        max(0.0, min(1.0, 1 - getattr(prop, 'material_lighting_emissive_focus', math.pi) / math.pi)),
+                        getattr(prop, 'material_lighting_frustum_blend', 0.0))
+                    mode = getattr(prop, 'material_lighting_attenuation_mode', 'AUTO')
+                    values.setdefault('foundry_emissive_attenuation', np.zeros(count, dtype=np.single))[mask] = float(
+                        mode == 'ENABLED' or (mode == 'AUTO' and (prop.material_lighting_attenuation_falloff > 0
+                                                                or prop.material_lighting_attenuation_cutoff > 0)))
+        needs_patch_area = game in {'halo3', 'halo3odst'} and any(
+            prop.type == 'emissive' and not getattr(prop, 'material_lighting_emissive_per_unit', True)
+            for props in (mesh.nwo.face_props, *(mat.nwo.material_props for mat in mesh.materials if mat is not None))
+            for prop in props)
+        if needs_patch_area:
+            from .lighting_preview import patch_areas
+            values['foundry_emissive_area'] = patch_areas(mesh, values, WU_SCALAR * get_unit_conversion_factor(bpy.context))
         changed = False
-        for name in ('foundry_two_sided', 'foundry_invisible', 'foundry_color', 'foundry_power', 'foundry_emissive'):
+        for name in ('foundry_two_sided', 'foundry_invisible', 'foundry_color', 'foundry_power', 'foundry_emissive',
+                     'foundry_emissive_settings', 'foundry_emissive_attenuation', 'foundry_emissive_area'):
             data = values.get(name)
             attribute = mesh.attributes.get(name)
             needed = data is not None and (has_emissive if name in {'foundry_color', 'foundry_power', 'foundry_emissive'} else data.any())
-            data_type = 'FLOAT_VECTOR' if name in {'foundry_color', 'foundry_power'} else 'FLOAT'
+            data_type = 'FLOAT_VECTOR' if name in {'foundry_color', 'foundry_power', 'foundry_emissive_settings'} else 'FLOAT'
             if attribute is not None and (not needed or attribute.domain != 'FACE' or attribute.data_type != data_type):
                 mesh.attributes.remove(attribute)
                 attribute = None
@@ -6486,7 +6622,7 @@ def ignore_for_export_fast_no_frame(ob, collection_map, instancer):
     if not nwo.export_this:
         return True
     
-    if ob.type not in VALID_OBJECTS:
+    if not valid_export_object_type(ob):
         return True
 
     if ob.parent and recursive_parentage(ob, collection_map):
@@ -6502,7 +6638,7 @@ def ignore_for_export_fast(ob, collection_map, instancer_parent):
     if not nwo.export_this:
         return True
     
-    if ob.type not in VALID_OBJECTS:
+    if not valid_export_object_type(ob):
         return True
     
     if nwo.is_frame and ob.type == 'EMPTY':
@@ -6709,7 +6845,9 @@ class DepsgraphRead:
         self.marker_instancers = []
     
     def __enter__(self):
-        self.marker_instancers = [ob for ob in bpy.data.objects if ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION' and ob.nwo.marker_instance]
+        preview_sources = decorator_preview_sources()
+        self.marker_instancers = [ob for ob in bpy.data.objects if ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION'
+                                 and ob.nwo.marker_instance and ob not in preview_sources]
         for ob in self.marker_instancers:
             ob.instance_type = 'NONE'
         
@@ -6753,7 +6891,19 @@ def make_blender_light(data: bpy.types.Light):
         return
 
     data.use_custom_distance = False
-    data.energy = calc_light_energy(data, data.nwo.light_intensity, get_import_scale(bpy.context))
+    if get_game() in {'halo3', 'halo3odst'}:
+        kind = data.nwo.light_source_type
+        if kind == 'SPOT':
+            data.type = 'SPOT'
+            data.spot_size = data.nwo.light_cone_angle
+            data.spot_blend = max(0.0, min(1.0, 1 - data.nwo.light_hotspot_angle / max(data.spot_size, 1e-8)))
+        if data.nwo.light_preview_model == 'H3_DYNAMIC':
+            units = 3.048 * get_import_scale(bpy.context)
+            data.energy = data.nwo.light_intensity * 4 * math.pi * units ** 2
+        else:
+            data.energy = calc_light_energy(data, data.nwo.light_intensity, get_import_scale(bpy.context))
+    else:
+        data.energy = calc_light_energy(data, data.nwo.light_intensity, get_import_scale(bpy.context))
     tree = data.node_tree
     tree.nodes.clear()
     
@@ -6766,9 +6916,11 @@ def make_blender_light(data: bpy.types.Light):
     tree.links.new(emission.outputs[0], output.inputs[0])
     
     
-def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="", color_node_tree=None, strength_node_tree=None, gobo_image=None, intensity_from_power=False) -> bpy.types.Node:
+def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="", color_node_tree=None, strength_node_tree=None, gobo_image=None, intensity_from_power=False, *, game=None, model=None) -> bpy.types.Node:
     
-    if data.type == 'SUN':
+    game = game or get_game()
+    h3 = game in {'halo3', 'halo3odst'}
+    if data.type == 'SUN' and not h3:
         return
     
     # data.use_nodes = True
@@ -6824,6 +6976,9 @@ def make_halo_light(data: bpy.types.Light, primary_scale="", secondary_scale="",
     
     data.use_custom_distance = True
     data.cutoff_distance = data.nwo.light_far_attenuation_end
+
+    from .lighting_preview import configure_light
+    configure_light(data, light_node, game, model)
 
     return light_node
     
@@ -7327,3 +7482,31 @@ def open_in_explorer(fp: str | Path) -> bool:
         return open_dir(data_fp)
     
     return False
+
+
+def is_decorator_cloud(ob):
+    """Use the editable decorator reference on its point geometry."""
+    return bool(ob and ob.type in {'MESH', 'POINTCLOUD'} and
+                ob.nwo.marker_decorator_tag_name.lower().endswith(('.decorator_set', '.detail_object_collection')))
+
+
+def decorator_cloud_source(ob):
+    """Read the actual object connected to the decorator instancer."""
+    for mod in ob.modifiers:
+        if mod.type != 'NODES' or mod.node_group is None:
+            continue
+        for socket in mod.node_group.interface.items_tree:
+            if (socket.item_type == 'SOCKET' and socket.in_out == 'INPUT'
+                    and socket.name == 'Object'):
+                inputs = getattr(getattr(mod, 'properties', None), 'inputs', None)
+                value = getattr(inputs, socket.identifier, None)
+                source = value.value if value is not None else mod.get(socket.identifier)
+                if isinstance(source, bpy.types.Object) and source.instance_type == 'COLLECTION':
+                    return source
+    return None
+
+
+def decorator_preview_sources():
+    sources = {decorator_cloud_source(ob) for ob in bpy.data.objects if is_decorator_cloud(ob)}
+    sources.discard(None)
+    return sources

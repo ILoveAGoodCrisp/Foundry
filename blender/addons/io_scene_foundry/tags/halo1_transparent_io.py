@@ -1,7 +1,7 @@
 """Tag-backed IO for the remaining Halo 1 transparent material families.
 
-Bindings refer to schema paths, never socket order. Unrepresented fields (fog,
-extra passes, CPU-only options) survive export through a typed tag snapshot.
+Bindings refer to schema paths, never socket order. Exports read the current
+node graph; unrepresented fields in an existing destination tag are untouched.
 """
 import json
 import math
@@ -23,50 +23,8 @@ def resolve(root,path):
             current=field.as_block() if isinstance(path[i+1],int) else field.as_struct()
     return current
 
-def schema(kind):
-    return json.loads((Path(__file__).parent/'definitions/haloce_mcc'/(kind+'.json')).read_text())
 
-def snapshot(root,kind):
-    d=schema(kind)
-    def walk(s,name):
-        out={}
-        for f in d['structs'][name]['fields']:
-            n=f.get('name');t=f['type']
-            if not n or t in {'pad','useless_pad','skip','explanation','custom','terminator'}:continue
-            field=s.field(n)
-            if field is None:continue
-            if t=='struct':out[n]=walk(field.as_struct(),f['definition'])
-            elif t=='block':out[n]=[walk(x,d['blocks'][f['definition']]['struct']) for x in field.as_block()]
-            elif t.endswith('_flags'):out[n]={x:field.get_flag(x) for x in d['enums_flags'][f['definition']]['options']}
-            elif t.endswith('_enum'):out[n]=field.options().current
-            else:
-                v=field.value
-                if hasattr(v,'red'):v=[v.red,v.green,v.blue]+([v.alpha] if hasattr(v,'alpha') else [])
-                elif hasattr(v,'x'):v=[v.x,v.y]+([v.z] if hasattr(v,'z') else [])
-                elif hasattr(v,'i'):v=[v.i,v.j,v.k]
-                elif not isinstance(v,(int,float,str,bool,tuple,list,type(None))):continue
-                out[n]=v
-        return out
-    return walk(root,d['blocks'][d['block']]['struct'])
 
-def restore(root,kind,data):
-    d=schema(kind)
-    def walk(s,name,values):
-        for f in d['structs'][name]['fields']:
-            n=f.get('name');t=f['type']
-            if n not in values:continue
-            value=values[n];field=s.field(n)
-            if t=='struct':walk(field.as_struct(),f['definition'],value)
-            elif t=='block':
-                block=field.as_block()
-                while len(block)>len(value):block.delete(len(block)-1)
-                while len(block)<len(value):block.add()
-                for i,v in enumerate(value):walk(block[i],d['blocks'][f['definition']]['struct'],v)
-            elif t.endswith('_flags'):
-                for flag,on in value.items():field.set_flag(flag,on)
-            elif t=='tag_reference':field.set(tuple(value) if value is not None else None)
-            else:set_field(field,value)
-    walk(root,d['blocks'][d['block']]['struct'],data)
 
 def set_field(field,value):
     old=field.value
@@ -142,28 +100,32 @@ def reflection_vector(g,bump=None,mode=None,mask=None):
 
 def chicago_vector(shader,g,row,props,flags,index,resources):
     from .halo1_generic_io import vector_node
+    from .halo1_animation import MAP_ANIMATION_GROUP, build_map_animation_group
     parameters=resolve(shader.tag.root(),row+['parameters']).as_struct()
     node=vector_node(shader,g.tree,None,parameters,props,flags,index,resources,resolve(shader.tag.root(),row+['flags']))
     node['h1_chicago_vector_path']=json.dumps(row)
-    # Keep the established coordinate helper and apply time animation to its
-    # existing offset/rotation ports. All editable controls map to tag fields.
+    animation_tree=resources('h1_nodes',MAP_ANIMATION_GROUP)
+    if animation_tree is None:
+        animation_tree=build_map_animation_group(resources('h1_nodes','foundry_h1.tag_animation'))
+    animation=g.node('ShaderNodeGroup',f'map{index} animation')
+    animation.node_tree=animation_tree
+    animation['h1_map_animation_path']=json.dumps(row)
+    anim=resolve(shader.tag.root(),row+['animation']).as_struct()
     for axis in ('u','v','rotation'):
-        path=row+['animation'];anim=resolve(shader.tag.root(),path).as_struct()
-        wave=g.node('ShaderNodeGroup',axis+' animation');wave.node_tree=resources('h1_nodes','foundry_h1.tag_animation')
-        # tag_animation uses the native schema names, without display parentheses.
-        fn=anim.field(axis+' animation function').options().current_name
-        wave.inputs['Animation Function'].default_value=fn
-        wave.inputs['Animation Period'].default_value=float(anim.field(axis+' animation period').value) or 1
-        wave.inputs['Animation Phase'].default_value=anim.field(axis+' animation phase').value
-        wave.inputs['No Random Phase'].default_value=True
-        wave['h1_animation_binding']=json.dumps(dict(path=path,axis=axis))
-        scale=g.control(shader.tag.root(),path+[axis+' animation scale'])
-        scale=g.zero_default(axis+' default animation scale',scale,360 if axis=='rotation' else 1)
-        offset=g.control(shader.tag.root(),row+['parameters','map rotation' if axis=='rotation' else 'map '+axis+' offset'])
-        value=g.math(axis+' animated transform','ADD',offset,g.math(axis+' wave scale','MULTIPLY',wave.outputs[0],scale))
-        g.put(node.inputs['map rotation' if axis=='rotation' else 'map '+axis+'-offset'],value)
-    # CPU-dependent source modulation and off-center rotation remain preserved
-    # in the snapshot; the native helper currently rotates around its origin.
+        for suffix in ('function','period','phase','scale'):
+            field=anim.field(axis+' animation '+suffix)
+            animation.inputs[axis+' animation '+suffix].default_value=field.options().current_name if suffix=='function' else field.value
+        port='map rotation' if axis=='rotation' else 'map '+axis+'-offset'
+        animation.inputs[port].default_value=parameters.field('map rotation' if axis=='rotation' else 'map '+axis+' offset').value
+        g.put(node.inputs[port],animation.outputs[port])
+    center=anim.field('rotation animation center').value
+    animation.inputs['rotation center u'].default_value=center.x
+    animation.inputs['rotation center v'].default_value=center.y
+    node.parent=g.frame
+    node.location=(-290,0);node.width=250
+    animation.location=(-650,0);animation.width=310
+    # Object-function modulation remains in the destination tag. The preview uses
+    # the source evaluator's no-object-animation fallback multiplier of one.
     return node.outputs['Vector']
 
 def volume_sample(shader,g,result,path):
@@ -222,7 +184,7 @@ def import_shader(shader,material,resources,bitmap_to_image,reference,warning):
     material.use_nodes=True;tree=material.node_tree;tree.nodes.clear();g=MaterialGraph(tree)
     out=g.node('ShaderNodeOutputMaterial','Material Output');out.location=(450,0)
     group=g.node('ShaderNodeGroup',kind);group.node_tree=resource;tree.links.new(group.outputs['Shader'],out.inputs['Surface'])
-    root=shader.tag.root();group['h1_tag_snapshot']=json.dumps(snapshot(root,kind))
+    root=shader.tag.root()
     bindings=json.loads(resource['h1_socket_bindings']);by_path={};images={};mapblock=None
     if 'chicago' in kind:
         mapblock='4 stage maps' if kind.endswith('extended') else 'maps'
@@ -332,7 +294,6 @@ def write_shader(shader):
     if group is None or group.node_tree.get('h1_shader_type')!=kind:
         raise ValueError(f'{kind} export requires its matching H1 shader group at the material output')
     root=shader.tag.root()
-    if group.get('h1_tag_snapshot'):restore(root,kind,json.loads(group['h1_tag_snapshot']))
     bindings=json.loads(group.node_tree['h1_socket_bindings']);block=group.get('h1_chicago_map_block','4 stage maps' if kind.endswith('extended') else 'maps')
     def actual(path):return [block,*path[1:]] if path[0]=='4 stage maps' else path
     enabled=[(actual(b['path']),bool(group.inputs[k].default_value)) for k,b in bindings.items() if b.get('role')=='enabled']
@@ -377,6 +338,22 @@ def write_shader(shader):
             if s.is_linked:raise ValueError(f'Animated {s.name} cannot be written as a static tag value')
             set_field(field,list(s.default_value) if s.type in {'RGBA','VECTOR'} else s.default_value)
     for n in nodes:
+        if n.get('h1_map_animation_path'):
+            row=json.loads(n['h1_map_animation_path'])
+            if not retained_map(row):continue
+            for axis in ('u','v','rotation'):
+                for suffix in ('function','period','phase','scale'):
+                    name=axis+' animation '+suffix
+                    field=resolve(root,row+['animation',name]);port=n.inputs[name]
+                    if port.is_linked:raise ValueError(f'Linked {name} cannot be exported as a tag animation setting')
+                    field.set(list(field.options().names).index(port.default_value) if suffix=='function' else port.default_value)
+                name='map rotation' if axis=='rotation' else 'map '+axis+' offset'
+                port=n.inputs['map rotation' if axis=='rotation' else 'map '+axis+'-offset']
+                if port.is_linked:raise ValueError(f'Linked {name} cannot be exported as a static tag value')
+                resolve(root,row+['parameters',name]).set(port.default_value)
+            center=[n.inputs['rotation center '+axis] for axis in ('u','v')]
+            if any(s.is_linked for s in center):raise ValueError('Linked rotation center cannot be exported as a static tag value')
+            set_field(resolve(root,row+['animation','rotation animation center']),[s.default_value for s in center])
         if n.get('h1_value_binding'):
             b=json.loads(n['h1_value_binding'])
             if not retained_map(b['path']):continue

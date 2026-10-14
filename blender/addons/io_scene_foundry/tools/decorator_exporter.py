@@ -11,15 +11,12 @@ from ..tags.decorator_set import DecoratorSetTag
 from ..tags.scenario import ScenarioMetadataTag
 from .. import utils
 
-DECORATOR_CLOUD_PROP = "nwo_decorator_placement_cloud"
-DECORATOR_INSTANCE_SOURCE_PROP = "nwo_decorator_instance_source"
-DECORATOR_TAG_PROP = "nwo_decorator_tag"
-DECORATOR_VARIANT_PROP = "nwo_decorator_variant"
 DECORATOR_ATTR_NORMAL = "normal"
 DECORATOR_ATTR_INFO = "decorator_info"
 DECORATOR_ATTR_SCALE = "decorator_scale"
 DECORATOR_ATTR_TINT = "decorator_tint"
 DECORATOR_ATTR_SOURCE = "decorator_source"
+DECORATOR_ATTR_PLACEMENT = "nwo_decorator_placement"
 
 class NWO_OT_GetDecoratorTypes(bpy.types.Operator):
     bl_idname = "nwo.get_decorator_types"
@@ -124,22 +121,19 @@ def _is_decorator_instance(nwo):
     return nwo.marker_type == '_connected_geometry_marker_type_decorator'
 
 def _decorator_cloud_marker_data(ob):
-    tag_path = ob.get(DECORATOR_TAG_PROP) or ob.nwo.marker_game_instance_tag_name
-    variant = ob.get(DECORATOR_VARIANT_PROP) or ob.nwo.marker_game_instance_tag_variant_name
+    tag_path = ob.nwo.marker_decorator_tag_name
+    variant = ob.nwo.marker_game_instance_tag_variant_name
     return tag_path, variant
 
 def _is_decorator_cloud(ob):
-    if not (ob and ob.type == 'MESH' and ob.get(DECORATOR_CLOUD_PROP)):
-        return False
-    
-    tag_path, _ = _decorator_cloud_marker_data(ob)
-    return isinstance(tag_path, str) and tag_path.lower().endswith((".decorator_set", ".detail_object_collection"))
+    return utils.is_decorator_cloud(ob)
 
 def gather_decorators(context):
     print("--- Start decorator gather")
     start = time.perf_counter()
     
     collection_map = utils.create_parent_mapping(context)
+    preview_sources = utils.decorator_preview_sources()
     proxies = []
     with utils.DepsgraphRead():
         depsgraph = context.evaluated_depsgraph_get()
@@ -158,11 +152,11 @@ def gather_decorators(context):
 
             if _is_decorator_cloud(original):
                 if not utils.ignore_for_export_fast(original, collection_map, parent):
-                    proxies.extend(_decorator_cloud_proxies(original, inst.matrix_world))
+                    proxies.extend(_decorator_cloud_proxies(original, inst.matrix_world, obj))
                 continue
             # Geometry Nodes emits preview instances for these same placements.
-            # Their per-point settings are already read from the authored cloud.
-            if original.get(DECORATOR_INSTANCE_SOURCE_PROP):
+            # Their per-point settings are already read from the evaluated cloud.
+            if original in preview_sources:
                 continue
             
             if not (original.type == 'EMPTY' and _is_decorator_instance(nwo)):
@@ -183,21 +177,29 @@ def gather_decorators(context):
         
     return proxies
 
+def _point_count(mesh):
+    return len(mesh.vertices) if isinstance(mesh, bpy.types.Mesh) else len(mesh.points)
+
+
 def _vector_attribute(mesh, name, default):
-    count = len(mesh.vertices)
+    count = _point_count(mesh)
     attr = mesh.attributes.get(name)
     if attr is None:
         return np.tile(np.asarray(default, dtype=np.float32), (count, 1))
+    if attr.domain != 'POINT' or attr.data_type != 'FLOAT_VECTOR':
+        raise ValueError(f'{name} must be a vector attribute on points')
     
     values = np.empty(count * 3, dtype=np.float32)
     attr.data.foreach_get("vector", values)
     return values.reshape(count, 3)
 
 def _color_attribute(mesh, name, default):
-    count = len(mesh.vertices)
+    count = _point_count(mesh)
     attr = mesh.attributes.get(name)
     if attr is None:
         return np.tile(np.asarray(default, dtype=np.float32), (count, 1))
+    if attr.domain != 'POINT' or attr.data_type != 'FLOAT_COLOR':
+        raise ValueError(f'{name} must be a float color attribute on points')
     
     values = np.empty(count * 4, dtype=np.float32)
     attr.data.foreach_get("color", values)
@@ -212,25 +214,62 @@ def _decorator_rotation_from_normal(normal, rotation):
     
     return align @ Quaternion((0.0, 0.0, 1.0), float(rotation) * tau)
 
-def _decorator_cloud_proxies(ob, matrix_world):
-    mesh = ob.data
-    count = len(mesh.vertices)
+def _decorator_cloud_proxies(ob, matrix_world, evaluated=None):
+    """Read one record per evaluated instance, never its preview mesh vertices.
+
+    Blender 5.2 exposes instance transforms and attributes as a point cloud.
+    Clouds without a preview (including Halo 1 detail objects) use their
+    evaluated placement points instead.
+    """
+    evaluated = evaluated or ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    geometry = evaluated.evaluated_geometry()
+    instancer = any(mod.type == 'NODES' and mod.show_viewport and mod.node_group
+                    and mod.node_group.get('nwo_decorator_version', 0) >= 2 for mod in ob.modifiers)
+    transforms = None
+    instances = geometry.instances_pointcloud()
+    if instancer or (instances is not None and DECORATOR_ATTR_PLACEMENT in instances.attributes):
+        mesh = instances
+        if mesh is None or not len(mesh.points):
+            realized = geometry.mesh
+            if realized is not None and DECORATOR_ATTR_PLACEMENT in realized.attributes:
+                raise ValueError(f'{ob.name}: use Realize Decorator Cloud to convert placements before realizing their geometry')
+            return []
+        transforms = mesh.attributes.get('instance_transform')
+        placement = mesh.attributes.get(DECORATOR_ATTR_PLACEMENT)
+        if transforms is None or placement is None:
+            raise ValueError(f'{ob.name}: decorator instances have lost their placement attributes')
+    else:
+        mesh = geometry.mesh or geometry.pointcloud
+    if mesh is None:
+        return []
+    if transforms is None and DECORATOR_ATTR_PLACEMENT in mesh.attributes:
+        raise ValueError(f'{ob.name}: realized decorator geometry cannot be exported as placement points')
+    count = _point_count(mesh)
     if count == 0:
         return []
     
-    coords = np.empty(count * 3, dtype=np.float32)
-    mesh.vertices.foreach_get("co", coords)
-    coords = coords.reshape(count, 3)
+    coords = _vector_attribute(mesh, 'position', (0, 0, 0))
     normals = _vector_attribute(mesh, DECORATOR_ATTR_NORMAL, (0.0, 0.0, 1.0))
     info = _color_attribute(mesh, DECORATOR_ATTR_INFO, (0.0, ob.nwo.decorator_ground_tint, ob.nwo.decorator_motion_scale, 1.0))
     scales = _color_attribute(mesh, DECORATOR_ATTR_SCALE, (1.0, 1.0, 1.0, 1.0))
     tints = _color_attribute(mesh, DECORATOR_ATTR_TINT, (*ob.nwo.decorator_tint, 1.0))
-    sources = _color_attribute(mesh, DECORATOR_ATTR_SOURCE, (-1, ob.nwo.detail_object_sprite_index,
+    sources = _color_attribute(mesh, DECORATOR_ATTR_SOURCE, (ob.nwo.decorator_bsp_index, ob.nwo.detail_object_sprite_index,
         ob.nwo.decorator_permutation_index, ob.nwo.decorator_cluster_index))
+    if transforms is not None:
+        # Read the very same attributes consumed by the instancer shader.
+        tints = _color_attribute(mesh, 'nwo.decorator_tint', (*ob.nwo.decorator_tint, 1.0))
+        for name, channel in (('nwo.decorator_ground_tint', 1), ('nwo.decorator_motion_scale', 2)):
+            attr = mesh.attributes.get(name)
+            if attr is not None:
+                values = np.empty(count, dtype=np.float32)
+                attr.data.foreach_get('value', values)
+                info[:, channel] = values
     tag_path, variant = _decorator_cloud_marker_data(ob)
     
     proxies = []
     for idx in range(count):
+        if transforms is not None and not placement.data[idx].value:
+            continue
         normal = Vector(normals[idx])
         if normal.length_squared < 0.000001:
             normal = Vector((0.0, 0.0, 1.0))
@@ -243,6 +282,7 @@ def _decorator_cloud_proxies(ob, matrix_world):
         nwo.marker_decorator_tag_name = tag_path
         nwo.marker_game_instance_tag_variant_name = variant
         nwo.decorator_type_index = ob.nwo.decorator_type_index
+        nwo.decorator_bsp_index = round(float(sources[idx][0]))
         nwo.detail_object_sprite_index, nwo.decorator_permutation_index, nwo.decorator_cluster_index = (round(float(v)) for v in sources[idx][1:])
         nwo.region_name = utils.true_region(ob.nwo)
         nwo.region_name_locked = ""
@@ -254,20 +294,18 @@ def _decorator_cloud_proxies(ob, matrix_world):
         proxy.name = f"{ob.name}:{idx}"
         proxy.type = 'EMPTY'
         proxy.nwo = nwo
-        proxy.matrix_world = matrix_world @ Matrix.LocRotScale(
+        local_matrix = transforms.data[idx].value if transforms is not None else Matrix.LocRotScale(
             Vector(coords[idx]),
             _decorator_rotation_from_normal(normal, info[idx][0]),
             Vector.Fill(3, float(scales[idx][0])),
         )
+        proxy.matrix_world = matrix_world @ local_matrix
         proxies.append(proxy)
     
     return proxies
 
 def _decorator_cloud_instance_collection(ob):
-    source_name = ob.get(DECORATOR_INSTANCE_SOURCE_PROP)
-    source = bpy.data.objects.get(source_name) if isinstance(source_name, str) else None
-    if source is None:
-        source = bpy.data.objects.get(f"{ob.name}_instance_source")
+    source = utils.decorator_cloud_source(ob)
     
     return source.instance_collection if source is not None else None, source
 
@@ -277,9 +315,9 @@ def decorator_cloud_to_instances(ob, collection=None, remove_cloud=False):
         raise ValueError(f"Decorator cloud {ob.name} has no instanced collection source")
     
     collection = collection or (ob.users_collection[0] if ob.users_collection else bpy.context.scene.collection)
-    mesh = ob.data
+    data = ob.data
     created = []
-    for proxy in _decorator_cloud_proxies(ob, Matrix.Identity(4)):
+    for proxy in _decorator_cloud_proxies(ob, ob.matrix_world):
         new_ob = bpy.data.objects.new(proxy.name, None)
         new_ob.empty_display_type = 'ARROWS'
         new_ob.matrix_world = proxy.matrix_world
@@ -294,17 +332,20 @@ def decorator_cloud_to_instances(ob, collection=None, remove_cloud=False):
         new_ob.nwo.decorator_motion_scale = proxy.nwo.decorator_motion_scale
         new_ob.nwo.decorator_ground_tint = proxy.nwo.decorator_ground_tint
         new_ob.nwo.decorator_tint = proxy.nwo.decorator_tint
-        for name in ('region_name', 'decorator_type_index', 'detail_object_sprite_index', 'decorator_permutation_index', 'decorator_cluster_index'):
+        for name in ('region_name', 'decorator_type_index', 'decorator_bsp_index', 'detail_object_sprite_index', 'decorator_permutation_index', 'decorator_cluster_index'):
             setattr(new_ob.nwo, name, getattr(proxy.nwo, name))
         collection.objects.link(new_ob)
         created.append(new_ob)
     
     if remove_cloud:
         bpy.data.objects.remove(ob, do_unlink=True)
-        if source is not None:
+        if source is not None and not source.users:
             bpy.data.objects.remove(source, do_unlink=True)
-        if mesh.users == 0:
-            bpy.data.meshes.remove(mesh)
+        if data.users == 0:
+            if isinstance(data, bpy.types.PointCloud):
+                bpy.data.pointclouds.remove(data)
+            else:
+                bpy.data.meshes.remove(data)
     
     return created
 
@@ -312,22 +353,36 @@ def _decorator_type_indices(decorator_types):
     return {dec_type.decorator_type_name.lower(): dec_type.decorator_type_index for dec_type in decorator_types}
 
 def _byte_value(value):
-    return max(0, min(255, int(value)))
+    return max(0, min(255, round(value)))
 
-def export_decorators(corinth, decorator_objects = None):
-    scene_nwo = utils.get_scene_props()
+
+def _decorator_uniform_scale(ob):
+    """The game stores one positive scale, so reject lossy transforms."""
+    basis = ob.matrix_world.to_3x3()
+    scale = basis.to_scale()
+    tolerance = max(scale) * 1e-5
+    if (basis.determinant() <= 0 or min(scale) <= 0 or max(scale) - min(scale) > tolerance
+            or any(abs(basis.col[a].normalized().dot(basis.col[b].normalized())) > 1e-5
+                   for a, b in ((0, 1), (0, 2), (1, 2)))):
+        raise ValueError(f'{ob.name}: game decorators require a positive uniform scale without shear')
+    return sum(scale) / 3
+
+def export_decorators(corinth, decorator_objects=None, *, context=None, scenario_path=None,
+                      tags_root=None, game=None):
+    context = context or bpy.context
+    scene_nwo = context.scene.nwo
     if not scene_nwo.decorators_from_blender:
         return 0
-    scenario_path = utils.get_asset_tag(".scenario", True)
-    context = bpy.context
+    scenario_path = scenario_path if scenario_path is not None else utils.get_asset_tag(".scenario", True)
     if decorator_objects is None:
         decorator_objects = gather_decorators(context)
 
-    game = utils.get_project(scene_nwo.scene_project).game
+    game = game or utils.get_project(scene_nwo.scene_project).game
+    tags_root = tags_root if tags_root is not None else utils.get_tags_path()
     from .scenario.targets import scenario_targets
     default_child = scene_nwo.decorators_from_blender_child_scenario if corinth else ''
     count = 0
-    with scenario_targets(decorator_objects, scenario_path=scenario_path, tags_root=utils.get_tags_path(),
+    with scenario_targets(decorator_objects, scenario_path=scenario_path, tags_root=tags_root,
             game=game, default_child=default_child, include_existing_children=True) as targets:
         if game == 'halo1':
             # H1 detail instances live in shared BSP tags. Write each BSP once,
@@ -382,10 +437,11 @@ def _export_decorators_to_scenario(scenario, decorator_objects):
             matrix = utils.halo_transforms_matrix(ob.matrix_world)
             q = matrix.to_quaternion()
             placements.append(ScenarioDecoratorPlacement(tuple(matrix.translation), (q.x, q.y, q.z, q.w),
-                max(ob.matrix_world.to_scale()), type_index,
+                _decorator_uniform_scale(ob), type_index,
                 _byte_value(ob.nwo.decorator_motion_scale * 255), _byte_value(ob.nwo.decorator_ground_tint * 255),
                 tuple(utils.linear_to_srgb(c) for c in ob.nwo.decorator_tint),
-                ob.nwo.decorator_permutation_index, ob.nwo.decorator_cluster_index))
+                ob.nwo.decorator_permutation_index, ob.nwo.decorator_cluster_index,
+                ob.nwo.decorator_bsp_index))
         records.append(ScenarioDecoratorSet(path, Path(path).stem, tuple(placements)))
 
     print("--- Writing decorators to Tag")

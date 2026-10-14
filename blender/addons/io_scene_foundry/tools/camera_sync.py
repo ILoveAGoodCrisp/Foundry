@@ -6,6 +6,7 @@ import bpy
 from mathutils import Matrix, Vector
 
 from .. import utils
+from ..camera_fov import H3_CAMERA_GAMES, observer_hfov_from_render_hfov, render_hfov_from_observer_hfov
 
 
 CAMERA_SYNC_NAME = utils.CAMERA_SYNC_DEBUG_NAME
@@ -251,13 +252,64 @@ def viewport_region_3d(context: bpy.types.Context) -> bpy.types.RegionView3D:
     return space.region_3d
 
 
+def camera_sync_render_aspect(context: bpy.types.Context) -> float:
+    """Use the scene's output aspect as the target game display aspect."""
+    render = context.scene.render
+    width = render.resolution_x * render.pixel_aspect_x
+    height = render.resolution_y * render.pixel_aspect_y
+    if width <= 0 or height <= 0:
+        raise CameraSyncError('Camera sync needs a positive render resolution and pixel aspect')
+    return width / height
+
+
+def viewport_horizontal_gate(context: bpy.types.Context) -> float:
+    # Blender's perspective viewport uses a 36 mm sensor and zoom factor 2.
+    # Auto sensor fit makes 72 mm the gate along the longer viewport dimension.
+    region = context.region if context.region and context.region.type == 'WINDOW' else next(
+        (region for region in context.area.regions if region.type == 'WINDOW'), None)
+    if region is None or region.width <= 0 or region.height <= 0:
+        raise CameraSyncError('Camera sync needs a visible 3D Viewport window region')
+    return 72.0 * min(1.0, region.width / region.height)
+
+
+def game_fov_from_blender(context: bpy.types.Context, hfov: float) -> float:
+    if camera_sync_game() not in H3_CAMERA_GAMES:
+        return clamp_fov(hfov)
+    try:
+        return clamp_fov(observer_hfov_from_render_hfov(hfov, camera_sync_render_aspect(context)))
+    except ValueError as error:
+        raise CameraSyncError(str(error)) from error
+
+
+def blender_fov_from_game(context: bpy.types.Context, hfov: float) -> float:
+    if camera_sync_game() not in H3_CAMERA_GAMES:
+        return clamp_fov(hfov)
+    return render_hfov_from_observer_hfov(hfov, camera_sync_render_aspect(context))
+
+
 def viewport_fov(context: bpy.types.Context) -> float:
-    sensor_width = 36.0 if utils.is_corinth(context) else 74.0
     lens = max(context.space_data.lens, VECTOR_EPSILON)
+    if camera_sync_game() in H3_CAMERA_GAMES:
+        region_3d = viewport_region_3d(context)
+        if region_3d.is_perspective:
+            # Includes viewport aspect and camera-view zoom when writing that view.
+            region_3d.update()
+            x_scale = abs(region_3d.window_matrix[0][0])
+            if not math.isfinite(x_scale) or x_scale <= 0:
+                raise CameraSyncError('The viewport has no valid perspective projection')
+            hfov = 2.0 * math.atan(1.0 / x_scale)
+        else:
+            hfov = 2.0 * math.atan(viewport_horizontal_gate(context) / (2.0 * lens))
+        return game_fov_from_blender(context, hfov)
+    sensor_width = 36.0 if utils.is_corinth(context) else 74.0
     return clamp_fov(2.0 * math.atan(sensor_width / (2.0 * lens)))
 
 
 def set_viewport_fov(context: bpy.types.Context, fov: float):
+    if camera_sync_game() in H3_CAMERA_GAMES:
+        hfov = blender_fov_from_game(context, fov)
+        context.space_data.lens = viewport_horizontal_gate(context) / (2.0 * math.tan(hfov / 2.0))
+        return
     sensor_width = 36.0 if utils.is_corinth(context) else 74.0
     context.space_data.lens = sensor_width / (2.0 * math.tan(clamp_fov(fov) / 2.0))
 
@@ -274,7 +326,14 @@ def write_scene_camera(context: bpy.types.Context) -> Path:
         raise CameraSyncError("Scene has no active camera")
 
     matrix = remove_cinematic_anchor_offset(context, camera.matrix_world)
-    return write_camera_state(state_from_blender_matrix(matrix, camera.data.angle))
+    fov = camera.data.angle
+    if camera_sync_game() in H3_CAMERA_GAMES:
+        if camera.data.type != 'PERSP' or camera.data.shift_x or camera.data.shift_y:
+            raise CameraSyncError('Camera sync requires a perspective camera without lens shift')
+        corners = camera.data.view_frame(scene=context.scene)
+        width = (max(v.x for v in corners) - min(v.x for v in corners)) / abs(corners[0].z)
+        fov = game_fov_from_blender(context, 2.0 * math.atan(width / 2.0))
+    return write_camera_state(state_from_blender_matrix(matrix, fov))
 
 
 def read_to_viewport(context: bpy.types.Context):
@@ -309,7 +368,14 @@ def read_to_scene_camera(context: bpy.types.Context):
         context.scene.camera = camera
 
     camera.matrix_world = apply_cinematic_anchor_offset(context, blender_matrix_from_state(state))
-    camera.data.angle = state.fov
+    if camera_sync_game() in H3_CAMERA_GAMES:
+        hfov = blender_fov_from_game(context, state.fov)
+        camera.data.type = 'PERSP'
+        camera.data.sensor_fit = 'HORIZONTAL'
+        camera.data.shift_x = camera.data.shift_y = 0.0
+        camera.data.lens = camera.data.sensor_width / (2.0 * math.tan(hfov / 2.0))
+    else:
+        camera.data.angle = state.fov
     return path
 
 
@@ -322,7 +388,7 @@ def update_camera_debug_menu() -> bool:
 class NWO_OT_CameraSync(bpy.types.Operator):
     bl_idname = "nwo.camera_sync"
     bl_label = "Camera Sync"
-    bl_description = "Reads and writes camera positions between Blender and the game. Writing camera positions to Halo 4 Sapien puts the camera at the world origin"
+    bl_description = "Reads and writes cameras between Blender and the game. For Halo 3/ODST, match the game display to the scene render aspect. Writing to Halo 4 Sapien puts the camera at the world origin"
     bl_options = {'REGISTER'}
 
     mode: bpy.props.EnumProperty(

@@ -25,6 +25,63 @@ class DetailObjectPlacement:
     bsp_index: int
 
 
+@dataclass(frozen=True)
+class DetailObjectSprite:
+    type_index: int
+    type_name: str
+    sprite_index: int
+    bitmap: str
+    bitmap_index: int
+    uv_bounds: tuple[float, float, float, float]
+    width: float
+    height: float
+    z_offset: float
+
+
+def read_detail_object_sprites(collection, single_type=None, sprite_index=None):
+    """Resolve loose-tag sequences, not the cache-only first/count fields.
+
+    Detail-object size is world units per pixel. Unlike particles, these
+    sprites rest on their bottom edge; the bitmap registration point is not
+    their ground anchor. Placement tint already includes the type's lighting.
+    """
+    root = collection.tag.root()
+    plate = collection.reference(root, 'sprite plate')
+    if plate is None:
+        return []
+    result = []
+    with TagDocument(plate, tags_root=collection.tags_root, game='halo1', must_exist=True) as bitmap:
+        sequences = bitmap.block(bitmap.tag.root(), 'sequences')
+        pages = bitmap.block(bitmap.tag.root(), 'bitmaps')
+        for type_index, row in enumerate(collection.block(root, 'types')):
+            name = str(collection.value(row, 'name')) or str(type_index)
+            if single_type is not None and name.casefold() != single_type.casefold():
+                continue
+            sequence_index = int(collection.value(row, 'sequence index')) & 255
+            if sequence_index >= len(sequences):
+                raise ValueError(f'{collection.path}: detail type {name!r} has invalid sequence {sequence_index}')
+            sprites = bitmap.block(sequences[sequence_index], 'sprites')
+            if sprite_index is not None and not 0 <= sprite_index < len(sprites):
+                raise ValueError(f'{collection.path}: detail type {name!r} has no sprite {sprite_index}')
+            size = float(collection.value(row, 'size'))
+            z_offset = float(collection.value(root, 'global z offset'))
+            for index, sprite in enumerate(sprites):
+                if sprite_index is not None and index != sprite_index:
+                    continue
+                page_index = int(bitmap.value(sprite, 'bitmap index'))
+                if not 0 <= page_index < len(pages):
+                    raise ValueError(f'{plate.RelativePathWithExtension}: invalid sprite bitmap {page_index}')
+                left, right, top, bottom = (float(bitmap.value(sprite, key))
+                                            for key in ('left', 'right', 'top', 'bottom'))
+                width = (right - left) * int(bitmap.value(pages[page_index], 'width')) * size
+                height = (bottom - top) * int(bitmap.value(pages[page_index], 'height')) * size
+                if not all(isfinite(v) for v in (left, right, top, bottom, width, height, z_offset)) or width <= 0 or height <= 0:
+                    raise ValueError(f'{collection.path}: detail type {name!r} has invalid sprite dimensions')
+                result.append(DetailObjectSprite(type_index, name, index, plate.RelativePathWithExtension,
+                    page_index, (left, right, top, bottom), width, height, z_offset))
+    return result
+
+
 def signed(value, bits):
     value &= (1 << bits) - 1
     return value - (1 << bits) if value & (1 << (bits - 1)) else value

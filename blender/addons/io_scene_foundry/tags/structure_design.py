@@ -59,6 +59,13 @@ class StructureDesignDocument(TagDocument):
             if not 0 <= group < len(groups):
                 raise ValueError(f'{self.path}: invalid water group index {group}')
             points = [[self._vector(t, f'point{i}') for i in range(3)] for t in triangles]
+            if self.game in {'halo3', 'halo3odst'}:
+                # These are closed authored volumes, not Reach's surface/depth
+                # water. Retain every face and each instance's current settings.
+                records.append(SimpleNamespace(kind='water_volume', name=groups[group],
+                    vertices=[p for triangle in points for p in triangle],
+                    direction=self._vector(water, 'direction'), angle=self._number(water, 'angle')))
+                continue
             # Match the existing importer: highest average triangle represents the surface.
             top = max(points, key=lambda tri: sum(p[2] for p in tri))
             if water.field('flow velocity') is None:
@@ -74,6 +81,19 @@ class StructureDesignDocument(TagDocument):
                 depth=max(w.high for w in waters) - min(w.low for w in waters),
                 flow=properties.flow, color=properties.color, murkiness=properties.murkiness))
         return records
+
+    def set_water_properties(self, properties):
+        """Apply editable H3/ODST currents after Tool builds the volume planes."""
+        physics = self.required_field(self.tag.root(), 'physics').as_struct()
+        groups = [self.value(group, 'name') for group in self.block(physics, 'water groups block')]
+        for water in self.block(physics, 'water instances block'):
+            group = self.value(water, 'group')
+            if not 0 <= group < len(groups) or groups[group] not in properties:
+                continue
+            direction, angle = properties[groups[group]]
+            self.required_field(water, 'direction').set(self.api.RealVector3d(*direction))
+            self.required_field(water, 'angle').set(angle)
+            self.tag_has_changes = True
 
     def rain_geometry(self):
         """Decode design meshes with each definition's compression bounds.

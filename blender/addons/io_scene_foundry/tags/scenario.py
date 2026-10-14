@@ -92,8 +92,8 @@ class ScenarioCameraPoint:
     orientation: tuple[float, float, float]
     field_of_view: float
     camera_type: int = 0
-    edit_as_relative: bool = False
     zone_set_index: int = -1
+    edit_as_relative: bool = False
 
 
 @dataclass(frozen=True)
@@ -154,9 +154,9 @@ class ScenarioDocument(TagDocument):
                 tuple(self.value(row, 'position').to_array()),
                 (orientation.yaw, orientation.pitch, orientation.roll),
                 float(self.value(row, 'field of view')) if 'field of view' in fields else 0.,
-                self.required_field(row, 'type').options().current if 'type' in fields else 0,
-                any(name == 'edit as relative' and enabled for _, name, enabled in flags.options().flags) if flags is not None else False,
-                int(self.value(row, 'zone set')) if 'zone set' in fields else -1))
+                camera_type=self.required_field(row, 'type').options().current if 'type' in fields else 0,
+                zone_set_index=int(self.value(row, 'zone set')) if 'zone set' in fields else -1,
+                edit_as_relative=any(name == 'edit as relative' and enabled for _, name, enabled in flags.options().flags) if flags is not None else False))
         return points
 
     def replace_camera_points(self, points: Iterable[ScenarioCameraPoint]) -> None:
@@ -834,20 +834,30 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
                 paths.append(reference.Filename)
         return paths
 
-    def get_design_paths(self, zone_set=''):
-        _, _, designs = self._blocks()
+    def get_design_assignments(self, zone_set='', *, bsp_mask=None):
+        _, bsps, designs = self._blocks()
+        bsp_designs = self.game in {'halo3', 'halo3odst'}
+        if bsp_designs:
+            designs = bsps
         if designs is None:
             return []
-        mask = self._zone_mask(zone_set, 'structure design zone flags')
-        active = self._active_indices(mask, len(designs)) if mask else None
-        paths = []
+        if bsp_designs:
+            mask = self._zone_mask(zone_set, 'bsp zone flags') if bsp_mask is None else bsp_mask
+        else:
+            mask = self._zone_mask(zone_set, 'structure design zone flags')
+        active = self._active_indices(mask, len(designs)) if mask is not None else None
+        assignments = []
         for index, element in enumerate(designs):
             if active is not None and index not in active:
                 continue
             reference = self.reference(element, 'structure design')
             if self.path_exists(reference):
-                paths.append(reference.Filename)
-        return paths
+                bsp = self.reference(element, 'structure bsp') if bsp_designs else None
+                assignments.append((reference.Filename, bsp.ShortName if bsp else None))
+        return assignments
+
+    def get_design_paths(self, zone_set='', *, bsp_mask=None):
+        return [path for path, _ in self.get_design_assignments(zone_set, bsp_mask=bsp_mask)]
 
     def zone_set_names(self) -> list[str]:
         root = self.tag.root()

@@ -58,7 +58,6 @@ class ObjectTag(BlenderTag, ObjectDocument):
                 attribute = tree.nodes.new('ShaderNodeAttribute'); attribute.location = (0, 0)
                 attribute.attribute_type = 'INSTANCER'; attribute.attribute_name = name
                 tree.links.new(attribute.outputs['Fac'], output.inputs[0])
-                tree['foundry_object_function_proxy'] = True
             else:
                 function.to_blend_nodes(name=name)
             dependencies[name] = []

@@ -1,11 +1,12 @@
 from ..exceptions import ExportCancelled
 from collections import defaultdict
 from enum import Enum
-from math import atan, degrees, isfinite
+from math import atan, degrees, isfinite, radians
 from pathlib import Path
 from types import SimpleNamespace
 import bpy
 from ..coordinate_system import axis_rotation
+from ..camera_fov import MIN_CINEMATIC_HFOV, MAX_CINEMATIC_HFOV, tag_focal_from_final_hfov
 
 from ..tags.cinematic_lighting import CinematicLightingTag
 from ..tags.cinematic_script import script_from_text
@@ -15,7 +16,7 @@ from ..tags.model_blender import ModelTag
 from ..tags.animation_graph import AnimationGraphTag
 from ..tags.animation_compression import export_animation_compression
 from ..tags.cinematic_scene import CinematicCustomScript, CinematicDialogue, CinematicEffect, CinematicMusic, CinematicObjectFunctionKeyframe, NativeCinematicSceneTag
-from ..tags.cinematic import CinematicSceneDataTag, cinematic_runtime_aperture
+from ..tags.cinematic import CinematicSceneDataTag
 
 from .. import utils
 from ..tags.camera_track import camera_correction_matrix
@@ -52,13 +53,23 @@ class CinematicScene:
         self.actor_animations = defaultdict(list)
         self.actors = []
         if self.anchor is not None:
+            anchor_basis = self.anchor.matrix_world.to_3x3()
+            if (not all(isfinite(v) for row in self.anchor.matrix_world for v in row) or
+                    abs(anchor_basis.determinant() - 1) > 0.0001 or
+                    any(abs(anchor_basis.col[i].dot(anchor_basis.col[j]) - int(i == j)) > 0.0001
+                        for i in range(3) for j in range(3))):
+                raise ExportCancelled('Cinematic anchors must have unit scale and no shear; apply the placement using location and rotation')
             transform_scale = 0.03048 * utils.WU_SCALAR if transform_nwo.scale == 'max' else utils.WU_SCALAR
             rotation_offset = utils.blender_halo_rotation_diff(transform_nwo.forward_direction)
             anchor_matrix = (utils.halo_transforms_matrix(self.anchor.matrix_world.inverted_safe(), transform_scale, rotation_offset)
                              @ axis_rotation(-rotation_offset))
             self.anchor_location = anchor_matrix.translation.to_tuple()
-            rot = anchor_matrix.to_euler('ZYX')
-            self.anchor_ypr = degrees(rot.z), degrees(-rot.y), degrees(rot.x)
+            # Halo constructs forward as (cos(yaw)*cos(pitch),
+            # sin(yaw)*cos(pitch), sin(pitch)): Rz(yaw) @ Ry(-pitch).
+            # Native Euler tag fields store radians, unlike ManagedBlam's
+            # authoring API. Writing degrees here produces arbitrary yaw wraps.
+            rot = anchor_matrix.to_euler('XYZ')
+            self.anchor_ypr = rot.z, -rot.y, rot.x
         
 class CinematicDof:
     def __init__(self):
@@ -331,10 +342,14 @@ def cinematic_camera_projection(data: bpy.types.Camera, scene: bpy.types.Scene) 
     """Horizontal FOV in degrees and film aperture in mm for Blender's render frame."""
     if data.type != 'PERSP':
         raise ExportCancelled('Halo cinematic cameras must use perspective projection')
+    if data.shift_x or data.shift_y:
+        raise ExportCancelled('Halo cinematic cameras cannot represent lens shift; set Shift X and Y to zero')
     # view_frame resolves horizontal/vertical/auto sensor fit, render aspect
     # and pixel aspect. Camera.angle can describe the vertical sensor axis.
     corners = data.view_frame(scene=scene)
     width_at_unit_depth = (max(v.x for v in corners) - min(v.x for v in corners)) / abs(corners[0].z)
+    if not isfinite(width_at_unit_depth) or width_at_unit_depth <= 0:
+        raise ExportCancelled('Halo cinematic camera projection must have a positive field of view')
     return degrees(2 * atan(width_at_unit_depth / 2)), data.lens * width_at_unit_depth
 
 
@@ -382,6 +397,11 @@ class Frame:
         matrix_3x3 = matrix.to_3x3() @ camera_correction_matrix.inverted_safe()
         up = matrix_3x3.col[2]
         forward = matrix_3x3.col[0]
+        if (not all(isfinite(v) for row in matrix for v in row) or
+                up.length_squared < 1e-12 or forward.length_squared < 1e-12 or
+                matrix_3x3.determinant() <= 0 or
+                abs(up.normalized().dot(forward.normalized())) > 0.0001):
+            raise ExportCancelled(f'Cinematic camera {ob.name} has a degenerate, mirrored or sheared transform')
         self.up = up.normalized().to_tuple()
         self.forward = forward.normalized().to_tuple()
         if game is None:
@@ -401,15 +421,20 @@ class Frame:
             self.horizontal_fov = degrees(2 * atan(self.film_aperture / (2 * self.focal_length)))
         elif game in {'halo3', 'halo3odst'}:
             scene = scene or bpy.context.scene
-            _, blender_aperture = cinematic_camera_projection(data, scene)
-            render = scene.render
-            render_aspect = (render.resolution_x * render.pixel_aspect_x) / (render.resolution_y * render.pixel_aspect_y)
-            # Encode Blender's actual render frame into the game's final
-            # cinematic projection, including its letterbox fit. Sensor fit,
-            # both sensor dimensions and pixel aspect are already resolved by
-            # view_frame; no particular Blender sensor preset is required.
-            runtime_aperture = cinematic_runtime_aperture(film_aperture, render_aspect, game=game)
-            self.focal_length = runtime_aperture * data.lens / blender_aperture
+            blender_hfov, _ = cinematic_camera_projection(data, scene)
+            # view_frame resolves horizontal/vertical/auto sensor fit and pixel
+            # aspect; Camera.angle_x alone can use the wrong gate for this render.
+            target_hfov = radians(blender_hfov)
+            clamped_hfov = min(max(target_hfov, MIN_CINEMATIC_HFOV), MAX_CINEMATIC_HFOV)
+            if abs(target_hfov - clamped_hfov) > 1e-7:
+                utils.print_warning(f'Cinematic camera {ob.name}: horizontal FOV {blender_hfov:.3f} degrees '
+                    f'is outside the Halo projection range; exporting {degrees(clamped_hfov):.3f} degrees')
+            if not isfinite(film_aperture) or film_aperture <= 0:
+                raise ExportCancelled('The globals tag must define a positive cinematic film aperture')
+            try:
+                self.focal_length = tag_focal_from_final_hfov(clamped_hfov, film_aperture)
+            except ValueError as error:
+                raise ExportCancelled(str(error)) from error
             # Keep the authoring metadata consistent with the converted lens
             # and the game film back, rather than mixing Blender mm with
             # a game-normalized lens. Playback does not consume these fields.

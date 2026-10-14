@@ -71,6 +71,11 @@ class CinematicScenarioDocument(TagDocument):
         return zone_set_index
 
     def update_anchors(self, cinematic_scenes, corinth):
+        # H3/ODST/Reach cutscene flags only store yaw and pitch. Silently
+        # dropping roll changes the camera and actor placement in the engine.
+        for scene in cinematic_scenes:
+            if not corinth and abs(scene.anchor_ypr[2]) > 0.0001:
+                raise ValueError(f'{scene.anchor_name}: this game cannot represent anchor roll; use a yaw/pitch placement')
         root = self.tag.root()
         flags = self.block(root, 'cutscene flags')
         by_name = {scene.anchor_name: scene for scene in cinematic_scenes}
@@ -232,9 +237,13 @@ class CinematicTag(BlenderTag, TagDocument):
             flags.set_flag("Don't Force Hologram Render", scene_nwo.cinematic_dont_force_hologram_render)
             self._set_value(root, 'bink movie on disc', scene_nwo.cinematic_bink_movie_on_disc)
 
-        self._set_script(root, 'header', script_from_text(
+        header = script_from_text(
             self.corinth, scene_nwo.cinematic_header, scene_nwo.cinematic_header_text,
-            scene_nwo.cinematic_header_use_text))
+            scene_nwo.cinematic_header_use_text)
+        if self.game in {'halo3', 'halo3odst', 'halo4'} and scene_nwo.cinematic_disable_letterbox:
+            letterbox = script_from_text(self.corinth, 'cinematic_show_letterbox_immediate 0')
+            header = f'{letterbox}\n{header}' if header else letterbox
+        self._set_script(root, 'header', header)
         self._set_script(root, 'footer', script_from_text(
             self.corinth, scene_nwo.cinematic_footer, scene_nwo.cinematic_footer_text,
             scene_nwo.cinematic_footer_use_text))

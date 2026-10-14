@@ -441,6 +441,7 @@ class NWO_ExportScene(Operator, ExportHelper):
 
         self.failed = False
         self.fail_explanation = ""
+        foundry_failed = False
         
         if scene_nwo.asset_type == 'camera_track_set':
             scene_nwo.export_gr2s = False
@@ -497,7 +498,7 @@ class NWO_ExportScene(Operator, ExportHelper):
             except subprocess.CalledProcessError as e:
                 self.failed = True
                 self.fail_explanation = (
-                    f'Tool rejected the export (exit code {e.returncode}). '
+                    f'Tool failed during export (exit code {e.returncode}). '
                     'Review the Tool output above and any imported BSP error geometry for details.')
             except (FileNotFoundError, PermissionError) as e:
                 self.failed = True
@@ -506,6 +507,7 @@ class NWO_ExportScene(Operator, ExportHelper):
                 print_error("\n\nException hit. Please include in report\n")
                 traceback.print_exc()
                 self.failed = True
+                foundry_failed = True
 
             # validate that a sidecar file exists
             if not legacy and not Path(sidecar_path_full).exists():
@@ -521,43 +523,21 @@ class NWO_ExportScene(Operator, ExportHelper):
                     self.fail_explanation = getattr(result, 'lightmap_message', '') or "Lighting failed. Open Foundry Output for details"
 
             if self.failed:
-                print("FOUNDRY VERSION: ", utils.get_version_string())
-                print_warning(
-                    "Export failed. Open Foundry Output and use Copy All to include details in a report: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
-                )
-                print_error(
-                    "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                )
+                if foundry_failed:
+                    print("FOUNDRY VERSION: ", utils.get_version_string())
+                    print_warning(
+                        "Export failed. Open Foundry Output and use Copy All to include details in a report: https://github.com/ILoveAGoodCrisp/Foundry/issues\n"
+                    )
+                else:
+                    print_error("\nEXPORT FAILED\n")
+                    print_error(self.fail_explanation)
+                    self.report({'WARNING'}, self.fail_explanation)
                 
             elif self.fail_explanation:
                 print_warning("\n\nEXPORT CANCELLED\n")
                 print_error(self.fail_explanation)
                 self.report({'WARNING'}, self.fail_explanation)
 
-            elif process_results and getattr(process_results, 'sidecar_import_failed', False):
-                print(
-                    "\n-----------------------------------------------------------------------"
-                )
-                print_error("FAILED TO CREATE TAGS\n")
-                if process_results.sidecar_import_error:
-                    # print("Explanation of error:")
-                    print(process_results.sidecar_import_error)
-
-                print("\nFor further details, please review the Tool output above")
-
-                print(
-                    "-----------------------------------------------------------------------\n"
-                )
-            elif process_results and getattr(process_results, 'lightmap_failed', False):
-                
-                print(
-                    "\n-----------------------------------------------------------------------"
-                )
-                print_error(process_results.lightmap_message)
-
-                print(
-                    "-----------------------------------------------------------------------\n"
-                )
             else:
                 print(
                     "\n-----------------------------------------------------------------------"
@@ -886,6 +866,11 @@ def _schedule_scene_restore(window: bpy.types.Window, scene: bpy.types.Scene):
     bpy.app.timers.register(restore_scene, first_interval=0.0)
 
 def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth, single_animation, for_cache_build, collection_view_layer=None):
+    project = utils.get_project(scene_settings.scene_project, use_external=False)
+    if project is not None:
+        scene_settings.export_project = project.name
+        scene_settings.export_game = project.game
+
     asset_type = scene_settings.asset_type
     if asset_type == 'camera_track_set':
         # Camera tracks write native tags for every engine, without intermediates.

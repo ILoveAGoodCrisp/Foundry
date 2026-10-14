@@ -4,24 +4,52 @@ from pathlib import Path
 from shutil import copy2
 from tempfile import TemporaryDirectory
 
-from blam_tags import RealRgbColor
+from blam_tags import RealArgbColor, RealRgbColor
 
 from .backend import TagDocument
 
 
-INVALID_SHADER_PATH = Path('shaders/invalid.shader_environment')
+INVALID_SHADER_PATH = Path('shaders/invalid.shader_transparent_generic')
 
 
 def ensure_invalid_shader(tags_root):
-    """Use one grey environment shader for both BSP and model fallbacks."""
+    """Use a grey, opaque generic shader valid for both BSPs and models."""
     path = Path(tags_root) / INVALID_SHADER_PATH
     if not path.is_file():
         with TagDocument(path, tags_root=tags_root, game='halo1') as shader:
-            diffuse = shader.required_field(shader.tag.root(), 'diffuse').as_struct()
+            root = shader.tag.root()
             channel = 80 / 255
-            shader.required_field(diffuse, 'material color').set(
+            radiosity = shader.required_field(root, 'radiosity').as_struct()
+            shader.required_field(radiosity, 'tint color').set(
                 RealRgbColor(channel, channel, channel))
+            shader.required_field(radiosity, 'flags').set_flag('transparent lit', True)
+            properties = shader.required_field(root, 'properties').as_struct()
+            shader.required_field(properties, 'framebuffer blend function').set('alpha blend')
+            stages = shader.block(root, 'stages')
+            stage = stages[stages.add()]
+            color = RealArgbColor(1., channel, channel, channel)
+            for name in ('color0 animation lower bound', 'color0 animation upper bound'):
+                shader.required_field(stage, name).set(color)
+            shader.required_field(stage, 'color0 animation function').set('one')
+            shader.required_field(stage, 'input a').set('constant color 0')
+            shader.required_field(stage, 'input b').set('vertex color 0 diffuse light')
+            shader.required_field(stage, 'input a alpha').set('one')
+            shader.required_field(stage, 'input b alpha').set('one')
+            # Output 1 is scratch register 0, the final color/alpha output.
+            shader.required_field(stage, 'output ab').set(1)
+            shader.required_field(stage, 'output ab alpha').set(1)
             shader.tag_has_changes = True
+    # Retire old shared fallbacks without destroying their saved contents.
+    # Their common basename would let Tool select the wrong shader class.
+    for extension in ('.shader_environment', '.shader_model'):
+        old = path.with_suffix(extension)
+        if old.is_file():
+            backup = old.with_name(old.name + '.foundry-backup')
+            index = 1
+            while backup.exists():
+                backup = old.with_name(old.name + f'.foundry-backup-{index}')
+                index += 1
+            old.rename(backup)
     return path
 
 

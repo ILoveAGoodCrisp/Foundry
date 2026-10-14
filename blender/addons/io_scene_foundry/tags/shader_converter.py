@@ -585,7 +585,6 @@ class ShaderTag(BlenderTag, TagDocument):
                 # Older ODST imports used H3 entry groups. Keep their named
                 # source-option export path until the material is reimported.
                 if (self.game == 'halo3odst' and group_name == 'foundry_h3.' + family
-                        and group_node.get('h3_source_options')
                         and group_node.get('foundry_source_game', 'halo3odst') == 'halo3odst'):
                     return True
         if isinstance(expected, str):
@@ -1656,7 +1655,7 @@ class ShaderTag(BlenderTag, TagDocument):
         extensions = HALO1_EMISSIVE_SHADER_EXTENSIONS if self.game == 'halo1' else {'.shader'}
         if self.system_path.suffix.casefold() not in extensions:
             return
-        power, color = read_material_emissive(self.system_path, self.tags_dir, self.game)
+        power, color, half_life = read_material_emissive(self.system_path, self.tags_dir, self.game, include_half_life=True)
         prop = next((p for p in blender_material.nwo.material_props if p.type == 'emissive'), None)
         if prop is None:
             if power <= 0:
@@ -1665,13 +1664,12 @@ class ShaderTag(BlenderTag, TagDocument):
             prop.type = 'emissive'
         prop.material_lighting_emissive_power = power
         prop.material_lighting_emissive_color = color
+        if self.game == 'halo2':
+            from .. import import_transform
+            prop.material_lighting_emissive_half_life = import_transform.distance(half_life)
         prop.material_lighting_attenuation_falloff = 0.0
         prop.material_lighting_attenuation_cutoff = 0.0
-        uses_h2_group = self.game == 'halo2' and blender_material.use_nodes and any(
-            node.type == 'GROUP' and node.node_tree is not None
-            and (node.node_tree.name == 'Basic H2 shader' or node.node_tree.get('h2_template'))
-            for node in blender_material.node_tree.nodes)
-        if not uses_h2_group and (self.game != 'halo1' or H1_WRITE_RADIOSITY_TO_NODES):
+        if self.game != 'halo1' or H1_WRITE_RADIOSITY_TO_NODES:
             utils.update_classic_emissive_material(blender_material, self.game, arrange_nodes=False)
 
     def _setup_sequence_driver(self, tree, image_node, sequence_length, function=None):
@@ -1987,7 +1985,6 @@ class ShaderTag(BlenderTag, TagDocument):
                     clock.location = (-400, 480)
                     tree.links.new(clock.outputs['Seconds'], group.inputs['Animation Time'])
             illumination_source = enum_name(illumination, 'color source')
-            group['halo1_self_illumination_color_source'] = illumination_source
             attribute_name = {'a': 'Primary Color', 'b': 'Secondary Color',
                               'c': 'Tertiary Color', 'd': 'Quaternary Color'}.get(illumination_source)
             model_input('Use Self-Illumination Color Source', attribute_name is not None)

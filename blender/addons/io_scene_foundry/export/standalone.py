@@ -24,6 +24,8 @@ from ..tools.asset_types import AssetType
 from .legacy import LegacyExportScene, write_outputs
 from .export_info import ObjectType, MeshType
 from .virtual_geometry import VirtualAnimation, VirtualScene
+from .pointcloud import is_decorator_geometry, prepare_pointcloud_proxy
+from ..constants import GENERAL_OBJECTS
 
 
 ANIMATION_FORMATS = (
@@ -64,7 +66,7 @@ def export_objects(context, options):
         if (not options.use_selection or ob.select_get())
         and (not options.use_visible or ob.visible_get(view_layer=context.view_layer))
         and (collection_objects is None or ob in collection_objects)
-        and ob.type in {'MESH', 'CURVE', 'SURFACE', 'FONT', 'META', 'EMPTY', 'ARMATURE', 'LIGHT'}
+        and ob.type in GENERAL_OBJECTS | {'ARMATURE'}
     }
 
 
@@ -140,7 +142,6 @@ class StandaloneScene(LegacyExportScene):
         self.warned_shader_paths = set()
         self.shader_name_cache = {}
         self.halo1_two_sided_shaders = set()
-        self.jms_source_nodes = {}
         self.new_scene('standalone')
         self.original_subframe = context.scene.frame_subframe
         self.collection_properties = {}
@@ -185,10 +186,14 @@ class StandaloneScene(LegacyExportScene):
         self.collection_map = utils.create_parent_mapping(self.context)
         self.depsgraph = self.context.evaluated_depsgraph_get()
         self.export_objects = []
+        pointcloud_meshes = {}
+        preview_sources = utils.decorator_preview_sources()
         for inst in self.depsgraph.object_instances:
             original = inst.object.original
             scope_object = inst.parent.original if inst.is_instance else original
             if scope_object not in self.objects:
+                continue
+            if is_decorator_geometry(inst, preview_sources):
                 continue
             if inst.is_instance:
                 original = inst.instance_object.original
@@ -196,7 +201,7 @@ class StandaloneScene(LegacyExportScene):
                 if original not in self.export_objects:
                     self.export_objects.append(original)
                 continue
-            if original.type not in {'MESH', 'CURVE', 'SURFACE', 'FONT', 'META', 'EMPTY', 'LIGHT'}:
+            if original.type not in GENERAL_OBJECTS:
                 continue
             if original.is_instancer and original.instance_collection and not original.nwo.marker_instance:
                 continue
@@ -208,6 +213,9 @@ class StandaloneScene(LegacyExportScene):
             proxy.matrix_world = inst.matrix_world.copy()
             proxy.eval_ob = inst.instance_object if inst.is_instance else inst.object
             proxy.modifiers = tuple(proxy.eval_ob.modifiers)
+            if original.type == 'POINTCLOUD' and not prepare_pointcloud_proxy(
+                    proxy, inst.object, pointcloud_meshes, self.temp_meshes):
+                continue
             self.collection_properties.setdefault(original,
                 (original.nwo.collection_region, original.nwo.collection_permutation))
             original.nwo.collection_region = ''
@@ -268,7 +276,6 @@ class StandaloneScene(LegacyExportScene):
         self.bone_index = {b.name: i for i, b in enumerate(self.bones)}
         self.bone_parents = {name: self.bone_index.get(parent, -1) for name, parent in parents_by_name.items()}
         self.bone_world = {b.name: b.matrix_world for b in self.bones}
-        self.source_bone_transforms = {}
 
     def legacy_shader_name(self, material):
         # File exports do not require a tags directory or modify shader collections.
@@ -351,7 +358,7 @@ class StandaloneScene(LegacyExportScene):
                 'structure' if self.supports_bsp else 'render', include_physics=True, filter_markers=False)
         elif options.format == 'ass':
             asset = self.ass_asset(filepath.stem, geometry, markers, self.lights,
-                                   filter_region=False, preserve_imported=False)
+                                   filter_region=False, filter_markers=False)
         elif options.format == 'jma':
             asset = self.jma_text(self.sample_loaded_animation(options))
         else:

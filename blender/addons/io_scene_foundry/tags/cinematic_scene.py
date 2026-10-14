@@ -4,7 +4,7 @@ from mathutils import Matrix, Vector
 
 from .cinematic_lighting import CinematicLightingTag
 
-from .cinematic import CinematicCameraDocument, CinematicSceneDataTag, cinematic_runtime_aperture
+from .cinematic import CinematicCameraDocument, CinematicSceneDataTag, cinematic_blender_lens
 from .blender import BlenderTag
 from .cinematic_script import encode_script_data
 from .cinematic_extra import import_extra_camera_tracks, read_texture_camera_settings
@@ -720,21 +720,17 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                 
             lenses = [cf.lens for cf in cam_frames]
             keyframe_lenses = len(set(lenses)) > 1
-            shot_camera_data.lens = lenses[0]
             shot_camera_data.sensor_width = film_aperture
             if self.game in {'halo3', 'halo3odst'}:
-                render = blender_scene.render
-                render_aspect = (render.resolution_x * render.pixel_aspect_x) / (render.resolution_y * render.pixel_aspect_y)
-                # Use the final cinematic gate, not the observer's intermediate
-                # 4:3 gate, when constructing the Blender camera.
-                if self.game == 'halo3':
-                    shot_camera_data.sensor_width = cinematic_runtime_aperture(film_aperture, render_aspect, game=self.game)
-                    shot_camera_data.sensor_fit = 'HORIZONTAL'
-                else:
-                    # Preserve ODST's previous observer gate; its renderer
-                    # gates the additional widescreen correction separately.
-                    shot_camera_data.sensor_height = film_aperture / (4 / 3)
-                    shot_camera_data.sensor_fit = 'VERTICAL'
+                # A 36 mm sensor keeps the complete clamped FOV range within
+                # Blender's 1–5000 mm lens limits, including the narrowest view.
+                shot_camera_data.sensor_width = 36.0
+                # H3/ODST angle scaling makes this nonlinear; convert every lens
+                # key rather than approximating the projection with a sensor size.
+                lenses = [cinematic_blender_lens(lens, shot_camera_data.sensor_width, film_aperture,
+                          16 / 9, game=self.game) for lens in lenses]
+                shot_camera_data.sensor_fit = 'HORIZONTAL'
+            shot_camera_data.lens = lenses[0]
             if keyframe_lenses:
                 camera_data_action = bpy.data.actions.new(f"{shot_camera.name}_data")
                 slot = camera_data_action.slots.new('CAMERA', shot_camera_data.name)
@@ -748,7 +744,7 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                 
             if keyframe_matrices or keyframe_lenses:
                 shot_frame = frame
-                for cf in cam_frames:
+                for cf, lens in zip(cam_frames, lenses):
                     if keyframe_matrices:
                         loc, rot, _ = cf.matrix.decompose()
                         for i in range(3):
@@ -758,7 +754,7 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                             rot_curves[i].keyframe_points.insert(shot_frame, rot[i], options={'FAST'})
                         
                     if keyframe_lenses:
-                        lens_curve.keyframe_points.insert(shot_frame, cf.lens, options={'FAST'})
+                        lens_curve.keyframe_points.insert(shot_frame, lens, options={'FAST'})
                         
                     shot_frame += 1
 

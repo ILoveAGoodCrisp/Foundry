@@ -186,6 +186,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                             prop.type = 'emissive'
                         prop.material_lighting_emissive_power = emissive[0]
                         prop.material_lighting_emissive_color = emissive[1]
+                        if self.game == 'halo2' and len(emissive) > 2:
+                            prop.material_lighting_emissive_half_life = import_transform.distance(emissive[2])
                     elif self.game != 'halo1':
                         emissives[index] = emissive
             materials[index] = material
@@ -338,10 +340,10 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         if self.game == 'halo2':
             from .halo1_emissive import read_material_emissive
             try:
-                power, color = read_material_emissive(shader_path, self.tags_dir, 'halo2')
+                power, color, half_life = read_material_emissive(shader_path, self.tags_dir, 'halo2', include_half_life=True)
             except FileNotFoundError:
                 return None
-            return (power, color) if power > 0 else None
+            return (power, color, half_life) if power > 0 else None
         path = Path(shader_path)
         if not path.is_absolute():
             path = Path(self.tags_dir) / path
@@ -409,7 +411,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         from .portal_reconstruction import (
             prepare_portal_import, dissolve_portal_seams, rectangularize_portal,
             stabilize_portal_tessellation, structure_aligned_portal_indices, snap_portal_vertices,
-            recover_solid_portal_outline,
+            recover_solid_portal_outline, restore_halo1_portal_junctions,
         )
         if collision_tree is None:
             collision_tree = self.portal_collision_tree()
@@ -457,8 +459,6 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             record = group[0]
             ob = Portal(record, group[1:], preserve_coordinates=record.index in preserved).create()
             scale = 100 * import_transform.scale_factor()
-            prefix = 'halo1_' if self.game == 'halo1' else 'tag_'
-            ob[prefix+'portal_structure_aligned'] = record.index in preserved
             if record.index not in preserved:
                 dissolve_portal_seams(ob.data, group, source_records, is_solid, scale)
                 if (rectangularize_portal(ob.data, group, source_records, is_solid, scale)
@@ -467,9 +467,6 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 stabilize_portal_tessellation(ob, scale)
             # The compiled tag does not retain the authored exact flag.
             # Import ordinary portals rather than inventing that setting.
-            ob[prefix+'source_portal_index'] = record.index
-            ob[prefix+'source_portal_indices'] = [piece.index for piece in group]
-            ob[prefix+'source_bsp'] = self.path
             portals_collection.objects.link(ob)
             objects.append(ob)
         # if recovered_outline_count:
@@ -478,6 +475,10 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         # and reconstruction. A tag-space native contact can differ from the
         # recovered renderer; the finished mesh is what ordinary export uses.
         snapped = snap_portal_vertices(objects, structure_objects, 0.01 * 100 * import_transform.scale_factor())
+        if self.game == 'halo1':
+            restore_halo1_portal_junctions(
+                objects, source_records, 100 * import_transform.scale_factor(),
+                import_transform.rotation_matrix())
         # if snapped:
         #     utils.print_step(f'Aligned {snapped} portal vertices to structure')
         return objects
@@ -894,7 +895,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
             
             # separate out the seams
-            seam_material_indices = {idx for idx, m in enumerate(ob.data.materials) if m.name == "+seam"}
+            seam_material_indices = {idx for idx, m in enumerate(ob.data.materials) if m is not None and m.name == "+seam"}
             if seam_material_indices:
                 if seam_collection is None:
                     seam_collection = bpy.data.collections.new(name=f"{self.tag_path.ShortName}_seams")

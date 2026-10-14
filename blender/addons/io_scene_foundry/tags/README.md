@@ -1,5 +1,8 @@
 # blam-tags migration
 
+See [Halo 3 and ODST cinematic camera conversion](H3_CINEMATIC_CAMERAS.md) for camera
+projection, anchor units and axes, executable evidence, and regression coverage.
+
 See [migration status](MIGRATION_STATUS.md) for the remaining work and dependency audit.
 
 See [Halo Reach animation resources](ANIMATION_RESOURCES_REACH.md) for the

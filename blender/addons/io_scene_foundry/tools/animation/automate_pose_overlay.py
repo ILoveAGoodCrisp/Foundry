@@ -848,7 +848,7 @@ def convert_legacy_pose_overlays(armature: bpy.types.Object, scene: bpy.types.Sc
             
 class NWO_OT_ConvertLegacyPoseOverlays(bpy.types.Operator):
     bl_idname = 'nwo.convert_legacy_pose_overlays'
-    bl_label = 'Convert'
+    bl_label = 'Convert Legacy Pose Overlays'
     bl_description = 'Converts legacy pose overlay animations (those used in H1 - ODST) to the new format'
     bl_options = {'REGISTER', 'UNDO'}
 

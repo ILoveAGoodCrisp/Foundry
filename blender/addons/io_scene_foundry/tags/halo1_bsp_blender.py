@@ -15,35 +15,6 @@ from .connected_geometry import StructureMarker
 from .backend import TagDocument
 
 
-def attach_source_attributes(mesh, record):
-    """Keep compiled provenance in preservation imports without altering it."""
-    source = record.halo1_source
-    if not source:
-        return
-    point_keys = ('vertex_index', 'vertex_lightmap', 'vertex_material')
-    face_keys = ('surface', 'lightmap', 'material', 'bitmap', 'collision_surface', 'collision_bsp')
-    for domain, keys in (('POINT', point_keys), ('FACE', face_keys)):
-        for key in keys:
-            if key not in source:
-                continue
-            attribute = mesh.attributes.new(f'halo1_source_{key}', 'INT', domain)
-            if len(attribute.data) != len(source[key]):
-                raise ValueError(f'{mesh.name}: compiled {key} count changed during import')
-            attribute.data.foreach_set('value', source[key])
-    loop_indices = np.empty(len(mesh.loops), dtype=np.int32)
-    mesh.loops.foreach_get('vertex_index', loop_indices)
-    for key in ('tangents', 'binormals', 'lightmap_normals'):
-        values = getattr(record, key)
-        if not values:
-            continue
-        attribute = mesh.attributes.new(f'halo1_source_{key}', 'FLOAT_VECTOR', 'CORNER')
-        attribute.data.foreach_set('vector', np.asarray(values, dtype=np.float32)[loop_indices].ravel())
-    for key in ('spans', 'cluster_memberships', 'rings'):
-        if key in source:
-            mesh[f'halo1_source_{key}'] = json.dumps(source[key], separators=(',', ':'))
-    mesh['halo1_source_tag'] = source['tag_path']
-    mesh['halo1_source_lightmap_bitmap'] = source.get('lightmap_bitmap', '')
-    mesh['halo1_preserved'] = True
 
 
 def material(name):
@@ -420,8 +391,6 @@ def create_helpers(tag, collection):
             face.reverse()
         vertices, faces = fog_geometry(vertices, face)
         ob = mesh_object(f'+fog_{index}', vertices, faces, 'planar_fog_volume', '+fog')
-        ob['h1_front_region'] = int(tag.value(fog, 'front region'))
-        ob['h1_plane'] = plane
 
     for index, weather in enumerate(tag.block(root, 'weather polyhedra')):
         planes = [plane_values(tag.value(p, 'plane')) for p in tag.block(weather, 'planes')]
@@ -448,8 +417,6 @@ def create_helpers(tag, collection):
                              'weather_polyhedron', '+weather')
         finally:
             bm.free()
-        ob['h1_bounding_sphere_center'] = tuple(tag.value(weather, 'bounding sphere center').to_array())
-        ob['h1_bounding_sphere_radius'] = float(tag.value(weather, 'bounding sphere radius'))
 
     for record in tag.markers():
         ob = StructureMarker(record).to_object()

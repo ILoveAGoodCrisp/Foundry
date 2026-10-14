@@ -143,6 +143,10 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
                 attenuation_falloff=float(self.value(element, 'attenuation falloff')),
                 attenuation_cutoff=float(self.value(element, 'attenuation cutoff')),
                 bounce_ratio=0.0 if bounce is None else float(bounce.value),
+                use_attenuation=flags.get_flag('use attenuation'),
+                attenuation_world_units=self.game in {'halo3', 'halo3odst'},
+                frustum_blend=(float(self.value(element, 'frustum blend'))
+                               if element.field('frustum blend') is not None else 0.0),
             ))
         return records
 
@@ -290,7 +294,7 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
             self._set(element, 'shape', light.shape)
             self._set(element, 'color', light.color)
             self._set(element, 'intensity', light.intensity)
-            if light.type == 1:
+            if light.type in {1, 2}:
                 self._set(element, 'hotspot size', light.hotspot_size)
                 self._set(element, 'hotspot falloff size', light.hotspot_cutoff)
             self._set(element, 'near attenuation bounds',
@@ -298,8 +302,8 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
             self._set(element, 'far attenuation bounds',
                       [light.far_attenuation_start, light.far_attenuation_end])
             flags = self.required_field(element, 'flags')
-            flags.set_flag('use near attenuation', light.near_attenuation_end > 0)
-            flags.set_flag('use far attenuation', True)
+            flags.set_flag('use near attenuation', light.use_near_attenuation)
+            flags.set_flag('use far attenuation', light.use_far_attenuation)
             self._set(element, 'aspect', light.aspect)
 
     def _write_halo3_light_instances(self, light_instances, light_definitions):
@@ -657,7 +661,7 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
                     if gel_path not in gobo_images:
                         gobo_images[gel_path] = (bitmap_to_image(gobo_tag_path.Filename).image
                                                  if self.path_exists(gobo_tag_path) else None)
-                    utils.make_halo_light(blender_light, gobo_image=gobo_images[gel_path])
+                    utils.make_halo_light(blender_light, gobo_image=gobo_images[gel_path], game=self.game)
                 light_variants[variant_key] = blender_light
             blender_light = light_variants[variant_key]
 
@@ -743,9 +747,20 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
             if 'invere squared falloff' in flags.options().names and flags.get_flag("invere squared falloff"):
                 self.inverse_squared_lights.add(blender_light)
             elif 'invere squared falloff' not in flags.options().names:
-                # H3/ODST have no inverse-square mode. Initialize the definition
-                # as a Halo light before it is shared or copied by instances.
-                utils.make_halo_light(blender_light)
+                # H3 always has inverse-square spreading, with optional ramps.
+                nwo.light_preview_model = 'H3_BAKED'
+                nwo.light_source_type = blender_light.type
+                nwo.light_use_near_attenuation = flags.get_flag('use near attenuation')
+                nwo.light_use_far_attenuation = flags.get_flag('use far attenuation')
+                nwo.light_near_attenuation_start, nwo.light_near_attenuation_end = [
+                    a * attenuation_scale for a in self._data(element, 'near attenuation bounds')]
+                if blender_light.type == 'SPOT':
+                    nwo.light_cone_angle = blender_light.spot_size
+                    nwo.light_hotspot_angle = self._data(element, 'hotspot size')
+                elif blender_light.type == 'SUN':
+                    nwo.light_directional_hotspot = self._data(element, 'hotspot size') * attenuation_scale
+                    nwo.light_directional_falloff = self._data(element, 'hotspot falloff size') * attenuation_scale
+                utils.make_halo_light(blender_light, game=self.game)
 
             definitions[element_index] = blender_light
 

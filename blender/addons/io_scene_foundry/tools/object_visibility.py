@@ -1,6 +1,7 @@
 """Object types available in the Sets Manager visibility row."""
 
 from ..constants import object_asset_validation, object_game_validation
+from ..game_capabilities import mesh_type_supported, marker_type_supported
 
 
 # Keep the order of the visibility buttons stable, including types unavailable
@@ -69,7 +70,7 @@ def visibility_items(asset_type, game):
                      and engine in object_game_validation.get(object_type, ()))
             if category == 'mesh':
                 if kind == 'weather_polyhedron':
-                    valid = valid and game in {'halo1', 'halo2'}
+                    valid = valid and game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
                 elif kind in {'poop_vertical_rain_sheet', 'poop_rain_blocker'}:
                     valid = valid and game == 'reach'
                 elif kind == 'boundary_surface':
@@ -79,9 +80,13 @@ def visibility_items(asset_type, game):
             elif kind == 'airprobe':
                 valid = (asset_type in {'scenario', 'prefab', 'resource', 'multi_prefab'}
                          or (engine == 'corinth' and asset_type in {'model', 'multi_model'}))
-                valid = valid and game not in {'halo1', 'halo2', 'halo3', 'halo3odst'}
+                valid = valid and game not in {'halo1', 'halo2'}
             elif kind == 'physics_constraint':
                 valid = valid and game != 'halo1'
+        if category == 'mesh':
+            valid = valid and mesh_type_supported(kind, game, asset_type)
+        elif category == 'marker':
+            valid = valid and marker_type_supported(kind, game, asset_type)
         if not valid:
             continue
         if category == 'mesh' and kind == 'default':

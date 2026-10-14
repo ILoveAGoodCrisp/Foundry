@@ -70,10 +70,6 @@ class CinematicLight:
         
     def _set_metadata(self, ob: bpy.types.Object, light_type: str):
         ob.nwo.is_cinematic_light = True
-        ob["cinematic_light_type"] = light_type
-        ob["cinematic_light_direction"] = self.direction_angle
-        ob["cinematic_light_front_back"] = self.front_back_angle
-        ob["cinematic_light_distance"] = self.distance
 
     def to_blender(self, armature: bpy.types.Object, marker: bpy.types.Object, light_name: str):
         data = bpy.data.lights.new(light_name, 'SUN')
@@ -111,9 +107,6 @@ class DynamicLight(CinematicLight):
             parent_matrix = parent_marker.matrix_world if parent_marker is not None else _root_bone_matrix(armature)
             ob.matrix_world = parent_matrix @ import_transform.transform_matrix(self.matrix, rotate=False)
         self._set_metadata(ob, "dynamic")
-        ob["cinematic_light_follow_object"] = self.follow_object
-        ob["cinematic_light_use_marker"] = self.use_marker
-        ob["cinematic_light_tag"] = _tag_path_to_string(self.light_tag)
         
         return ob
     

@@ -1,9 +1,8 @@
 """Native ASS scene adapter, sharing Foundry geometry/material construction with JMS."""
 from collections import defaultdict
-from dataclasses import asdict, replace
+from dataclasses import replace
 from math import radians
 from pathlib import Path
-import json
 import re
 
 import bpy
@@ -11,9 +10,10 @@ from mathutils import Matrix, Quaternion, Vector
 
 from .ass_format import ASS, ASSError
 from .coordinates import axis_rotation
-from .references import ass_reference_type, ass_reference_name
+from .references import ass_reference_type, ass_reference_name, embedded_game_object_tag
 from .jms_format import JMS, Material, Node, Transform, Shape
-from .jms_importer import JMSImporter, is_frame_name, canonical_bone_name
+from .jms_importer import JMSImporter, TagBoneMappingError, is_frame_name, canonical_bone_name
+from .import_info import BSP_TAG_KINDS, MODEL_TAG_KINDS, main_frame_scope
 from .. import utils, marker_axis
 from ..constants import face_prop_game_supported
 from ..uv_channels import store_uv_w
@@ -21,9 +21,14 @@ from ..uv_channels import store_uv_w
 
 class ASSImporter(JMSImporter):
     def __init__(self, owner, path, legacy_type, *, parent_collection=None,
-                 tag_armature=None, geometry_only=False, allowed_region_permutations=(), shader_paths=None):
+                 tag_armature=None, geometry_only=False, allowed_region_permutations=(), shader_paths=None,
+                 import_info_kind='', render_only=False):
         self.owner, self.path = owner, Path(path)
         self.ass = ASS.from_file(path)
+        self.import_info_kind = import_info_kind
+        self.render_only = render_only
+        self.source_node_scope = None
+        self.used_material_indices = None
         self.scale = owner.scale_factor
         self.rotation = axis_rotation(owner.from_x_rot)
         self.objects, self.materials, self.created_materials, self.props = [], {}, [], {}
@@ -39,6 +44,10 @@ class ASSImporter(JMSImporter):
         weighted = {b for i in self.ass.instances for b in i.bones if b != -1}
         self.is_model = legacy_type == 'model' or (legacy_type == 'auto' and (
             bool(weighted) or self.path.parent.name.lower() in {'render', 'collision', 'physics'}))
+        if import_info_kind in BSP_TAG_KINDS:
+            self.is_model = False
+        elif import_info_kind in MODEL_TAG_KINDS:
+            self.is_model = True
         self.bone_instances = weighted if self.is_model else set()
         if self.is_model:
             self.bone_instances |= {index for index, i in enumerate(self.ass.instances)
@@ -70,7 +79,7 @@ class ASSImporter(JMSImporter):
                             roots.append(candidate)
                     ancestor = roots[0] if len(roots) == 1 else -1
                 if ancestor == -1:
-                    raise ASSError(f'{self.path}: weighted ASS bone absent from render model: '
+                    raise TagBoneMappingError(f'{self.path}: weighted ASS bone absent from render model: '
                                    f'{self.ass.instances[index].name}')
                 self.bone_aliases[index] = ancestor
             self.bone_instances = matched
@@ -80,6 +89,20 @@ class ASSImporter(JMSImporter):
             i = self.ass.instances[index]
             matrix = self.ass_matrix(i.local)
             self.world[index] = self.world[i.parent] @ matrix if i.parent != -1 else matrix
+        if import_info_kind and not self.is_model:
+            self.source_node_scope = main_frame_scope(
+                [i.name for i in self.ass.instances], [i.parent for i in self.ass.instances],
+                self.order, [i.unique_id for i in self.ass.instances])
+        if import_info_kind:
+            self.used_material_indices = set()
+            for index in self.order:
+                if not self.includes_instance(index):
+                    continue
+                instance = self.ass.instances[index]
+                if instance.geometry != -1:
+                    geometry = self.ass.geometries[instance.geometry]
+                    self.used_material_indices.add(geometry.material)
+                    self.used_material_indices.update(t.material for t in geometry.triangles)
         materials = []
         for m in self.ass.materials:
             region, permutation = m.region_permutation() if self.is_model else (self.path.stem, 'default')
@@ -111,28 +134,26 @@ class ASSImporter(JMSImporter):
         return ob
 
     def store_metadata(self):
-        from uuid import uuid4
-        self.source_key = str(uuid4())
-        self.collection['ass_source_key'] = self.source_key
-        self.collection['ass_source_game'] = self.owner.game
-        self.collection['ass_version'] = self.ass.version
-        self.collection['ass_header'] = json.dumps(self.ass.header)
-        self.collection['ass_materials'] = json.dumps([asdict(m) for m in self.ass.materials])
-        if self.ass.invalid_uv_components:
-            self.collection['ass_repaired_uv_components'] = self.ass.invalid_uv_components
-            # utils.print_warning(f'{self.path.name}: replaced {self.ass.invalid_uv_components} non-finite UV components with zero (first at line {self.ass.first_invalid_uv_line})')
+        # ASS records are import-time data. Blender objects and Foundry
+        # properties are the only persisted authoring state.
+        pass
 
     def build_materials(self):
         from ..tools.importer import JMSMaterialSlot
         self.global_materials = {}
         for index, source in enumerate(self.ass.materials):
+            if self.used_material_indices is not None and index not in self.used_material_indices:
+                continue
             self.props[index] = JMSMaterialSlot.from_name(source.name)
-            name = re.sub(r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+', '', source.name).strip()
+            name = re.sub(r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+', '', source.name,
+                          flags=re.IGNORECASE).strip()
             parts = name.split(maxsplit=1)
             if self.is_model and len(parts) > 1:
                 self.global_materials[index], name = parts
             name = utils.base_material_name(name, True).lower() or 'default'
             path = self.source_shader_path(name)
+            if Path(path).suffix.lower() in {'.shader_water', '.shader_transparent_water'}:
+                self.props[index].water_surface = True
             display_name = Path(path).stem if path else name
             self.materials[index] = self.material(display_name, path, name)
             self.props[index].material.name = name
@@ -142,6 +163,8 @@ class ASSImporter(JMSImporter):
                  'conveyor', 'portal_one_way', 'portal_door', 'portal_vis_blocker',
                  'ignored_by_lightmaps', 'blocks_sound', 'decal_offset', 'slip_surface')
         for index, material in enumerate(self.ass.materials):
+            if self.used_material_indices is not None and index not in self.used_material_indices:
+                continue
             p = self.props[index]
             p.emissive_color, p.emissive_quality = (1, 1, 1), 1.0
             p.emissive_per_unit, p.emissive_shader_gel, p.emissive_focus = False, False, 0.0
@@ -214,22 +237,14 @@ class ASSImporter(JMSImporter):
     def apply_materials(self, ob, faces_by_material):
         super().apply_materials(ob, faces_by_material)
         if -1 in faces_by_material:
-            # ASS -1 means an unassigned authoring face, not a default shader.
-            # Preserve that distinction through the display material fallback.
-            mask = [False] * len(ob.data.polygons)
+            slot = len(ob.data.materials)
+            ob.data.materials.append(None)
             for face in faces_by_material[-1]:
-                mask[face] = True
-            attribute = ob.data.attributes.new('ass_unassigned_material', 'BOOLEAN', 'FACE')
-            attribute.data.foreach_set('value', mask)
+                ob.data.polygons[face].material_index = slot
         if self.active_kind == 'collision' and not self.is_model:
             if not any(prop.type == 'face_mode' for prop in ob.data.nwo.face_props):
                 utils.add_face_prop(ob.data, 'face_mode').face_mode = 'collision_only'
-        sphere_mask = [False] * len(ob.data.polygons)
         for index, faces in faces_by_material.items():
-            props = self.props.get(index)
-            if props and props.collision_only and props.sphere_collision_only:
-                for face in faces:
-                    sphere_mask[face] = True
             game = getattr(self.owner, 'game', None)
             if (index in self.props and self.props[index].ignore_default_resolution and faces
                     and (not game or face_prop_game_supported('lightmap_ignore_default_resolution_scale', game))):
@@ -243,9 +258,6 @@ class ASSImporter(JMSImporter):
                 for face in faces:
                     mask[face] = True
                 utils.add_face_prop(ob.data, 'global_material', mask).global_material = self.global_materials[index]
-        if any(sphere_mask):
-            attribute = ob.data.attributes.new('ass_sphere_collision', 'BOOLEAN', 'FACE')
-            attribute.data.foreach_set('value', sphere_mask)
 
     def collision_material_name(self, index, material):
         return self.global_materials.get(index, material.name)
@@ -268,12 +280,12 @@ class ASSImporter(JMSImporter):
         if self.active_kind == 'instance' and props and props.mesh_type != 'default':
             kind = props.mesh_type
             return ('default' if kind == 'weather_polyhedron'
-                    and getattr(self.owner, 'game', None) != 'halo2' else kind)
+                    and getattr(self.owner, 'game', None) not in {'halo2', 'halo3', 'halo3odst'} else kind)
         if self.active_kind:
             return self.active_kind
         kind = props.mesh_type if props else 'default'
         return ('default' if kind == 'weather_polyhedron'
-                and getattr(self.owner, 'game', None) != 'halo2' else kind)
+                and getattr(self.owner, 'game', None) not in {'halo2', 'halo3', 'halo3odst'} else kind)
 
     def mesh_created(self, ob, source_indices):
         self.source_indices[ob] = source_indices
@@ -285,6 +297,8 @@ class ASSImporter(JMSImporter):
 
     def role(self, instance, geometry):
         name = instance.name
+        if not self.is_model and self.owner.game in {'halo3', 'halo3odst'} and name.startswith('~'):
+            return 'water_physics'
         if name.startswith('@'):
             return 'collision'
         if name.startswith('$') or geometry.kind in {'SPHERE', 'BOX', 'PILL'}:
@@ -368,6 +382,8 @@ class ASSImporter(JMSImporter):
         self.build_armature()
         self.build_materials()
         for index in self.order:
+            if not self.includes_instance(index):
+                continue
             instance = self.ass.instances[index]
             if index in self.bone_map:
                 continue
@@ -385,25 +401,29 @@ class ASSImporter(JMSImporter):
             else:
                 anchor.parent = self.anchors.get(instance.parent)
             anchor.matrix_world = self.scene_matrix(self.world[index])
-            anchor['ass_instance'] = json.dumps(asdict(instance))
             if is_frame_name(instance.name):
+                # Tool treats frames as hierarchy nodes even when Max exports
+                # their helper display mesh. Import-info must match direct ASS
+                # import and never turn that helper into structure/collision.
                 if self.geometry_only:
                     continue
                 anchor.name = instance.name
                 anchor.empty_display_type = 'ARROWS'
                 anchor.empty_display_size = max(self.scale, 0.001)
-                anchor['ass_geometry'] = instance.geometry
-                anchor['ass_identifier'] = str(instance.unique_id)
                 self.frame_instances.add(index)
                 self.instance_objects[index] = [anchor]
                 continue
             if instance.unique_id == -1:
                 continue
             geometry = self.ass.geometries[instance.geometry] if instance.geometry != -1 else None
-            # XREF meshes can contain the complete structural surface as well
-            # as the authoring reference. Replacing that payload with a marker
-            # removes BSP walls (e.g. Old Mombasa's hotel_hall) on export.
+            # Structural XREFs can carry the complete BSP surface. A reference
+            # to an existing game-object asset instead carries preview geometry
+            # (Flood Voi's floodballs), which must not become static BSP walls.
             reference_type = ass_reference_type(instance.name)
+            embedded_tag = (self.embedded_game_object_tag(geometry)
+                            if geometry is not None and not self.is_model and not reference_type else '')
+            if embedded_tag:
+                reference_type = Path(embedded_tag).suffix
             reference_only = bool(reference_type or (geometry and geometry.kind == 'MESH' and geometry.xref_path
                                   and not (geometry.vertices and geometry.triangles)))
             if self.geometry_only and (instance.name.startswith('#') or geometry is None
@@ -411,6 +431,11 @@ class ASSImporter(JMSImporter):
                 continue
             matrix = self.scene_matrix(self.world[index] @ self.ass_matrix(instance.pivot))
             if reference_only:
+                if self.owner.game == 'halo2':
+                    # H2 Tool places the referenced object at its node transform.
+                    # The object-offset pivot belongs only to the embedded preview
+                    # mesh; applying it rotates/offsets devices in the rebuilt BSP.
+                    matrix = self.scene_matrix(self.world[index])
                 # Referenced models already use the scene's forward axes.
                 # Convert the marker's local basis as well as its world basis.
                 matrix = marker_axis.local_axes(matrix, self.owner.from_x_rot)
@@ -418,7 +443,9 @@ class ASSImporter(JMSImporter):
                 from ..tools.importer import XREF
                 path = geometry.xref_path if geometry else ''
                 xref_name = geometry.xref_name if geometry else ''
-                if reference_type or not self.is_model:
+                if embedded_tag:
+                    tag, fallback = embedded_tag, ''
+                elif reference_type or not self.is_model:
                     reference_type = reference_type or '.scenery'
                     from pathlib import PureWindowsPath
                     asset_name = PureWindowsPath(path.replace('/', '\\')).stem or ass_reference_name(instance.name)
@@ -430,12 +457,6 @@ class ASSImporter(JMSImporter):
                     tag, fallback = self.owner._resolve_xref_tag_path(XREF(instance.name, path, xref_name))
                 ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
                 ob.nwo.marker_game_instance_tag_name = tag or fallback or ''
-                ob['ass_import_tag_path'] = ob.nwo.marker_game_instance_tag_name
-                ob['ass_xref_path'], ob['ass_xref_name'] = path, xref_name
-                if geometry:
-                    ob['ass_reference_geometry'] = json.dumps(asdict(geometry))
-                    indices = {geometry.material, *(t.material for t in geometry.triangles)} - {-1}
-                    ob['ass_reference_materials'] = json.dumps({str(i):asdict(self.ass.materials[i]) for i in indices})
                 objects = [ob]
             elif instance.name.startswith('#') or geometry is None:
                 name = instance.name.lstrip('#')
@@ -467,9 +488,6 @@ class ASSImporter(JMSImporter):
                     ob.name = f'{instance.name}:{ob.nwo.permutation_name}:{ob.nwo.region_name}'
                     if instance.name.startswith('%'):
                         self.owner.set_poop_policies(ob)
-                        ob['ass_import_policies'] = json.dumps({name:getattr(ob.nwo,name) for name in (
-                            'poop_lighting', 'poop_pathfinding', 'poop_render_only', 'poop_chops_portals',
-                            'poop_does_not_block_aoe', 'poop_excluded_from_lightprobe', 'poop_decal_spacing')})
                         if self.is_model:
                             ob.nwo.marker_uses_regions = ob.nwo.region_name != 'default'
                             ob.nwo.marker_permutation_type = 'include'
@@ -484,30 +502,40 @@ class ASSImporter(JMSImporter):
                 ob.parent = self.armature if skinned else anchor
                 ob.parent_type = 'OBJECT'
                 ob.matrix_world = matrix
-                ob['ass_geometry'] = instance.geometry
-                ob['ass_identifier'] = str(instance.unique_id)
-                ancestry = []
-                ancestor = instance.parent
-                while ancestor != -1:
-                    ancestry.append(dict(index=ancestor, **asdict(self.ass.instances[ancestor])))
-                    ancestor = self.ass.instances[ancestor].parent
-                ob['ass_source_key'] = self.source_key
-                ob['ass_source_index'] = index
-                ob['ass_source_ancestry'] = json.dumps(ancestry)
-                ob['ass_import_name'] = ob.name
-                if ob.type == 'MESH':
-                    source_matrix = self.world[index] @ self.ass_matrix(instance.pivot)
-                    ob['ass_source_matrix'] = json.dumps([list(row) for row in source_matrix])
-                if geometry and geometry.xref_path:
-                    ob['ass_xref_path'] = geometry.xref_path
-                    ob['ass_xref_name'] = geometry.xref_name
             self.instance_objects[index] = objects
-        self.collapse_frames()
+        if not self.import_info_kind:
+            self.collapse_frames()
         self.link_collision_proxies()
         bpy.context.view_layer.update()
-        for ob in self.objects:
-            if ob.type in {'MESH', 'EMPTY'}:
-                ob['ass_import_matrix'] = json.dumps([list(row) for row in ob.matrix_world])
+
+    def embedded_game_object_tag(self, geometry):
+        return embedded_game_object_tag(geometry.xref_path, geometry.xref_name,
+                                        utils.get_tags_path(), utils.get_data_path())
+
+    def includes_instance(self, index):
+        instance = self.ass.instances[index]
+        geometry = self.ass.geometries[instance.geometry] if instance.geometry != -1 else None
+        reference = ass_reference_type(instance.name) or (
+            not self.is_model and geometry is not None and self.embedded_game_object_tag(geometry))
+        if self.render_only:
+            if (instance.name.startswith(('@', '$'))
+                    or (not reference and geometry is not None and not instance.name.startswith('#')
+                        and self.role(instance, geometry) in {'collision', 'physics'})
+                    or (not self.is_model and instance.name.startswith('#'))):
+                return False
+        if not self.import_info_kind:
+            return True
+        if self.source_node_scope is not None and index not in self.source_node_scope:
+            return False
+        physics = not reference and (instance.name.startswith('$') or (not instance.name.startswith('#') and geometry is not None
+                  and geometry.kind in {'SPHERE', 'BOX', 'PILL'}))
+        if self.import_info_kind == 'physics_model':
+            return index in self.bone_instances or physics
+        if self.import_info_kind in {'render_model', 'model', 'gbxmodel', 'sky', 'particle_model', 'decorator_set'}:
+            return not physics and not instance.name.startswith('@')
+        if not self.is_model:
+            return not physics
+        return True
 
     def collapse_frames(self):
         """Use the imported object as the hierarchy anchor wherever possible.
@@ -553,8 +581,6 @@ class ASSImporter(JMSImporter):
                     ob.parent_type = anchor.parent_type
                     ob.parent_bone = anchor.parent_bone
                 ob.matrix_world = world_matrices[ob]
-            for ob in objects:
-                ob['ass_instance'] = anchor['ass_instance']
             removed.add(anchor)
             del self.anchors[index]
         self.objects = [ob for ob in self.objects if ob not in removed]
@@ -634,12 +660,13 @@ class ASSImporter(JMSImporter):
         if self.owner.game in {'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'} and kind != 'SUN':
             data.nwo.light_intensity = max(0, light.intensity)
             utils.make_halo_light(data)
-        ob['ass_light'] = json.dumps(asdict(light))
         return ob
 
 
 def import_ass(owner, path, legacy_type, *, parent_collection=None, tag_armature=None,
-               geometry_only=False, allowed_region_permutations=(), shader_paths=None):
+               geometry_only=False, allowed_region_permutations=(), shader_paths=None, import_info_kind='',
+               render_only=False):
     return ASSImporter(owner, path, legacy_type, parent_collection=parent_collection,
                        tag_armature=tag_armature, geometry_only=geometry_only,
-                       allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths).build()
+                       allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths,
+                       import_info_kind=import_info_kind, render_only=render_only).build()

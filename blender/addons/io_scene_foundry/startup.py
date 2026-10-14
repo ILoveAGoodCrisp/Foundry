@@ -5,8 +5,10 @@ import bpy
 
 from .tools.light_exporter import export_lights
 from .tools.prefab_exporter import export_prefabs
+from .tools.decal_exporter import export_decals
 from .tools.decorator_exporter import export_decorators
 from .tools.airprobe_exporter import export_airprobes
+from .tools.scenario.metadata import export_scenario_metadata
 
 from . import utils
 
@@ -48,7 +50,7 @@ def subscribe(owner):
 # -----------------------------------------------------------------------------
 
 def load_projects():
-    """Reload persisted projects and ensure the current scene selects one."""
+    """Restore scene projects, falling back to the last export's name and game."""
     projects = utils.setup_projects_list()
     if not getattr(bpy.context, "scene", None):
         return projects
@@ -58,11 +60,12 @@ def load_projects():
         nwo = scene.nwo
         project = utils.resolve_scene_project(projects, nwo.scene_project_id,
                                              nwo.scene_project, nwo.scene_project_snapshot)
-        if project is None and not nwo.scene_project_id and blend_path:
-            try:
-                project = utils.matching_project(blend_path, projects, data=True)
-            except ValueError as error:
-                utils.print_warning(str(error))
+        if project is None:
+            name = nwo.export_project or nwo.scene_project
+            if name:
+                project = next((p for p in projects if p.name == name), None)
+        if project is None and nwo.export_game:
+            project = next((p for p in projects if p.game == nwo.export_game), None)
         if project is None and not nwo.scene_project_id and not nwo.scene_project and not blend_path and projects:
             project = projects[0]
         if project is not None:
@@ -194,7 +197,7 @@ def initialize_foundry(context):
     bpy.app.timers.register(utils.set_foundry_panel_active, first_interval=0.01)
     nwo = utils.get_scene_props()
     projects = utils.get_prefs().projects
-    if projects and not nwo.scene_project:
+    if projects and not nwo.scene_project and not bpy.data.filepath:
         utils.set_scene_project(nwo, projects[0])
 
 
@@ -209,13 +212,25 @@ def save_object_positions_to_tags(dummy):
 
     asset_type = nwo.asset_type
 
+    if nwo.scenario_metadata_export_on_save and asset_type == 'scenario':
+        print("Exporting Scenario Metadata")
+        export_scenario_metadata(context=bpy.context)
+
     if nwo.prefabs_export_on_save and asset_type == 'scenario' and utils.is_corinth():
         print("Exporting Prefabs")
         export_prefabs()
 
-    if nwo.lights_export_on_save and asset_type == 'scenario':
+    if nwo.lights_export_on_save and asset_type == 'scenario' and utils.supports_game_feature('lighting_info'):
         print("Exporting Lights")
         export_lights(*utils.get_asset_info())
+
+    if (
+        nwo.decals_export_on_save
+        and asset_type == 'scenario'
+        and nwo.decals_from_blender
+    ):
+        print("Exporting Decals")
+        export_decals()
 
     if (
         nwo.decorators_export_on_save
@@ -229,7 +244,7 @@ def save_object_positions_to_tags(dummy):
         nwo.airprobes_export_on_save
         and asset_type == 'scenario'
         and nwo.airprobes_from_blender
-        and not utils.is_corinth()
+        and utils.supports_game_feature('airprobes')
     ):
         print("Exporting Airprobes")
         export_airprobes()

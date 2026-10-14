@@ -1,9 +1,7 @@
 """Build Foundry objects from JMS interchange data without the Halo toolset."""
 from collections import defaultdict
-from dataclasses import asdict
 from math import radians, acos, pi
 from pathlib import Path
-import json
 import numpy as np
 import re
 
@@ -13,9 +11,11 @@ from mathutils import Matrix, Quaternion, Vector
 
 from .jms_format import JMS
 from .coordinates import axis_rotation
+from .import_info import BSP_TAG_KINDS, MODEL_TAG_KINDS, FRAME_PREFIXES, main_frame_scope
 from .. import utils, marker_axis
 
-FRAME_PREFIXES = ('frame_', 'frame ', 'bip_', 'bip ', 'b_', 'b ')
+class TagBoneMappingError(ValueError):
+    """Source geometry cannot be bound unambiguously to the compiled skeleton."""
 
 
 def is_frame_name(name):
@@ -32,10 +32,18 @@ def canonical_bone_name(name):
 
 class JMSImporter:
     def __init__(self, owner, path, legacy_type, *, tag_armature=None,
-                 parent_collection=None, geometry_only=False, allowed_region_permutations=(), shader_paths=None):
+                 parent_collection=None, geometry_only=False, allowed_region_permutations=(), shader_paths=None,
+                 import_info_kind='', render_only=False):
         self.owner = owner
         self.path = Path(path)
         self.jms = JMS.from_file(path)
+        # if self.jms.invalid_uv_components:
+        #     utils.print_warning(f'{self.path.name}: replaced {self.jms.invalid_uv_components} '
+        #         f'non-finite UV components with zero (first at line {self.jms.first_invalid_uv_line})')
+        self.import_info_kind = import_info_kind
+        self.render_only = render_only
+        self.source_node_scope = None
+        self.used_material_indices = None
         self.scale = owner.scale_factor
         self.rotation = axis_rotation(owner.from_x_rot)
         self.is_model = self.model_import(legacy_type, tag_armature)
@@ -54,6 +62,10 @@ class JMSImporter:
         self.shader_paths = shader_paths or {}
 
     def model_import(self, legacy_type, tag_armature):
+        if self.import_info_kind in BSP_TAG_KINDS:
+            return False
+        if self.import_info_kind in MODEL_TAG_KINDS:
+            return True
         if legacy_type != 'auto':
             return legacy_type == 'model'
         if tag_armature is not None:
@@ -101,8 +113,6 @@ class JMSImporter:
         ob = bpy.data.objects.new(name, data)
         self.objects.append(ob)
         self.collection.objects.link(ob)
-        if getattr(self, 'jms_source_key', None):
-            ob['jms_source_key'] = self.jms_source_key
         return ob
 
     def build(self):
@@ -120,43 +130,25 @@ class JMSImporter:
         self.collection = None
         if shared_lod:
             self.collection = next((child for child in parent_collection.children
-                                    if child.get('foundry_import_lod') == shared_lod
-                                    and child.get('foundry_import_armature') == self.tag_armature), None)
+                                    if child.name == collection_name
+                                    and any(ob.type == 'MESH' and ob.parent == self.tag_armature
+                                            and ob.nwo.mesh_lod == shared_lod for ob in child.objects)), None)
         created_collection = self.collection is None
         if created_collection:
             self.collection = bpy.data.collections.new(collection_name)
             parent_collection.children.link(self.collection)
-            if shared_lod:
-                self.collection['foundry_import_lod'] = shared_lod
-                self.collection['foundry_import_armature'] = self.tag_armature
         try:
             if created_collection:
                 self.store_metadata()
-            else:
-                # Render-only sources share the tag skeleton and LOD folder.
-                # Keep its metadata and object source key consistent on reuse.
-                self.jms_source_key = self.collection['jms_source_key']
             self.build_contents()
-            if (self.armature is not None and self.jms.version >= 8205
-                    and (self.tag_armature is not None or self.armature in self.objects)):
-                self.armature['legacy_import_matrix'] = json.dumps([list(row) for row in self.armature.matrix_world])
-                for index, node in enumerate(self.jms.nodes):
-                    name = self.tag_bone_names.get(index, node.name)
-                    bone = self.armature.data.bones.get(name)
-                    if bone is not None and 'legacy_source_node' not in bone:
-                        bone['legacy_source_node'] = json.dumps(asdict(node))
-                        bone['legacy_source_node_index'] = index
-                        bone['legacy_import_name'] = bone.name
-                        bone['legacy_import_matrix'] = json.dumps([list(row) for row in bone.matrix_local])
+            if self.import_info_kind:
+                self.remove_import_info_frames()
+                for mesh in {ob.data for ob in self.objects if ob.type == 'MESH'}:
+                    utils.consolidate_materials(mesh)
             if not self.is_model:
-                self.select_export_root()
+                if not self.import_info_kind:
+                    self.select_export_root()
                 bpy.context.view_layer.update()
-                for ob in self.objects:
-                    if ob.type == 'MESH' and 'ass_source_matrix' not in ob:
-                        # JMS BSP points are in world space. Their Blender
-                        # object carries only the import-axis correction.
-                        ob['ass_source_matrix'] = json.dumps([list(row) for row in Matrix.Identity(4)])
-                        ob['ass_import_matrix'] = json.dumps([list(row) for row in ob.matrix_world])
                 # JMS regions describe model parts, not separate BSPs. ASS
                 # instances share this path, including copied mesh instances.
                 bsp = self.owner._ensure_region_entry(self.path.stem, utils.SetType.SCENARIO)
@@ -195,13 +187,8 @@ class JMSImporter:
             context.view_layer.objects.active = active
 
     def store_metadata(self):
-        from uuid import uuid4
-        self.jms_source_key = str(uuid4())
-        self.collection['jms_source_key'] = self.jms_source_key
-        self.collection['jms_nodes'] = json.dumps([asdict(node) for node in self.jms.nodes])
-        self.collection['jms_version'] = self.jms.version
-        self.collection['jms_materials'] = json.dumps([asdict(m) for m in self.jms.materials])
-        self.collection['jms_checksum'] = str(self.jms.checksum)
+        """Import records remain transient; authoring data belongs in Blender."""
+        pass
 
     def select_export_root(self):
         """Keep one authoring root enabled for non-model geometry export."""
@@ -217,14 +204,85 @@ class JMSImporter:
 
     def build_contents(self):
         self.node_matrices()
+        self.prepare_import_info()
         self.build_armature()
         self.build_materials()
         self.build_meshes()
         if not self.geometry_only:
-            self.build_markers()
-            self.build_shapes()
-            self.build_constraints()
-            self.build_extras()
+            if self.import_info_kind not in {'physics_model', 'collision_model'}:
+                if not self.render_only or self.is_model:
+                    self.build_markers()
+                self.build_extras()
+            if not self.render_only and (not self.import_info_kind or self.import_info_kind == 'physics_model'):
+                self.build_shapes()
+                self.build_constraints()
+
+    def prepare_import_info(self):
+        if not self.import_info_kind:
+            return
+        if not self.is_model:
+            self.source_node_scope = main_frame_scope(
+                [n.name for n in self.jms.nodes], [n.parent for n in self.jms.nodes],
+                list(self.node_world))
+        triangles = self.source_triangles()
+        self.used_material_indices = {t.material for t in triangles}
+        if self.import_info_kind == 'physics_model':
+            self.used_material_indices.update(s.material for s in self.jms.shapes)
+
+    def source_triangles(self):
+        if self.import_info_kind == 'physics_model' and self.jms.version >= 8206:
+            return []
+        scope = self.source_node_scope
+        if scope is None:
+            return self.jms.triangles
+        return [t for t in self.jms.triangles if all(
+            node == -1 or node in scope or weight <= 0
+            for i in t.vertices for node, weight in self.jms.vertices[i].influences)]
+
+    def remove_import_info_frames(self):
+        """Flatten authoring frames after source culling, preserving world geometry."""
+        bpy.context.view_layer.update()
+        frames = {ob for ob in self.objects if ob.type == 'EMPTY' and ob.nwo.is_frame}
+        matrices = {ob: ob.matrix_world.copy() for ob in self.objects if ob not in frames}
+        changed = []
+        for ob, matrix in matrices.items():
+            if ob.parent not in frames:
+                continue
+            parent, parent_type, bone = ob.parent, ob.parent_type, ob.parent_bone
+            while parent in frames:
+                parent_type, bone, parent = parent.parent_type, parent.parent_bone, parent.parent
+            ob.parent, ob.parent_type, ob.parent_bone = parent, parent_type, bone
+            ob.matrix_world = matrix
+            changed.append(ob)
+        self.objects = [ob for ob in self.objects if ob not in frames]
+        self.frames = {}
+        if hasattr(self, 'anchors'):
+            self.anchors = {}
+        bpy.data.batch_remove(frames)
+        bpy.context.view_layer.update()
+        for ob in changed:
+            # A rotated, non-uniformly scaled frame can leave shear that an
+            # unparented object's TRS channels cannot represent. Bake that
+            # residual into a private mesh, retaining the exact final surface.
+            if ob.type == 'MESH':
+                expected = matrices[ob].to_3x3()
+                actual = ob.matrix_world.to_3x3()
+                # Translation always fits in the object's channels. Testing an
+                # inverse world matrix here amplifies cancellation at distant
+                # positions and needlessly makes every ASS instance unique.
+                # Only a real change to a basis column requires a geometry bake.
+                if any((actual.col[c] - expected.col[c]).length >
+                       1e-6 * max(actual.col[c].length, expected.col[c].length)
+                       for c in range(3)):
+                    residual = ob.matrix_world.inverted_safe() @ matrices[ob]
+                    if ob.data.users > 1:
+                        ob.data = ob.data.copy()
+                    normals = [(residual.to_3x3().inverted_safe().transposed() @ n.vector).normalized()
+                               for n in ob.data.corner_normals] if ob.data.has_custom_normals else None
+                    ob.data.transform(residual)
+                    if normals:
+                        ob.data.normals_split_custom_set(normals)
+                    ob.data.update()
 
     def mesh_created(self, ob, source_indices):
         """Adapter hook for formats with instance-local skin and UV bindings."""
@@ -239,13 +297,21 @@ class JMSImporter:
             bones = self.tag_armature.data.bones
             by_base_name = defaultdict(list)
             for bone in bones:
-                # Blender assigns a default name to unnamed tag nodes. Use the
-                # original name when available, including an empty string.
-                tag_name = bone.get('foundry_tag_node_name', bone.name)
+                # Bone matching uses the current editable Blender names.
+                tag_name = bone.name
                 by_base_name[canonical_bone_name(tag_name)].append(bone.name)
             used, pending = set(), set()
             for index, node in enumerate(self.jms.nodes):
                 exact = bones.get(node.name)
+                if exact is None:
+                    unprefixed = utils.remove_node_prefix(node.name)
+                    literal = bones.get(unprefixed)
+                    # A tag may literally name its bone 'frame' (source
+                    # 'b_frame'). Prefer that before the bare-frame/unnamed
+                    # compatibility alias, but exclude Blender-generated names.
+                    if (literal is not None
+                            and literal.name == unprefixed):
+                        exact = literal
                 candidates = by_base_name[canonical_bone_name(node.name)]
                 bone_name = (exact.name if exact is not None else
                              candidates[0] if len(candidates) == 1 else None)
@@ -253,13 +319,37 @@ class JMSImporter:
                     pending.add(index)
                     continue
                 if bone_name is None or bone_name in used:
-                    raise ValueError(f'{self.path}: JMS node {node.name!r} has no unique render-model bone')
+                    raise TagBoneMappingError(f'{self.path}: JMS node {node.name!r} has no unique render-model bone')
                 self.tag_bone_names[index] = bone_name
                 used.add(bone_name)
-            # Shipped H2/H3/ODST tags shorten names to different lengths. Reserve all
-            # exact matches first, then resolve a shortened name only when it
-            # is unique in both directions and its parent has been matched.
-            # Never use source/tag indices: Tool can reorder siblings.
+            # Shipped H2/H3/ODST tags shorten names to different lengths and
+            # append _dupN when the shortened names collide. Reserve exact
+            # matches first, then use parents and rest transforms to resolve
+            # collisions. Never use indices: Tool can reorder siblings.
+            shortened_names, duplicate_names = {}, set()
+            for bone in bones:
+                tag_name = bone.name
+                name = canonical_bone_name(tag_name)
+                # Strip the compiler suffix before collapsing separators. A
+                # truncated name can end in '_', producing 'name__dup1'.
+                stem = canonical_bone_name(re.sub(r'_dup[1-9]\d*$', '', tag_name, flags=re.I))
+                shortened_names[bone.name] = stem if by_base_name.get(stem) else name
+                if shortened_names[bone.name] != name:
+                    duplicate_names.add(bone.name)
+
+            def same_rest_transform(index, bone_name):
+                source_matrix = getattr(self, 'node_world', {}).get(index)
+                if source_matrix is None:
+                    return False
+                source_matrix = self.scene_matrix(source_matrix)
+                tag_matrix = bones[bone_name].matrix_local
+                # Compare in armature space, independent of its current pose
+                # and object placement. Express position tolerance in JMS units.
+                return ((source_matrix.translation - tag_matrix.translation).length
+                        <= abs(self.scale) * .001
+                        and all(abs(source_matrix[r][c] - tag_matrix[r][c]) <= .0001
+                                for r in range(3) for c in range(3)))
+
             while pending:
                 options = {}
                 for index in pending:
@@ -269,10 +359,18 @@ class JMSImporter:
                     expected_parent = self.tag_bone_names.get(node.parent)
                     base = canonical_bone_name(node.name)
                     options[index] = [bone.name for bone in bones if bone.name not in used
-                        and (name := canonical_bone_name(bone.get('foundry_tag_node_name', bone.name)))
+                        and (name := shortened_names[bone.name])
                         and len(name) < len(base) and base.startswith(name)
-                        and (bone.parent.name if bone.parent else None) == expected_parent]
+                        and (bone.parent.name if bone.parent else None) == expected_parent
+                        and (bone.name not in duplicate_names or same_rest_transform(index, bone.name))]
                 counts = defaultdict(int)
+                for candidates in options.values():
+                    for candidate in candidates:
+                        counts[candidate] += 1
+                for index, candidates in options.items():
+                    if len(candidates) > 1 or any(counts[name] > 1 for name in candidates):
+                        options[index] = [name for name in candidates if same_rest_transform(index, name)]
+                counts.clear()
                 for candidates in options.values():
                     for candidate in candidates:
                         counts[candidate] += 1
@@ -280,7 +378,7 @@ class JMSImporter:
                             if len(candidates) == 1 and counts[candidates[0]] == 1]
                 if not resolved:
                     node = self.jms.nodes[min(pending)]
-                    raise ValueError(f'{self.path}: JMS node {node.name!r} has no unique render-model bone (shortened names must be unambiguous and preserve parents)')
+                    raise TagBoneMappingError(f'{self.path}: JMS node {node.name!r} has no unique render-model bone (shortened names must be unambiguous and preserve parents)')
                 for index,bone_name in resolved:
                     self.tag_bone_names[index] = bone_name
                     used.add(bone_name)
@@ -320,28 +418,36 @@ class JMSImporter:
         """Represent non-model JMS nodes as Foundry frame empties."""
         self.frames = {}
         for index, node in enumerate(self.jms.nodes):
+            if self.source_node_scope is not None and index not in self.source_node_scope:
+                continue
             frame = self.object(node.name)
             frame.empty_display_type = 'ARROWS'
             frame.empty_display_size = max(self.scale, 0.001)
             frame.nwo.is_frame = True
-            if node.parent != -1:
-                frame.parent = self.frames[node.parent]
-                frame.parent_type = 'OBJECT'
-            frame.matrix_world = self.scene_matrix(self.node_world[index])
             self.frames[index] = frame
+        for index, frame in self.frames.items():
+            frame.parent = self.frames.get(self.jms.nodes[index].parent)
+            frame.matrix_world = self.scene_matrix(self.node_world[index])
 
     def build_materials(self):
         from ..tools.importer import JMSMaterialSlot
         for index, material in enumerate(self.jms.materials):
+            if self.used_material_indices is not None and index not in self.used_material_indices:
+                continue
             self.props[index] = JMSMaterialSlot.from_name(material.name)
             if self.owner.game in {'halo3', 'halo3odst'}:
                 self.props[index].emissive_power = self.props[index].emissive_power_scale
             if self.owner.game == 'halo2' and self.props[index].emissive_half_life is not None:
                 self.props[index].emissive_half_life *= self.scale
             # Keep property variants in the source table, never in Blender materials.
-            shader = re.sub(r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+', '', material.name).strip()
+            shader = re.sub(r'\b(?:lm|lp|hl|ds|pf|lt|to|at|ro):\S+', '', material.name,
+                            flags=re.IGNORECASE).strip()
             name = utils.base_material_name(shader, True).lower() or 'default'
-            self.materials[index] = self.material(name, self.source_shader_path(name), name)
+            path = self.source_shader_path(name)
+            if Path(path).suffix.lower() in {'.shader_water', '.shader_transparent_water'}:
+                self.props[index].water_surface = True
+                self.props[index].mesh_type = 'water_surface'
+            self.materials[index] = self.material(name, path, name)
 
     def source_shader_path(self, name):
         """Resolve authoring collection prefixes before basename shader search."""
@@ -379,8 +485,6 @@ class JMSImporter:
                 material = bpy.data.materials.new(name)
                 material.nwo.shader_path = shader_path
                 self.created_materials.append(material)
-            if source_name and 'foundry_legacy_shader_name' not in material:
-                material['foundry_legacy_shader_name'] = source_name
             if getattr(material.nwo, 'SpecialMaterial', False):
                 utils.material_add_visibility(material)
             return material
@@ -388,13 +492,13 @@ class JMSImporter:
         if material is None:
             material = bpy.data.materials.new(name)
             self.created_materials.append(material)
-        if source_name and 'foundry_legacy_shader_name' not in material:
-            material['foundry_legacy_shader_name'] = source_name
         if getattr(material.nwo, 'SpecialMaterial', False):
             utils.material_add_visibility(material)
         return material
 
     def mesh_kind(self, props):
+        if self.import_info_kind in {'collision_model', 'physics_model'}:
+            return 'collision' if self.import_info_kind == 'collision_model' else 'physics'
         folder = self.path.parent.name.lower()
         if self.is_model and folder in {'collision', 'physics'}:
             return folder
@@ -409,6 +513,10 @@ class JMSImporter:
             ob.nwo.proxy_instance = True
         if kind == 'seam':
             ob.nwo.seam_back_manual = True
+        if kind == 'water_surface':
+            ob.nwo.water_type = 'SURFACE'
+        elif kind == 'water_physics':
+            ob.nwo.water_type = 'PHYSICS'
         if kind in {'soft_ceiling', 'soft_kill', 'slip_surface'}:
             # Apply the display material after reading the source face properties.
             ob.data.nwo['boundary_surface_type'] = ('soft_ceiling', 'soft_kill', 'slip_surface').index(kind)
@@ -433,10 +541,6 @@ class JMSImporter:
                     indices = np.zeros(len(ob.data.polygons), dtype=np.bool_)
                     indices[faces] = True
                 self.owner._apply_jms_material_props(ob.data, ob.nwo, props, indices)
-                if self.is_model and self.owner.game in {'halo2', 'halo3', 'halo3odst'} and not props.precise:
-                    # An unflagged source material explicitly uses the default
-                    # compiler precision. Do not let Auto Precise change it.
-                    utils.add_face_prop(ob.data, 'precise_position', indices).precise_position = False
             if (collision or physics) and self.supports_collision_material_properties():
                 mask = np.zeros(len(ob.data.polygons), dtype=np.bool_)
                 mask[faces] = True
@@ -446,6 +550,10 @@ class JMSImporter:
                     utils.add_face_prop(ob.data, 'global_material', mask).global_material = self.collision_material_name(index, material)
         source_props = next((self.props.get(index) for index in faces_by_material), None)
         _, display_material = self.owner.mesh_and_material(self.mesh_kind(source_props), self.is_model)
+        if not self.is_model and self.owner.game in {'halo3', 'halo3odst'}:
+            if any(material is not None and material.name.casefold().startswith('+seam:')
+                   for material in ob.data.materials):
+                display_material = None  # Preserve each BSP name and its face assignment.
         if collision:
             display_material = 'Collision'
         elif physics:
@@ -470,10 +578,27 @@ class JMSImporter:
 
     def build_meshes(self):
         j = self.jms
+        if self.import_info_kind == 'physics_model' and j.version >= 8206:
+            return
+        if self.is_model and self.mesh_kind(None) == 'physics' and j.shapes:
+            # Modern physics sources can retain the render mesh as well as
+            # explicit rigid shapes. Tool uses the shapes for the physics tag.
+            return
+        default_node = -1
+        if j.version >= 8205:
+            roots = [i for i, node in enumerate(j.nodes) if node.parent == -1]
+            if len(roots) == 1:
+                # Tool binds positive-weight -1 influences to the model root.
+                # Keep their share of a blended weight as well as rigid weights.
+                default_node = roots[0]
         object_rotation = not self.is_model and self.owner.game in {'halo2', 'halo3', 'halo3odst'}
         rotation = Matrix.Identity(3) if object_rotation else self.rotation.to_3x3()
         skipped_triangles = 0
         for (region, permutation, lod), triangles in j.triangle_groups().items():
+            if self.source_node_scope is not None:
+                triangles = [t for t in triangles if all(
+                    node == -1 or node in self.source_node_scope or weight <= 0
+                    for i in t.vertices for node, weight in j.vertices[i].influences)]
             if (self.allowed_region_permutations
                     and (region, permutation) not in self.allowed_region_permutations):
                 continue
@@ -487,6 +612,12 @@ class JMSImporter:
                     continue
                 props = self.props.get(triangle.material)
                 kind = self.mesh_kind(props)
+                if self.render_only and (kind in {
+                        'collision', 'physics', 'cookie_cutter', 'portal', 'seam', 'fog',
+                        'water_physics', 'weather_polyhedron', 'lightmap_region',
+                        'soft_ceiling', 'soft_kill', 'slip_surface', 'rain_blocker', 'rain_sheet'}
+                        or (props and (props.collision_only or props.sphere_collision_only))):
+                    continue
                 policy = (tuple(getattr(props, p, False) for p in ('portal_one_way', 'portal_door', 'portal_vis_blocker', 'blocks_sound', 'ai_deafening', 'portal_exact'))
                           if kind == 'portal' else ())
                 groups[(kind, policy)].append(triangle)
@@ -510,7 +641,6 @@ class JMSImporter:
                 mesh.update()
                 mesh.polygons.foreach_set('use_smooth', [True] * len(mesh.polygons))
                 mesh.normals_split_custom_set_from_vertices([(rotation @ Vector(v.normal)).normalized() for v in vertices])
-                mesh['foundry_legacy_normals'] = True
                 loop_vertices = [loop.vertex_index for loop in mesh.loops]
                 for uv_index in range(max((len(v.uvs) for v in vertices), default=0)):
                     uv = mesh.uv_layers.new(name='UVMap' if uv_index == 0 else f'UVMap.{uv_index:03}')
@@ -532,6 +662,8 @@ class JMSImporter:
                     for i, vertex in enumerate(vertices):
                         combined = defaultdict(float)
                         for node, weight in vertex.influences:
+                            if node == -1:
+                                node = default_node
                             if node != -1 and weight > 0:
                                 combined[node] += weight
                         total = sum(combined.values())
@@ -546,13 +678,23 @@ class JMSImporter:
                     if weights:
                         modifier = ob.modifiers.new('Armature', 'ARMATURE')
                         modifier.object = self.armature
-                ob['legacy_import_matrix'] = json.dumps([list(row) for row in ob.matrix_world])
 
         # if skipped_triangles:
         #     utils.print_warning(f'{self.path.name}: skipped {skipped_triangles} triangles with repeated vertex indices')
 
     def place(self, ob, transform, parent=-1, local=True, marker=False):
         matrix = self.transform(transform)
+        if self.armature and parent != -1 and local:
+            bone_name = self.tag_bone_names.get(parent, self.jms.nodes[parent].name)
+            ob.parent, ob.parent_type, ob.parent_bone = self.armature, 'BONE', bone_name
+            # Shape/marker frames are bone-local. A reused tag rig can have a
+            # different rest basis from the JMS node header, and may be posed.
+            matrix.translation *= self.scale
+            if marker and self.owner.game in {'halo3', 'halo3odst'}:
+                matrix = marker_axis.local_axes(matrix, self.owner.from_x_rot)
+            bpy.context.view_layer.update()
+            ob.matrix_world = self.armature.matrix_world @ self.armature.pose.bones[bone_name].matrix @ matrix
+            return
         if local and parent != -1:
             matrix = self.node_world[parent] @ matrix
         if marker and self.owner.game in {'halo3', 'halo3odst'}:
@@ -569,6 +711,9 @@ class JMSImporter:
 
     def build_markers(self):
         for marker in self.jms.markers:
+            if (self.source_node_scope is not None and marker.parent != -1
+                    and marker.parent not in self.source_node_scope):
+                continue
             name = marker.name.lstrip('#')
             match = re.match(r'^\((\S+)\s+(\S+)\)(.*)$', name)
             # The optional (permutation region) prefix is commonly followed
@@ -577,8 +722,6 @@ class JMSImporter:
             ob.empty_display_type = 'ARROWS'
             radius = marker.radius if marker.radius >= 0 else 1.0
             ob.empty_display_size = max(radius * self.scale, 0.001)
-            if marker.radius < 0:
-                ob['jms_marker_radius'] = marker.radius
             transform = marker.transform
             if self.jms.version <= 8200:
                 # CE marker rotations are not inverted like CE node rotations.
@@ -614,6 +757,9 @@ class JMSImporter:
                         for v in bm.verts:
                             if v.co.z > 0:
                                 v.co.z += height
+                            # JMS places the capsule at its bottom tip; Havok
+                            # endpoints are the sphere centres, one radius up.
+                            v.co.z += radius
                 elif shape.kind == 'box':
                     bmesh.ops.create_cube(bm, size=1)
                     for v in bm.verts:
@@ -639,20 +785,9 @@ class JMSImporter:
             ob.empty_display_type = 'ARROWS'
             ob.empty_display_size = self.scale * 5
             self.place(ob, constraint.parent_transform, constraint.parent)
-            # Preserve both frames and unsupported constraint types for later export.
-            ob['jms_constraint'] = json.dumps(asdict(constraint))
-            parent_world = self.transform(constraint.parent_transform)
-            child_world = self.transform(constraint.child_transform)
-            if constraint.parent != -1:
-                parent_world = self.node_world[constraint.parent] @ parent_world
-            if constraint.child != -1:
-                child_world = self.node_world[constraint.child] @ child_world
-            relative = parent_world.inverted() @ child_world
-            relative.translation *= self.scale
-            ob['jms_constraint_child_relative'] = json.dumps([list(row) for row in relative])
             if constraint.kind not in {'hinge', 'ragdoll'}:
                 ob.nwo.export_this = False
-                utils.print_warning(f'JMS {constraint.kind} constraint {constraint.name}: preserved as metadata; Foundry supports hinge and socket constraints')
+                utils.print_warning(f'JMS {constraint.kind} constraint {constraint.name}: not exported; Foundry supports hinge and socket constraints')
                 continue
             ob.nwo.marker_type = '_connected_geometry_marker_type_physics_constraint'
             ob.nwo.physics_constraint_type = '_connected_geometry_marker_type_physics_' + ('hinge_constraint' if constraint.kind == 'hinge' else 'socket_constraint')
@@ -682,14 +817,14 @@ class JMSImporter:
             ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
             tag, fallback = self.owner._resolve_xref_tag_path(XREF(name, path, xref_name))
             ob.nwo.marker_game_instance_tag_name = tag or fallback or ''
-            ob['jms_xref_path'], ob['jms_xref_name'], ob['jms_identifier'] = path, xref_name, str(uid)
         for position, radius in self.jms.bounding_spheres:
+            if self.import_info_kind:
+                continue
             ob = self.object('bounding_sphere')
             ob.location = self.rotation.to_3x3() @ (Vector(position) * self.scale)
             ob.empty_display_type = 'SPHERE'
             ob.empty_display_size = radius * self.scale
             ob.nwo.export_this = False
-            ob['jms_bounding_sphere'] = True
         for direction, intensity, angle in self.jms.skylights:
             light = bpy.data.lights.new('skylight', 'SUN')
             ob = self.object('skylight', light)
@@ -701,12 +836,13 @@ class JMSImporter:
             light.color = tuple(c / peak for c in intensity) if peak > 0 else (0, 0, 0)
             # JMS stores solid angle (steradians); Blender expects angular diameter.
             light.angle = 2 * acos(max(-1, min(1, 1 - angle / (2 * pi))))
-            ob['jms_skylight'] = json.dumps((direction, intensity, angle))
 
 
 def import_jms(owner, path, legacy_type, *, tag_armature=None,
-               parent_collection=None, geometry_only=False, allowed_region_permutations=(), shader_paths=None):
+               parent_collection=None, geometry_only=False, allowed_region_permutations=(), shader_paths=None,
+               import_info_kind='', render_only=False):
     return JMSImporter(owner, path, legacy_type, tag_armature=tag_armature,
                        parent_collection=parent_collection,
                        geometry_only=geometry_only,
-                       allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths).build()
+                       allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths,
+                       import_info_kind=import_info_kind, render_only=render_only).build()

@@ -5,8 +5,9 @@
 import bmesh
 import bpy
 from ..tools.property_apply import apply_props_material
+from ..game_capabilities import instance_proxy_types
 
-from ..utils import deselect_all_objects, get_scene_props, is_corinth, set_active_object, set_object_mode, unlink
+from ..utils import deselect_all_objects, get_game, get_scene_props, set_active_object, set_object_mode, unlink
 
 
 def coacd_property_annotations():
@@ -363,13 +364,15 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
     def proxy_type_items(self, context):
         items = []
         nwo = context.object.data.nwo
-        if not nwo.proxy_collision:
+        supported_types = instance_proxy_types(get_game())
+        if 'collision' in supported_types and not nwo.proxy_collision:
             items.append(("collision", "Collision", "", 0))
-        for i in range(200):
-            if not getattr(nwo, f"proxy_physics{i}"):
-                items.append(("physics", "Physics", "", 1))
-                break
-        if not is_corinth(context) and not nwo.proxy_cookie_cutter:
+        if 'physics' in supported_types:
+            for i in range(200):
+                if not getattr(nwo, f"proxy_physics{i}"):
+                    items.append(("physics", "Physics", "", 1))
+                    break
+        if 'cookie_cutter' in supported_types and not nwo.proxy_cookie_cutter:
             items.append(("cookie_cutter", "Cookie Cutter", "", 2))
 
         return items
@@ -388,7 +391,7 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         
         proxy_type = getattr(self, "proxy_type", "")
         if proxy_type == "":
-            pt_items = self.proxy_type_items(context)
+            pt_items = NWO_ProxyInstanceNew.proxy_type_items(self, context)
             if pt_items:
                 proxy_type = pt_items[0][0]
                 

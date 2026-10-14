@@ -1,7 +1,7 @@
 """H3 group dispatch uses the tag definition's ordered names, not Reach enums.
 
-Unsupported preview choices retain their original tag option on unedited export.
-Only supported, deliberately changed menu selections update the option field.
+Exports use the current menu sockets. Options without an authoring socket leave
+the destination tag unchanged.
 """
 import json
 import bpy
@@ -55,35 +55,32 @@ def selections(shader):
         names=list(options)
         if not names:continue
         if not 0 <= index_value < len(names):
-            utils.print_warning(f'H3 {category} option {index_value} is not defined; preview uses {names[0]}')
+            # utils.print_warning(f'H3 {category} option {index_value} is not defined; preview uses {names[0]}')
             index_value=0
         result[category]=names[index_value]
     return result
 
 def apply_options(shader):
-    node=shader.group_node
-    original=json.loads(node.get('h3_source_options','{}'))
-    preview=json.loads(node.get('h3_preview_options','{}'))
-    result={}
-    for index,(category,options) in enumerate(shader.category_parameters.items()):
-        names=list(options)
-        if not names:continue
-        socket=option_socket(shader,category)
-        value=canonical(socket.default_value) if socket and socket.type=='MENU' else None
-        # An approximation is not an instruction to rewrite the source tag.
-        if category in original and (value is None or value==canonical(preview.get(category,''))):
-            selected=original[category]
-        else:selected=next((s for s in names if canonical(s)==value),None)
-        if selected is None:
-            raw=shader._option_value_from_index(index)
-            selected=names[raw] if 0<=raw<len(names) else names[0]
-        if selected not in names:continue
-        if socket and value!=canonical(preview.get(category,'')):
-            # Extend a genuinely new tag only as far as an edited option.
-            while shader.block_options.Elements.Count<=index:shader.block_options.AddElement()
-            shader.block_options.Elements[index].SelectField('short').SetStringData(str(names.index(selected)))
-        result[category]=selected
-    return result
+    """Export visible menu selections, without imported option snapshots."""
+    selected = {}
+    for index, (category, options) in enumerate(shader.category_parameters.items()):
+        names = list(options)
+        if not names:
+            continue
+        socket = option_socket(shader, category)
+        value = canonical(socket.default_value) if socket is not None and socket.type == 'MENU' else None
+        choice = next((name for name in names if canonical(name) == value), None)
+        if choice is not None:
+            while shader.block_options.Elements.Count <= index:
+                shader.block_options.AddElement()
+            shader.block_options.Elements[index].SelectField('short').SetStringData(str(names.index(choice)))
+        else:
+            # No authoring control: leave an existing destination value alone.
+            raw = shader._option_value_from_index(index)
+            choice = names[raw] if 0 <= raw < len(names) else names[0]
+        selected[category] = choice
+    return selected
+
 
 def to_nodes(shader,material):
     selected=selections(shader)
@@ -110,8 +107,8 @@ def to_nodes(shader,material):
             helper_supported=(category=='warp' and choice=='from_texture' and hasattr(shader,'_setup_warp')) or (
                 category=='misc_attr_animation' and choice=='scrolling_cube'
                 and selected.get('material_model') in {'cook_torrance_scrolling_cube_mask','cook_torrance_scrolling_cube'})
-            if choice!=first and category not in {'misc'} and not helper_supported and not engine_only_limit(shader.game,family,category,choice):
-                utils.print_warning(f'H3 {category}: {choice} has no node preview. The source option is retained for export.')
+            # if choice!=first and category not in {'misc'} and not helper_supported and not engine_only_limit(shader.game,family,category,choice):
+            #     utils.print_warning(f'H3 {category}: {choice} has no node preview. The source option is retained for export.')
             continue
         allowed=choices.get(category,[])
         target=next((s for s in allowed if canonical(s)==canonical(choice)),None)
@@ -119,10 +116,9 @@ def to_nodes(shader,material):
         if target is None:
             target=next((s for s in allowed if canonical(s)==FALLBACKS.get(category)),None)
             if target is None:target=allowed[0] if allowed else socket.default_value
-            if not engine_only_limit(shader.game,family,category,choice):
-                utils.print_warning(f'H3 {category}: {choice} is not implemented; preview uses {target}. The source option is retained for export.')
+            # if not engine_only_limit(shader.game,family,category,choice):
+            #     utils.print_warning(f'H3 {category}: {choice} is not implemented; preview uses {target}. The source option is retained for export.')
         socket.default_value=target;preview[category]=target
-    node['h3_source_options']=json.dumps(selected);node['h3_preview_options']=json.dumps(preview)
     node['foundry_source_game'] = shader.game
     shader.populate_chiefster_node(tree,node,0)
     # Alpha components are sometimes appended far from their original color
@@ -133,13 +129,6 @@ def to_nodes(shader,material):
         parameter=shader.true_parameters.get(socket.name[:-6])
         if parameter is not None:
             shader._setup_input_with_function(socket,shader._value_from_parameter(parameter,AnimatedParameterType.ALPHA),True)
-    for i,name in enumerate(('Primary Color','Secondary Color','Tertiary Color','Quaternary Color')):
-        socket=node.inputs.get(name)
-        if socket is None:continue
-        attr=tree.nodes.new('ShaderNodeAttribute')
-        if family=='shader_decal':attr.attribute_type='OBJECT';attr.attribute_name='nwo.cc_'+('primary','secondary','tertiary','quaternary')[i]
-        else:attr.attribute_type='INSTANCER';attr.attribute_name=name;shader.game_functions.add(name)
-        tree.links.new(attr.outputs['Color'],socket)
     shader._setup_h3_cubemap_reflector(tree,node)
     setup_extra_vectors(shader,tree,node)
     setup_scrolling_vectors(shader,tree,node,selected)
@@ -158,12 +147,14 @@ def to_nodes(shader,material):
         setup_multilayer(shader, tree, node)
     from .shader_address import finalize_addresses
     finalize_addresses(tree)
-    if family=='shader_skin':
-        utils.print_warning('H3 skin.fx contains white placeholder passes. Skin tag options are preserved, but the preview is a source placeholder.')
+    # if family=='shader_skin':
+    #     utils.print_warning('H3 skin.fx contains white placeholder passes. Skin tag options are preserved, but the preview is a source placeholder.')
     if family in {'shader_cortana','shader_water'} or selected.get('blend_mode','opaque')!='opaque' or selected.get('alpha_test','none') not in {'none','off'}:
         material.surface_render_method='BLENDED'
         if node.inputs.get('material is two-sided'):node.inputs['material is two-sided'].default_value=True
     out=tree.nodes.new('ShaderNodeOutputMaterial');tree.links.new(node.outputs['Shader'],out.inputs['Surface'])
+    from .connected_material import add_change_color_attributes
+    add_change_color_attributes(shader,tree,node,decal=family=='shader_decal')
     return node
 
 
@@ -187,8 +178,6 @@ def setup_scrolling_vectors(shader,tree,node,selected):
         if parameter is not None:
             shader._setup_input_with_function(socket,shader._value_from_parameter(parameter,AnimatedParameterType.VALUE),True)
     for texture in textures:tree.links.new(helper.outputs['Vector'],texture.inputs['Vector'])
-    previews=json.loads(node.get('h3_preview_options','{}'));previews['misc_attr_animation']=preview
-    node['h3_preview_options']=json.dumps(previews)
 
 def setup_extra_vectors(shader,tree,node):
     """Normal-directed tint cubes and dependent decal palette lookups."""

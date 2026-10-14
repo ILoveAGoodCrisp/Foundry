@@ -397,7 +397,8 @@ class NWO_HaloLauncherFoundationSettings(bpy.types.Panel):
                 col.prop(scene_nwo_halo_launcher, "open_physics_model")
                 if len(bpy.data.actions) > 0:
                     col.prop(scene_nwo_halo_launcher, "open_model_animation_graph")
-                    col.prop(scene_nwo_halo_launcher, "open_frame_event_list")
+                    if not utils.uses_legacy_export():
+                        col.prop(scene_nwo_halo_launcher, "open_frame_event_list")
                 col.separator()
                 if scene_nwo.output_biped:
                     col.prop(scene_nwo_halo_launcher, "open_biped")
@@ -428,11 +429,11 @@ class NWO_HaloLauncherFoundationSettings(bpy.types.Panel):
             elif utils.nwo_asset_type() == "scenario":
                 col.prop(scene_nwo_halo_launcher, "open_scenario")
                 col.prop(scene_nwo_halo_launcher, "open_scenario_structure_bsp")
-                col.prop(scene_nwo_halo_launcher, "open_scenario_lightmap_bsp_data")
-                col.prop(
-                    scene_nwo_halo_launcher,
-                    "open_scenario_structure_lighting_info",
-                )
+                if utils.get_game() == 'halo2':
+                    col.prop(scene_nwo_halo_launcher, "open_scenario_structure_lightmap")
+                else:
+                    col.prop(scene_nwo_halo_launcher, "open_scenario_lightmap_bsp_data")
+                    col.prop(scene_nwo_halo_launcher, "open_scenario_structure_lighting_info")
                 if any(
                     [
                         scene_nwo_halo_launcher.open_scenario_structure_bsp,
@@ -458,7 +459,8 @@ class NWO_HaloLauncherFoundationSettings(bpy.types.Panel):
                 )
             elif utils.nwo_asset_type() == "animation":
                 col.prop(scene_nwo_halo_launcher, "open_model_animation_graph")
-                col.prop(scene_nwo_halo_launcher, "open_frame_event_list")
+                if not utils.uses_legacy_export():
+                    col.prop(scene_nwo_halo_launcher, "open_frame_event_list")
             elif utils.nwo_asset_type() == "camera_track_set" and scene_nwo_halo_launcher.camera_track_name:
                 col.use_property_split = True
                 col.prop(scene_nwo_halo_launcher, "camera_track_name", text='Track')
@@ -518,7 +520,7 @@ class NWO_HaloExportSettings(bpy.types.Panel):
             else:
                 lighting_name = "Light Model (PRT)"
             
-            if scenario_lightmap and not halo1:
+            if scenario_lightmap and utils.supports_game_feature('lighting_info'):
                 col.prop(scene_nwo_export, "update_lighting_info")
             col.prop(scene_nwo_export, "lightmap_structure", text=lighting_name)
             if scene_nwo_export.lightmap_structure and scenario_lightmap:
@@ -529,7 +531,7 @@ class NWO_HaloExportSettings(bpy.types.Panel):
                         col.prop(scene_nwo_export, "lightmap_quality_h4")
                     else:
                         col.prop(scene_nwo_export, "lightmap_quality")
-                    if not halo1 and (not h4 or scene_nwo_export.lightmap_quality_h4 in {'__custom__', '__asset__'}):
+                    if utils.supports_game_feature('lightmap_region') and (not h4 or scene_nwo_export.lightmap_quality_h4 in {'__custom__', '__asset__'}):
                         col.prop(scene_nwo_export, "lightmap_region")
                     col.prop(scene_nwo_export, "lightmap_all_bsps")
                     if not scene_nwo_export.lightmap_all_bsps:
@@ -1478,16 +1480,17 @@ def draw_foundry_nodes_toolbar(self, context):
     #if context.region.alignment == 'RIGHT':
     foundry_nodes_toolbar(self.layout, context)
 
-def draw_project_selection_toolbar(row, context):
+def draw_project_selection_toolbar(row, context, *, standalone=False):
     nwo = utils.get_scene_props()
-    if nwo.toolbar_expanded:
+    if standalone or nwo.toolbar_expanded:
         selection = row.row(align=True)
         selection.ui_units_x = 9
         if utils.get_prefs().projects:
             selection.menu('NWO_MT_ProjectChooser', text='Select Project', icon_value=get_icon_id('tag_test'))
         else:
             selection.operator('nwo.project_add', text='Add First Project', icon_value=get_icon_id('tag_test')).set_scene_project = True
-    row.prop(nwo, 'toolbar_expanded', text='', icon_value=get_icon_id('foundry'))
+    if not standalone:
+        row.prop(nwo, 'toolbar_expanded', text='', icon_value=get_icon_id('foundry'))
 
 
 def foundry_nodes_toolbar(layout, context):
@@ -1522,26 +1525,36 @@ def draw_foundry_toolbar(self, context):
     #if context.region.alignment == 'RIGHT':
     foundry_toolbar(self.layout, context)
 
-def foundry_toolbar(layout, context):
+def _draw_toolbar_popover(layout, panel):
+    # Sidebar layouts otherwise stretch empty popover buttons across the panel.
+    button = layout.row(align=True)
+    button.ui_units_x = 1
+    button.popover(panel=panel, text="")
+
+def foundry_toolbar(layout, context, *, standalone=False):
     #layout.label(text=" ")
     row = layout.row()
     nwo = utils.get_scene_props()
     icons_only = utils.get_prefs().toolbar_icons_only
+    expanded = standalone or nwo.toolbar_expanded
     row.scale_x = 1
-    box = row.box()
-    box.scale_x = 0.3
-    box.label(text="")
+    if standalone:
+        row.alignment = 'LEFT'
+    else:
+        box = row.box()
+        box.scale_x = 0.3
+        box.label(text="")
     if not startup.load_handler_complete:
         sub = row.row()
         sub.operator("nwo.launch_foundry")
         return
     if utils.get_project(use_external=False) is None:
-        draw_project_selection_toolbar(row, context)
+        draw_project_selection_toolbar(row, context, standalone=standalone)
         return
-    if not nwo.toolbar_expanded:
+    if not expanded:
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
-    if nwo.toolbar_expanded:
+    if expanded:
         # Check we have any projects
         projects = utils.get_prefs().projects
         if not projects:
@@ -1569,7 +1582,7 @@ def foundry_toolbar(layout, context):
         child_animation = nwo.is_child_asset and nwo.asset_type == 'animation'
         
         if nwo.is_child_asset:
-            sub0.operator("nwo.open_parent_asset", icon='BLENDER')
+            sub0.operator("nwo.open_parent_asset", text="" if icons_only else "Open Parent Blend", icon='BLENDER')
             if single_animation or child_animation:
                 sub0 = row.row(align=True)
         
@@ -1580,17 +1593,17 @@ def foundry_toolbar(layout, context):
                     text="" if icons_only else "Export",
                     icon_value=get_icon_id("quick_export"),
                 )
-                sub0.popover(panel="NWO_PT_HaloExportSettings", text="")
+                _draw_toolbar_popover(sub0, "NWO_PT_HaloExportSettings")
             elif nwo.sidecar_path:
                 sub0.operator(
                     "nwo.new_asset",
-                    text=f"Copy {nwo.asset_name}",
+                    text="" if icons_only else f"Copy {nwo.asset_name}",
                     icon_value=get_icon_id("halo_asset"),
                 ) 
             else:
                 sub0.operator(
                     "nwo.new_asset",
-                    text=f"New Asset",
+                    text="" if icons_only else "New Asset",
                     icon_value=get_icon_id("halo_asset"),
                 ) 
         sub1 = row.row(align=True)
@@ -1604,14 +1617,14 @@ def foundry_toolbar(layout, context):
             text="" if icons_only else "Tag Test",
             icon_value=get_icon_id("tag_test"),
         )
-        sub1.popover(panel="NWO_PT_HaloLauncherGameSettings", text="")
+        _draw_toolbar_popover(sub1, "NWO_PT_HaloLauncherGameSettings")
         sub2 = row.row(align=True)
         sub2.operator(
             "nwo.launch_foundation",
             text="" if icons_only else "Tag Editor",
             icon_value=utils.get_tag_editor_icon_id(),
         )
-        sub2.popover(panel="NWO_PT_HaloLauncherFoundationSettings", text="")
+        _draw_toolbar_popover(sub2, "NWO_PT_HaloLauncherFoundationSettings")
         if utils.has_gr2_viewer():
             sub_granny = row.row(align=True)
             sub_granny.operator("nwo.launch_granny_viewer", text="", icon_value=get_icon_id("granny3d"))
@@ -1626,16 +1639,27 @@ def foundry_toolbar(layout, context):
             text="" if icons_only else "Tags",
             icon_value=get_icon_id("tags"),
         )
-        sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
+        _draw_toolbar_popover(sub3, "NWO_PT_HaloLauncherExplorerSettings")
 
         sub_output = row.row(align=True)
         sub_output.operator("nwo.show_foundry_output", text="", icon='CONSOLE')
 
-        sub_foundry = row.row(align=True)
-        sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+        if not standalone:
+            sub_foundry = row.row(align=True)
+            sub_foundry.prop(nwo, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
         
 def menu_func_import(self, context):
-    self.layout.operator("nwo.foundry_import", text="Halo Foundry Import")
+    self.layout.operator("nwo.foundry_import", text="Halo File Import")
+
+def menu_func_animation_search(self, context):
+    # Expose these tools to F3 without adding buttons to the regular menus.
+    if not getattr(context, "is_menu_search", False):
+        return
+    layout = self.layout
+    layout.operator_context = 'INVOKE_DEFAULT'
+    layout.operator("nwo.movement_data_transfer", icon='GRAPH')
+    layout.operator("nwo.convert_legacy_pose_overlays", icon='GRAPH')
+    layout.operator("nwo.generate_aim_look_overlays", icon='GRAPH')
 
 def menu_func_external_data(self, context):
     layout = self.layout

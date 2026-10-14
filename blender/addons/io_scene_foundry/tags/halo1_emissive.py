@@ -104,13 +104,15 @@ def _emissive_fields(shader, create=False):
     return pairs
 
 
-def _read_halo2_emissive(shader):
+def _read_halo2_emissive(shader, include_half_life=False):
     """Resolve authored lightmap properties, including template defaults."""
     root = shader.tag.root()
     parameters = {str(shader.value(item, 'name')): item
                   for item in shader.block(root, 'parameters')}
     names = {'lightmap emissive power': 'emissive_power',
              'lightmap emissive color': 'emissive_color'}
+    if include_half_life:
+        names['lightmap half life'] = 'lightmap_half_life'
     defaults = {}
     reference = shader.reference(root, 'template')
     if reference is not None and Path(reference.Filename).is_file():
@@ -136,28 +138,30 @@ def _read_halo2_emissive(shader):
         if parameter is None:
             parameter = parameters.get(kind.replace(' ', '_'))
         if parameter is not None:
-            value = shader.value(parameter, 'const value' if index == 0 else 'const color')
+            value = shader.value(parameter, 'const color' if index == 1 else 'const value')
         elif name in defaults:
-            value = defaults[name][index]
+            value = defaults[name][1 if index == 1 else 0]
         elif len(runtime):
             value = shader.value(runtime[0], kind)
         else:
-            value = 0.0 if index == 0 else RealRgbColor(1.0, 1.0, 1.0)
+            value = RealRgbColor(1.0, 1.0, 1.0) if index == 1 else 0.0
         values.append(value)
     return values
 
 
 @read_only_tags()
-def read_material_emissive(tag_path, tags_root, game='halo1'):
+def read_material_emissive(tag_path, tags_root, game='halo1', *, include_half_life=False):
     path = shader_environment_path(tag_path, tags_root, game)
     with TagDocument(path, tags_root=tags_root, game=game, must_exist=True) as shader:
         if game == 'halo2':
-            power, color = _read_halo2_emissive(shader)
+            values = _read_halo2_emissive(shader, include_half_life)
+            power, color = values[:2]
         else:
             power_field, color_field = _emissive_fields(shader)[0]
             power, color = power_field.value, color_field.value
-        return float(power), tuple(max(0.0, float(v)) ** 2.2
-                                   for v in (color.red, color.green, color.blue))
+        result = (float(power), tuple(max(0.0, float(v)) ** 2.2
+                                     for v in (color.red, color.green, color.blue)))
+        return (*result, float(values[2]) if game == 'halo2' else 0.0) if include_half_life else result
 
 
 def _matches(pair, power, color):

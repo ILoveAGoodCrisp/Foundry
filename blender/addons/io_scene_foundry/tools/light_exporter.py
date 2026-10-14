@@ -63,13 +63,15 @@ class BlamLightDefinition:
         # export_scale = utils.get_export_scale(bpy.context)
         unit_factor = utils.get_unit_conversion_factor(bpy.context)
         corinth = utils.is_corinth()
+        h3 = utils.get_game() in {'halo3', 'halo3odst'}
         # Only Reach stores attenuation distances at 100 times world units.
         atten_scalar = 100 if utils.get_game() == 'reach' else 1
         nwo = data.nwo
         self.data_name = data.name
         self.id = utils.id_from_string(self.data_name)
         self.type = 0
-        match data.type:
+        light_type = nwo.light_source_type if h3 and nwo.light_source_type in {'POINT', 'SPOT', 'SUN'} else data.type
+        match light_type:
             case 'SPOT':
                 self.type = 1
             case 'SUN':
@@ -83,14 +85,32 @@ class BlamLightDefinition:
         
         self.hotspot_size = 0
         self.hotspot_cutoff = 0
-        if data.type == 'SPOT':
-            self.hotspot_cutoff = min(degrees(data.spot_size), 160)
-            self.hotspot_size = self.hotspot_cutoff * (1 - data.spot_blend)
+        if light_type == 'SPOT':
+            if h3 and nwo.light_source_type == 'SPOT':
+                self.hotspot_cutoff = nwo.light_cone_angle
+                self.hotspot_size = nwo.light_hotspot_angle
+            elif h3:
+                # Native H3 lighting-info angles are radians; ASS alone uses degrees.
+                self.hotspot_cutoff = data.spot_size
+                self.hotspot_size = data.spot_size * (1 - data.spot_blend)
+            else:
+                self.hotspot_cutoff = min(degrees(data.spot_size), 160)
+                self.hotspot_size = self.hotspot_cutoff * (1 - data.spot_blend)
+        elif h3 and light_type == 'SUN':
+            self.hotspot_size = nwo.light_directional_hotspot * WU_SCALAR * unit_factor
+            self.hotspot_cutoff = nwo.light_directional_falloff * WU_SCALAR * unit_factor
             
         self.hotspot_falloff = nwo.light_falloff_shape
         
         self.near_attenuation_start = data.shadow_soft_size * atten_scalar * WU_SCALAR * unit_factor
         self.near_attenuation_end = self.near_attenuation_start
+        self.use_near_attenuation = self.near_attenuation_end > 0
+        self.use_far_attenuation = True
+        if h3:
+            self.near_attenuation_start = nwo.light_near_attenuation_start * WU_SCALAR * unit_factor
+            self.near_attenuation_end = nwo.light_near_attenuation_end * WU_SCALAR * unit_factor
+            self.use_near_attenuation = nwo.light_use_near_attenuation
+            self.use_far_attenuation = bool(data.use_custom_distance and nwo.light_use_far_attenuation)
         
         if data.use_custom_distance:
             intensity = nwo.light_intensity
@@ -108,6 +128,10 @@ class BlamLightDefinition:
             self.far_attenuation_end = cutoff * atten_scalar * WU_SCALAR
             
         self.color, self.intensity = utils.get_light_final_color_and_intensity(data, intensity)
+        if h3 and data.use_custom_distance and nwo.light_preview_model == 'H3_DYNAMIC':
+            from ..lighting import H3_FAR_FIELD
+            # Runtime C and faux tag intensity are different quantities.
+            self.intensity /= H3_FAR_FIELD[light_type]
             
         self.aspect = nwo.light_aspect
         
@@ -151,9 +175,11 @@ class NWO_OT_ExportLights(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return utils.valid_nwo_asset(context)
+        return utils.valid_nwo_asset(context) and utils.supports_game_feature('lighting_info')
 
     def execute(self, context):
+        if not utils.require_game_feature(self, 'lighting_info'):
+            return {'CANCELLED'}
         scene_nwo = utils.get_scene_props()
         if scene_nwo.is_child_asset:
             parent = scene_nwo.parent_asset

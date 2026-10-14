@@ -8,6 +8,9 @@ animation_names = None
 last_graph_path = None
 
 def anim_play_cmd_to_clipboard(animation_name: str, graph_path="", scenery=False, loop=False, object_expression="(player_get 0)") -> str:
+    halo1 = utils.get_game() == 'halo1'
+    if halo1 and loop:
+        raise ValueError('Halo 1 has no looping custom-animation command')
     if scenery:
         command = "scenery_animation_start"
     else:
@@ -19,7 +22,12 @@ def anim_play_cmd_to_clipboard(animation_name: str, graph_path="", scenery=False
     
     command += graph_path
         
-    command += f' {animation_name.strip().lower().replace(" ", ":")}'
+    name = animation_name.strip().lower()
+    if halo1:
+        name = '"' + name.replace(':', ' ').replace('"', '\\"') + '"'
+    else:
+        name = name.replace(' ', ':')
+    command += f' {name}'
     
     if not scenery:
         command += f" 0"
@@ -113,6 +121,7 @@ class NWO_OT_PlayGameAnimation(bpy.types.Operator):
             return {'CANCELLED'}
         nwo = utils.get_scene_props()
         anim_name = nwo.animation_cmd_name.strip()
+        graph_extension = '.model_animations' if utils.get_game() == 'halo1' else '.model_animation_graph'
         if not anim_name:
             if nwo.animations and nwo.active_animation_index != -1:
                 anim_name = nwo.animations[nwo.active_animation_index].name
@@ -128,7 +137,7 @@ class NWO_OT_PlayGameAnimation(bpy.types.Operator):
         if not nwo.animation_cmd_path and utils.valid_nwo_asset(context):
             asset_path = Path(utils.get_asset_path())
             asset_name = asset_path.name
-            path = str(Path(asset_path, f"{asset_name}.model_animation_graph"))
+            path = str(Path(asset_path, asset_name).with_suffix(graph_extension))
             
         if not path.strip(". "):
             # See if we can get the graph from the armature
@@ -137,7 +146,7 @@ class NWO_OT_PlayGameAnimation(bpy.types.Operator):
                 self.report({'WARNING'}, f"No graph path specified")
                 return {'CANCELLED'}
     
-            path = str(Path(utils.relative_path(ob.nwo.node_order_source)).with_suffix(".model_animation_graph"))
+            path = str(Path(utils.relative_path(ob.nwo.node_order_source)).with_suffix(graph_extension))
 
         
         full_path = Path(utils.get_tags_path(), path)
@@ -145,6 +154,6 @@ class NWO_OT_PlayGameAnimation(bpy.types.Operator):
             self.report({'WARNING'}, f"Graph path does not exist: {full_path}")
             return {'CANCELLED'}
         
-        command = anim_play_cmd_to_clipboard(anim_name, graph_path=path, scenery=nwo.animation_cmd_object_type == 'scenery', loop=nwo.animation_cmd_loop, object_expression=expression)
+        command = anim_play_cmd_to_clipboard(anim_name, graph_path=path, scenery=nwo.animation_cmd_object_type == 'scenery', loop=nwo.animation_cmd_loop and utils.get_game() != 'halo1', object_expression=expression)
         self.report({'INFO'}, f"Copied to clipboard: {command}")
         return {"FINISHED"}

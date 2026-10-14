@@ -1,4 +1,4 @@
-from mathutils import Matrix, Quaternion, Vector
+from mathutils import Euler, Matrix, Quaternion, Vector
 
 from . import utils, marker_axis
 from .coordinate_system import CoordinateSystem, axis_rotation, geometry_matrix, placement_matrix
@@ -62,6 +62,15 @@ def matrix_from_axes(forward, left, up, pos, unit_scale: float = 100.0, scene_nw
 
 def object_matrix(matrix: Matrix, scene_nwo=None, rotate=True) -> Matrix:
     return placement_matrix(matrix, scale_factor(scene_nwo), rotation(scene_nwo) if rotate else 0.)
+
+
+def cinematic_anchor_matrix(position, facing, scene_nwo=None) -> Matrix:
+    """A native cutscene flag (world units/radians) moves scenery into shot space."""
+    yaw, pitch, roll = facing
+    matrix = Matrix.LocRotScale(Vector(position) * 100,
+        Euler((roll, -pitch, yaw), 'XYZ'), Vector((1, 1, 1)))
+    # Scenery already has Blender axes: change both sides of the basis.
+    return object_matrix(matrix.inverted_safe(), scene_nwo) @ rotation_matrix(scene_nwo).inverted_safe()
 
 
 def marker_local_axes(matrix: Matrix, scene_nwo=None) -> Matrix:

@@ -50,23 +50,26 @@ def export_decal_placements(controls, destination, *, tags_root):
     if destination.suffix.lower() != '.scenario' or not destination.is_relative_to(tags_root):
         raise ValueError('Choose a .scenario file inside the current project tags folder')
     base = destination if destination.is_file() else source
-    updates = []
-    for control in controls:
-        values = placement_values(control)
-        prefix = 'halo1_source'
-        previous = control.get('halo1_last_export_scenario')
-        if previous is not None and Path(previous).resolve() == base:
-            prefix = 'halo1_last_export'
-        # Match the actual float32 values written by the tag API, including
-        # repeat exports without movement and original untouched positions.
-        position = struct.unpack('<3f', struct.pack('<3f', *values['position']))
-        updates.append(ScenarioDecalUpdate(
-            source_index=values['source_index'], palette_index=values['palette_index'],
-            definition=values['definition'],
-            expected_position=tuple(control[prefix + '_position']),
-            expected_yaw=int(control[prefix + '_yaw']), expected_pitch=int(control[prefix + '_pitch']),
-            position=position, yaw=values['yaw'], pitch=values['pitch']))
     with ScenarioDocument(base, tags_root=tags_root, game='halo1', must_exist=True) as scenario:
+        root = scenario.tag.root()
+        rows = scenario.block(root, 'decals')
+        palette = scenario.block(root, 'decal palette')
+        updates = []
+        for control in controls:
+            values = placement_values(control)
+            index = values['source_index']
+            row = rows[index] if 0 <= index < len(rows) else None
+            palette_index = scenario.value(row, 'decal type') if row is not None else -1
+            reference = scenario.reference(palette[palette_index], 'reference') if 0 <= palette_index < len(palette) else None
+            definition = reference.RelativePathWithExtension if reference is not None else ''
+            if row is None or palette_index != values['palette_index'] or definition.replace('\\', '/') != values['definition'].replace('\\', '/'):
+                raise ValueError(f'{control.name}: the destination decal row no longer matches its reference')
+            position = struct.unpack('<3f', struct.pack('<3f', *values['position']))
+            updates.append(ScenarioDecalUpdate(
+                source_index=values['source_index'], palette_index=values['palette_index'],
+                definition=values['definition'], expected_position=tuple(scenario.value(row, 'position').to_array()),
+                expected_yaw=scenario.value(row, 'yaw'), expected_pitch=scenario.value(row, 'pitch'),
+                position=position, yaw=values['yaw'], pitch=values['pitch']))
         if scenario.read_only:
             raise RuntimeError('Cannot export decals during a read-only tag operation')
         # This document is staging data. Only the explicit destination below
@@ -79,13 +82,6 @@ def export_decal_placements(controls, destination, *, tags_root):
         elif destination != base:
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(base, destination)
-    for control, update in zip(controls, updates):
-        control['halo1_last_export_scenario'] = str(destination)
-        control['halo1_last_export_position'] = update.position
-        control['halo1_last_export_yaw'] = update.yaw
-        control['halo1_last_export_pitch'] = update.pitch
-        control['halo1_last_export_world_position'] = tuple(control.matrix_world.translation)
-        control['halo1_last_export_import_transform'] = import_transform.signature()
     return changed
 
 

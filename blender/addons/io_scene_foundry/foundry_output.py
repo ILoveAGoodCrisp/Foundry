@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 
 import bpy
 
@@ -31,6 +32,7 @@ _watched_paths = set()
 _mute_depth = 0
 _tool_job_handle = None
 _tool_kernel32 = None
+_cancel_monitor = None
 
 
 def _ensure_tool_job():
@@ -68,18 +70,120 @@ def register_tool_process(process):
     return register_tool_process_handle(process_handle)
 
 
-def _raise_if_cancel_requested():
-    if threading.current_thread() is not threading.main_thread():
-        return
+def _consume_cancel_request():
     with _write_lock:
         try:
             requested = _CANCEL_PATH.read_text(encoding="utf-8").strip()
             if not requested:
-                return
+                return False
             _CANCEL_PATH.write_text("", encoding="utf-8")
         except OSError:
+            return False
+    return True
+
+
+def _clear_cancel_request():
+    with _write_lock:
+        try:
+            _CANCEL_PATH.write_text("", encoding="utf-8")
+        except OSError:
+            pass
+
+
+class CancelMonitor:
+    """Interrupt a main-thread import even when it produces no console output."""
+
+    def __init__(self):
+        self._thread = None
+        self._state = "stopped"
+        self._cancelled = False
+        self._interrupt_failed = False
+        self._target_ident = None
+        # PYFUNCTYPE keeps the GIL while calling the Python C API. Blender's
+        # native SIGINT handler is not a Python handler, so interrupt_main()
+        # would not reliably raise KeyboardInterrupt in its embedded Python.
+        self._set_async_exception = ctypes.PYFUNCTYPE(
+            ctypes.c_int, ctypes.c_ulong, ctypes.c_void_p,
+        )(("PyThreadState_SetAsyncExc", ctypes.pythonapi))
+
+    def start(self):
+        global _cancel_monitor
+        if threading.current_thread() is not threading.main_thread():
+            raise RuntimeError("Cancellation monitoring must start on Blender's main thread")
+        if _cancel_monitor is not None:
+            raise RuntimeError("Another import is already monitoring cancellation")
+        _clear_cancel_request()
+        self._target_ident = threading.get_ident()
+        _cancel_monitor = self
+        self._state = "starting"
+        self._thread = threading.Thread(
+            target=self._watch, name="Foundry import cancellation", daemon=True,
+        )
+        self._thread.start()
+        self._state = "running"
+
+    def _watch(self):
+        while True:
+            time.sleep(0.05)
+            if self._state == "stopped":
+                return
+            if self._state != "running" or not _consume_cancel_request():
+                continue
+            # Only deliver one interrupt. Further clicks must not interrupt
+            # the import's cancellation reporting or undo cleanup.
+            self._cancelled = True
+            affected = self._set_async_exception(self._target_ident, id(KeyboardInterrupt))
+            if affected != 1:
+                if affected > 1:
+                    self._set_async_exception(self._target_ident, None)
+                self._interrupt_failed = True
+                try:
+                    _CANCEL_PATH.write_text("cancel", encoding="utf-8")
+                except OSError:
+                    pass
             return
-    raise KeyboardInterrupt
+
+    def stop(self):
+        """Disarm and join the watcher; return whether cancellation was requested."""
+        # An interrupt can arrive just as normal work finishes. Complete the
+        # shutdown before the caller reports cancellation, including in this race.
+        # Do not acquire a watcher-owned lock here: interruption while acquiring
+        # one can strand the lock and deadlock shutdown.
+        while True:
+            try:
+                self._state = "stopped"
+                if self._thread is not None and self._thread.ident is not None:
+                    self._thread.join()
+                return self._cancelled
+            except KeyboardInterrupt:
+                self._cancelled = True
+
+
+    def close(self):
+        """Release the cancellation guard after the import finishes reporting."""
+        global _cancel_monitor
+        while True:
+            try:
+                cancelled = self.stop()
+                if _cancel_monitor is self:
+                    _clear_cancel_request()
+                    _cancel_monitor = None
+                return cancelled
+            except KeyboardInterrupt:
+                self._cancelled = True
+
+
+def _raise_if_cancel_requested():
+    if threading.current_thread() is not threading.main_thread():
+        return
+    # The watcher owns the request during imports. Console writes must not race
+    # it and deliver a second KeyboardInterrupt. Keep the fallback for exports.
+    if _cancel_monitor is not None and not _cancel_monitor._interrupt_failed:
+        return
+    if _consume_cancel_request():
+        if _cancel_monitor is not None:
+            _cancel_monitor._interrupt_failed = False
+        raise KeyboardInterrupt
 
 
 class _BinaryOutputProxy:
@@ -260,6 +364,8 @@ def register():
 
 def unregister():
     global _log_stream, _stdout_proxy, _stderr_proxy, _viewer_process, _mute_depth, _tool_job_handle
+    if _cancel_monitor is not None:
+        _cancel_monitor.close()
     try:
         bpy.utils.unregister_class(NWO_OT_ShowFoundryOutput)
     except RuntimeError:

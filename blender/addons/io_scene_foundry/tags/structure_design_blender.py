@@ -39,6 +39,11 @@ class StructureDesignTag(BlenderTag, StructureDesignDocument):
                 ob.nwo.fog_appearance_tag = record.appearance.RelativePathWithExtension if record.appearance else ''
                 ob.nwo.fog_volume_depth = record.depth
                 apply_props_material(ob, 'Fog')
+            elif record.kind == 'water_volume':
+                mesh.nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
+                ob.nwo.water_type = 'PHYSICS'
+                ob.nwo.water_volume_direction = record.direction
+                ob.nwo.water_volume_angle = record.angle
             else:
                 mesh.nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
                 ob.nwo.water_type = 'PHYSICS'

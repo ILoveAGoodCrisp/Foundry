@@ -19,26 +19,26 @@ def canonical(name):
     return {'from_opacity_alpha_and_albedo_alpha':'from_opacity_map_alpha_and_albedo_alpha'}.get(name,name)
 
 def apply_options(shader):
-    node=shader.group_node
-    original=json.loads(node.get('reach_source_options','{}'))
-    preview=json.loads(node.get('reach_preview_options','{}'))
-    selected={}
-    for index,(category,options) in enumerate(shader.category_parameters.items()):
-        names=list(options)
-        if not names:continue
-        port=node.inputs.get(category)
-        value=canonical(port.default_value) if port is not None and port.type=='MENU' else None
-        edited=value is not None and value!=canonical(preview.get(category))
-        if category in original and not edited:choice=original[category]
-        else:choice=next((name for name in names if canonical(name)==value),None)
-        if choice not in names:
-            raw=shader._option_value_from_index(index)
-            choice=names[raw] if 0<=raw<len(names) else names[0]
-        if edited:
-            while shader.block_options.Elements.Count<=index:shader.block_options.AddElement()
+    """Export visible menu selections, without imported option snapshots."""
+    selected = {}
+    for index, (category, options) in enumerate(shader.category_parameters.items()):
+        names = list(options)
+        if not names:
+            continue
+        socket = shader.group_node.inputs.get(category)
+        value = canonical(socket.default_value) if socket is not None and socket.type == 'MENU' else None
+        choice = next((name for name in names if canonical(name) == value), None)
+        if choice is not None:
+            while shader.block_options.Elements.Count <= index:
+                shader.block_options.AddElement()
             shader.block_options.Elements[index].SelectField('short').SetStringData(str(names.index(choice)))
-        selected[category]=choice
+        else:
+            # No authoring control: leave an existing destination value alone.
+            raw = shader._option_value_from_index(index)
+            choice = names[raw] if 0 <= raw < len(names) else names[0]
+        selected[category] = choice
     return selected
+
 
 def populate(shader,tree,node):
     bindings=json.loads(node.node_tree.get('reach_parameter_sockets','{}'))
@@ -84,16 +84,10 @@ def to_nodes(shader,material):
         target=next((o for o in allowed if canonical(o)==canonical(option)),None)
         if target is None:continue
         port.default_value=target;preview[category]=target
-        if option in unsupported.get(category,[]) and not engine_only_limit('reach',family,category,option):
-            utils.print_warning(f'Reach {family}/{category}/{option}: limited preview; source option and parameters are preserved. See group limitations.')
-    root['reach_source_options']=json.dumps(selected);root['reach_preview_options']=json.dumps(preview)
+        # if option in unsupported.get(category,[]) and not engine_only_limit('reach',family,category,option):
+        #     utils.print_warning(f'Reach {family}/{category}/{option}: limited preview; source option and parameters are preserved. See group limitations.')
     root['foundry_source_game']='reach'
     populate(shader,tree,root)
-    for name in ('Primary Color','Secondary Color','Tertiary Color','Quaternary Color'):
-        port=root.inputs.get(name)
-        if port is None:continue
-        attr=tree.nodes.new('ShaderNodeAttribute');attr.attribute_type='INSTANCER';attr.attribute_name=name
-        tree.links.new(attr.outputs['Color'],port);shader.game_functions.add(name)
     from .reach_sampling import setup_sampling
     setup_sampling(shader,tree,root,selected)
     from .shader_address import finalize_addresses
@@ -101,4 +95,6 @@ def to_nodes(shader,material):
     if family in {'shader_cortana','shader_water','shader_fur_stencil'} or selected.get('blend_mode','opaque')!='opaque' or selected.get('alpha_test','none') not in {'none','off'}:
         material.surface_render_method='BLENDED'
     out=tree.nodes.new('ShaderNodeOutputMaterial');tree.links.new(root.outputs['Shader'],out.inputs['Surface'])
+    from .connected_material import add_change_color_attributes
+    add_change_color_attributes(shader,tree,root)
     return root

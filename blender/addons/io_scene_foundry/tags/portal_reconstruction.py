@@ -15,6 +15,125 @@ import numpy as np
 from mathutils import Vector, kdtree
 
 
+def restore_halo1_portal_junctions(portals, source_records, scale, rotation,
+                                  tolerance=.00025, maximum_motion=.03):
+    """Reconnect original crossings after independent portal wall recovery.
+
+    Recovered outlines may each move a shared corner into the surrounding wall,
+    leaving slightly different endpoints along the intersection of two cutting
+    planes. Tool can then join the wrong spaces even though each face is planar.
+    Restore only corners shared by distinct source planes and still represented
+    on multiple imported objects, within the existing .03 tag-unit recovery
+    bound. Coplanar fragment contacts keep their certified wall overlap. No
+    source metadata survives import and no mesh topology or flags are changed.
+    """
+    if (not np.isfinite(scale) or scale <= 0 or not np.isfinite(tolerance)
+            or tolerance <= 0 or not np.isfinite(maximum_motion) or maximum_motion <= 0):
+        return 0
+    source = []
+    for record in source_records:
+        points = np.asarray(record.vertices, dtype=np.float64)
+        if len(points) < 3 or not np.all(np.isfinite(points)):
+            continue
+        normal = _normal([Vector(p) for p in points])
+        if normal.length < .5:
+            continue
+        source.extend((record.index, point, normal) for point in points)
+    if not source:
+        return 0
+    tree = kdtree.KDTree(len(source))
+    for index, (_, point, _) in enumerate(source):
+        tree.insert(point, index)
+    tree.balance()
+    targets, covered = [], set()
+    for index, (owner, point, normal) in enumerate(source):
+        if index in covered:
+            continue
+        neighbors = [i for _, i, _ in tree.find_range(point, tolerance)]
+        if not any(source[i][0] != owner and abs(normal.dot(source[i][2])) < .99999
+                   for i in neighbors):
+            continue
+        targets.append(point)
+        covered.update(neighbors)
+    if not targets:
+        return 0
+    targets = np.asarray(targets)
+    candidates = defaultdict(list)
+    inverse_rotation = rotation.inverted_safe()
+    outlines = {}
+    for ob in portals:
+        if ob.type != 'MESH' or not ob.data.polygons:
+            continue
+        mesh = ob.data
+        # Only perimeter vertices may be restored, never an evaluated fan centre.
+        uses = Counter(tuple(sorted(edge)) for face in mesh.polygons for edge in face.edge_keys)
+        boundary = {i for edge, count in uses.items() if count == 1 for i in edge}
+        points = np.asarray([tuple(inverse_rotation @ ob.matrix_world @ v.co)
+                             for v in mesh.vertices], dtype=np.float64) / scale
+        outlines[ob] = points
+        for vertex in mesh.vertices:
+            if vertex.index not in boundary:
+                continue
+            distances = np.linalg.norm(targets-points[vertex.index], axis=1)
+            closest = int(distances.argmin())
+            if distances[closest] <= maximum_motion:
+                candidates[closest].append((ob, vertex.index))
+    groups = {}
+    for index, items in candidates.items():
+        owners = {ob for ob, _ in items}
+        # Ambiguous corners on one outline must not collapse together.
+        if len(owners) < 2 or len(owners) != len(items):
+            continue
+        normals = [(ob.matrix_world.to_3x3() @ ob.data.polygons[0].normal).normalized()
+                   for ob, _ in items]
+        if all(abs(normals[0].dot(n)) > .99999 for n in normals[1:]):
+            continue
+        groups[index] = items
+    # Reject a whole junction if any incident face would collapse, reverse or
+    # acquire appreciable warpage. Check all proposed corners simultaneously.
+    while groups:
+        proposals = defaultdict(dict)
+        for index, items in groups.items():
+            for ob, vertex in items:
+                proposals[ob][vertex] = index
+        rejected = set()
+        for ob, vertices in proposals.items():
+            before = outlines[ob]
+            after = before.copy()
+            for vertex, index in vertices.items():
+                after[vertex] = targets[index]
+            for face in ob.data.polygons:
+                touched = set(face.vertices) & vertices.keys()
+                if not touched:
+                    continue
+                old, new = before[list(face.vertices)], after[list(face.vertices)]
+                old_local, new_local = old-old.mean(axis=0), new-new.mean(axis=0)
+                old_normal = np.cross(old_local, np.roll(old_local, -1, axis=0)).sum(axis=0)
+                new_normal = np.cross(new_local, np.roll(new_local, -1, axis=0)).sum(axis=0)
+                _, singular, axes = np.linalg.svd(new_local, full_matrices=False)
+                invalid = (np.linalg.norm(np.roll(new, -1, axis=0)-new, axis=1).min() <= 1e-10
+                           or np.linalg.norm(new_normal) <= max(np.linalg.norm(old_normal)*1e-6, 1e-16)
+                           or old_normal @ new_normal <= 0 or singular[1] <= 1e-10
+                           or np.abs(new_local @ axes[-1]).max() > .0005)
+                if invalid:
+                    rejected.update(vertices[vertex] for vertex in touched)
+        if not rejected:
+            break
+        for index in rejected:
+            groups.pop(index, None)
+    changed = 0
+    for index, items in groups.items():
+        world = rotation @ (Vector(targets[index]) * scale)
+        for ob, vertex in items:
+            position = ob.matrix_world.inverted_safe() @ world
+            if ob.data.vertices[vertex].co != position:
+                ob.data.vertices[vertex].co = position
+                changed += 1
+    for ob in {ob for items in groups.values() for ob, _ in items}:
+        ob.data.update()
+    return changed
+
+
 def snap_portal_vertices(portals, structures, tolerance):
     """Align nearby portal corners to the finished physical structure mesh.
 

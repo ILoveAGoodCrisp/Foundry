@@ -16,6 +16,7 @@ import numpy as np
 import time
 
 from ..tags.globals import GlobalsTag
+from ..camera_fov import read_cinematic_film_aperture
 
 from ..tags.frame_event_list import dump_frame_animation_events
 from ..tags.animation_graph import AnimationGraphTag, VehicleSuspensionUpdate
@@ -41,7 +42,8 @@ from ..props.scene import NWO_Animation_ListItems
 from ..tools.scenario.lightmap import run_lightmapper
 
 from ..tools.light_exporter import export_lights
-from ..tools.decorator_exporter import export_decorators
+from ..tools.decorator_exporter import export_decorators, gather_decorators
+from .pointcloud import is_decorator_geometry, prepare_pointcloud_proxy
 from ..tools.decal_exporter import export_decals
 from ..tools.scenario.markers import export_scenario_markers, export_camera_points
 from ..tools.scenario.objects import export_scenario_objects
@@ -345,6 +347,7 @@ class ExportScene:
         self.external_animations = {}
         self.local_views = set()
         self.decorators = []
+        self.decorator_placements = None
         self.decals = []
         self.scenario_markers = []
         self.hidden_objects = {}
@@ -360,7 +363,9 @@ class ExportScene:
         
     def ready_scene(self, collection_view_layer=None):
         # Annoying but need to loop all instancers and set them to not instance if they are intended as markers
-        self.marker_instancers = [ob for ob in bpy.data.objects if ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION' and ob.nwo.marker_instance]
+        preview_sources = utils.decorator_preview_sources()
+        self.marker_instancers = [ob for ob in bpy.data.objects if ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION'
+                                 and ob.nwo.marker_instance and ob not in preview_sources]
         for ob in self.marker_instancers:
             ob.instance_type = 'NONE'
         
@@ -447,6 +452,11 @@ class ExportScene:
             self.context.view_layer.update()
         
         self.collection_map = utils.create_parent_mapping(self.context)
+
+        # Gather while ready_scene's visibility and collection scope are active.
+        # Tag processing runs after restore_scene, when that scope is gone.
+        if self.asset_type == AssetType.SCENARIO and self.scene_settings.decorators_from_blender:
+            self.decorator_placements = gather_decorators(self.context)
         
         self.depsgraph = self.context.evaluated_depsgraph_get()
         ignore_for_export_fast = utils.ignore_for_export_fast
@@ -457,6 +467,8 @@ class ExportScene:
             valid_objects = GENERAL_OBJECTS | {'ARMATURE'}
             
         proxy_export_objects = []
+        pointcloud_meshes = {}
+        preview_sources = utils.decorator_preview_sources()
         for inst in self.depsgraph.object_instances:
             obj = inst.object
             original = obj.original
@@ -477,9 +489,12 @@ class ExportScene:
                 continue
             
             # Decorator clouds author placements through their dedicated exporter.
-            if original.get('nwo_decorator_placement_cloud') or original.get('nwo_decorator_instance_source'):
+            if is_decorator_geometry(inst, preview_sources):
                 continue
             if ignore_for_export_fast(original, collection_map, parent):
+                continue
+            if (inst.is_instance and parent.original.type == 'POINTCLOUD'
+                    and ignore_for_export_fast(parent.original, collection_map, parent)):
                 continue
              
             export_collection = parent.nwo.export_collection
@@ -504,6 +519,10 @@ class ExportScene:
             proxy.pose = original.pose
             proxy.empty_display_size = original.empty_display_size
             proxy.modifiers = tuple(obj.modifiers)
+
+            if original.type == 'POINTCLOUD' and not prepare_pointcloud_proxy(
+                    proxy, inst.object, pointcloud_meshes, self.temp_meshes):
+                continue
             
             nwo.collection_region = ""
             nwo.collection_permutation = ""
@@ -742,7 +761,10 @@ class ExportScene:
                     
                 if self.supports_bsp and mesh_type == MeshType.poop.value and ob.data not in self.processed_poop_meshes:
                     self.ob_halo_data, proxies, has_collision_proxy, new_default_coll = self.create_instance_proxies(ob, self.ob_halo_data, region, permutation)
-                    if has_collision_proxy:
+                    # ASS's @ child replaces the instance collision itself.
+                    # Forcing ! onto its render faces also marks +seamsealer
+                    # faces render-only, leaving holes in Tool's instance BSP.
+                    if has_collision_proxy and not self.legacy_export:
                         current_face_mode = mesh_props.get("bungie_face_mode")
                         if not current_face_mode or current_face_mode not in {FaceMode.render_only.value, FaceMode.lightmap_only.value, FaceMode.shadow_only.value}:
                             mesh_props["bungie_face_mode"] = FaceMode.render_only.value
@@ -956,7 +978,7 @@ class ExportScene:
 
         warnings_append = self.warnings.append
 
-        if getattr(ob, 'ob', ob).get('nwo_decorator_placement_cloud'):
+        if utils.is_decorator_cloud(getattr(ob, 'ob', ob)):
             return
 
         object_type = self._get_object_type(ob)
@@ -1136,6 +1158,15 @@ class ExportScene:
                         self.render_regions_perms[region].add(permutation)
                     
             case AssetType.SCENARIO:
+                named_seams = (self.project_game in {'halo3', 'halo3odst'} and any(
+                    material is not None and material.name.casefold().startswith('+seam:')
+                    for material in mesh.materials))
+                if (named_seams and mesh_type in {
+                        '_connected_geometry_mesh_type_default',
+                        '_connected_geometry_mesh_type_structure'}
+                        and all(material is not None and material.name.casefold().startswith('+seam:')
+                                for material in mesh.materials)):
+                    mesh_type = '_connected_geometry_mesh_type_seam'
                 # Foundry stores instances as the default mesh type, so switch them back to poops and structure to default
                 match mesh_type:
                     case '_connected_geometry_mesh_type_default':
@@ -1155,21 +1186,27 @@ class ExportScene:
                             force_collision_only = True
                     case '_connected_geometry_mesh_type_structure':
                         mesh_type = '_connected_geometry_mesh_type_default'
-                        seam_material = mesh.materials.get("+seam")
+                        seam_material = next((material for material in mesh.materials
+                            if material is not None and (material.name == '+seam' or
+                                material.name.casefold().startswith('+seam:'))), None)
                         if seam_material is not None:
                             props["bungie_mesh_seam_associated_bsp"] = region
                             if len(mesh.materials) == 1:
                                 mesh_type = '_connected_geometry_mesh_type_seam'
                     case '_connected_geometry_mesh_type_weather_polyhedron':
-                        if not self.legacy_export or self.project_game not in {'halo1', 'halo2'}:
-                            warnings_append(f'{ob.name}: weather polyhedra are only supported by Halo 1 and Halo 2 legacy export. Skipping mesh')
+                        if not self.legacy_export:
+                            warnings_append(f'{ob.name}: weather polyhedra require Halo 1, Halo 2, Halo 3 or ODST legacy export. Skipping mesh')
                             return None, True
-                        # H1 JMS and H2 ASS represent these through special
-                        # materials/names rather than a connected-geometry enum.
+                        # Classic Tool builds these from +weatherpoly faces,
+                        # rather than a connected-geometry mesh type.
                         props['foundry_weather_polyhedron'] = True
                         mesh_type = '_connected_geometry_mesh_type_default'
 
                 if self.legacy_export:
+                    if (self.project_game in {'halo3', 'halo3odst'}
+                            and mesh_type == '_connected_geometry_mesh_type_planar_fog_volume'):
+                        warnings_append(f'{ob.name}: Halo 3 and ODST do not support fog sheets. Use atmosphere fog in Sapien. Skipping mesh')
+                        return None, True
                     if mesh_type in {
                         '_connected_geometry_mesh_type_poop_rain_blocker',
                         '_connected_geometry_mesh_type_poop_vertical_rain_sheet',
@@ -1198,7 +1235,7 @@ class ExportScene:
                     case '_connected_geometry_mesh_type_seam':
                         if props.get("bungie_mesh_seam_associated_bsp") is None:
                             props["bungie_mesh_seam_associated_bsp"] = region
-                            if not nwo.seam_back_manual:
+                            if not nwo.seam_back_manual and not named_seams:
                                 copy = ObjectCopy.SEAM
                             
                     case "_connected_geometry_mesh_type_portal":
@@ -1211,7 +1248,9 @@ class ExportScene:
                             props["bungie_mesh_portal_is_door"] = 1
                             
                     case "_connected_geometry_mesh_type_water_surface":
-                        match nwo.water_type:
+                        # H2 uses one BSP water definition and +media geometry;
+                        # saved H3+ surface/physics choices do not apply to it.
+                        match 'SURFACE' if self.project_game == 'halo2' else nwo.water_type:
                             case 'BOTH':
                                 copy = ObjectCopy.WATER_PHYSICS
                             case 'PHYSICS':
@@ -1226,8 +1265,9 @@ class ExportScene:
                         mesh_props["bungie_face_mode"] = FaceMode.render_only.value
                         
                     case "_connected_geometry_mesh_type_planar_fog_volume":
-                        props["bungie_mesh_fog_appearance_tag"] = utils.relative_path(nwo.fog_appearance_tag)
-                        props["bungie_mesh_fog_volume_depth"] = nwo.fog_volume_depth
+                        if not self.legacy_export:
+                            props["bungie_mesh_fog_appearance_tag"] = utils.relative_path(nwo.fog_appearance_tag)
+                            props["bungie_mesh_fog_volume_depth"] = nwo.fog_volume_depth
                         
                     case "_connected_geometry_mesh_type_lightmap_region": # Never written to granny
                         self.lightmap_regions[ob] = region
@@ -1285,12 +1325,15 @@ class ExportScene:
         else:
             mesh_props.update(tmp_mesh_props)
 
-        if force_collision_only:
+        if force_collision_only and mesh_props.get("bungie_face_mode") != FaceMode.sphere_collision_only.value:
             mesh_props["bungie_face_mode"] = FaceMode.collision_only.value
 
         return copy, skip
     
     def _setup_water_physics_props(self, nwo: NWO_ObjectPropertiesGroup, props: dict):
+        if self.project_game in {'halo3', 'halo3odst'}:
+            props['foundry_water_direction'] = tuple(nwo.water_volume_direction)
+            props['foundry_water_angle'] = nwo.water_volume_angle
         props["bungie_mesh_water_volume_depth"] = nwo.water_volume_depth * WU_SCALAR
         props["bungie_mesh_water_volume_flow_direction"] = degrees(nwo.water_volume_flow_direction)
         props["bungie_mesh_water_volume_flow_velocity"] = nwo.water_volume_flow_velocity
@@ -1316,6 +1359,14 @@ class ExportScene:
                     props["bungie_marker_include_in_permutations"] = m_perm_json_value
     
     def _setup_poop_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, data_nwo: NWO_MeshPropertiesGroup, props: dict, mesh_props: dict):
+        if self.asset_type == AssetType.SCENARIO and data_nwo.mesh_type == '_connected_geometry_mesh_type_collision':
+            props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
+            if self.corinth:
+                props["bungie_mesh_poop_collision_type"] = PoopCollisionType[nwo.poop_collision_type].value
+            else:
+                self.poop_obs[ob.data].append(False)
+            return
+
         props["bungie_mesh_poop_lighting"] = PoopLighting[nwo.poop_lighting].value
         props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
         if self.corinth:
@@ -1541,7 +1592,8 @@ class ExportScene:
                     if self.corinth:
                         props["bungie_marker_always_run_scripts"] = int(nwo.marker_always_run_scripts)
             
-            elif marker_type == "_connected_geometry_marker_type_airprobe" and not self.corinth:
+            elif (marker_type == "_connected_geometry_marker_type_airprobe"
+                  and self.asset_type == AssetType.SCENARIO and utils.supports_game_feature('airprobes')):
                 self.airprobes[ob] = ob.name
                 return
                 
@@ -1562,6 +1614,8 @@ class ExportScene:
     def _setup_mesh_level_props(self, ob: bpy.types.Object, region: str, mesh_props: dict, mesh_type_value: int, props: dict):
         mesh = ob.data
         data_nwo: NWO_MeshPropertiesGroup = mesh.nwo
+        scenario_collision = (self.asset_type == AssetType.SCENARIO
+                              and data_nwo.mesh_type == '_connected_geometry_mesh_type_collision')
         face_props = []
         is_mesh = ob.type == 'MESH'
         region_face_level = False
@@ -1605,6 +1659,8 @@ class ExportScene:
         
         for prop in face_props:
             if not face_prop_game_supported(prop.type, self.project_game, prop.face_mode if prop.type == 'face_mode' else None):
+                continue
+            if scenario_collision and prop.type == 'face_mode' and prop.face_mode not in {'collision_only', 'sphere_collision_only'}:
                 continue
             if prop.type in ('face_sides', 'transparent'):
                 face_sides_props.append(prop)
@@ -1811,9 +1867,8 @@ class ExportScene:
         elif self.asset_type == AssetType.CINEMATIC:
             for actor in self.cinematic_actors:
                 if not actor.original_tag.strip():
-                    actor.node_order = {bone.name: index for index, bone in enumerate(sorted(
-                        (bone for bone in actor.ob.data.bones if bone.use_deform),
-                        key=lambda bone: bone.get('cinematic_node_index', 0)))}
+                    actor.node_order = {bone.name: index for index, bone in enumerate(
+                        bone for bone in actor.ob.data.bones if bone.use_deform)}
                     continue
                 path = Path(self.tags_dir, utils.relative_path(actor.original_tag))
                 if path.exists() and path.is_file() and path.is_absolute():
@@ -1894,21 +1949,9 @@ class ExportScene:
             if len(markers) + 1 > maximum_shots:
                 self.warnings.append(f"Maximum shot count of {maximum_shots} exceeded (You have {len(markers) + 1} shots). Shots have been limited")
                 
-            if self.corinth:
-                film_aperture = 22.5
-            else:
-                film_aperture = 45
-                
             globals_path = Path(utils.get_tags_path(), "globals\\globals.globals")
-            if globals_path.exists():
-                with GlobalsTag(path=globals_path) as tag_globals:
-                    configured_aperture = tag_globals.cinematic_film_aperture()
-                    if configured_aperture is not None:
-                        film_aperture = configured_aperture
-                    else:
-                        utils.print_warning(f"Failed to read globals tag. Using default cinematic film aperture of {film_aperture}")
-            else:
-                utils.print_warning(f"Failed to read globals tag. Using default cinematic film aperture of {film_aperture}")
+            film_aperture = read_cinematic_film_aperture(
+                self.project_game, globals_path, GlobalsTag, utils.print_warning)
             
             shot_frame_start = frame_start
             fallback_camera = None
@@ -2988,19 +3031,11 @@ class ExportScene:
     
     def _memory_tool_patches(self):
         tool_path = Path(self.project_root, utils.get_tool_type()).with_suffix(".exe")
-        patcher = ToolPatcher(tool_path)
-        tool_patches = patcher.skip_import_source_data(return_patches=True)
-        if self.corinth:
-            return tool_patches
-
-        tool_patches.extend(patcher.reach_uncompressed_vertex_weights(return_patches=True))
-        tool_patches.extend(patcher.reach_skip_vertex_compression(return_patches=True))
-        if self.asset_type.supports_animations:
-            tool_patches.extend(patcher.reach_ignore_node_depth_sort(return_patches=True))
-        if self.asset_type == AssetType.SCENARIO:
-            tool_patches.extend(patcher.reach_plane_builder(return_patches=True))
-
-        return tool_patches
+        return ToolPatcher(tool_path).import_patches(
+            self.project_game,
+            plane_builder=self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB},
+            node_order=self.asset_type.supports_animations,
+        )
 
     def export_single_animation_events(self, sidecar_path):
         sidecar = ET.parse(Path(self.data_dir, sidecar_path))
@@ -3195,13 +3230,16 @@ class ExportScene:
         export_scenario_markers(self.scenario_markers,
                                 scenario_path=Path(self.asset_path_relative, self.asset_name).with_suffix('.scenario'),
                                 tags_root=self.tags_dir, game=game,
-                                clear_player_starts=self.scene_settings.player_starts_from_blender)
+                                clear_player_starts=self.scene_settings.player_starts_from_blender,
+                                clear_cutscene_flags=self.scene_settings.cutscene_flags_from_blender)
         if self.scene_settings.camera_points_from_blender:
             export_camera_points(context=self.context,
                                  scenario_path=Path(self.asset_path_relative, self.asset_name).with_suffix('.scenario'),
                                  tags_root=self.tags_dir, game=game)
         if self.scene_settings.decorators_from_blender:
-            export_decorators(self.corinth)
+            export_decorators(self.corinth, self.decorator_placements, context=self.context,
+                              scenario_path=Path(self.asset_path_relative, self.asset_name).with_suffix('.scenario'),
+                              tags_root=self.tags_dir, game=game)
 
     def write_vehicle_suspension(self, path=''):
         if not self.suspension_animations:
@@ -3324,7 +3362,7 @@ class ExportScene:
                     export_lights(self.asset_path_relative, self.asset_name, {}, bsps, self.lightmap_regions)
                         
 
-        if self.export_settings.export_structure and self.scene_settings.airprobes_from_blender and not self.corinth and self.asset_type == AssetType.SCENARIO:
+        if self.export_settings.export_structure and self.scene_settings.airprobes_from_blender and utils.supports_game_feature('airprobes') and self.asset_type == AssetType.SCENARIO:
             self.print_post(f"--- Writing {len(self.airprobes)} airprobe{'s' if len(self.airprobes) != 1 else ''}")
             export_airprobes(self.airprobes)
                 

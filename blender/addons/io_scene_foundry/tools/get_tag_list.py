@@ -148,6 +148,8 @@ def extensions_from_type(list_type):
             return (".curve_scalar")
         case 'fog_appearance_tag':
             return (".planar_fog_parameters")
+        case 'halo2_water_shader':
+            return ('.shader',)
         case 'light_tag_override':
             return (".light")
         case 'light_shader_reference':
@@ -238,12 +240,13 @@ def extensions_from_type(list_type):
         case 'event_model':
             return (".model")
         
-def walk_tags_dir(tags_dir, ext_list):
+def walk_tags_dir(tags_dir, ext_list, source_project=None):
     tags_set = set()
     fav_tags = set()
     # Display the favorite tags first, so grab these
-    if is_corinth():
-        fav_tags_file = os.path.join(get_project_path(), "FavoriteTags.txt")
+    if (source_project.corinth if source_project is not None else is_corinth()):
+        project_path = source_project.project_path if source_project is not None else get_project_path()
+        fav_tags_file = os.path.join(project_path, "FavoriteTags.txt")
         if os.path.exists(fav_tags_file):
             with open(fav_tags_file, "r") as file:
                 for line in file:
@@ -373,6 +376,8 @@ def get_glob_from_prop(prop):
             return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light;dec*_set"
         case 'fog_appearance_tag':
             return "*.pl*parameters"
+        case 'halo2_water_shader':
+            return '*.shader'
         case 'marker_looping_effect':
             return "*.effect"
         case 'marker_light_cone_tag':

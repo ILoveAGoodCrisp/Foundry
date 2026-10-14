@@ -195,7 +195,7 @@ class ModelDocument(TagDocument):
                 options = result.setdefault(name, [])
                 permutations = self.block(region, 'permutations')
                 if not len(permutations):
-                    options.append((default_permutation(name), 1.0))
+                    options.append(('default', 1.0))
                 for permutation in permutations:
                     # A sole entry explicitly selects the region's part, even
                     # when its unused random-selection weight is zero (ODST body).
@@ -206,8 +206,10 @@ class ModelDocument(TagDocument):
                     name_in_render = self.value(permutation, 'permutation name')
                     if not name_in_render and not weighted:
                         continue
-                    if name_in_render == 'default':
-                        name_in_render = default_permutation(name)
+                    # Explicit names must match the render model, including
+                    # 'default'. Instance-only regions can omit that empty
+                    # permutation; substituting the first one enables flair
+                    # belonging to a different variant.
                     if state == 0:
                         options.append((name_in_render, weight))
                         continue
@@ -217,8 +219,6 @@ class ModelDocument(TagDocument):
                                           ('default', 'minor damage', 'medium damage', 'major damage', 'destroyed'))
                         if state == -1 or kind == state:
                             state_name = self.value(state_element, 'permutation name')
-                            if state_name == 'default':
-                                state_name = default_permutation(name)
                             if state_name or weighted:
                                 state_options.append(state_name)
                     # Damage states replace the base permutation. Only the
@@ -243,9 +243,9 @@ class ModelDocument(TagDocument):
         if not self.path_exists(self.reference_render_model.Path):
             return set()
         if state == -1:
-            region_options = self.variant_region_options(variant, state)
-            return {(region, permutation) for region, options in region_options.items()
-                    for permutation in options}
+            return {(region, permutation)
+                    for region, choices in self._variant_region_choices(variant, state).items()
+                    for permutation, _ in choices}
         selected = set()
         for region, choices in self._variant_region_choices(variant, state).items():
             if not choices:

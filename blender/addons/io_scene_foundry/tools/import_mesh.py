@@ -9,7 +9,7 @@ from ..tags.classic_geometry import weld_classic_vertices
 
 
 def make_mesh_editable(mesh):
-    """Weld coincident vertices, retaining interchange authoring normals.
+    """Weld coincident vertices and replace custom normals with edge shading.
 
     Exact welding keeps thin features, UV seams, face properties and separate
     render/collision overlays intact. Compare both ends of each shared edge:
@@ -17,9 +17,7 @@ def make_mesh_editable(mesh):
     degree of encoding noise in the imported tag normals when replacing them.
     """
     weld_classic_vertices(mesh, preserve_deformation=True)
-    # Interchange files retain authoring normals, which need not be derivable
-    # from smooth/sharp edges. Keep those corners through an unedited round trip.
-    if not mesh.has_custom_normals or mesh.get('foundry_legacy_normals', False):
+    if not mesh.has_custom_normals:
         return
 
     bm = bmesh.new()

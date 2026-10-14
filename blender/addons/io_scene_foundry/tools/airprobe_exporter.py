@@ -18,12 +18,19 @@ class NWO_OT_ExportAirprobes(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return utils.valid_nwo_asset(context) and not utils.is_corinth(context)
+        return (utils.valid_nwo_asset(context) and utils.get_scene_props().asset_type == 'scenario'
+                and utils.supports_game_feature('airprobes'))
 
     def execute(self, context):
+        if not utils.require_game_feature(self, 'airprobes'):
+            return {'CANCELLED'}
         current_selection = context.selected_objects[:]
         current_object = context.object
-        export_airprobes()
+        try:
+            export_airprobes()
+        except (ValueError, OSError, RuntimeError) as exc:
+            self.report({'ERROR'}, str(exc))
+            return {'CANCELLED'}
         for ob in current_selection:
             ob.select_set(True)
         context.view_layer.objects.active = current_object
@@ -79,12 +86,32 @@ def _airprobe_items(airprobe_objects):
 
 def _write_airprobes(scenario, airprobe_objects):
     root = scenario.tag.root()
+    items = list(_airprobe_items(airprobe_objects))
+    records = []
+    corinth = scenario.game in {'halo4', 'halo2a'}
+    bsps = [reference.ShortName for row in scenario.block(root, 'structure bsps')
+            if (reference := scenario.reference(row, 'structure bsp')) is not None]
+    for ob, name in items[:512]:
+        bsp_index = -1
+        if corinth:
+            bsp_name = getattr(ob.nwo, 'airprobe_bsp', '') or utils.true_region(ob.nwo)
+            if bsp_name not in bsps:
+                asset_name = utils.get_asset_info()[1]
+                qualified = asset_name + '_' + bsp_name
+                if qualified in bsps:
+                    bsp_name = qualified
+                elif len(bsps) == 1 and not getattr(ob.nwo, 'airprobe_bsp', ''):
+                    bsp_name = bsps[0]
+                else:
+                    raise ValueError(f'{name}: assign a valid airprobe BSP ({", ".join(bsps)})')
+            bsp_index = bsps.index(bsp_name)
+        records.append((ob, name, bsp_index))
+    # Validate all BSP assignments before replacing the owned tag block.
     airprobes = scenario.block(root, 'airprobes')
     airprobes.clear()
-    items = list(_airprobe_items(airprobe_objects))
     if len(items) > 512:
         utils.print_warning(f"More than 512 airprobes found [Total {len(items)}]. Exported first 512 only")
-    for ob, name in items[:512]:
+    for ob, name, bsp_index in records:
         index = airprobes.add()
         airprobes = scenario.block(root, 'airprobes')
         element = airprobes[index]
@@ -92,10 +119,14 @@ def _write_airprobes(scenario, airprobe_objects):
         position = scenario.required_field(element, 'airprobe position')
         position.set(type(position.value)(*matrix.translation))
         scenario.required_field(element, 'airprobe name').set(utils.clean_text(name))
+        if corinth:
+            scenario.required_field(element, 'BSP index').set(bsp_index)
         scenario.tag_has_changes = True
 
 
 def export_airprobes(airprobe_objects=None):
+    if not utils.supports_game_feature('airprobes'):
+        raise ValueError('This game has no scenario airprobes')
     scenario_path = utils.get_asset_tag(".scenario", True)
     if airprobe_objects is None:
         airprobe_objects = gather_airprobes(bpy.context)

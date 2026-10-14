@@ -5,6 +5,7 @@ import ctypes
 import json
 from pathlib import Path
 import bpy
+from .. import utils
 import xml.etree.ElementTree as ET
 from .halo1_guerilla import prepare_guerilla_config
 from ..ui.bar import draw_game_launcher_pruning, draw_game_launcher_settings, game_launcher_has_pruning
@@ -324,8 +325,7 @@ def get_tag_if_exists(asset_path, asset_name, type, extra=""):
 
 def halo1_tag_editor_options(asset_type, scene):
     """Property, label and actual H1 tag extension, shared by UI and launcher."""
-    geometry = [("open_model", "Model", "model"),
-                ("open_render_model", "GBX Model", "gbxmodel")]
+    geometry = [("open_model", "Model", "model")]
     animations = ("open_model_animation_graph", "Model Animations", "model_animations")
     if asset_type == "model":
         options = geometry + [
@@ -362,9 +362,11 @@ def _halo1_asset_tags(settings, scene, asset_type):
                 paths.extend(str(path) for path in sorted(directory.glob("*.scenario_structure_bsp"))
                              if path.is_file())
         else:
-            path = get_tag_if_exists(scene.asset_directory, scene.asset_name, extension)
-            if path:
-                paths.append(path)
+            extensions = ("model", "gbxmodel") if extension == "model" else (extension,)
+            for tag_extension in extensions:
+                path = get_tag_if_exists(scene.asset_directory, scene.asset_name, tag_extension)
+                if path:
+                    paths.append(path)
     if asset_type == "camera_track_set" and settings.camera_track_name:
         path = get_tag_if_exists(scene.asset_directory, settings.camera_track_name, "camera_track")
         if path:
@@ -405,7 +407,7 @@ def launch_tag_editor(settings, context, report):
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "model_animation_graph")
                 )
-            if settings.open_frame_event_list and len(bpy.data.actions) > 0:
+            if settings.open_frame_event_list and len(bpy.data.actions) > 0 and not utils.uses_legacy_export():
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "frame_event_list")
                 )
@@ -469,7 +471,9 @@ def launch_tag_editor(settings, context, report):
                     if bsp.exists():
                         launch_args.append(str(bsp))
 
-            if settings.open_scenario_lightmap_bsp_data:
+            if utils.get_game() == 'halo2' and settings.open_scenario_structure_lightmap:
+                launch_args.extend(str(path) for path in asset_path_full.glob('*.scenario_structure_lightmap'))
+            if settings.open_scenario_lightmap_bsp_data and utils.get_game() != 'halo2':
                 if settings.bsp_name == "":
                     for file in asset_path_full.glob("*.scenario_lightmap_bsp_data"):
                         launch_args.append(str(file))
@@ -478,7 +482,7 @@ def launch_tag_editor(settings, context, report):
                     if bsp.exists():
                         launch_args.append(str(bsp))
                         
-            if settings.open_scenario_structure_lighting_info:
+            if settings.open_scenario_structure_lighting_info and utils.supports_game_feature('lighting_info'):
                 if settings.bsp_name == "":
                     for file in asset_path_full.glob("*.scenario_structure_lighting_info"):
                         launch_args.append(str(file))
@@ -530,7 +534,7 @@ def launch_tag_editor(settings, context, report):
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "model_animation_graph")
                 )
-            if settings.open_frame_event_list:
+            if settings.open_frame_event_list and not utils.uses_legacy_export():
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "frame_event_list")
                 )
@@ -1271,6 +1275,8 @@ class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         name="Lightmap Data",
     )
+
+    open_scenario_structure_lightmap: bpy.props.BoolProperty(options=set(), name="Lightmap")
 
     open_scenario_structure_lighting_info: bpy.props.BoolProperty(
         options=set(),

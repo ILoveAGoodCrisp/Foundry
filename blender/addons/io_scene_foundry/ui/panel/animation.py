@@ -6,12 +6,14 @@ from pathlib import Path
 import random
 import subprocess
 from typing import cast
+from types import SimpleNamespace
 import bpy
 from mathutils import Matrix
 
 from ...tags.animation_graph import AnimationGraphTag
 
 from ...props.scene import NWO_AnimationBlendAxisItems, NWO_AnimationGroupItems, NWO_AnimationLeavesItems, NWO_AnimationPhaseSetsItems, NWO_AnimationPropertiesGroup
+from ...props.scene import _animation_type_items, _animation_space_items, _movement_items
 from ... import constants
 from ... import utils
 from ...icons import get_icon_id
@@ -19,6 +21,91 @@ from ...tools.animation import animation_name
 
 pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
 IK_PREVIEW_CONSTRAINT_NAME = "Foundry IK Preview"
+
+# UIList instances are not exposed by Region RNA. Keep plain filter settings,
+# scoped to the region and animation owner, rather than retaining UI pointers.
+_animation_filter_settings = {}
+ANIMATION_TAG_PROPERTIES = frozenset({
+    "author_type", "weight", "loop_frame_index", "disable_interpolation_in",
+    "disable_interpolation_out", "disable_mode_ik", "disable_weapon_ik",
+    "disable_weapon_aim", "disable_look_screen", "disable_transition_adjustment",
+    "force_weapon_ik_on", "enable_animated_source_interpolation", "disable_ik_sets",
+    "disable_ik_chains", "translate_and_scale_root_only",
+    "override_player_input_with_motion", "disable_subframe_interp_on_loop",
+    "override_blend_in_time", "enable_blend_out_on_replacement_anims",
+    "override_blend_out_time", "do_not_monitor_changes", "verify_sound_events",
+    "do_not_inherit_for_player_graphs", "keep_raw_data_in_tag",
+    "allow_ball_roll_on_foot", "pca_best_quality", "pca_group_name",
+})
+
+
+def _animation_filter_key(context, scene_nwo):
+    region = context.region
+    if region is None:
+        return None
+    return region.as_pointer(), scene_nwo.as_pointer()
+
+
+def _animation_tag_property_source(context):
+    source = getattr(context, "button_pointer", None)
+    prop = getattr(context, "button_prop", None)
+    if not isinstance(source, NWO_AnimationPropertiesGroup) or prop is None:
+        return None, None
+    if prop.identifier not in ANIMATION_TAG_PROPERTIES or prop.is_readonly:
+        return None, None
+    if prop.identifier != "author_type" and source.author_type != 'BLENDER':
+        return None, None
+    scene_nwo = utils.get_scene_props()
+    if scene_nwo.is_child_asset or source not in scene_nwo.animations.values():
+        return None, None
+    return source, prop
+
+
+def animation_tag_property_context_menu(self, context):
+    source, prop = _animation_tag_property_source(context)
+    if source is None:
+        return
+    self.layout.separator()
+    row = self.layout.row()
+    row.operator_context = 'EXEC_DEFAULT'
+    row.operator("nwo.animation_tag_property_copy", icon='COPYDOWN')
+
+
+class NWO_OT_AnimationTagPropertyCopy(bpy.types.Operator):
+    bl_idname = "nwo.animation_tag_property_copy"
+    bl_label = "Copy to Filtered Animations"
+    bl_description = "Copy this tag property to all animations shown by the current animation list filters"
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        source, prop = _animation_tag_property_source(context)
+        if source is None:
+            return False
+        return _animation_filter_key(context, utils.get_scene_props()) in _animation_filter_settings
+
+    def execute(self, context):
+        source, prop = _animation_tag_property_source(context)
+        if source is None:
+            return {'CANCELLED'}
+        scene_nwo = utils.get_scene_props()
+        settings = _animation_filter_settings.get(_animation_filter_key(context, scene_nwo))
+        if settings is None:
+            self.report({'WARNING'}, "Animation list filters are unavailable")
+            return {'CANCELLED'}
+        flags, _ = NWO_UL_AnimationList._filter_items(settings, context, scene_nwo, "animations")
+        value = getattr(source, prop.identifier)
+        copied = 0
+        for target, flag in zip(scene_nwo.animations, flags):
+            # Blender applies use_filter_invert after the Python filter callback.
+            visible = bool(flag & settings.bitflag_filter_item) != settings.use_filter_invert
+            if visible and target != source:
+                setattr(target, prop.identifier, value)
+                copied += 1
+        if context.area is not None:
+            context.area.tag_redraw()
+        self.report({'INFO'}, f"Copied {prop.name} to {copied} animations")
+        return {'FINISHED'}
 
 
 def _get_animation_event_owner(scene_nwo, single_animation: bool):
@@ -44,6 +131,10 @@ def _get_active_animation_event(scene_nwo, single_animation: bool):
         return owner, None
 
     return owner, owner.animation_events[event_index]
+
+def _can_add_event_data(owner):
+    return (utils.get_game() != 'halo1' or
+            not any(event.event_data for event in owner.animation_events))
 
 def _find_animation_armature(context: bpy.types.Context, animation, single_animation: bool) -> bpy.types.Object | None:
     if not single_animation and animation is not None:
@@ -281,6 +372,9 @@ def _copy_property_group(source, target):
         try:
             if prop.type == 'COLLECTION':
                 _copy_property_collection(getattr(source, identifier), getattr(target, identifier))
+            elif (prop.type == 'ENUM' and identifier in {'frame_name','event_type','data_type','animation_type',
+                    'animation_movement_data','animation_space','multi_frame'} and identifier in source):
+                target[identifier] = source[identifier]
             elif not prop.is_readonly:
                 setattr(target, identifier, getattr(source, identifier))
         except (AttributeError, TypeError, ValueError, RuntimeError):
@@ -342,6 +436,28 @@ def _set_animation_tracks_active(animation, object_map: dict[bpy.types.Object, b
             _set_animation_data_action(ob.animation_data_create(), track.action, slot_id)
             if ob.data is not None and ob.data.animation_data is not None:
                 _set_animation_data_action(ob.data.animation_data, track.action, slot_id)
+
+
+def animation_track_warning(animation) -> str:
+    if animation.external or animation.animation_type == 'composite':
+        return ""
+
+    inactive = False
+    for track in animation.action_tracks:
+        if track.object is None or track.action is None:
+            return "A track is missing its object or action"
+
+        owner = track.object
+        if track.is_shape_key_action:
+            if owner.type != 'MESH' or owner.data.shape_keys is None:
+                return "A shape key track has no shape keys"
+            owner = owner.data.shape_keys
+
+        animation_data = owner.animation_data
+        if animation_data is None or animation_data.action != track.action:
+            inactive = True
+
+    return "Tracks are not active" if inactive else ""
 
 
 def _snapshot_animation_owner(owner):
@@ -655,11 +771,11 @@ class NWO_OT_ExportFrameEvents(bpy.types.Operator):
     def poll(cls, context):
         if not utils.current_project_valid():
             return False
-        tag_path = utils.get_asset_tag(".model_animation_graph", True)
+        tag_path = utils.get_asset_animation_graph()
         return tag_path is not None and Path(tag_path).exists()
     
     def execute(self, context):
-        graph_path = utils.get_asset_tag(".model_animation_graph")
+        graph_path = utils.get_asset_animation_graph()
         with AnimationGraphTag(path=graph_path) as graph:
             graph.events_from_blender()
             
@@ -687,11 +803,15 @@ class NWO_OT_AddAnimationEventData(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         scene_nwo = utils.get_scene_props()
-        return scene_nwo.animations and scene_nwo.active_animation_index > -1
+        owner, event = _get_active_animation_event(scene_nwo, False)
+        return event is not None and _can_add_event_data(owner)
 
     def execute(self, context):
         scene_nwo = utils.get_scene_props()
         animation = scene_nwo.animations[scene_nwo.active_animation_index]
+        if not _can_add_event_data(animation):
+            self.report({'ERROR'}, 'Halo 1 stores only one sound event per animation')
+            return {'CANCELLED'}
         event = animation.animation_events[animation.active_animation_event_index]
         event.event_data.add()
         event.active_event_data_index = len(event.event_data) - 1
@@ -711,10 +831,13 @@ class NWO_OT_SingleAddAnimationEventData(bpy.types.Operator):
             return False
         scene_nwo = utils.get_scene_props()
         _, event = _get_active_animation_event(scene_nwo, True)
-        return scene_nwo.asset_type == 'single_animation' and event is not None
+        return scene_nwo.asset_type == 'single_animation' and event is not None and _can_add_event_data(scene_nwo)
 
     def execute(self, context):
-        _, event = _get_active_animation_event(utils.get_scene_props(), True)
+        owner, event = _get_active_animation_event(utils.get_scene_props(), True)
+        if not _can_add_event_data(owner):
+            self.report({'ERROR'}, 'Halo 1 stores only one sound event per animation')
+            return {'CANCELLED'}
         event.event_data.add()
         event.active_event_data_index = len(event.event_data) - 1
         context.area.tag_redraw()
@@ -1023,7 +1146,7 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
                             continue
                         new_anim[key] = value
                         
-                    if self.use_external_gr2 and export_animations_path is not None and not anim.external:
+                    if self.use_external_gr2 and utils.supports_game_feature('external_gr2') and export_animations_path is not None and not anim.external:
                         expected_gr2_path = Path(export_animations_path, f"{anim.name}.gr2")
                         # print(expected_gr2_path)
                         if expected_gr2_path.exists():
@@ -1165,7 +1288,8 @@ class NWO_OT_AnimationsFromBlend(bpy.types.Operator):
         layout.prop(self, "import_events")
         layout.prop(self, "import_renames")
         layout.prop(self, "prioritise_selected_armature")
-        layout.prop(self, "use_external_gr2")
+        if utils.supports_game_feature('external_gr2'):
+            layout.prop(self, "use_external_gr2")
         layout.prop(self, "linked_gr2_keep_actions")
         layout.prop(self, "animation_filter")
 
@@ -1378,9 +1502,11 @@ class NWO_OT_AnimationMoveToOwnBlend(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         scene_nwo = utils.get_scene_props()
-        return scene_nwo.animations and scene_nwo.active_animation_index > -1 and utils.valid_nwo_asset(context)
+        return utils.supports_game_feature('external_gr2') and scene_nwo.animations and scene_nwo.active_animation_index > -1 and utils.valid_nwo_asset(context)
     
     def execute(self, context):
+        if not utils.require_game_feature(self, 'external_gr2'):
+            return {'CANCELLED'}
         scene_nwo = utils.get_scene_props()
         animation = scene_nwo.animations[scene_nwo.active_animation_index]
         rel_path = ""
@@ -1488,7 +1614,7 @@ class NWO_OT_AnimationsMoveToAssetBlends(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         scene_nwo = utils.get_scene_props()
-        return bool(bpy.data.filepath and scene_nwo.animations and utils.valid_nwo_asset(context))
+        return utils.supports_game_feature('external_gr2') and bool(bpy.data.filepath and scene_nwo.animations and utils.valid_nwo_asset(context))
 
     def _eligible_animations(self, scene_nwo):
         return [
@@ -1526,6 +1652,8 @@ class NWO_OT_AnimationsMoveToAssetBlends(bpy.types.Operator):
         ]
 
     def execute(self, context):
+        if not utils.require_game_feature(self, 'external_gr2'):
+            return {'CANCELLED'}
         scene_nwo = utils.get_scene_props()
         asset_path = utils.get_asset_path_full()
         if asset_path is None:
@@ -1617,6 +1745,8 @@ class NWO_OT_AnimationsExportChildBlends(bpy.types.Operator):
     def poll(cls, context):
         if not utils.poll_project(cls):
             return False
+        if not utils.supports_game_feature('external_gr2'):
+            return False
         scene_nwo = utils.get_scene_props()
         return any(
             animation.export_this and animation.external and animation.blend_path.strip()
@@ -1652,6 +1782,8 @@ class NWO_OT_AnimationsExportChildBlends(bpy.types.Operator):
         return sorted(unique_paths.values(), key=sort_key), sorted(missing_paths.values(), key=sort_key)
 
     def execute(self, context):
+        if not utils.require_game_feature(self, 'external_gr2'):
+            return {'CANCELLED'}
         if not utils.require_project(self):
             return {'CANCELLED'}
         blend_paths, missing_paths = self._child_blend_paths(utils.get_scene_props())
@@ -1743,9 +1875,11 @@ class NWO_OT_AnimationLinkToGR2(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         scene_nwo = utils.get_scene_props()
-        return scene_nwo.animations and scene_nwo.active_animation_index > -1 and utils.valid_nwo_asset(context)
+        return utils.supports_game_feature('external_gr2') and scene_nwo.animations and scene_nwo.active_animation_index > -1 and utils.valid_nwo_asset(context)
     
     def execute(self, context):
+        if not utils.require_game_feature(self, 'external_gr2'):
+            return {'CANCELLED'}
         scene_nwo = utils.get_scene_props()
         path = Path(self.filepath)
         
@@ -1907,8 +2041,16 @@ class NWO_MT_AnimationTools(bpy.types.Menu):
         layout.operator("nwo.animations_from_actions", icon='UV_SYNC_SELECT')
         layout.operator("nwo.animations_from_blend", icon='IMPORT')
         layout.separator()
-        layout.operator("nwo.animations_move_to_asset_blends", icon='INDIRECT_ONLY_OFF')
-        layout.operator("nwo.animations_export_child_blends", icon='EXPORT')
+        scene_nwo = utils.get_scene_props()
+        if not scene_nwo.is_child_asset and 0 <= scene_nwo.active_animation_index < len(scene_nwo.animations):
+            animation = scene_nwo.animations[scene_nwo.active_animation_index]
+            if not animation.external and utils.supports_game_feature('external_gr2'):
+                layout.operator("nwo.animation_move_to_own_blend", icon='BLENDER')
+                layout.operator("nwo.animation_link_to_gr2", icon='LINKED')
+                layout.separator()
+        if utils.supports_game_feature('external_gr2'):
+            layout.operator("nwo.animations_move_to_asset_blends", icon='INDIRECT_ONLY_OFF')
+            layout.operator("nwo.animations_export_child_blends", icon='EXPORT')
         layout.separator()
         layout.operator("nwo.clear_animations", icon='CANCEL')
         layout.operator("nwo.clear_renames", icon='CANCEL')
@@ -1963,6 +2105,16 @@ class NWO_OT_SetTimeline(bpy.types.Operator):
     bl_options = {'UNDO'}
 
     set_frame: bpy.props.BoolProperty(default=True, options={'HIDDEN', 'SKIP_SAVE'})
+
+    @classmethod
+    def description(cls, context, properties):
+        scene_nwo = utils.get_scene_props()
+        if 0 <= scene_nwo.active_animation_index < len(scene_nwo.animations):
+            animation = scene_nwo.animations[scene_nwo.active_animation_index]
+            if utils.get_prefs().ignore_final_frame and animation.animation_type in {'base', 'world'}:
+                return (cls.bl_description + ". Loop preview skips the final frame; "
+                        "export still samples the full authored range")
+        return cls.bl_description
     
     # exclude_first_frame: bpy.props.BoolProperty()
     # exclude_last_frame: bpy.props.BoolProperty()
@@ -2014,55 +2166,20 @@ class NWO_OT_NewAnimation(bpy.types.Operator):
     animation_type: bpy.props.EnumProperty(
         name="Type",
         description="Set the type of Halo animation you want this action to be",
-        items=[
-            ("base", "Base", "Defines a base animation. Allows for varying levels of root bone movement (or none). Useful for cinematic animations, idle animations, turn and movement animations"),
-            ("overlay","Overlay", "Animations that overlay on top of a base animation (or none). Supports keyframe and pose overlays. Useful for animations that should overlay on top of base animations, such as vehicle steering or weapon aiming. Supports object functions to define how these animations blend with others\nLegacy format: JMO\nExamples: fire_1, reload_1, device position"),
-            ("replacement", "Replacement", "Animations that fully replace base animated nodes, provided those bones are animated. Useful for animations that should completely overrule a certain set of bones, and don't need any kind of blending influence. Can be set to either object or local space"),
-            ("world", "World", "Animations that play relative to the world rather than an objects current position"),
-            ("composite", "Composite", "Composite animation. Has no animation data itself but references other animations. Halo 4 and Halo 2AMP only")
-        ],
+        items=_animation_type_items,
     )
     
     animation_movement_data: bpy.props.EnumProperty(
         name='Movement',
         description='Set how this animations moves the object in the world',
-        default="none",
-        items=[
-            (
-                "none",
-                "None",
-                "Object will not physically move from its position. The standard for cinematic animation.\nLegacy format: JMM\nExamples: enter, exit, idle",
-            ),
-            (
-                "xy",
-                "Horizontal",
-                "Object can move on the XY plane. Useful for horizontal movement animations.\nLegacy format: JMA\nExamples: move_front, walk_left, h_ping front gut",
-            ),
-            (
-                "xyyaw",
-                "Horizontal & Yaw",
-                "Object can turn on its Z axis and move on the XY plane. Useful for turning movement animations.\nLegacy format: JMT\nExamples: turn_left, turn_right",
-            ),
-            (
-                "xyzyaw",
-                "Full & Yaw",
-                "Object can turn on its Z axis and move in any direction. Useful for jumping animations.\nLegacy format: JMZ\nExamples: climb, jump_down_long, jump_forward_short",
-            ),
-            (
-                "full",
-                "Full (Vehicle Only)",
-                "Full movement and rotation. Useful for vehicle animations that require multiple dimensions of rotation. Do not use on bipeds.\nLegacy format: JMV\nExamples: climb, vehicle roll_left, vehicle roll_right_short",
-            ),
-        ]
+        default=0,
+        items=_movement_items
     )
     
     animation_space: bpy.props.EnumProperty(
         name="Space",
         description="Set whether the animation is in object or local space",
-        items=[
-            ('object', 'Object', 'Replacement animation in object space.\nLegacy format: JMR\nExamples: revenant_p, sword put_away'),
-            ('local', 'Local', 'Replacement animation in local space.\nLegacy format: JMRX\nExamples: combat pistol any grip, combat rifle sr grip'),
-        ]
+        items=_animation_space_items
     )
 
     # animation_is_pose: bpy.props.BoolProperty(
@@ -2905,15 +3022,7 @@ class NWO_OT_SetActionTracksActive(bpy.types.Operator):
     def execute(self, context):
         scene_nwo = utils.get_scene_props()
         animation = scene_nwo.animations[scene_nwo.active_animation_index]
-        for track in animation.action_tracks:
-            if track.object and track.action:
-                if track.is_shape_key_action:
-                    if track.object.type == 'MESH' and track.object.data.shape_keys and track.object.data.shape_keys.animation_data:
-                        track.object.data.shape_keys.animation_data.action = track.action
-                else:
-                    if track.object.animation_data:
-                        track.object.animation_data.action = track.action
-                        
+        _set_animation_tracks_active(animation)
         return {"FINISHED"}
         
 class NWO_OT_AddActionTrack(bpy.types.Operator):
@@ -3144,11 +3253,11 @@ class NWO_UL_AnimationList(bpy.types.UIList):
             row.prop(self, "use_filter_sort_alpha", text="")
             row.prop(self, "use_filter_invert", text="", icon='ARROW_LEFTRIGHT')
             row.separator()
-            row.prop(self, "use_filter_sort_frame", text="Frame Count", icon='KEYFRAME_HLT')
+            row.prop(self, "use_filter_sort_frame", text="", icon='KEYFRAME_HLT')
             row.separator()
-            row.prop(self, "use_filter_event", text="Has Events", icon_value=get_icon_id("animation_event"))
-            row.prop(self, "use_filter_rename", text="Has Renames", icon_value=get_icon_id("animation_rename"))
-            row.prop(self, "use_filter_export", text="Export Enabled", icon='CHECKBOX_HLT')
+            row.prop(self, "use_filter_event", text="", icon_value=get_icon_id("animation_event"))
+            row.prop(self, "use_filter_rename", text="", icon_value=get_icon_id("animation_rename"))
+            row.prop(self, "use_filter_export", text="", icon='CHECKBOX_HLT')
             row.separator()
             row.prop(self, "use_filter_sort_reverse", text="", icon="SORT_ASC")
             layout.separator()
@@ -3169,12 +3278,23 @@ class NWO_UL_AnimationList(bpy.types.UIList):
             layout.context_pointer_set('foundry_ui_list', self)
             layout.operator('nwo.workflow_reset_filters', text='Reset Filters', icon='LOOP_BACK')
             flags, _ = self.filter_items(context, data=utils.get_scene_props(), propname='animations')
-            visible = sum(bool(flag & self.bitflag_filter_item) for flag in flags)
+            visible = sum(bool(flag & self.bitflag_filter_item) != self.use_filter_invert for flag in flags)
             layout.label(text=f'{visible} of {len(flags)} animations shown')
             if flags and not visible:
                 layout.label(text='No matches. Reset filters to show animations.')
 
     def filter_items(self, context, data, propname):
+        key = _animation_filter_key(context, data)
+        if key is not None:
+            _animation_filter_settings[key] = SimpleNamespace(**{
+                prop.identifier: getattr(self, prop.identifier)
+                for prop in self.bl_rna.properties
+                if prop.identifier.startswith('use_filter_')
+                or prop.identifier in {"filter_name", "bitflag_filter_item"}
+            })
+        return self._filter_items(context, data, propname)
+
+    def _filter_items(self, context, data, propname):
         items = getattr(data, propname)
         bit = self.bitflag_filter_item
 
@@ -3234,9 +3354,6 @@ class NWO_UL_AnimationList(bpy.types.UIList):
         flt_flags = [0] * len(items)
         for i in range(len(items)):
             final_visible = visible_by_name[i] and visible_by_custom[i] and visible_by_type[i]
-
-            if self.use_filter_invert:
-                final_visible = not final_visible
 
             base_flag = name_flags[i] if self.filter_name else bit
             base_flag &= ~bit

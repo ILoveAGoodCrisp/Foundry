@@ -11,6 +11,34 @@ from ..tools.asset_types import asset_type_items
 from ..icons import get_icon_id
 from .. import utils
 from ..coordinate_system import CoordinateSystem, FORWARD_ITEMS
+from .. import game_capabilities as capabilities
+
+def _animation_type_items(self, context):
+    return capabilities.animation_type_items(utils.get_game(use_external=False))
+
+def _animation_event_items(self, context):
+    return capabilities.animation_event_items(utils.get_game(use_external=False))
+
+def _event_data_items(self, context):
+    return capabilities.event_data_items(utils.get_game(use_external=False))
+
+_MOVEMENT_ITEMS = [('none', 'None', 'No root movement (JMM)', 0),
+    ('xy', 'Horizontal', 'Horizontal movement (JMA)', 1),
+    ('xyyaw', 'Horizontal & Yaw', 'Horizontal movement and yaw (JMT)', 2),
+    ('xyzyaw', 'Horizontal, Vertical & Yaw', 'Movement and yaw (JMZ)', 3),
+    ('full', 'Full (Vehicle Only)', 'Full movement and rotation (JMV)', 4)]
+_SPACE_ITEMS = [('object', 'Object', 'Object-space replacement (JMR)', 0),
+                ('local', 'Local', 'Local-space replacement (JMRX)', 1)]
+_RANGE_ITEMS = [('single', 'Single Frame', '', 0), ('range', 'Frame Range', '', 1)]
+
+def _movement_items(self, context):
+    return _MOVEMENT_ITEMS[:4] if utils.get_game(use_external=False) == 'halo1' else _MOVEMENT_ITEMS
+
+def _animation_space_items(self, context):
+    return _SPACE_ITEMS[:1] if utils.get_game(use_external=False) == 'halo1' else _SPACE_ITEMS
+
+def _event_range_items(self, context):
+    return _RANGE_ITEMS[:1] if utils.get_game(use_external=False) == 'halo1' else _RANGE_ITEMS
 
 script_object_types = ('WEAPON_TRIGGER_START', 'WEAPON_TRIGGER_STOP', 'SET_VARIANT', 'SET_PERMUTATION', 'SET_REGION_STATE', 'SET_MODEL_STATE_PROPERTY', 'HIDE', 'UNHIDE', 'DESTROY', 'OBJECT_CANNOT_DIE', 'OBJECT_CAN_DIE', 'OBJECT_PROJECTILE_COLLISION_ON', 'OBJECT_PROJECTILE_COLLISION_OFF', 'DAMAGE_OBJECT', 'PLAY_SOUND')
 
@@ -21,6 +49,7 @@ scene_specific_props = (
     'cinematic_events',
     'active_cinematic_event_index',
     'is_main_scene',
+    'toolset_scene_converted',
 )
 
 script_type_map = {
@@ -517,11 +546,7 @@ class NWO_AnimationEventData_ListItems(bpy.types.PropertyGroup):
     data_type: bpy.props.EnumProperty(
         name="Type",
         options=set(),
-        items=[
-            ('SOUND', "Sound", ""),
-            ('EFFECT', "Effect", ""),
-            ('DIALOGUE', "Dialogue", ""),
-        ]
+        items=_event_data_items
     )
     
     frame_offset: bpy.props.IntProperty(
@@ -786,9 +811,9 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
     multi_frame: bpy.props.EnumProperty(
         name="Usage",
         description="Toggle whether this animation event should trigger on a single frame, or occur over a range",
-        default="single",
+        default=0,
         options=set(),
-        items=[("single", "Single", ""), ("range", "Range", "")],
+        items=_event_range_items,
     )
     
     def update_frame_range(self, context):
@@ -829,14 +854,7 @@ class NWO_Animation_ListItems(bpy.types.PropertyGroup):
     event_type: bpy.props.EnumProperty(
         name="Type",
         options=set(),
-        items=[
-            ("_connected_geometry_animation_event_type_frame", "Frame", ""),
-            ("_connected_geometry_animation_event_type_object_function", "Object Function", ""),
-            ("_connected_geometry_animation_event_type_import", "Pose Overlay Wrap", ""),
-            ("_connected_geometry_animation_event_type_wrinkle_map", "Wrinkle Map", ""),
-            ("_connected_geometry_animation_event_type_ik_active", "IK Active", ""),
-            ("_connected_geometry_animation_event_type_ik_passive", "IK Passive", ""),
-        ]
+        items=_animation_event_items
     )
 
     # event_type: bpy.props.EnumProperty(
@@ -1339,57 +1357,22 @@ class NWO_AnimationPropertiesGroup(bpy.types.PropertyGroup):
         name="Type",
         description="Set the type of Halo animation you want this action to be",
         options=set(),
-        items=[
-            ("base", "Base", "Defines a base animation. Allows for varying levels of root bone movement (or none). Useful for cinematic animations, idle animations, turn and movement animations"),
-            ("overlay","Overlay", "Animations that overlay on top of a base animation (or none). Supports keyframe and pose overlays. Useful for animations that should overlay on top of base animations, such as vehicle steering or weapon aiming. Supports object functions to define how these animations blend with others\nLegacy format: JMO\nExamples: fire_1, reload_1, device position"),
-            ("replacement", "Replacement", "Animations that fully replace base animated nodes, provided those bones are animated. Useful for animations that should completely overrule a certain set of bones, and don't need any kind of blending influence. Can be set to either object or local space"),
-            ("world", "World", "Animations that play relative to the world rather than an objects current position"),
-            ("composite", "Composite", "Composite animation. Has no animation data itself but references other animations. Halo 4 and Halo 2AMP only")
-        ],
+        items=_animation_type_items,
     )
     
     animation_movement_data: bpy.props.EnumProperty(
         name='Movement',
         description='Set how this animation moves the object in worldspace',
-        default="none",
+        default=0,
         options=set(),
-        items=[
-            (
-                "none",
-                "None",
-                "Object will not physically move from its position. The standard for cinematic animation.\nLegacy format: JMM\nExamples: enter, exit, idle",
-            ),
-            (
-                "xy",
-                "Horizontal",
-                "Object can move on the XY plane. Useful for horizontal movement animations.\nLegacy format: JMA\nExamples: move_front, walk_left, h_ping front gut",
-            ),
-            (
-                "xyyaw",
-                "Horizontal & Yaw",
-                "Object can turn on its Z axis and move on the XY plane. Useful for turning movement animations.\nLegacy format: JMT\nExamples: turn_left, turn_right",
-            ),
-            (
-                "xyzyaw",
-                "Horizontal, Vertical & Yaw",
-                "Object can turn on its Z axis and move in any direction. Useful for jumping animations.\nLegacy format: JMZ\nExamples: climb, jump_down_long, jump_forward_short",
-            ),
-            (
-                "full",
-                "Full (Vehicle Only)",
-                "Full movement and rotation. Useful for vehicle animations that require multiple dimensions of rotation. Do not use on bipeds.\nLegacy format: JMV\nExamples: climb, vehicle roll_left, vehicle roll_right_short",
-            ),
-        ]
+        items=_movement_items
     )
     
     animation_space: bpy.props.EnumProperty(
         name="Space",
         description="Set whether the animation is in object or local space",
         options=set(),
-        items=[
-            ('object', 'Object', 'Replacement animation in object space.\nLegacy format: JMR\nExamples: revenant_p, sword put_away'),
-            ('local', 'Local', 'Replacement animation in local space.\nLegacy format: JMRX\nExamples: combat pistol any grip, combat rifle sr grip'),
-        ]
+        items=_animation_space_items
     )
 
     # animation_is_pose: bpy.props.BoolProperty(
@@ -2568,12 +2551,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     workflow_export_message: bpy.props.StringProperty(options={'SKIP_SAVE'})
     workflow_export_time: bpy.props.StringProperty(options={'SKIP_SAVE'})
     workflow_export_seconds: bpy.props.FloatProperty(options={'SKIP_SAVE'})
-    workflow_animation_section: bpy.props.EnumProperty(
-        name="Animation Details", default='PLAYBACK',
-        items=[('PLAYBACK', 'Playback', 'Type, motion and frame range'),
-               ('TRACKS', 'Tracks', 'Actions and external animation sources'),
-               ('EVENTS', 'Events', 'Events, renames and animation nodes'),
-               ('EXPORT', 'Export', 'Compression and game tag settings')])
     # Extra tracks belong to the Blender scene, like cinematic events.
     cinematic_extra_cameras: bpy.props.CollectionProperty(type=NWO_CinematicExtraCamera, options=set())
     active_cinematic_extra_camera_index: bpy.props.IntProperty(default=0, options=set())
@@ -2607,8 +2584,17 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     export_version: bpy.props.StringProperty(options={'HIDDEN'})
+    export_project: bpy.props.StringProperty(options={'HIDDEN'})
+    export_game: bpy.props.StringProperty(options={'HIDDEN'})
     
     is_main_scene: bpy.props.BoolProperty(options={'HIDDEN'}) # scene specific
+
+    toolset_scene_converted: bpy.props.BoolProperty(
+        name="Toolset Scene Converted",
+        description="This scene has successfully run Convert Toolset Scene at least once",
+        default=False,
+        options={'HIDDEN'},
+    )
     
     def get_game_frame(self):
         return self.id_data.frame_current - self.id_data.frame_start + int(utils.is_corinth(bpy.context))
@@ -2775,6 +2761,13 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     # cinematic tag settings
     
     
+    cinematic_disable_letterbox: bpy.props.BoolProperty(
+        name="Disable Cinematic Letterbox",
+        description="Hide the cinematic letterbox before running the header script",
+        default=False,
+        options=set(),
+    )
+
     cinematic_header: bpy.props.StringProperty(
         name="Header Script",
         options=set(),
@@ -3485,6 +3478,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     lighting_expanded: bpy.props.BoolProperty(default=False, options=set())
     decals_expanded: bpy.props.BoolProperty(default=False, options=set())
     decorators_expanded: bpy.props.BoolProperty(default=False, options=set())
+    scenario_metadata_expanded: bpy.props.BoolProperty(default=False, options=set())
     scenario_objects_expanded: bpy.props.BoolProperty(default=False, options=set())
     airprobes_expanded: bpy.props.BoolProperty(default=False, options=set())
     # zone_sets_expanded: bpy.props.BoolProperty(default=False, options=set())
@@ -3520,7 +3514,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     child_assets_expanded: bpy.props.BoolProperty(default=False, options=set())
     
     asset_shaders_expanded: bpy.props.BoolProperty(default=True, options=set())
-    importer_expanded: bpy.props.BoolProperty(default=True, options=set())
     camera_sync_expanded: bpy.props.BoolProperty(default=True, options=set())
     rig_tools_expanded: bpy.props.BoolProperty(default=True, options=set())
     animation_tools_expanded: bpy.props.BoolProperty(default=True, options=set())
@@ -3572,10 +3565,10 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
     )
     
-    animation_renames_expanded: bpy.props.BoolProperty(default=True, options=set())
-    animation_events_expanded: bpy.props.BoolProperty(default=True, options=set())
+    animation_renames_expanded: bpy.props.BoolProperty(default=False, options=set())
+    animation_events_expanded: bpy.props.BoolProperty(default=False, options=set())
     animation_event_data_expanded: bpy.props.BoolProperty(default=True, options=set())
-    animation_nodes_expanded: bpy.props.BoolProperty(default=True, options=set())
+    animation_nodes_expanded: bpy.props.BoolProperty(default=False, options=set())
     animation_tag_props_expanded: bpy.props.BoolProperty(default=False, options=set())
 
     def render_clean_tag_path(self, context):
@@ -3707,9 +3700,21 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="Exports all prefabs from Blender whenever the Blend file is saved",
     )
     
+    decals_export_on_save: bpy.props.BoolProperty(
+        name="Export Decals on Blender Save",
+        description="Exports all decal markers from Blender whenever the Blend file is saved",
+        default=False,
+    )
+
     decorators_export_on_save : bpy.props.BoolProperty(
         name="Export Decorators on Blender Save",
         description="Exports all decorators from Blender whenever the Blend file is saved",
+    )
+
+    scenario_metadata_export_on_save: bpy.props.BoolProperty(
+        name="Export Scenario Metadata on Blender Save",
+        description="Export enabled player starts, cutscene flags and camera points whenever the Blend file is saved",
+        default=False, options=set(),
     )
 
     airprobes_export_on_save: bpy.props.BoolProperty(
@@ -4283,6 +4288,10 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Player Starts Authored From Blender", options=set(), default=False,
         description="Replace player starts even when there are no exported Player Start markers. Exported Player Start markers always replace the block",
     )
+    cutscene_flags_from_blender: bpy.props.BoolProperty(
+        name="Cutscene Flags Authored From Blender", options=set(), default=False,
+        description="Replace all cutscene flags with exported Blender markers, including clearing an empty export. Otherwise structure export only updates flags matching exported marker names",
+    )
     camera_points_from_blender: bpy.props.BoolProperty(
         name="Camera Points Authored From Blender", options=set(), default=False,
         description="On structure export, replace the scenario cutscene camera points with exported Blender cameras at the current frame. Camera object names are used unless a point name is set",
@@ -4300,6 +4309,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 
 
 from ..tags.scenario_objects import OBJECT_TYPES, authoring_property
+from .scenario_authoring import get_scenario_authoring_all, set_scenario_authoring_all
+NWO_ScenePropertiesGroup.__annotations__['scenario_authoring_all'] = bpy.props.BoolProperty(
+    name="All Scenario Data Authored From Blender", options=set(),
+    description="Enable or disable all scenario authoring categories supported by the current game",
+    get=get_scenario_authoring_all, set=set_scenario_authoring_all)
 for _block, *_ in OBJECT_TYPES:
     NWO_ScenePropertiesGroup.__annotations__[authoring_property(_block)] = bpy.props.BoolProperty(
         name=f"{_block.title()} Authored From Blender", default=False, options=set(),

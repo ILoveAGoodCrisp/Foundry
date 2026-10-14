@@ -154,7 +154,6 @@ def import_errors(path, scene, rotation, scale):
         ob.display_type = 'WIRE'
         ob.color = color
         ob.hide_render = True
-        ob['foundry_wrl_diagnostic'] = label
     # Object colors also distinguish wire-only edge errors. Material slots
     # retain the same colors if the user switches an error object to Solid.
     for screen in bpy.data.screens:

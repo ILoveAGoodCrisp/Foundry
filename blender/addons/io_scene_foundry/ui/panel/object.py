@@ -343,6 +343,10 @@ class NWO_MT_FaceAttributeAddMenu(bpy.types.Menu):
                     continue
                 elif asset_type not in asset_types:
                     continue
+                elif (asset_type == 'scenario'
+                      and context.object.data.nwo.mesh_type == '_connected_geometry_mesh_type_collision'
+                      and name not in {'face_sides', 'ladder', 'slip_surface', 'collision_only', 'sphere_collision_only'}):
+                    continue
                 # elif name == "region" and context.mode != 'EDIT_MESH':
                 #     continue
                 elif name not in {'global_material', 'slip_surface', 'ladder', 'face_sides'}  and asset_type == "model" and context.object.data.nwo.mesh_type == '_connected_geometry_mesh_type_collision':
@@ -862,51 +866,6 @@ class NWO_OT_UpdateFoundryNode(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class NWO_OT_UpdateTwoSidedPreview(bpy.types.Operator):
-    bl_idname = 'nwo.update_two_sided_preview'
-    bl_label = 'Update Two-Sided Preview'
-    bl_description = 'Apply two-sided face properties to the mesh and update its Halo Backface nodes'
-    bl_options = {'UNDO'}
-
-    @classmethod
-    def poll(cls, context):
-        return bool(context.object and context.object.type == 'MESH'
-                    and any(p.type == 'face_sides' for p in context.object.data.nwo.face_props))
-
-    def execute(self, context):
-        utils.update_foundry_mesh(context.object.data)
-        return {'FINISHED'}
-
-
-class NWO_OT_UpdateInvisiblePreview(bpy.types.Operator):
-    bl_idname = 'nwo.update_invisible_preview'
-    bl_label = 'Update Invisible Preview'
-    bl_description = 'Apply collision-only, sphere-collision-only and lightmap-only face masks to the preview'
-    bl_options = {'UNDO'}
-
-    @classmethod
-    def poll(cls, context):
-        return bool(context.object and context.object.type == 'MESH')
-
-    def execute(self, context):
-        utils.update_foundry_mesh(context.object.data)
-        return {'FINISHED'}
-
-
-class NWO_OT_AddEmissiveNode(bpy.types.Operator):
-    bl_idname = "nwo.add_emissive_node"
-    bl_label = "Update Material for Emissives"
-    bl_description = "Adds/updates an emissive node to show light emission from faces with the emissive property set"
-    bl_options = {'UNDO'}
-    
-    @classmethod
-    def poll(self, context):
-        return context.object and context.object.type == 'MESH' and context.object.data.nwo.face_props and context.object.data.materials
-    
-    def execute(self, context):
-        utils.update_foundry_mesh(context.object.data)
-        return {"FINISHED"}
-        
 def face_attribute_shader():
     info = gpu.types.GPUShaderCreateInfo()
     info.push_constant('MAT4', "model_view_projection")
@@ -1387,47 +1346,9 @@ class NWO_MT_MeshTypes(bpy.types.Menu):
         return context.object and utils.is_mesh(context.object)
     
     def draw(self, context):
-        layout = self.layout
-        h4 = utils.is_corinth(context)
-        scene_nwo = utils.get_scene_props()
-        project = utils.get_project(scene_nwo.scene_project)
-        game = project.game if project else 'reach'
-        halo1 = game == 'halo1'
-        halo2 = game == 'halo2'
-        legacy = game in {'halo1', 'halo2', 'halo3', 'halo3odst'}
-        if utils.poll_ui(("model", "multi_model")):
-            layout.operator('nwo.apply_type_mesh_single', text='Render', icon_value=get_icon_id('render')).m_type = 'render'
-            layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
-            layout.operator('nwo.apply_type_mesh_single', text='Physics', icon_value=get_icon_id('physics')).m_type = 'physics'
-            if not halo1:
-                layout.operator('nwo.apply_type_mesh_single', text='Instanced Object', icon_value=get_icon_id('instance')).m_type = 'io'
-        if utils.poll_ui(("scenario",)):
-            if not halo1:
-                layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
-            layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
-            layout.operator('nwo.apply_type_mesh_single', text='Structure', icon_value=get_icon_id('structure')).m_type = 'structure'
-            if halo1 or halo2:
-                layout.operator('nwo.apply_type_mesh_single', text='Weather Polyhedron', icon_value=get_icon_id('rain_blocker')).m_type = 'weather_polyhedron'
-            if not halo1:
-                layout.operator('nwo.apply_type_mesh_single', text='Seam', icon_value=get_icon_id('seam')).m_type = 'seam'
-            layout.operator('nwo.apply_type_mesh_single', text='Portal', icon_value=get_icon_id('portal')).m_type = 'portal'
-            if not halo1:
-                layout.operator('nwo.apply_type_mesh_single', text='Water', icon_value=get_icon_id('water')).m_type = 'water_surface'
-            if game not in {'halo1', 'halo2'}:
-                layout.operator('nwo.apply_type_mesh_single', text='Boundary Surface', icon_value=get_icon_id('soft_ceiling')).m_type = 'boundary_surface'
-            if not halo1:
-                layout.operator('nwo.apply_type_mesh_single', text='Lightmap Region', icon_value=get_icon_id('lightmap')).m_type = 'lightmap_region'
-            if h4:
-                layout.operator('nwo.apply_type_mesh_single', text='Bounding Box', icon_value=get_icon_id('volume')).m_type = 'obb_volume'
-            else:
-                if not legacy:
-                    layout.operator('nwo.apply_type_mesh_single', text='Rain Blocker', icon_value=get_icon_id('rain_blocker')).m_type = 'rain_blocker'
-                    layout.operator('nwo.apply_type_mesh_single', text='Rain Sheet', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_sheet'
-                if not halo1:
-                    layout.operator('nwo.apply_type_mesh_single', text='Pathfinding Cutout Volume', icon_value=get_icon_id('cookie_cutter')).m_type = 'cookie_cutter'
-                layout.operator('nwo.apply_type_mesh_single', text='Fog Sheet', icon_value=get_icon_id('fog')).m_type = 'fog'
-        elif utils.poll_ui(("prefab", "multi_prefab")):
-            layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
+        from ..viewport import NWO_OT_ApplyTypeMesh
+        for item in NWO_OT_ApplyTypeMesh.m_type_items(None, context):
+            self.layout.operator('nwo.apply_type_mesh_single', text=item[1], icon_value=item[3]).m_type = item[0]
             
 class NWO_MT_MarkerTypes(bpy.types.Menu):
     bl_label = "Marker Type"
@@ -1438,30 +1359,9 @@ class NWO_MT_MarkerTypes(bpy.types.Menu):
         return context.object and utils.is_marker(context.object)
     
     def draw(self, context):
-        layout = self.layout
-        h4 = utils.is_corinth(context)
-        if utils.poll_ui(("model", "sky")):
-            layout.operator('nwo.apply_type_marker_single', text='Model Marker', icon_value=get_icon_id('marker')).m_type = 'model'
-            layout.operator('nwo.apply_type_marker_single', text='Effects', icon_value=get_icon_id('effects')).m_type = 'effects'
-            if utils.poll_ui("model"):
-                layout.operator('nwo.apply_type_marker_single', text='Garbage', icon_value=get_icon_id('garbage')).m_type = 'garbage'
-                layout.operator('nwo.apply_type_marker_single', text='Hint', icon_value=get_icon_id('hint')).m_type = 'hint'
-                layout.operator('nwo.apply_type_marker_single', text='Pathfinding Sphere', icon_value=get_icon_id('pathfinding_sphere')).m_type = 'pathfinding_sphere'
-                layout.operator('nwo.apply_type_marker_single', text='Physics Constraint', icon_value=get_icon_id('physics_constraint')).m_type = 'physics_constraint'
-                layout.operator('nwo.apply_type_marker_single', text='Target', icon_value=get_icon_id('target')).m_type = 'target'
-                if h4:
-                    layout.operator('nwo.apply_type_marker_single', text='Airprobe', icon_value=get_icon_id('airprobe')).m_type = 'airprobe'
-        if utils.poll_ui(("scenario", "prefab")):
-            layout.operator('nwo.apply_type_marker_single', text='Structure Marker', icon_value=get_icon_id('marker')).m_type = 'model'
-            layout.operator('nwo.apply_type_marker_single', text='Game Object', icon_value=get_icon_id('game_object')).m_type = 'game_instance'
-            if utils.poll_ui('scenario'):
-                for kind, label, icon in (('decal', 'Decal', 'marker'), ('decorator', 'Decorator', 'decorator'),
-                                          ('player_start', 'Player Starting Location', 'marker'), ('cutscene_flag', 'Cutscene Flag', 'marker'),
-                                          ('scenario_object', 'Scenario Object', 'scenario')):
-                    layout.operator('nwo.apply_type_marker_single', text=label, icon_value=get_icon_id(icon)).m_type = kind
-            layout.operator('nwo.apply_type_marker_single', text='Airprobe', icon_value=get_icon_id('airprobe')).m_type = 'airprobe'
-            if h4:
-                layout.operator('nwo.apply_type_marker_single', text='Light Cone', icon_value=get_icon_id('light_cone')).m_type = 'lightcone'
+        from ..viewport import NWO_OT_ApplyTypeMarker
+        for item in NWO_OT_ApplyTypeMarker.m_type_items(None, context):
+            self.layout.operator('nwo.apply_type_marker_single', text=item[1], icon_value=item[3]).m_type = item[0]
 
 class NWO_OT_FaceDefaultsToggle(bpy.types.Operator):
     bl_idname = "nwo.toggle_defaults"

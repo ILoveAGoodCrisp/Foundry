@@ -1,6 +1,7 @@
 """Translate resolved Foundry face properties into legacy material variants."""
 from ..exceptions import ExportCancelled
 from ..legacy.lighting import ass_rgb
+from ..seam_materials import seam_material_name
 
 
 def material_variant(shader, props, global_material='default', ass_version=None,
@@ -11,8 +12,23 @@ def material_variant(shader, props, global_material='default', ass_version=None,
     name = shader
     special = {13: '+portal', 14: '+seam', 15: '+fog', 16: '+cookiecutter',
                17: '+water', 18: '+water', 8: '+rainblocker', 9: '+rain'}
+    if target_game == 'halo2':
+        # H2 distinguishes fog from water with the $ flag on +media.
+        special.update({15: '+media', 17: '+media', 18: '+media'})
     water_surface = target_game in {'halo3', 'halo3odst'} and get('mesh_type') == 17
     if target_game in {'halo3', 'halo3odst'}:
+        if get('mesh_type') == 1:
+            boundary = ('soft_ceiling', 'soft_kill', 'slip_surface')[get('mesh_boundary_surface_type')]
+            boundary_name = get('mesh_boundary_surface_name', '') or boundary
+            special[1] = f'+{boundary}:{boundary_name}'
+        if get('mesh_type') == 14:
+            named_seam = seam_material_name(shader)
+            bsp = get('mesh_seam_associated_bsp', '')
+            if not named_seam and not bsp:
+                raise ExportCancelled('Halo 3 and ODST seams require a BSP name; assign a BSP or use +seam:<bsp_name>')
+            special[14] = named_seam or f'+seam:{bsp}'
+        if get('mesh_type') == 15:
+            raise ExportCancelled('Halo 3 and ODST do not support fog sheets; use atmosphere fog in Sapien')
         # Physics-water is classified by the ~ ASS instance, not +water.
         special[18] = '+unused'
     if water_surface:
@@ -26,7 +42,7 @@ def material_variant(shader, props, global_material='default', ass_version=None,
         special = {13: '+exactportal', 14: '+seamsealer', 15: '+unused',
                    8: '+weatherpoly'}
     name = special.get(get('mesh_type'), name)
-    if target_game == 'halo1' and props.get('foundry_weather_polyhedron'):
+    if props.get('foundry_weather_polyhedron'):
         name = '+weatherpoly'
     if get('face_type') == 1:
         name = '+seamsealer'
@@ -44,7 +60,7 @@ def material_variant(shader, props, global_material='default', ass_version=None,
         raise ExportCancelled('Shadow Only requires ASS 7 material flags; this output dialect cannot encode it')
     flags = [sides in {2, 3, 4, 5, 6, 7}, sides == 1, sides in {3, 5, 7},
              mode == 1, mode == 2,
-             mode == 3 or (mode == 2 and props.get('foundry_legacy_sphere_collision', False)), get('mesh_type') == 15,
+             mode == 3, get('mesh_type') == 15,
              bool(get('ladder')), mode == 6, bool(get('mesh_portal_ai_deafening')), bool(get('no_shadow')),
              mode == 4, mode == 5,
              bool(get('precise_position')) and target_game != 'halo1', False,

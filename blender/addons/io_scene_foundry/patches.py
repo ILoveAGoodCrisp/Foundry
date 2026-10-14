@@ -1,9 +1,83 @@
 from pathlib import Path
+import struct
 import bpy
+
+from .tool_patch_data import IMPORT_PATCH_PROFILES
+
+
+# JMS/ASS importers do not have Reach's Frame ID node comparators. H1 has
+# a different geometry pipeline; no equivalent import patch is verified yet.
+IMPORT_PATCH_GAMES = {
+    'skip_vertex_compression': {'halo2', 'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'},
+    'uncompressed_vertex_weights': {'halo2', 'halo3', 'halo3odst', 'reach'},
+    'plane_builder': {'halo2', 'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'},
+    'node_depth_sort': {'reach'},
+    'skip_import_source_data': {'halo2', 'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'},
+}
+
 
 class ToolPatcher:
     def __init__(self, tool_path: str | Path):
         self.tool_path = str(tool_path)
+
+    def import_patches(self, game, *, plane_builder=False, node_order=False):
+        """Return verified, process-only patches for the selected import tool.
+
+        Select by PE identity, then validate every enabled record before the
+        process starts. An unsupported build must never receive another kit's
+        offsets. Disabling patches does not open or modify the executable.
+        """
+        prefs = bpy.context.preferences.addons[__package__].preferences
+        if not prefs.allow_tool_patches:
+            return []
+        enabled = {
+            'skip_vertex_compression': prefs.patch_tool_skip_vertex_compression,
+            'uncompressed_vertex_weights': prefs.patch_tool_uncompressed_vertex_weights,
+            'skip_import_source_data': prefs.patch_tool_skip_import_source_data,
+            'node_depth_sort': node_order and prefs.patch_tool_node_depth_sort,
+            'plane_builder': plane_builder,
+        }
+        requested = [name for name, active in enabled.items()
+                     if active and game in IMPORT_PATCH_GAMES[name]]
+        if not requested:
+            return []
+
+        with open(self.tool_path, 'rb') as tool:
+            header = tool.read(64)
+            if len(header) != 64 or header[:2] != b'MZ':
+                raise RuntimeError(f'Invalid Tool executable: {self.tool_path}')
+            tool.seek(struct.unpack_from('<I', header, 0x3C)[0])
+            pe = tool.read(84)
+            if len(pe) != 84 or pe[:4] != b'PE\0\0':
+                raise RuntimeError(f'Invalid Tool PE header: {self.tool_path}')
+            identity = (struct.unpack_from('<H', pe, 4)[0],
+                        struct.unpack_from('<I', pe, 8)[0],
+                        struct.unpack_from('<I', pe, 80)[0])
+            profile = IMPORT_PATCH_PROFILES.get(identity)
+            if profile is None or profile[0] != game:
+                raise RuntimeError(
+                    f'Unsupported {game} Tool build for import patches: {self.tool_path}. '
+                    'Disable Allow Tool Patches to run this build without patches.')
+
+            records = []
+            for name in requested:
+                # H2 tool_fast compiles out the plane assertions.
+                for offset, patch, original in profile[2].get(name, ()):
+                    tool.seek(offset)
+                    current = tool.read(len(original))
+                    if current not in (original, patch):
+                        # An existing H2 standard-tool patch uses a five-byte
+                        # JMP plus unused padding, with the same destination.
+                        if (game == 'halo2' and profile[1] == 'tool'
+                                and offset == 0x7B63C
+                                and current == bytes.fromhex('e9 ba 03 00 00 00')):
+                            original = current
+                        else:
+                            raise RuntimeError(
+                                f'Tool patch {name} does not match {self.tool_path} '
+                                f'at file offset 0x{offset:X}')
+                    records.append((offset, patch, original))
+        return records
 
     def _normalise_patch_args(self, offsets: list[int] | int, patches: list[bytes] | bytes, originals: list[bytes] | bytes):
         if not isinstance(offsets, list):

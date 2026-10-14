@@ -131,13 +131,19 @@ EXPORT_COMPLETE_LINE = re.compile(r"^(?:Export|Import) Completed in\s+(.+)$", re
 CANCELLED_LINE = re.compile(r"^(?:EXPORT|IMPORT) CANCELLED(?: BY USER)?$", re.IGNORECASE)
 FAILURE_LINE = re.compile(
     r"(?:^(?:EXPORT|IMPORT)\s+(?:CANCELLED|FAILED)\b|FAILED TO CREATE TAGS|### ASSERTION FAILED|"
-    r"FATAL ERROR!|Export crashed and burned|Import failed spectacularly|Tool exited with code|"
+    r"FATAL ERROR!|^\s*-FATAL-(?=\s|$)|Export crashed and burned|Import failed spectacularly|Tool exited with code|"
     r"Lightmapping aborted|Lightmapper did not run|Exception hit|No Folders/Filepaths supplied)",
     re.IGNORECASE,
 )
 SECTION_LINE = re.compile(r"^[-=]{8,}$")
 WARNING_LINE = re.compile(r"^(?:\s*###\s+warning\b|(?:\[?warning\]?|warn)\s*[:\-])", re.IGNORECASE)
-ERROR_LINE = re.compile(r"^(?:\s*###\s+)?(?:\[?error\]?|fatal(?: error)?|critical|traceback|exception)\b", re.IGNORECASE)
+ERROR_LINE = re.compile(r"^(?:\s*###\s+)?(?:\[?error\]?|fatal(?: error)?|critical|traceback|exception|assertion failed|Tool exited with code)\b", re.IGNORECASE)
+WRL_SAVED_LINE = re.compile(r"^\s*error geometry saved to\s+.+\.wrl\s*$", re.IGNORECASE)
+CLASSIC_TOOL_LINE = re.compile(
+    r"^\s*(?P<level>WARNING|-ERROR-|-FATAL-|message)(?=\s|$)\s*"
+    r"(?:\((?P<context>[^)\r\n]+)\)\s*)?(?P<message>.*)$",
+    re.IGNORECASE,
+)
 TRACEBACK_START_LINE = re.compile(
     r"(?:^|:\s*)[+|]?\s*(?:Exception Group )?Traceback \(most recent call last\):$",
     re.IGNORECASE,
@@ -525,6 +531,11 @@ class BonoboOutput:
 
     @staticmethod
     def _plain_context(text):
+        classic = CLASSIC_TOOL_LINE.match(text)
+        if classic:
+            context = classic.group('context')
+            return (('Tool', context) if context else ('Tool',),
+                    classic.group('message') or text.strip())
         match = re.match(r"^((?:[A-Za-z0-9_.-]+:){1,8})\s*(.*)$", text)
         if not match:
             return (), text
@@ -535,6 +546,12 @@ class BonoboOutput:
 
     @staticmethod
     def _plain_level(raw_text, text):
+        if WRL_SAVED_LINE.match(text):
+            return "message"
+        classic = CLASSIC_TOOL_LINE.match(text)
+        if classic:
+            return {'warning': 'warning', '-error-': 'error',
+                    '-fatal-': 'critical', 'message': 'message'}[classic.group('level').lower()]
         lowered = text.lower()
         if "\x1b[91m" in raw_text or "\x1b[31m" in raw_text or ERROR_LINE.match(text):
             return "error"
@@ -710,7 +727,16 @@ class BonoboOutput:
             context = self._diagnostic_context(context)
         self._add_entry(LogEntry(clean_text, level, context, message, bold=level in {"status", "success"}))
 
+    @staticmethod
+    def _is_ignored_line(text):
+        return ANSI_ESCAPE.sub("", text).startswith((
+            "WARNING havok memory buffer",
+            "WARNING rasterizer:textures: leaking",
+        ))
+
     def _add_entry(self, entry):
+        if self._is_ignored_line(entry.text):
+            return
         if self.entries and not self.entries[-1].has_newline:
             previous = self.entries[-1]
             previous.text += entry.text
@@ -720,7 +746,9 @@ class BonoboOutput:
                 previous.level = entry.level
             self.total_characters += len(entry.text)
             return
-        if self.entries and entry.text == self.entries[-1].text and entry.level == self.entries[-1].level and entry.context == self.entries[-1].context:
+        if (self.entries and self._filter_level(entry.level) == 'message'
+                and entry.text == self.entries[-1].text and entry.level == self.entries[-1].level
+                and entry.context == self.entries[-1].context):
             return
         self.entries.append(entry)
         self.total_characters += len(entry.text) + 2
@@ -742,7 +770,7 @@ class BonoboOutput:
         if not self.current_line:
             return None
         text = ANSI_ESCAPE.sub("", self.current_line)
-        if not text or text.lstrip().startswith("<"):
+        if not text or text.lstrip().startswith("<") or self._is_ignored_line(text):
             return None
         if self.spinner_erased:
             text += "|/—\\"[int(time.monotonic() * 6) % 4]

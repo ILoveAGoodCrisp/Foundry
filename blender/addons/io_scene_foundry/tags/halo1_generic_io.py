@@ -51,7 +51,7 @@ def vector_node(shader,tree,root,parameters,properties,flags,index,resources,map
     group_tree=resources('h1_nodes',name)
     if group_tree is None:raise ValueError('Missing H1 generic coordinate resource '+name)
     node=tree.nodes.new('ShaderNodeGroup');node.node_tree=group_tree
-    node.label=f'map{index} coordinates';node['h1_generic_map_index']=index
+    node.label=f'map{index} coordinates'
     node.location=(-700,-240*index)
     for field,port in [('map u scale','map u-scale'),('map v scale','map v-scale'),('map u offset','map u-offset'),
             ('map v offset','map v-offset'),('map rotation','map rotation')]:

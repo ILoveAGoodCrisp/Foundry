@@ -146,7 +146,7 @@ class NWO_OT_Cubemap(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid()
+        return utils.current_project_valid() and utils.supports_game_feature('cubemap_farm')
         
     filepath: bpy.props.StringProperty(
         name='Scenario Filepath',
@@ -167,6 +167,8 @@ class NWO_OT_Cubemap(bpy.types.Operator):
     )
 
     def execute(self, context):
+        if not utils.require_game_feature(self, 'cubemap_farm'):
+            return {'CANCELLED'}
         scene_nwo_export = utils.get_export_props()
         if not self.filepath or Path(self.filepath).suffix.lower() != ".scenario":
             self.report({"WARNING"}, "No scenario path given. Operation cancelled")

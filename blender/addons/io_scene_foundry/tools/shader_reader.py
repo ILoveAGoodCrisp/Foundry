@@ -38,9 +38,11 @@ class NWO_OT_BuildShaderTemplates(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid()
+        return utils.current_project_valid() and utils.supports_game_feature('shader_templates')
     
     def execute(self, context):
+        if not utils.require_game_feature(self, 'shader_templates'):
+            return {'CANCELLED'}
         
         shader_paths = []
         tags_path = utils.get_tags_path()
@@ -287,7 +289,6 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
             if converted or shared_library:
                 # Keep provenance, but do not offer to overwrite a foreign
                 # shader or accidentally resolve its relative path in this kit.
-                mat['foundry_material_source_shader'] = str(shader.system_path)
                 mat['foundry_material_source_game'] = shader.game
                 mat['foundry_material_target_game'] = target_game
                 mat.nwo['shader_path'] = ''

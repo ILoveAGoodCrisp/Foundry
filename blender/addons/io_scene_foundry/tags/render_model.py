@@ -362,7 +362,7 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
                     shader_permutation=int(self.value(element, 'permutation')) if self.game == 'halo1' else None,
                 ))
             return records
-        return ScenarioStructureBspMetadataTag.render_materials(self)
+        return ScenarioStructureBspMetadataTag.render_materials(self, include_lightmap=False)
 
     def sky_data(self) -> RenderModelSkyData:
         root = self.tag.root()

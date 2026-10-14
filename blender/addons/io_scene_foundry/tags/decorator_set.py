@@ -250,7 +250,11 @@ class DecoratorSetTag(BlenderTag, TagDocument):
                 break
         return result
         
-    def to_blender(self, collection, get_material=False, always_extract_bitmaps=False, single_type=None, lod=0, only_single_type=False):
+    def to_blender(self, collection, get_material=False, always_extract_bitmaps=False, single_type=None, lod=0, only_single_type=False, sprite_index=None):
+        if self.game == 'halo1':
+            from .halo1_detail_objects_blender import detail_objects_to_blender
+            return detail_objects_to_blender(self, collection, get_material, always_extract_bitmaps,
+                                             single_type, only_single_type, sprite_index)
         if self.game == 'halo2':
             return self._to_blender_halo2(
                 collection, get_material, always_extract_bitmaps,

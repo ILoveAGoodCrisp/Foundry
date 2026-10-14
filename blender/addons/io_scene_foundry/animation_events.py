@@ -1,4 +1,5 @@
 """Shared frame-event names, independent of tag enum ordering."""
+from functools import lru_cache
 
 
 # H1 stores single events in scalar slots rather than a frame-event block.
@@ -50,6 +51,10 @@ FRAME_EVENT_ITEMS = [
     # ("effect event", "Effect Event", ""),
     ("left back foot", "Left Back Foot", "Halo 3 / ODST back-foot event; no confirmed equivalent among Reach foot lock/unlock events"),
     ("right back foot", "Right Back Foot", "Halo 3 / ODST back-foot event; no confirmed equivalent among Reach foot lock/unlock events"),
+    ("jetpack closed", "Jetpack Closed", "Jetpack has closed"),
+    ("jetpack open", "Jetpack Open", "Jetpack has opened"),
+    ("sound event", "Sound Event", "Frame sound-event marker"),
+    ("effect event", "Effect Event", "Frame effect-event marker"),
 ]
 
 # Retain callback strings for Blender and explicit IDs across game labels.
@@ -63,6 +68,25 @@ CLASSIC_FRAME_EVENT_ITEMS = [
 ]
 
 
+@lru_cache(maxsize=7)
 def frame_event_items_for_game(game: str):
-    return (CLASSIC_FRAME_EVENT_ITEMS if game in {'halo2', 'halo3', 'halo3odst'}
-            else FRAME_EVENT_ITEMS)
+    from .game_capabilities import frame_event_names
+    items = CLASSIC_FRAME_EVENT_ITEMS if game in {'halo2', 'halo3', 'halo3odst'} else FRAME_EVENT_ITEMS
+    allowed = frame_event_names(game)
+    return [item for item in items if item[0] in allowed]
+
+def set_animation_enum(owner, prop, value):
+    """Preserve imported enum IDs even when the current game's UI filters them."""
+    try:
+        setattr(owner, prop, value)
+    except TypeError:
+        from .game_capabilities import ANIMATION_TYPE_ITEMS, ANIMATION_EVENT_ITEMS, EVENT_DATA_ITEMS
+        catalogs = {'frame_name': FRAME_EVENT_ITEMS, 'animation_type': ANIMATION_TYPE_ITEMS,
+            'event_type': ANIMATION_EVENT_ITEMS, 'data_type': EVENT_DATA_ITEMS,
+            'animation_movement_data': [('none','','',0),('xy','','',1),('xyyaw','','',2),('xyzyaw','','',3),('full','','',4)],
+            'animation_space': [('object','','',0),('local','','',1)],
+            'multi_frame': [('single','','',0),('range','','',1)]}
+        number = next((item[-1] for item in catalogs.get(prop, ()) if item[0] == value), None)
+        if number is None:
+            raise
+        owner[prop] = number

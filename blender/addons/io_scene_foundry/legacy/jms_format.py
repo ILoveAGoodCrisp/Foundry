@@ -93,6 +93,8 @@ class Reader:
         self.stream = iter(stream)
         self.pending = deque()
         self.line = 0
+        self.invalid_uv_components = 0
+        self.first_invalid_uv_line = 0
 
     def text(self):
         while not self.pending:
@@ -101,13 +103,19 @@ class Reader:
             except StopIteration:
                 raise JMSError(f'Unexpected end of JMS at line {self.line}') from None
             self.line += 1
-            # An attached semicolon is a shader flag, not a comment.
+            # Preserve attached shader flags in text fields. Numeric fields
+            # handle attached semicolon comments in number().
             line = re.split(r'(?<!\S);', line, maxsplit=1)[0].strip()
             self.pending.extend(p.strip() for p in line.split('\t') if p.strip())
         return self.pending.popleft()
 
     def number(self, integer=False, allow_nonfinite=False):
-        parts = self.text().split()
+        record, separator, _ = self.text().partition(';')
+        if separator:
+            # In a numeric field the semicolon starts a comment, including
+            # any tab-separated fields already queued from this line.
+            self.pending.clear()
+        parts = record.split()
         if not parts:
             raise JMSError(f'Expected number at line {self.line}')
         self.pending.extendleft(reversed(parts[1:]))
@@ -137,6 +145,19 @@ class Reader:
     def vector(self, size=3, allow_nonfinite=False):
         return tuple(self.number(allow_nonfinite=allow_nonfinite) for _ in range(size))
 
+    def uv_vector(self, size=2):
+        """Recover non-finite texture coordinates without relaxing geometry reads."""
+        values = []
+        for _ in range(size):
+            value = self.number(allow_nonfinite=True)
+            if not math.isfinite(value):
+                self.invalid_uv_components += 1
+                if not self.first_invalid_uv_line:
+                    self.first_invalid_uv_line = self.line
+                value = 0.0
+            values.append(value)
+        return tuple(values)
+
     def transform(self):
         return Transform(self.vector(4), self.vector())
 
@@ -158,6 +179,8 @@ class JMS:
     constraints: list = field(default_factory=list)
     bounding_spheres: list = field(default_factory=list)
     skylights: list = field(default_factory=list)
+    invalid_uv_components: int = 0
+    first_invalid_uv_line: int = 0
 
     @classmethod
     def from_file(cls, filepath):
@@ -225,7 +248,7 @@ class JMS:
             if v >= 8205:
                 position, normal = r.vector(), r.vector()
                 weights = tuple((r.integer(), r.number()) for _ in r.count())
-                uvs = tuple(r.vector(2) for _ in r.count())
+                uvs = tuple(r.uv_vector() for _ in r.count())
                 if v >= 8211:
                     color = r.vector(allow_nonfinite=True)
                     if not all(math.isfinite(channel) for channel in color):
@@ -242,7 +265,7 @@ class JMS:
                 weights = ((n0, w0), (n1, w1))
                 if v == 8204:
                     weights += tuple((r.integer(), r.number()) for _ in range(2))
-                uvs = tuple(r.vector(2) for _ in range(4 if v >= 8202 else 1))
+                uvs = tuple(r.uv_vector() for _ in range(4 if v >= 8202 else 1))
                 if v >= 8199:
                     r.integer()
             j.vertices.append(Vertex(position, normal, weights, uvs, color, region))
@@ -275,6 +298,8 @@ class JMS:
             pass
         else:
             raise JMSError(f'Unexpected trailing JMS data at line {r.line}: {extra!r}')
+        j.invalid_uv_components = r.invalid_uv_components
+        j.first_invalid_uv_line = r.first_invalid_uv_line
         j.validate()
         return j
 

@@ -6,7 +6,7 @@ import subprocess
 import threading
 
 from . import foundry_output
-from .tool_process import shader_prompt_error
+from .tool_process import shader_prompt_error, ToolOutputNormalizer
 
 
 _PSEUDOCONSOLE_ATTRIBUTE = 0x00020016
@@ -122,6 +122,7 @@ def run_console_command(command, cwd, output_stream):
             data = ctypes.create_string_buffer(4096)
             count = wintypes.DWORD()
             tail = b''
+            normalizer = ToolOutputNormalizer()
             while kernel32.ReadFile(output_read, data, len(data), ctypes.byref(count), None):
                 tail = (tail + data.raw[:count.value])[-8192:]
                 error = shader_prompt_error(tail)
@@ -129,7 +130,9 @@ def run_console_command(command, cwd, output_stream):
                     prompt_errors.append(error)
                     kernel32.TerminateProcess(process_info.process, 1)
                 if count.value and output_stream is not None:
-                    output_stream.write(data.raw[:count.value])
+                    output_stream.write(normalizer.feed(data.raw[:count.value]))
+            if output_stream is not None:
+                output_stream.write(normalizer.finish())
 
         reader = threading.Thread(target=read_output, daemon=True)
         reader.start()

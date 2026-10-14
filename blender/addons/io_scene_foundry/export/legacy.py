@@ -5,6 +5,7 @@ animation sampling and restoration. This adapter only converts that result into
 the reusable legacy format models and writes files below the data asset folder.
 """
 from ..exceptions import ExportCancelled
+from ..patches import ToolPatcher
 from collections import defaultdict
 from contextlib import nullcontext
 from copy import copy
@@ -27,27 +28,34 @@ from mathutils import Matrix, Quaternion, Vector
 from .process import ExportScene
 from .cinematic import CinematicScene, set_actor_animation_compression
 from .legacy_materials import material_variant
+from .halo2_water import water_plane_height
 from .cleanup import ANIMATION_EXTENSIONS, prune_intermediates
 from .shader_collections import ShaderCollections, halo1_shader_lookup
 from ..legacy import jms_format as jms
 from ..legacy import ass_format as ass
+from ..legacy.seam_geometry import ass_seam_triangles
 from ..legacy.mirror import mirror_ass, mirror_jms, mirror_transform
 from ..legacy.mesh_geometry import clean_ass_mesh
+from ..legacy.import_info import FRAME_PREFIXES
 from ..legacy.lighting import jms_emissive_unsupported
 from ..legacy.references import ASS_GAMES, ASS_GAME_OBJECT_EXTENSIONS, ass_reference_name, ass_reference_prefix
 from ..legacy.writers import VERSIONS, TextWriter, hierarchy, legacy_bone_order, node_checksum, write_jms, write_ass
 from ..tags.backend import TagDocument
+from ..tags.halo2_water import water_settings, write_water_definition
 from ..tags.sky import SkyDocument, SkyLightRecord, MAX_SKY_LIGHTS
 from ..tags.halo1_emissive import (asset_shader_folder, localize_shader_environment,
                                  shader_environment_path,
                                  write_material_emissive)
 from ..tags.halo1_shader_paths import (INVALID_SHADER_PATH, ensure_invalid_shader,
                                       shader_import_paths, repair_shader_references)
+from ..tags.halo1_shader_conversion import convert_shader
 from ..tags.animation_graph import AnimationGraphTag
 from ..tags.render_model import RenderModelMetadataTag
 from ..tags.model_blender import ModelTag
 from ..tags.object import ObjectDocument
 from ..tags.scenario import ScenarioDocument
+from ..tags.seams import StructureSeamsDocument
+from ..tags.structure_design import StructureDesignDocument
 from ..tools.scenario.lightmap import run_halo1_lightmapper, run_lightmapper
 from .. import utils, foundry_output
 
@@ -61,6 +69,12 @@ def legacy_instance_name(name: str, props: dict, mesh_type: int,
     prefix = {4: '%', 5: '@', 6: '$', 11: '%'}.get(mesh_type, '')
     base_name = name.lstrip('%@$')
     if mesh_type != 4:
+        if not prefix and (base_name.split(':', 1)[0].casefold() == 'frame'
+                           or base_name.casefold().startswith(FRAME_PREFIXES)):
+            # Imported export frames can also carry geometry. After flattening,
+            # their mesh is a sibling of the other surfaces, not their parent.
+            # Tool must not select that mesh as a new export hierarchy root.
+            base_name = 'mesh ' + base_name
         return prefix + base_name
 
     # Imported names already contain the source policy symbols. Rebuild them
@@ -203,14 +217,12 @@ class LegacyExportScene(ExportScene):
             os.chdir(self.original_cwd)
             raise
         self.target_game = utils.get_project(self.scene_settings.scene_project).game
+        self.halo2_water_settings = {}
         self.jms_version, self.ass_version, self.jma_version = VERSIONS[self.target_game]
         self.shader_collections = ShaderCollections(self.tags_dir, self.target_game)
         self.granny_textures = False
         self.warned_shader_paths = set()
         self.shader_name_cache = {}
-        self.jms_source_nodes = {col['jms_source_key']:json.loads(col['jms_nodes'])
-                                 for col in bpy.data.collections
-                                 if col.get('jms_source_key') and col.get('jms_nodes')}
         self.halo1_two_sided_shaders = set()
         self.halo1_shader_paths = {}
         self.skipped_legacy_animations = set()
@@ -225,26 +237,7 @@ class LegacyExportScene(ExportScene):
                 b.name: skeleton.skeleton.bones[b.parent_index].name if b.parent_index >= 0 else None
                 for b in self.bones
             }
-            if (self.target_game in {'halo2', 'halo3', 'halo3odst'}
-                    and all('legacy_source_node_index' in b.bone.bone for b in self.bones)):
-                self.bones.sort(key=lambda b: b.bone.bone['legacy_source_node_index'])
-            else:
-                self.bones = [by_name[name] for name in legacy_bone_order(parents)]
-        self.source_bone_transforms = {}
-        for bone in self.bones:
-            data = bone.bone.bone
-            armature = bone.bone.id_data
-            if (self.target_game in {'halo2', 'halo3', 'halo3odst'}
-                    and data.get('legacy_source_node') and data.get('legacy_import_matrix')
-                    and armature.get('legacy_import_matrix')
-                    and data.matrix_local == Matrix(json.loads(data['legacy_import_matrix']))
-                    and armature.matrix_world == Matrix(json.loads(armature['legacy_import_matrix']))):
-                authored = json.loads(data['legacy_source_node'])
-                value = authored['transform']
-                self.source_bone_transforms[bone.name] = jms.Transform(tuple(value['rotation']), tuple(value['translation']))
-                x,y,z,w = value['rotation']
-                bone.matrix_world = Quaternion((w,x,y,z)).to_matrix().to_4x4()
-                bone.matrix_world.translation = Vector(value['translation']) / self.to_halo_scale
+            self.bones = [by_name[name] for name in legacy_bone_order(parents)]
         self.bone_index = {b.name: i for i, b in enumerate(self.bones)}
         self.bone_world = {b.name: b.matrix_world for b in self.bones}
         self.bone_parents = {}
@@ -259,7 +252,7 @@ class LegacyExportScene(ExportScene):
             if node.invalid:
                 continue
             if node.props.get('bungie_object_type') == 2:
-                if (not single_animation and 'markers' in self.export_tag_types and
+                if (not single_animation and ('markers' in self.export_tag_types or self.supports_bsp) and
                         self.jms_version < 8201 and
                         node.ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance'):
                     self.warnings.append(f'{node.name}: H1 JMS cannot encode tag-reference markers. Skipping marker')
@@ -292,10 +285,8 @@ class LegacyExportScene(ExportScene):
                 # permutations in one JMS. Splitting files changes Tool's weld
                 # candidates and can move clipped collision boundaries.
                 name = 'default'
-            if (folder == 'render' and self.target_game in {'halo3', 'halo3odst'}
-                    and getattr(node.ob, 'ob', node.ob).get('foundry_converted_from_toolset')):
-                # Keep Toolset model permutations together, as its JMS writer
-                # does. Otherwise Tool duplicates diagnostics across input files.
+            if folder == 'render' and self.target_game in {'halo3', 'halo3odst'}:
+                # Material records carry permutations within a shared render file.
                 name = 'default'
             if self.target_game == 'halo2' and folder == 'render' and node.props.get('bungie_mesh_type') != 11:
                 # Tool consumes LOD labels per material, but still requires
@@ -348,6 +339,10 @@ class LegacyExportScene(ExportScene):
                             paths.append(f'{path}.{shader_type}')
             self.shader_collections.reserve_halo1_paths(paths)
             self.shader_name_cache.clear()
+        elif geometry_count and self.target_game in {'halo2', 'halo3', 'halo3odst'}:
+            # Tool also looks up invalid when it needs its own fallback, even
+            # when every exported material already has a valid shader.
+            self.shader_collections.material_name(r'shaders\invalid.shader')
         preparation_count = geometry_count + len(animations)
         process = '--- Preparing Intermediary Files'
         with utils.Spinner():
@@ -387,7 +382,7 @@ class LegacyExportScene(ExportScene):
                     elif self.target_game == 'halo2' and folder == 'render' and nodes:
                         asset_name = nodes[0].permutation or 'default'
                     asset = (self.ass_asset(
-                        name, nodes, ass_markers, lights)
+                        asset_name, nodes, ass_markers, lights)
                         if use_ass else self.jms_asset(asset_name, nodes, markers, folder))
                     if self.mirror:
                         (mirror_ass if use_ass else mirror_jms)(asset)
@@ -433,9 +428,9 @@ class LegacyExportScene(ExportScene):
                         self.suspension_animations[animation.name.replace(' ', ':')] = animation
             utils.update_job_count(process, '', preparation_count, preparation_count)
         if self.external_animations:
-            self.warnings.append('Legacy export of external animation files is not implemented. Skipping external animations')
+            raise ExportCancelled('External GR2 animations cannot be exported by this game. Import their action tracks before exporting')
         if self.animation_composites:
-            self.warnings.append('JMA cannot encode animation composites. Skipping composites')
+            raise ExportCancelled('Composite animations are not supported by this game')
         if not outputs and single_animation:
             if self.skipped_legacy_animations:
                 return False
@@ -486,6 +481,66 @@ class LegacyExportScene(ExportScene):
                     if child.is_dir() and not child.is_symlink() and not any(child.glob('*.sidecar.xml')):
                         directories[child / 'render'] = {'.jms'}
         prune_intermediates(root, expected, directories)
+
+    def _run_import_tool(self, tool_args, **kwargs):
+        """Build patches for the executable this invocation actually selects."""
+        if kwargs.get('force_tool') or self.target_game == 'halo1':
+            tool_type = 'tool'
+            kwargs['force_tool'] = True
+        elif kwargs.get('force_tool_fast'):
+            tool_type = 'tool_fast'
+        else:
+            tool_type = utils.get_tool_type()
+        tool_path = Path(self.project_root, tool_type).with_suffix('.exe')
+        kwargs['tool_patches'] = ToolPatcher(tool_path).import_patches(
+            self.target_game,
+            plane_builder=self.asset_type.name == 'SCENARIO',
+        )
+        return utils.run_tool(tool_args, **kwargs)
+
+    def prepare_structure_seams(self, sources):
+        """Build missing/changed seams; return whether all BSPs need updating."""
+        triangles = [triangle for source in sources for triangle in ass_seam_triangles(source)]
+        self.structure_seams_present = bool(triangles)
+        seams = Path(self.tags_dir, self.asset_path_relative,
+                     self.asset_name).with_suffix('.structure_seams')
+        if not triangles:
+            print('--- Skipping structure seams: no seam faces', flush=True)
+            scenario_path = seams.with_suffix('.scenario')
+            if scenario_path.is_file():
+                with ScenarioDocument(scenario_path, tags_root=self.tags_dir,
+                                      game=self.target_game, must_exist=True) as scenario:
+                    previous = scenario.reference(scenario.tag.root(), 'structure seams')
+                    if (previous is not None and previous.RelativePathWithExtension.casefold() ==
+                            str(utils.relative_path(seams)).replace('/', '\\').casefold()):
+                        # The last seam was removed. Clear both BSP sides in
+                        # this export; scenario postprocessing unlinks the tag.
+                        return True
+            return False
+        if seams.is_file():
+            try:
+                with StructureSeamsDocument(seams, tags_root=self.tags_dir,
+                                            game=self.target_game, must_exist=True) as tag:
+                    if tag.matches_triangles(triangles):
+                        print('--- Skipping structure seams: seam geometry is unchanged', flush=True)
+                        return False
+            except Exception as error:
+                # An unreadable or unmatchable output must never be treated as
+                # up to date. The current ASS geometry remains authoritative.
+                print(f'--- Rebuilding structure seams: {error}', flush=True)
+        print(f'--- Tool processing structure seams: {self.asset_path_relative}', flush=True)
+        self._run_import_tool(
+            ['structure-seams', self.asset_path_relative],
+            event_level=self.export_settings.event_level,
+            force_tool=True,
+        )
+        if not seams.is_file():
+            raise ExportCancelled(f'Seam compilation did not create the expected tag: {seams}')
+        with StructureSeamsDocument(seams, tags_root=self.tags_dir,
+                                    game=self.target_game, must_exist=True) as tag:
+            if not any(seam.triangles for seam in tag.read_geometry()):
+                raise ExportCancelled(f'Seam compilation produced no seam geometry: {seams}')
+        return True
 
     def write_tags(self, single_animation=False):
         """Compile legacy model sources, then update object tags natively."""
@@ -540,7 +595,7 @@ class LegacyExportScene(ExportScene):
                     f'No {structure_extension} structure sources were found in {structure_dir}')
             if self.target_game == 'halo1':
                 self.update_halo1_material_emissives()
-            for source in [*structure_sources, *design_sources]:
+            def compile_source(source):
                 is_design = source in design_sources
                 print(f'--- Tool processing {"design" if is_design else "BSP"}: {source.stem} ({source})', flush=True)
                 error_path = source.with_name(source.stem + '_errors.wrl')
@@ -560,7 +615,7 @@ class LegacyExportScene(ExportScene):
                     shaders = (self.ensure_halo1_shaders([source], 'shader_environment')
                                if self.target_game == 'halo1' else nullcontext({}))
                     with shaders as expected:
-                        utils.run_tool(
+                        self._run_import_tool(
                             command,
                             event_level=self.export_settings.event_level,
                             force_tool=True,
@@ -569,6 +624,14 @@ class LegacyExportScene(ExportScene):
                             destination = Path(self.tags_dir, self.asset_path_relative,
                                                source.stem).with_suffix('.scenario_structure_bsp')
                             self.repair_halo1_shader_paths(destination, expected)
+                        elif self.target_game == 'halo2':
+                            destination = Path(self.tags_dir, self.asset_path_relative,
+                                               source.stem).with_suffix('.scenario_structure_bsp')
+                            # Tool retains authored water definitions when the
+                            # last +media plane is removed. Sync absence too,
+                            # only after successfully compiling this BSP.
+                            write_water_definition(destination, self.tags_dir,
+                                                   self.halo2_water_settings.get(source.stem))
                 except subprocess.CalledProcessError:
                     tool_failed = True
                     raise
@@ -585,6 +648,39 @@ class LegacyExportScene(ExportScene):
                                           self.rotation_correction, self.to_halo_scale)
                     except Exception as error:
                         print(f'Could not import BSP error geometry: {error}')
+                if self.target_game in {'halo3', 'halo3odst'}:
+                    destination = Path(self.tags_dir, self.asset_path_relative, source.stem).with_suffix(
+                        '.structure_design' if is_design else '.scenario_structure_bsp')
+                    if not destination.is_file():
+                        raise ExportCancelled(
+                            f'Structure compilation did not create the expected tag: {destination}')
+                    if is_design:
+                        properties = {}
+                        for ob, (props, region, _, _) in getattr(self, 'ob_halo_data', {}).items():
+                            if region != design_sources[source] or props.get('bungie_mesh_type') != 18:
+                                continue
+                            direction = props.get('foundry_water_direction', (0., 0., 0.))
+                            if self.mirror:
+                                direction = (direction[0], -direction[1], direction[2])
+                            name = legacy_instance_name(ob.name, props, 18, self.target_game)[1:]
+                            properties[name] = (direction, props.get('foundry_water_angle', 0.))
+                        if properties:
+                            with StructureDesignDocument(destination, tags_root=self.tags_dir,
+                                                         game=self.target_game, must_exist=True) as design:
+                                design.set_water_properties(properties)
+            if self.target_game in {'halo3', 'halo3odst'} and structure_sources:
+                # Seams are a level-wide input, including BSPs outside a
+                # selected export. Tool reads ASS directly, before any BSPs.
+                level_sources = [source for source in sources
+                                 if not self.structure_source_assignment(source)[1]]
+                if self.prepare_structure_seams(level_sources):
+                    # A changed shared seam can invalidate the other side's
+                    # indices too. Compile the level once using the new tag.
+                    if set(level_sources) != set(structure_sources):
+                        print('--- Seam changes require rebuilding the other BSPs in this level', flush=True)
+                    structure_sources = level_sources
+            for source in [*structure_sources, *design_sources]:
+                compile_source(source)
             self.write_classic_scenario_tag(structure_sources, design_sources)
             return
         if self.asset_type.name in {'PARTICLE_MODEL', 'DECORATOR_SET'}:
@@ -595,7 +691,7 @@ class LegacyExportScene(ExportScene):
                     f'{source}')
             command = ('import-particle-model' if self.asset_type.name == 'PARTICLE_MODEL'
                        else 'import-decorator-set')
-            utils.run_tool(
+            self._run_import_tool(
                 [command, str(Path(self.asset_path_relative,
                                    self.asset_name + '.jmi'))],
                 event_level=self.export_settings.event_level,
@@ -617,7 +713,7 @@ class LegacyExportScene(ExportScene):
                 model_sources = sorted(models.glob('*.jms')) if models.is_dir() else []
                 if model_sources:
                     with self.ensure_halo1_shaders(model_sources, 'shader_model') as expected:
-                        utils.run_tool(['model', self.asset_path_relative],
+                        self._run_import_tool(['model', self.asset_path_relative],
                                        event_level=self.export_settings.event_level,
                                        **halo1_tool_options)
                         base = Path(self.tags_dir, self.asset_path_relative, self.asset_name)
@@ -629,14 +725,14 @@ class LegacyExportScene(ExportScene):
                             self.repair_halo1_shader_paths(destination, expected)
                 if physics.is_dir() and any(physics.glob('*.jms')):
                     for command in ('collision-geometry', 'physics'):
-                        utils.run_tool([command, self.asset_path_relative],
+                        self._run_import_tool([command, self.asset_path_relative],
                                        event_level=self.export_settings.event_level,
                                        **halo1_tool_options)
             else:
                 command = ('bulk-import-model-folder'
                            if self.target_game == 'halo2' or self.export_settings.lightmap_structure
                            else 'bulk-import-model-folder-draft')
-                utils.run_tool([command, self.asset_path_relative],
+                self._run_import_tool([command, self.asset_path_relative],
                                event_level=self.export_settings.event_level)
 
         animation_dir = Path(self.asset_path, 'animations')
@@ -656,13 +752,13 @@ class LegacyExportScene(ExportScene):
                 # H1 asks whether to save the graph after animations have been
                 # removed. The output viewer has no interactive stdin.
                 animation_tool_options['input_data'] = b'y\n'
-            utils.run_tool([command, self.asset_path_relative],
+            self._run_import_tool([command, self.asset_path_relative],
                            event_level=self.export_settings.event_level,
                            **animation_tool_options)
             # New animations only acquire tag entries on the first import.
             # Compile again if their requested compression differs from Tool's default.
             if self.write_animation_compression(graph_path, single_animation):
-                utils.run_tool([command, self.asset_path_relative],
+                self._run_import_tool([command, self.asset_path_relative],
                                event_level=self.export_settings.event_level,
                                **animation_tool_options)
         elif self.target_game == 'halo1' and graph_path.is_file():
@@ -842,6 +938,41 @@ class LegacyExportScene(ExportScene):
                 temporary.unlink(missing_ok=True)
             print(f'--- Loaded template {destination}')
 
+    def prepare_halo2_water(self):
+        """Resolve the single water definition allowed in each exported H2 BSP."""
+        self.halo2_water_settings = {}
+        if self.asset_type.name != 'SCENARIO' or 'structure' not in self.export_tag_types:
+            return
+        owners = {}
+        water_objects = defaultdict(list)
+        for ob, (props, region, permutation, _) in self.ob_halo_data.items():
+            if props.get('bungie_mesh_type') != 17:
+                continue
+            if self.limit_bsps_to_selection and region not in self.selected_bsps:
+                continue
+            if self.limit_perms_to_selection and permutation not in self.selected_permutations:
+                continue
+            settings = water_settings(ob.nwo)
+            shader = settings['shader'].strip()
+            settings['shader'] = utils.relative_path(shader) if shader else ''
+            if settings['shader'] and Path(settings['shader']).suffix.lower() != '.shader':
+                raise ExportCancelled(f'{ob.name}: Halo 2 water requires a .shader tag')
+            previous = self.halo2_water_settings.get(region)
+            if previous is not None and previous != settings:
+                raise ExportCancelled(
+                    f'BSP [{region}] has conflicting water settings on [{owners[region]}] '
+                    f'and [{ob.name}]. Halo 2 supports one water definition per BSP; '
+                    'use matching water settings on these objects.')
+            self.halo2_water_settings[region] = settings
+            owners[region] = ob.name
+            water_objects[region].append(ob)
+        for region, objects in water_objects.items():
+            try:
+                self.halo2_water_settings[region]['height'] = water_plane_height(
+                    objects, self.halo_transform_scale, self.depsgraph)
+            except ValueError as error:
+                raise ExportCancelled(f'BSP [{region}]: {error}') from error
+
     def prepare_halo2_material_emissives(self, allow_localize=True, write_values=True):
         """Resolve asset shader paths before ASS allocates shader collections."""
         folder = asset_shader_folder(self.scene_settings.sidecar_path, self.data_dir, self.tags_dir)
@@ -868,6 +999,31 @@ class LegacyExportScene(ExportScene):
                 write_material_emissive(path, self.tags_dir, power, color, 'halo2')
             for material in materials:
                 material.nwo.shader_path = path
+
+    def prepare_halo1_material_shaders(self, shader_type):
+        """Convert environment tags only for non-scenario geometry exports."""
+        if shader_type != 'shader_model':
+            return {}
+        conversions = getattr(self, 'halo1_shader_conversions', {})
+        self.halo1_shader_conversions = conversions
+        for ob in self.ob_halo_data:
+            for slot in getattr(ob, 'material_slots', ()):
+                material = slot.material
+                if material is None:
+                    continue
+                path = utils.relative_path(material.nwo.shader_path.strip())
+                source = Path(path)
+                if (source.suffix.lower() != '.shader_environment'
+                        or not (Path(self.tags_dir) / source).is_file()):
+                    continue
+                if source not in conversions:
+                    try:
+                        conversions[source] = convert_shader(source, self.tags_dir, '.' + shader_type)
+                    except (OSError, RuntimeError, ValueError) as error:
+                        raise ExportCancelled(f'{material.name}: could not convert shader: {error}') from error
+                    print(f'--- Converted {source} to {conversions[source]}')
+                material.nwo.shader_path = str(conversions[source])
+        return conversions
 
     def update_halo1_material_emissives(self) -> None:
         """Apply material emission to the selected shader paths."""
@@ -902,14 +1058,21 @@ class LegacyExportScene(ExportScene):
         """Resolve JMS names to selected paths, providing temporary Tool aliases."""
         if self.target_game != 'halo1':
             return nullcontext({})
+        conversions = self.prepare_halo1_material_shaders(shader_type)
         ensure_invalid_shader(self.tags_dir)
-        if not self.shader_collections.halo1_names_reserved:
+        if conversions or not self.shader_collections.halo1_names_reserved:
             self.shader_collections.reserve_halo1_paths(
-                [str(INVALID_SHADER_PATH), *(slot.material.nwo.shader_path for ob in self.ob_halo_data
+                [str(INVALID_SHADER_PATH), *map(str, conversions), *map(str, conversions.values()),
+                 *map(str, getattr(self, 'halo1_shader_paths', {}).values()),
+                 *(slot.material.nwo.shader_path for ob in self.ob_halo_data
                  for slot in getattr(ob, 'material_slots', ()) if slot.material is not None)])
         candidates = defaultdict(set)
         for name, path in getattr(self, 'halo1_shader_paths', {}).items():
-            candidates[name].add(path)
+            candidates[name].add(conversions.get(Path(path), path))
+        # Tags Only can compile JMS written before the material was converted.
+        for original, converted in conversions.items():
+            candidates[self.shader_collections.material_name(str(original)).casefold()].add(converted)
+            candidates[halo1_shader_lookup(original.stem, model=shader_type == 'shader_model')].add(converted)
         for ob in self.ob_halo_data:
             for slot in getattr(ob, 'material_slots', ()):
                 material = slot.material
@@ -926,7 +1089,7 @@ class LegacyExportScene(ExportScene):
                 candidates[name.casefold()].add(wanted)
                 # Tags Only may use JMS from before full-path aliases existed.
                 old_name = (target.stem if target is not None else
-                            material.get('foundry_legacy_shader_name', '') or material.name)
+                            material.name)
                 old_key = halo1_shader_lookup(old_name, model=shader_type == 'shader_model')
                 candidates[old_key].add(wanted)
         expected = {}
@@ -943,6 +1106,17 @@ class LegacyExportScene(ExportScene):
                         f'{source.name}: shader name {material.name!r} has multiple selected paths. '
                         'Run a full export to distinguish these shaders in JMS')
                 wanted = next(iter(paths))
+                original_name = name
+                if wanted in conversions.values():
+                    # Persist converted names so the next Tags Only export can
+                    # resolve them after this export's conversion cache is gone.
+                    name = self.shader_collections.material_name(str(wanted)).casefold()
+                    flags = (material.name[len(material.name.rstrip('%#!@*$^-&')):]
+                             if shader_type == 'shader_environment' else '')
+                    replacement = name + flags
+                    if material.name != replacement:
+                        material.name = replacement
+                        rewritten = True
                 if wanted == INVALID_SHADER_PATH:
                     flags = (material.name[len(material.name.rstrip('%#!@*$^-&')):]
                              if shader_type == 'shader_environment' else '')
@@ -958,7 +1132,7 @@ class LegacyExportScene(ExportScene):
                 expected[name] = wanted
                 # Model JMS has no face-side flags; update the selected shader.
                 if (shader_type == 'shader_model' and Path(wanted).suffix.lower() == '.shader_model'
-                        and name in self.halo1_two_sided_shaders):
+                        and (name in self.halo1_two_sided_shaders or original_name in self.halo1_two_sided_shaders)):
                     with TagDocument(wanted, tags_root=self.tags_dir, game='halo1', must_exist=True) as shader:
                         properties = shader.required_field(shader.tag.root(), 'properties').as_struct()
                         flags = shader.required_field(properties, 'flags')
@@ -975,8 +1149,8 @@ class LegacyExportScene(ExportScene):
             changed = repair_shader_references(destination, self.tags_dir, expected)
         except (OSError, ValueError) as error:
             raise ExportCancelled(str(error)) from error
-        if changed:
-            print(f'--- Corrected {changed} shader reference(s) in {destination}')
+        # if changed:
+        #     print(f'--- Corrected {changed} shader reference(s) in {destination}')
 
     def halo1_object_references(self, base, object_template=''):
         """Resolve components from the asset, never from stale output files alone."""
@@ -1140,6 +1314,16 @@ class LegacyExportScene(ExportScene):
                 scenario.retain_structure_bsps(bsp_paths)
             if design_paths:
                 scenario.set_structure_designs(design_paths)
+            if self.target_game in {'halo3', 'halo3odst'} and structure_sources:
+                seams = destination.with_suffix('.structure_seams')
+                if seams.is_file() and getattr(self, 'structure_seams_present', True):
+                    scenario.set_reference(scenario.tag.root(), 'structure seams',
+                                           utils.relative_path(seams))
+                else:
+                    previous = scenario.reference(scenario.tag.root(), 'structure seams')
+                    if (previous is not None and previous.RelativePathWithExtension.casefold() ==
+                            str(utils.relative_path(seams)).replace('/', '\\').casefold()):
+                        scenario.set_reference(scenario.tag.root(), 'structure seams', None)
             if is_new:
                 scenario.create_default_profile()
                 scenario.set_scenario_type(self.scene_settings.scenario_type)
@@ -1241,9 +1425,9 @@ class LegacyExportScene(ExportScene):
             if event.event_type != '_connected_geometry_animation_event_type_frame'
         ]
         if unsupported:
-            self.warnings.append(
+            raise ExportCancelled(
                 f'{animation.name}: classic animation tags cannot store event types: '
-                + ', '.join(sorted(set(unsupported))) + '. Skipping unsupported events')
+                + ', '.join(sorted(set(unsupported))))
         # JMA has no event channel. Frame events are written into the compiled
         # tag after Tool finishes, using the original Blender animation data.
         return [], []
@@ -1257,7 +1441,7 @@ class LegacyExportScene(ExportScene):
             if not path or not path.strip() or path in {'override', 'shaders\\invalid'}:
                 self.halo1_shader_paths['invalid'] = INVALID_SHADER_PATH
                 return 'invalid'
-        if not path or not path.strip() or path in {'override', 'shaders\\invalid'}:
+        if not path or not path.strip() or path == 'override':
             return source_name
         # VirtualMaterial stores the tag class separately from its path.
         # Restore it before resolving the material name and validating the tag.
@@ -1332,6 +1516,13 @@ class LegacyExportScene(ExportScene):
                 gm = globals_[gm]
             if self.supports_bsp:
                 gm = 'default'  # Pre-H4 BSP surface types are resolved from shaders.
+                if self.target_game in {'halo3', 'halo3odst'}:
+                    # Material-authored seams keep their name; Foundry seam
+                    # objects (including reversed copies) use their own BSP.
+                    if shader.casefold().startswith('+seam:'):
+                        props['bungie_mesh_type'] = 14
+                    if props.get('bungie_mesh_type') == 14:
+                        props.setdefault('bungie_mesh_seam_associated_bsp', node.region or 'default')
             if self.target_game == 'halo1' and props.get('bungie_mesh_type') == 13:
                 if node.ob.nwo.is_property_set('portal_exact'):
                     props['foundry_portal_exact'] = node.ob.nwo.portal_exact
@@ -1345,8 +1536,6 @@ class LegacyExportScene(ExportScene):
                     self.warnings.append(warning)
             name, lighting = material_variant(shader, props, gm, ass_version, self.target_game,
                                              model=halo1_model)
-            if props.get('foundry_weather_polyhedron') and self.target_game != 'halo1':
-                name = '+weather'
             if node.tag_type == 'collision':
                 # Surface-type names still carry collision sidedness flags.
                 # Dropping % loses the opposite side of sheet collision.
@@ -1461,51 +1650,43 @@ class LegacyExportScene(ExportScene):
 
     def xref_record(self, node) -> tuple[str, str, int]:
         """Return the legacy XREF path, object name and signed identifier."""
-        source = getattr(node.ob, 'ob', node.ob)
-        get = getattr(source, 'get', lambda _name, default=None: default)
-        imported_path = str(get('jms_xref_path', '') or
-                            get('ass_xref_path', '') or '')
         tag_path = str(node.props.get('bungie_marker_game_instance_tag_name', '') or
                        node.ob.nwo.marker_game_instance_tag_name or '')
-        if get('ass_import_tag_path') and tag_path != get('ass_import_tag_path'):
-            imported_path = ''
-        if not imported_path and not tag_path:
-            raise ExportCancelled(f'{node.name}: tag-reference marker has no tag path')
-        if imported_path:
-            path = imported_path.replace('/', '\\')
-            default_name = Path(path.replace('\\', '/')).stem
-        else:
-            relative = Path(tag_path.replace('\\', '/'))
-            if relative.is_absolute():
-                try:
-                    relative = relative.relative_to(self.tags_dir)
-                except ValueError:
-                    raise ExportCancelled(
-                        f'{node.name}: tag-reference path is outside this project: '
-                        f'{tag_path}') from None
-            elif relative.parts and relative.parts[0].casefold() == 'tags':
-                relative = Path(*relative.parts[1:])
-            default_name = relative.stem
-            asset_dir = relative.parent
-            if asset_dir.name.casefold() != default_name.casefold():
-                asset_dir /= default_name
-            # H2 Tool derives the referenced tag from the source-model path and
-            # object name. Match the paths written by the H2 Max exporter even
-            # when the original source file is no longer present.
-            path = str(Path(self.data_dir, asset_dir, 'render',
-                            default_name + '.max'))
-        xref_name = str(get('jms_xref_name', '') or get('ass_xref_name', '') or
-                        default_name)
-        if get('ass_import_tag_path') and tag_path != get('ass_import_tag_path'):
-            xref_name = default_name
-        raw_identifier = get('jms_identifier', '') or get('ass_identifier', '')
-        try:
-            identifier = int(raw_identifier)
-        except (TypeError, ValueError):
-            identity = str(node.props.get('bungie_object_ID', '') or
-                           f'{node.name}\0{path}\0{xref_name}')
-            identifier = utils.id_from_string(identity)
-        return path, xref_name, identifier
+        if not tag_path:
+            raise ExportCancelled(f'{node.name}: tag-reference path is missing')
+        relative = Path(tag_path.replace('\\', '/'))
+        if relative.is_absolute():
+            try:
+                relative = relative.relative_to(self.tags_dir)
+            except ValueError:
+                raise ExportCancelled(
+                    f'{node.name}: tag-reference path is outside this project: {tag_path}') from None
+        elif relative.parts and relative.parts[0].casefold() == 'tags':
+            relative = Path(*relative.parts[1:])
+        name = relative.stem
+        asset_dir = relative.parent
+        if asset_dir.name.casefold() != name.casefold():
+            asset_dir /= name
+        # Tool resolves the current tag reference from a source-model path.
+        path = str(Path(self.data_dir, asset_dir, 'render', name + '.max'))
+        identity = str(node.props.get('bungie_object_ID', '') or f'{node.name}\0{tag_path}')
+        return path, name, utils.id_from_string(identity)
+
+    def marker_group_name(self, node):
+        """Use the shared tag group, rather than Blender's unique object name."""
+        return node.props.get('bungie_marker_model_group', node.name)
+
+    def marker_permutations(self, node, name, available=None):
+        """Resolve a marker's include/exclude scope within this output."""
+        nwo = node.ob.nwo
+        if not nwo.marker_uses_regions:
+            return (name,)
+        permutations = {name} if available is None else set(available)
+        listed = {p.name for p in nwo.marker_permutations}
+        if listed:
+            permutations = (permutations - listed if nwo.marker_permutation_type == 'exclude'
+                            else permutations & listed)
+        return sorted(permutations)
 
     def jms_asset(self, name, nodes, markers, folder, *, include_physics=False, filter_markers=True):
         asset = jms.JMS(name=name, version=self.jms_version)
@@ -1515,28 +1696,11 @@ class LegacyExportScene(ExportScene):
                 matrix = bone.matrix_world
                 if asset.version < 8205 and parent != -1:
                     matrix = self.bones[parent].matrix_world.inverted() @ matrix
-                authored = self.source_bone_transforms.get(bone.name)
-                name = bone.name
-                data = bone.bone.bone
-                if authored is not None and bone.name == data.get('legacy_import_name'):
-                    name = json.loads(data['legacy_source_node'])['name']
-                asset.nodes.append(jms.Node(name, parent, authored or transform(matrix, self.to_halo_scale, asset.version < 8205)))
+                asset.nodes.append(jms.Node(bone.name, parent, transform(matrix, self.to_halo_scale, asset.version < 8205)))
         else:
             asset.nodes.append(jms.Node(
                 'implied_root_node', -1,
                 jms.Transform((0, 0, 0, 1), (0, 0, 0))))
-        if folder == 'collision' and self.bones and len(self.source_bone_transforms) == len(self.bones):
-            from ..legacy.jms_importer import canonical_bone_name
-            keys = {getattr(node.ob, 'ob', node.ob).get('jms_source_key') for node in nodes}
-            source_nodes = self.jms_source_nodes.get(next(iter(keys))) if len(keys) == 1 else None
-            if (source_nodes and len(source_nodes) == len(asset.nodes)
-                    and all(canonical_bone_name(a.name) == canonical_bone_name(b['name']) and a.parent == b['parent']
-                            for a,b in zip(asset.nodes,source_nodes))):
-                # Render and collision sources can have slightly different
-                # bind transforms. Retain this file's own unchanged header,
-                # rather than the first render file's transforms on the rig.
-                asset.nodes = [jms.Node(n['name'],n['parent'],jms.Transform(tuple(n['transform']['rotation']),
-                                     tuple(n['transform']['translation']))) for n in source_nodes]
         asset.checksum = self.legacy_node_checksum(asset.nodes)
         cache = {}
         for node in nodes:
@@ -1629,19 +1793,13 @@ class LegacyExportScene(ExportScene):
                         f'{node.name}: physics constraint endpoints must name '
                         'bones in the exported skeleton')
                 parent_matrix = self.bones[parent].matrix_world.inverted() @ node.matrix_world
-                source = getattr(node.ob, 'ob', node.ob)
-                relative_child = source.get('jms_constraint_child_relative')
-                child_world = node.matrix_world
-                if relative_child:
-                    child_world = child_world @ Matrix(json.loads(relative_child))
-                child_matrix = self.bones[child].matrix_world.inverted() @ child_world
-                imported_limits = json.loads(source.get('jms_constraint', '{}')).get('limits', ())
+                child_matrix = self.bones[child].matrix_world.inverted() @ node.matrix_world
                 use_limits = bool(node.props.get(
                     'bungie_physics_constraint_use_limits', 0))
                 if marker_type.endswith('hinge_constraint'):
                     kind = 'hinge'
                     limits = (
-                        int(use_limits), float(imported_limits[1]) if len(imported_limits) > 1 else 0.0,
+                        int(use_limits), 0.0,
                         float(node.props.get('bungie_physics_constraint_hinge_min', 0.0)),
                         float(node.props.get('bungie_physics_constraint_hinge_max', 0.0)),
                     )
@@ -1650,38 +1808,42 @@ class LegacyExportScene(ExportScene):
                     limits = (
                         float(node.props.get('bungie_physics_constraint_twist_start', 0.0)),
                         float(node.props.get('bungie_physics_constraint_twist_end', 0.0)),
-                        float(imported_limits[2]) if len(imported_limits) > 2 else 0.0,
+                        0.0,
                         float(node.props.get('bungie_physics_constraint_cone_angle', 0.0)),
                         float(node.props.get('bungie_physics_constraint_plane_min', 0.0)),
                         float(node.props.get('bungie_physics_constraint_plane_max', 0.0)),
                     ) if use_limits else (0.0,) * 6
                     if self.jms_version >= 8213:
-                        limits += (float(imported_limits[6]) if len(imported_limits) > 6 else 0.0,)
+                        limits += (0.0,)
                 asset.constraints.append(jms.Constraint(
                     kind, node.name.lstrip('$'), parent, child,
                     transform(parent_matrix, self.to_halo_scale),
                     transform(child_matrix, self.to_halo_scale), limits))
-        if (folder in {'render', 'models', 'collision'} or include_physics) and 'markers' in self.export_tag_types:
+        # Structure markers belong to their BSP and are part of structure
+        # export; model marker options and permutation scopes do not apply.
+        structure_markers = folder == 'structure'
+        if structure_markers or ((folder in {'render', 'models', 'collision'} or include_physics)
+                                 and 'markers' in self.export_tag_types):
             xref_indices = {}
-            merged_render = (folder == 'render' and self.target_game in {'halo3', 'halo3odst'}
-                and any(getattr(n.ob, 'ob', n.ob).get('foundry_converted_from_toolset') for n in nodes))
-            asset_permutations = {m.permutation for m in asset.materials}
+            merged_render = folder == 'render' and self.target_game in {'halo3', 'halo3odst'}
+            region_permutations = defaultdict(set)
+            for material in asset.materials:
+                region_permutations[material.region].add(material.permutation)
             for node in markers:
+                if structure_markers and node.region != asset.name:
+                    continue
                 nwo = node.ob.nwo
                 collision_marker = nwo.marker_type == '_connected_geometry_marker_type_pathfinding_sphere'
                 physics_marker = nwo.marker_type == '_connected_geometry_marker_type_physics_constraint'
                 if ((folder == 'collision' and not collision_marker) or
                         (folder != 'collision' and (collision_marker or physics_marker))):
                     continue
-                permutations = {p.name for p in nwo.marker_permutations}
-                scoped_permutations = None
-                if filter_markers and merged_render and nwo.marker_uses_regions and permutations:
-                    scoped_permutations = (asset_permutations - permutations if
-                        nwo.marker_permutation_type == 'exclude' else asset_permutations & permutations)
+                scoped_permutations = (name,)
+                if not structure_markers and (filter_markers or self.jms_version >= 8205):
+                    available = (self.permutations if not filter_markers else
+                                 region_permutations[node.region or 'default'] if merged_render else None)
+                    scoped_permutations = self.marker_permutations(node, name, available)
                     if not scoped_permutations:
-                        continue
-                elif filter_markers and nwo.marker_uses_regions and permutations:
-                    if (name in permutations) == (nwo.marker_permutation_type == 'exclude'):
                         continue
                 if nwo.marker_type == '_connected_geometry_marker_type_game_instance':
                     try:
@@ -1703,15 +1865,13 @@ class LegacyExportScene(ExportScene):
                 if parent != -1 and self.bones:
                     matrix = self.bones[parent].matrix_world.inverted() @ matrix
                 region = node.region or 'default'
-                if region not in asset.regions:
+                uses_regions = nwo.marker_uses_regions and not structure_markers
+                if not structure_markers and region not in asset.regions:
                     asset.regions.append(region)
-                source = getattr(node.ob, 'ob', node.ob)
-                group_name = node.name
-                if source.name == source.get('toolset_marker_object_name'):
-                    group_name = source.get('toolset_marker_name', group_name)
-                for permutation in sorted(scoped_permutations) if scoped_permutations is not None else (name,):
-                    marker_name = f'({permutation} {region}){group_name}' if nwo.marker_uses_regions and self.jms_version >= 8205 else group_name
-                    asset.markers.append(jms.Marker(marker_name, asset.regions.index(region) if nwo.marker_uses_regions else -1,
+                group_name = self.marker_group_name(node)
+                for permutation in scoped_permutations:
+                    marker_name = f'({permutation} {region}){group_name}' if uses_regions and self.jms_version >= 8205 else group_name
+                    asset.markers.append(jms.Marker(marker_name, asset.regions.index(region) if uses_regions else -1,
                         parent, transform(matrix, self.to_halo_scale), node.props.get('bungie_mesh_primitive_sphere_radius', 1)))
         if self.target_game == 'halo1' and folder == 'physics' and asset.markers and not asset.materials:
             # Tool also requires a material to build its intermediate model,
@@ -1747,7 +1907,8 @@ class LegacyExportScene(ExportScene):
                 utils.print_step(f'Stabilized {repaired} thin sky collision surface(s)')
         return asset
 
-    def ass_asset(self, name, nodes, markers=(), lights=(), *, filter_region=True, preserve_imported=True):
+    def ass_asset(self, name, nodes, markers=(), lights=(), *, filter_region=True,
+                  filter_markers=True):
         if self.target_game in ASS_GAMES:
             for marker in markers:
                 if marker.ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance':
@@ -1756,7 +1917,6 @@ class LegacyExportScene(ExportScene):
                         raise ExportCancelled(f'{marker.name}: ASS game objects support only scenery and device_machine tags; got {path!r}')
         asset = ass.ASS(name=name, version=self.ass_version)
         cache, geometries = {}, {}
-        source_geometry_order = {}
         node_instances = {}
         asset.instances.append(ass.Instance(-1, 'frame', -1, -1, 0, ass.Transform(), ass.Transform()))
         for bone in self.bones:
@@ -1770,95 +1930,24 @@ class LegacyExportScene(ExportScene):
         # Proxy meshes refer to their render instance by parent index, so emit
         # ordinary nodes first even if the virtual-scene dictionary order was
         # changed by evaluation.
-        def ass_node_order(node):
-            source = getattr(node.ob, 'ob', node.ob)
-            if source.get('ass_source_key') and source.get('ass_source_index') is not None:
-                return (0, source['ass_source_key'], source['ass_source_index'], node.proxy_parent is not None)
-            return (1, '', int(node.proxy_parent is not None), 0)
-        ordered_nodes = sorted(nodes, key=ass_node_order)
-        source_instances = {}
-        source_frames = {}
-        preserved_sources = {}
-        if self.supports_bsp:
-            for node in ordered_nodes:
-                source = getattr(node.ob, 'ob', node.ob)
-                if (preserve_imported and node.proxy_parent is None and source.get('ass_instance') and source.get('ass_source_key')
-                        and source.get('ass_import_matrix')
-                        and node.ob.matrix_world == Matrix(json.loads(source['ass_import_matrix']))):
-                    instance = json.loads(source['ass_instance'])
-                    ancestry = json.loads(source.get('ass_source_ancestry', '[]'))
-                    if all(max(t['scale']) - min(t['scale']) < 1e-5
-                           for item in [instance, *ancestry] for t in (item['local'], item['pivot'])):
-                        preserved_sources[id(node)] = (source['ass_source_key'], source['ass_source_index'], instance, ancestry)
-
-        def source_transform(value):
-            return ass.Transform(tuple(value['rotation']), tuple(value['translation']), tuple(value['scale']))
-
-        def source_parent(key, parent, ancestry):
-            if parent == -1:
-                return 0
-            identity = key, parent
-            if identity in source_instances:
-                return source_instances[identity]
-            if identity in source_frames:
-                return source_frames[identity]
-            item = next(i for i in ancestry if i['index'] == parent)
-            ancestor = source_parent(key, item['parent'], ancestry)
-            index = len(asset.instances)
-            asset.instances.append(ass.Instance(-1, item['name'] if item['name'].lower().startswith(('frame','bip')) else 'frame ' + item['name'],
-                                               item['unique_id'], ancestor, item['inheritance'],
-                                               source_transform(item['local']), ass.Transform()))
-            source_frames[identity] = index
-            return index
-
+        ordered_nodes = sorted(nodes, key=lambda node: node.proxy_parent is not None)
         for node in ordered_nodes:
             foundry_output._raise_if_cancel_requested()
             materials = self.face_materials(node, asset, cache)
             matrix = (Matrix.Identity(4) if node.proxy_parent is not None
                       else node.matrix_world)
-            source = getattr(node.ob, 'ob', node.ob)
-            get = getattr(source, 'get', lambda _name, default=None: default)
-            preserved_matrix = None
-            if preserve_imported and node.proxy_parent is None and get('ass_source_matrix') and get('ass_import_matrix'):
-                imported = Matrix(json.loads(get('ass_import_matrix')))
-                current = node.ob.matrix_world
-                unchanged = current == imported
-                if not unchanged and get('toolset_import_transform'):
-                    from ..legacy.scene_converter import toolset_transform_signature
-                    unchanged = toolset_transform_signature(source) == get('toolset_import_transform')
-                if unchanged:
-                    original = Matrix(json.loads(get('ass_source_matrix')))
-                    original_loc, original_rot, original_scale = original.decompose()
-                    original_rebuilt = Matrix.LocRotScale(original_loc, original_rot, original_scale)
-                    if (abs(original_scale[0]) > 0 and max(original_scale) - min(original_scale) < 1e-5
-                            and max(abs(original[r][c] - original_rebuilt[r][c])
-                                    for r in range(4) for c in range(4)) < 1e-5):
-                        preserved_matrix = original
-                        matrix = original
             loc, rot, scale = matrix.decompose()
             uniform = max(scale) - min(scale) < 1e-5 and abs(scale[0]) > 0
             rebuilt = Matrix.LocRotScale(loc, rot, scale)
             uniform = uniform and max(abs(matrix[r][c] - rebuilt[r][c]) for r in range(4) for c in range(4)) < 1e-5
             local = ass.Transform((rot.x, rot.y, rot.z, rot.w),
-                                  tuple(loc) if preserved_matrix is not None else tuple(loc * self.to_halo_scale),
+                                  tuple(loc * self.to_halo_scale),
                                   tuple(scale)) if uniform else ass.Transform()
-            source_instance = preserved_sources.get(id(node))
             pivot = ass.Transform()
-            if source_instance is not None:
-                source_key, source_index, original_instance, ancestry = source_instance
-                local = source_transform(original_instance['local'])
-                pivot = source_transform(original_instance['pivot'])
-                # Uniform local ASS transforms remain representable as a
-                # hierarchy even if accumulated float matrices acquire skew.
-                # Baking those points and then retaining the hierarchy applies
-                # the placement twice.
-                uniform = True
             key = (id(node.mesh), tuple(m[0] for m in materials.values()), node.negative_scaling)
             geometry_index = geometries.get(key) if uniform else None
             if geometry_index is None:
                 geometry = ass.Geometry('MESH')
-                geometry.xref_path = str(get('ass_xref_path', '') or '')
-                geometry.xref_name = str(get('ass_xref_name', '') or '')
                 geometry.vertices = self.vertices(node, Matrix.Identity(4) if uniform else matrix, bool(self.bones),
                                                   ass_uvs=self.ass_version >= 5)
                 palette = sorted({b for vertex in geometry.vertices for b, _ in vertex.influences})
@@ -1867,7 +1956,9 @@ class LegacyExportScene(ExportScene):
                     vertex.influences = tuple((palette_map[b], weight) for b, weight in vertex.influences)
                 geometry.node_indices = list(range(len(palette)))
                 triangles = node.mesh.indices.reshape((-1, 3))
-                for face, triangle in enumerate(triangles):
+                face_order = getattr(node.mesh, 'legacy_face_order', None)
+                for face in range(len(triangles)) if face_order is None else face_order:
+                    triangle = triangles[face]
                     indices = tuple(int(i) for i in triangle)
                     if node.negative_scaling and not (uniform and scale[0] < 0):
                         indices = indices[0], indices[2], indices[1]
@@ -1884,52 +1975,43 @@ class LegacyExportScene(ExportScene):
                 #         f'and recovered {repaired} invalid vertex normals')
                 geometry_index = len(asset.geometries)
                 asset.geometries.append(geometry)
-                if get('ass_source_key') and get('ass_geometry') is not None:
-                    source_geometry_order[geometry_index] = (get('ass_source_key'), int(get('ass_geometry')))
                 if uniform:
                     geometries[key] = geometry_index
                 geometry_bones = tuple(b + 1 for b in palette)
             else:
                 geometry_bones = next(i.bones for i in asset.instances if i.geometry == geometry_index)
             mesh_type = node.props.get('bungie_mesh_type')
-            imported_name = node.name
-            if source_instance is not None and source.name == get('ass_import_name'):
-                imported_name = original_instance['name']
-            instance_name = legacy_instance_name(imported_name, node.props, mesh_type, self.target_game)
-            if get('ass_import_policies') and source.name == get('ass_import_name') and get('ass_instance'):
-                policy_snapshot = json.loads(get('ass_import_policies'))
-                if all(getattr(node.ob.nwo, name) == value for name,value in policy_snapshot.items()):
-                    instance_name = json.loads(get('ass_instance'))['name']
+            instance_name = legacy_instance_name(node.name, node.props, mesh_type, self.target_game)
             if node.props.get('foundry_weather_polyhedron'):
                 if not instance_name.casefold().startswith('+weather'):
                     suffix = instance_name.rpartition(':')[2].lstrip('+')
                     instance_name = '+weather_' + (suffix or str(len(asset.instances)))
             parent = node_instances.get(id(node.proxy_parent), 0)
-            if source_instance is not None:
-                parent = source_parent(source_key, original_instance['parent'], ancestry)
             if node.proxy_parent is not None:
-                # Proxy vertex data is authored in the owning instance's local
-                # space. Its ASS child transform must therefore be identity.
+                # Proxy coordinates are already local to the owning instance.
                 local = ass.Transform()
-                owner_source = preserved_sources.get(id(node.proxy_parent))
-                if owner_source is not None:
-                    local = source_transform(owner_source[2]['pivot'])
             instance_index = len(asset.instances)
-            identifier = int(get('ass_identifier', instance_index))
-            asset.instances.append(ass.Instance(geometry_index, instance_name, identifier,
-                parent, original_instance['inheritance'] if source_instance is not None else 0, local, pivot, geometry_bones))
+            asset.instances.append(ass.Instance(geometry_index, instance_name, instance_index,
+                parent, 0, local, pivot, geometry_bones))
             node_instances[id(node)] = instance_index
-            if source_instance is not None:
-                source_instances[source_key, source_index] = instance_index
         if 'markers' in self.export_tag_types or self.supports_bsp:
             xref_geometries = {}
+            merged_render = self.target_game in {'halo3', 'halo3odst'}
+            region_permutations = defaultdict(set)
+            for material in asset.materials:
+                region, permutation = material.region_permutation()
+                region_permutations[region].add(permutation)
             for node in markers:
                 if filter_region and self.supports_bsp and node.region != name:
                     continue
                 nwo = node.ob.nwo
-                permutations = {p.name for p in nwo.marker_permutations}
-                if nwo.marker_uses_regions and permutations and (name in permutations) == (nwo.marker_permutation_type == 'exclude'):
-                    continue
+                scoped_permutations = (name,)
+                if not self.supports_bsp:
+                    available = (self.permutations if not filter_markers else
+                                 region_permutations[node.region or 'default'] if merged_render else None)
+                    scoped_permutations = self.marker_permutations(node, name, available)
+                    if not scoped_permutations:
+                        continue
                 if nwo.marker_type == '_connected_geometry_marker_type_game_instance':
                     try:
                         path, xref_name, identifier = self.xref_record(node)
@@ -1941,35 +2023,9 @@ class LegacyExportScene(ExportScene):
                     if geometry_index is None:
                         geometry_index = len(asset.geometries)
                         xref_geometries[key] = geometry_index
-                        source = getattr(node.ob, 'ob', node.ob)
-                        original = source.get('ass_reference_geometry')
-                        if original and nwo.marker_game_instance_tag_name == source.get('ass_import_tag_path'):
-                            data = json.loads(original)
-                            data['vertices'] = [jms.Vertex(**v) for v in data['vertices']]
-                            data['triangles'] = [jms.Triangle(**t) for t in data['triangles']]
-                            data['light'] = ass.Light(**data['light']) if data['light'] else None
-                            material_remap = {-1:-1}
-                            for old,material in json.loads(source.get('ass_reference_materials', '{}')).items():
-                                material_remap[int(old)] = len(asset.materials)
-                                asset.materials.append(ass.Material(**material))
-                            data['material'] = material_remap[data['material']]
-                            for triangle in data['triangles']:
-                                triangle.material = material_remap[triangle.material]
-                            asset.geometries.append(ass.Geometry(**data))
-                        else:
-                            asset.geometries.append(ass.Geometry('MESH', xref_path=path, xref_name=xref_name))
+                        asset.geometries.append(ass.Geometry('MESH', xref_path=path, xref_name=xref_name))
                     value = transform(node.matrix_world, self.to_halo_scale)
-                    source = getattr(node.ob, 'ob', node.ob)
                     instance_name = ass_reference_prefix(nwo.marker_game_instance_tag_name) + ass_reference_name(node.name)
-                    if (preserve_imported and source.get('ass_instance') and source.get('ass_import_matrix')
-                            and source.matrix_world == Matrix(json.loads(source['ass_import_matrix']))):
-                        original = json.loads(source['ass_instance'])
-                        ancestry = json.loads(source.get('ass_source_ancestry', '[]'))
-                        parent = source_parent(source['ass_source_key'], original['parent'], ancestry)
-                        asset.instances.append(ass.Instance(geometry_index, instance_name, original['unique_id'],
-                            parent, original['inheritance'], source_transform(original['local']), source_transform(original['pivot']),
-                            tuple(source_parent(source['ass_source_key'], bone, ancestry) if bone>=0 else -1 for bone in original['bones'])))
-                        continue
                     asset.instances.append(ass.Instance(
                         geometry_index, instance_name, identifier, 0, 0,
                         ass.Transform(value.rotation, value.translation), ass.Transform(),
@@ -1980,20 +2036,13 @@ class LegacyExportScene(ExportScene):
                 if parent != -1:
                     matrix = self.bones[parent].matrix_world.inverted() @ matrix
                 value = transform(matrix, self.to_halo_scale)
-                marker_name = f'#({name} {node.region}){node.name}' if nwo.marker_uses_regions else '#' + node.name
-                source = getattr(node.ob, 'ob', node.ob)
-                if (preserve_imported and self.supports_bsp and source.get('ass_instance') and source.get('ass_import_matrix')
-                        and source.matrix_world == Matrix(json.loads(source['ass_import_matrix']))):
-                    original = json.loads(source['ass_instance'])
-                    ancestry = json.loads(source.get('ass_source_ancestry', '[]'))
-                    parent = source_parent(source['ass_source_key'], original['parent'], ancestry)
-                    asset.instances.append(ass.Instance(-1,
-                        original['name'] if source.name == source.get('ass_import_name') else marker_name,
-                        original['unique_id'], parent, original['inheritance'],
-                        source_transform(original['local']), source_transform(original['pivot'])))
-                    continue
-                asset.instances.append(ass.Instance(-1, marker_name, len(asset.instances), parent + 1,
-                    0, ass.Transform(value.rotation, value.translation), ass.Transform()))
+                group_name = self.marker_group_name(node)
+                marker_name = '#' + group_name
+                for permutation in scoped_permutations:
+                    marker_name = (f'#({permutation} {node.region or "default"}){group_name}'
+                                   if nwo.marker_uses_regions and not self.supports_bsp else '#' + group_name)
+                    asset.instances.append(ass.Instance(-1, marker_name, len(asset.instances), parent + 1,
+                        0, ass.Transform(value.rotation, value.translation), ass.Transform()))
         for ob in lights:
             data = ob.data
             nwo = data.nwo
@@ -2033,14 +2082,18 @@ class LegacyExportScene(ExportScene):
             asset.instances.append(ass.Instance(
                 geometry_index, ob.name, len(asset.instances), 0, 0,
                 ass.Transform(value.rotation, value.translation), ass.Transform()))
-        if source_geometry_order:
-            order = sorted(range(len(asset.geometries)),
-                           key=lambda i: (0, *source_geometry_order[i]) if i in source_geometry_order else (1, '', i))
-            remap = {old:new for new,old in enumerate(order)}
-            asset.geometries = [asset.geometries[i] for i in order]
+        if self.target_game == 'halo2' and self.supports_bsp:
+            # H2 treats the first instance as the scene wrapper. The export
+            # frame must be its child, with BSP geometry below that frame.
+            # Flattening geometry directly beneath the wrapper can leave Tool
+            # with no material-bearing environment (Delta Halo's bsp_x05).
             for instance in asset.instances:
-                if instance.geometry >= 0:
-                    instance.geometry = remap[instance.geometry]
+                if instance.parent >= 0:
+                    instance.parent += 1
+                instance.bones = tuple(bone + 1 if bone >= 0 else bone for bone in instance.bones)
+            asset.instances[0].name = 'Scene Root'
+            asset.instances.insert(1, ass.Instance(-1, 'frame ' + name, 0, 0, 0,
+                                                  ass.Transform(), ass.Transform()))
         return asset
 
     @staticmethod
@@ -2048,8 +2101,8 @@ class LegacyExportScene(ExportScene):
         if animation.overlay:
             return '.jmo'
         if animation.animation_type == 'replacement':
-            return '.jmr'
-        return {'none': '.jmm', 'xy': '.jma', 'xyyaw': '.jmt', 'xyzyaw': '.jmz'}.get(animation.movement, '.jma')
+            return '.jmrx' if getattr(animation, 'space', 'object') == 'local' else '.jmr'
+        return {'none': '.jmm', 'xy': '.jma', 'xyyaw': '.jmt', 'xyzyaw': '.jmz', 'full': '.jmv'}[animation.movement]
 
     def legacy_node_checksum(self, nodes):
         if not self.export_settings.legacy_generate_checksum:
@@ -2149,7 +2202,7 @@ class LegacyExportScene(ExportScene):
                 with AnimationGraphTag(path=graph_path) as graph:
                     set_actor_animation_compression(graph, actor)
             print(f'--- Compiling cinematic animation graph: {actor.name}')
-            utils.run_tool(['model-animations', source_dir], event_level=self.export_settings.event_level)
+            self._run_import_tool(['model-animations', source_dir], event_level=self.export_settings.event_level)
             destination = Path(self.tags_dir, graph_path)
             if not destination.is_file():
                 raise ExportCancelled(f'Tool did not create the cinematic animation graph: {destination}')
@@ -2165,7 +2218,7 @@ class LegacyExportScene(ExportScene):
                 compression_changed = set_actor_animation_compression(graph, actor)
             if compression_changed:
                 # New shot animations only acquire entries on the first compilation.
-                utils.run_tool(['model-animations', source_dir], event_level=self.export_settings.event_level)
+                self._run_import_tool(['model-animations', source_dir], event_level=self.export_settings.event_level)
                 with AnimationGraphTag(path=graph_path) as graph:
                     set_actor_animation_compression(graph, actor)
 
@@ -2279,6 +2332,24 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
     project = utils.get_project(scene_settings.scene_project)
     if not project or project.game not in VERSIONS:
         raise ExportCancelled('JMS/ASS export requires an H1, H2, H3 or ODST project')
+    from ..game_capabilities import validate_legacy_animation
+    if (scene_settings.asset_type in {'model', 'sky', 'animation', 'single_animation'}
+            and export_settings.export_animations != 'NONE'):
+        if project.game == 'halo1' and scene_settings.parent_animation_graph.strip():
+            raise ExportCancelled('Halo 1 does not support parent animation graphs. Clear the saved parent graph path')
+        try:
+            if single_animation:
+                validate_legacy_animation(scene_settings, project.game, asset_name)
+            else:
+                animations = list(scene_settings.animations)
+                if export_settings.export_animations == 'ACTIVE':
+                    index = scene_settings.active_animation_index
+                    animations = animations[index:index + 1] if index >= 0 else []
+                for animation in animations:
+                    if animation.export_this:
+                        validate_legacy_animation(animation, project.game, animation.name)
+        except ValueError as exc:
+            raise ExportCancelled(str(exc)) from exc
     cinematic = scene_settings.asset_type == 'cinematic' and project.game in {'halo3', 'halo3odst'}
     if not cinematic and scene_settings.asset_type not in {'model', 'sky', 'scenario', 'prefab', 'particle_model', 'decorator_set', 'animation', 'single_animation', 'multi_model', 'multi_prefab'}:
         raise ExportCancelled(f'JMS/ASS export does not support {scene_settings.asset_type} assets')
@@ -2307,7 +2378,10 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
         export.ready_scene(collection_view_layer)
         export.get_initial_export_objects()
         export.map_halo_properties()
+        if project.game == 'halo1' and not single_animation and scene_settings.asset_type != 'scenario':
+            export.prepare_halo1_material_shaders('shader_model')
         if project.game == 'halo2':
+            export.prepare_halo2_water()
             export.prepare_halo2_material_emissives(write_intermediates, write_tags)
         if write_intermediates:
             # Legacy serializers apply a shared deterministic order without tag templates.

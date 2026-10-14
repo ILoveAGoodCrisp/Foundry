@@ -10,6 +10,15 @@ from .coordinate_system import CoordinateSystem, axis_rotation, placement_matrix
 from . import marker_axis
 
 
+def _geometry_node_modifier_inputs(modifier):
+    """Read Geometry Nodes inputs through Blender's modifier interface."""
+    inputs = modifier.properties.inputs
+    for prop in inputs.bl_rna.properties:
+        if prop.type == 'POINTER' and prop.identifier != 'rna_type':
+            socket = getattr(inputs, prop.identifier)
+            yield socket, getattr(socket, 'value', None)
+
+
 def _collect_scope(scene):
     collections, objects, trees = set(), set(), set()
 
@@ -53,8 +62,7 @@ def _collect_scope(scene):
                         visit_object(value)
             if modifier.type == 'NODES' and modifier.node_group:
                 visit_tree(modifier.node_group)
-                for key in modifier.keys():
-                    value = modifier[key]
+                for socket, value in _geometry_node_modifier_inputs(modifier):
                     if isinstance(value, bpy.types.Object):
                         visit_object(value)
                     elif isinstance(value, bpy.types.Collection):
@@ -113,10 +121,9 @@ def _remap_geometry_nodes(objects, mapping):
         for modifier in ob.modifiers:
             if modifier.type == 'NODES' and modifier.node_group:
                 modifier.node_group = remap_tree(modifier.node_group)
-                for key in modifier.keys():
-                    value = modifier[key]
+                for socket, value in _geometry_node_modifier_inputs(modifier):
                     if isinstance(value, bpy.types.ID) and value in mapping:
-                        modifier[key] = mapping[value]
+                        socket.value = mapping[value]
 
 
 def _remap_pointers(owner, mapping, visited=None):

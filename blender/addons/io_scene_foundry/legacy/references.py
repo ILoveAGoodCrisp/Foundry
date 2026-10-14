@@ -1,8 +1,38 @@
 """ASS game-object reference conventions, separate from structural xrefs."""
 import re
+from pathlib import Path, PureWindowsPath
+
+from ..project_config import relative_content_path
 
 ASS_GAMES = frozenset({'halo2', 'halo3', 'halo3odst'})
 ASS_GAME_OBJECT_EXTENSIONS = ('.scenery', '.device_machine')
+
+
+def embedded_game_object_tag(xref_path, xref_name, tags_path, data_path):
+    """Resolve an exact source asset directory, never a basename guess."""
+    if not xref_path:
+        return ''
+    relative = relative_content_path(PureWindowsPath(xref_path), tags_path, data_path)
+    if relative is None:
+        return ''
+    parts = list(relative.parts[:-1])
+    component_source = parts and parts[-1].casefold() in {'render', 'collision', 'physics'}
+    if component_source:
+        parts.pop()
+    if not parts or any(part in {'.', '..'} for part in parts):
+        return ''
+    asset_dirs = [Path(*parts)]
+    # Shared Max files can name a child asset, rather than the Max file's stem.
+    source_name = xref_name.strip()
+    if (not component_source and source_name and source_name not in {'.', '..'}
+            and not any(c in source_name for c in '<>:"/\\|?*')):
+        asset_dirs.insert(0, Path(*parts, source_name))
+    for asset_dir in asset_dirs:
+        for extension in ASS_GAME_OBJECT_EXTENSIONS:
+            path = asset_dir / (asset_dir.name + extension)
+            if Path(tags_path, path).is_file():
+                return str(path)
+    return ''
 
 
 def ass_reference_type(name):

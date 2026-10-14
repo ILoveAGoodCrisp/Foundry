@@ -5,6 +5,7 @@ Paths in the settings file are root-relative when possible; runtime paths are
 absolute. Display names are labels, never configuration identities.
 """
 import json
+import getpass
 import os
 from pathlib import Path, PureWindowsPath
 import shutil
@@ -18,8 +19,39 @@ DEFAULT_PROJECT_IMAGE = r"bin\thumbnail.jpg"
 CUSTOM_DIRECTORY_GAMES = {"halo1", "halo2"}
 PROJECT_FIELDS = (
     "game", "project_name", "image_path",
-    "last_scenario",
+    "last_scenario", "default_asset_folder",
 )
+
+
+def normalize_asset_folder(value):
+    """A portable folder prefix relative to the project's data directory."""
+    value = str(value or '').strip().strip('"')
+    if not value:
+        return ''
+    folder = PureWindowsPath(value)
+    if folder.anchor or '..' in folder.parts:
+        raise ValueError('Default Asset Folder must be relative to data, without ..')
+    if any(any(char in '<>:"|?*\0' for char in part) or part.endswith((' ', '.'))
+           for part in folder.parts):
+        raise ValueError('Default Asset Folder contains an invalid folder name')
+    return folder.as_posix() if folder.parts else ''
+
+
+def default_asset_folder_name():
+    """Prefer the Windows profile folder, then the platform's account name."""
+    try:
+        profile = os.environ.get('USERPROFILE', '') if os.name == 'nt' else ''
+        name = PureWindowsPath(profile).name if profile else ''
+        if not name:
+            name = getpass.getuser()
+        return normalize_asset_folder(name)
+    except (OSError, KeyError, ImportError, RuntimeError, ValueError):
+        return ''
+
+
+def asset_parent_folder(default_folder, suggested_folder):
+    prefix = PureWindowsPath(normalize_asset_folder(default_folder))
+    return Path(*prefix.parts, *PureWindowsPath(suggested_folder).parts).as_posix()
 
 
 def directory_path(root, value, default):
@@ -87,7 +119,8 @@ def configuration_key(record):
     )
 
 
-def new_project_record(root, name="", tags="tags", data="data", *, use_project_thumbnail=False, **metadata):
+def new_project_record(root, name="", tags="tags", data="data", *, use_project_thumbnail=False,
+                       default_asset_folder=None, **metadata):
     root = str(Path(root).expanduser().resolve())
     return {
         "id": str(uuid4()), "name": name, "project_path": root,
@@ -95,6 +128,8 @@ def new_project_record(root, name="", tags="tags", data="data", *, use_project_t
         "data_directory": stored_directory(root, directory_path(root, data, "data")),
         "image_path": DEFAULT_PROJECT_IMAGE,
         "use_project_thumbnail": use_project_thumbnail,
+        "default_asset_folder": normalize_asset_folder(
+            default_asset_folder_name() if default_asset_folder is None else default_asset_folder),
         **{key: value for key, value in metadata.items() if key in PROJECT_FIELDS},
     }
 
@@ -135,6 +170,8 @@ def normalize_projects(payload):
             raise ValueError("Invalid Foundry project entry")
         record.setdefault('image_path', DEFAULT_PROJECT_IMAGE)
         record.setdefault('use_project_thumbnail', False)
+        record.setdefault('default_asset_folder', default_asset_folder_name())
+        record['default_asset_folder'] = normalize_asset_folder(record['default_asset_folder'])
         if not isinstance(record['use_project_thumbnail'], bool):
             raise ValueError('Project use_project_thumbnail must be a boolean')
         if not isinstance(record["id"], str) or not record["id"] or record["id"] in identities:

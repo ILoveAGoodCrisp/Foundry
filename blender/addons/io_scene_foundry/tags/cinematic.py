@@ -1,34 +1,31 @@
 """Native cinematic camera and event records, detached from their tag handles."""
-from math import degrees, isfinite
+from math import atan, degrees, isfinite, tan
 from types import SimpleNamespace
 from .backend import TagDocument
 from .blender import BlenderTag
 from .cinematic_script import encode_script_data
+from ..camera_fov import final_hfov_from_tag_focal, tag_focal_from_final_hfov
 
 
-# Playback derives FOV from globals and lens. After the observer's 4:3
-# conversion, the cinematic renderer applies a separate widescreen/letterbox
-# adjustment. The normal 16:9 projection therefore uses globals as its
-# horizontal aperture directly, not globals * 4/3.
-CINEMATIC_REFERENCE_ASPECT = 4 / 3
-CINEMATIC_WIDESCREEN_ASPECT = 16 / 9
-CINEMATIC_LETTERBOX_ASPECT = 2.35
+def cinematic_tag_lens(blender_lens: float, blender_gate: float, film_aperture: float,
+                       render_aspect: float, *, game: str = 'halo3') -> float:
+    """Encode H3/ODST's final horizontal view using Blender's resolved gate.
+
+render_aspect is retained for callers; view_frame already resolves its effect
+on sensor fit into blender_gate. The cinematic inverse uses the 4:3 reference.
+"""
+    if not all(isfinite(v) and v > 0 for v in (blender_lens, blender_gate, film_aperture, render_aspect)):
+        raise ValueError('Cinematic lens, film aperture and render aspect must be positive')
+    return tag_focal_from_final_hfov(2 * atan(blender_gate / (2 * blender_lens)), film_aperture)
 
 
-def cinematic_runtime_aperture(film_aperture: float, render_aspect: float, *, game: str = 'halo3') -> float:
-    """Default widescreen H3 letterbox projection, including its final fit.
-
-    Between 16:9 and the cinematic gate, letterbox fitting preserves horizontal
-    FOV. Beyond that gate it preserves vertical FOV; a narrower widescreen
-    viewport likewise retains the 16:9 vertical gate.
-    """
-    # ODST gates the extra 0.75 correction separately. Keep its existing
-    # observer conversion until its active render configuration is verified.
-    if game == 'halo3odst':
-        return film_aperture * render_aspect / CINEMATIC_REFERENCE_ASPECT
-    if render_aspect < CINEMATIC_WIDESCREEN_ASPECT:
-        return film_aperture * render_aspect / CINEMATIC_WIDESCREEN_ASPECT
-    return film_aperture * max(1.0, render_aspect / CINEMATIC_LETTERBOX_ASPECT)
+def cinematic_blender_lens(tag_lens: float, blender_gate: float, film_aperture: float,
+                           render_aspect: float, *, game: str = 'halo3') -> float:
+    """Reconstruct the rendered main-camera lens, including animated focal lengths."""
+    if not isfinite(tag_lens) or not all(isfinite(v) and v > 0 for v in (blender_gate, film_aperture, render_aspect)):
+        raise ValueError('Cinematic lens, film aperture and render aspect must be positive')
+    hfov = final_hfov_from_tag_focal(tag_lens, film_aperture)
+    return blender_gate / (2 * tan(hfov / 2))
 
 
 class CinematicCameraDocument(TagDocument):
@@ -698,7 +695,8 @@ class CinematicCameraDocument(TagDocument):
                 lens = self.value(constant, 'focal length')
                 fov_field = constant.field('horizontal field of view')
                 aperture_field = constant.field('horizontal film aperture')
-                if not all(isfinite(v) for v in (*position, *forward, *up, lens)) or lens <= 0:
+                if (not all(isfinite(v) for v in (*position, *forward, *up, lens)) or
+                        (lens <= 0 and self.game not in {'halo3', 'halo3odst'})):
                     raise ValueError(f'Cinematic shot {shot_index}: invalid camera values')
                 cross = tuple(forward[(i+1)%3]*up[(i+2)%3] - forward[(i+2)%3]*up[(i+1)%3] for i in range(3))
                 if not any(cross):

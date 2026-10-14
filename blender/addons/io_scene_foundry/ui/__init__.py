@@ -1,5 +1,5 @@
 import bpy
-from . import bar, node_editor, outliner, viewport, panel, timeline, properties, shader_socket_visibility, workflow
+from . import bar, node_editor, outliner, viewport, panel, timeline, properties, shader_socket_visibility, workflow, window
 from .panel import animation, asset, help, material, object, scene, sets, setting, tools, cinematic, light
 from ..tools.animation import animation_name
 
@@ -88,6 +88,7 @@ def _stop_foundry_toolbar_watchdog():
     _remove_foundry_toolbar()
 
 classes = [
+    window.NWO_OT_OpenFoundryWindow,
     bar.NWO_MT_ProjectChooserMenuDisallowNew,
     bar.NWO_MT_ProjectChooserMenu,
     bar.NWO_OT_ProjectChooser,
@@ -162,6 +163,7 @@ classes = [
     animation.NWO_OT_AnimationRenameMove,
     animation.NWO_UL_AnimationRename,
     animation.NWO_UL_AnimationList,
+    animation.NWO_OT_AnimationTagPropertyCopy,
     animation.NWO_OT_AnimationEventSetFrame,
     animation.NWO_OT_KeyEventInfluenceProperty,
     animation.NWO_OT_PreviewIKEvent,
@@ -231,10 +233,7 @@ classes = [
     object.NWO_OT_FaceAttributeMove,
     object.NWO_OT_FacePropCopyToSelected,
     object.NWO_OT_FacePropsCopyToSelected,
-    object.NWO_OT_AddEmissiveNode,
     object.NWO_OT_UpdateFoundryNode,
-    object.NWO_OT_UpdateTwoSidedPreview,
-    object.NWO_OT_UpdateInvisiblePreview,
     object.NWO_MT_FacePropOperatorsMenu,
     # object.NWO_OT_FaceAttributeAddFaceMode,
     # object.NWO_OT_FaceAttributeAddLightmap,
@@ -357,6 +356,7 @@ def register():
     bpy.types.VIEW3D_MT_object_context_menu.append(viewport.object_context_sets)
     bpy.types.OUTLINER_MT_collection.append(viewport.collection_context)
     bpy.types.NODE_MT_add.append(node_editor.node_context_menu)
+    bpy.types.UI_MT_button_context_menu.append(animation.animation_tag_property_context_menu)
     _start_foundry_toolbar_watchdog()
     # bpy.types.NODE_HT_header.append(bar.draw_foundry_nodes_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.append(viewport.add_halo_scale_model_button)
@@ -365,6 +365,8 @@ def register():
     bpy.types.VIEW3D_MT_object.append(viewport.add_halo_join)
     bpy.types.VIEW3D_MT_object.append(viewport.add_make_meshes_editable)
     bpy.types.TOPBAR_MT_file_import.append(bar.menu_func_import)
+    bpy.types.TOPBAR_MT_window.append(window.menu_func)
+    bpy.types.TOPBAR_MT_edit.append(bar.menu_func_animation_search)
     bpy.types.TOPBAR_MT_file_external_data.append(bar.menu_func_external_data)
     bpy.types.DOPESHEET_HT_header.append(timeline.draw_cinematic_info)
     bpy.types.VIEW3D_MT_object_parent.append(object.draw_halo_attach)
@@ -382,7 +384,9 @@ def unregister():
     bpy.types.VIEW3D_MT_object_parent.remove(object.draw_halo_attach)
     bpy.types.DOPESHEET_HT_header.remove(timeline.draw_cinematic_info)
     bpy.types.TOPBAR_MT_file_external_data.remove(bar.menu_func_external_data)
+    bpy.types.TOPBAR_MT_edit.remove(bar.menu_func_animation_search)
     bpy.types.TOPBAR_MT_file_import.remove(bar.menu_func_import)
+    bpy.types.TOPBAR_MT_window.remove(window.menu_func)
     _stop_foundry_toolbar_watchdog()
     # bpy.types.NODE_HT_header.remove(bar.draw_foundry_nodes_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.remove(viewport.add_halo_scale_model_button)
@@ -391,6 +395,8 @@ def unregister():
     bpy.types.VIEW3D_MT_object.remove(viewport.add_make_meshes_editable)
     bpy.types.OUTLINER_HT_header.remove(viewport.create_halo_collection)
     bpy.types.NODE_MT_add.remove(node_editor.node_context_menu)
+    bpy.types.UI_MT_button_context_menu.remove(animation.animation_tag_property_context_menu)
+    animation._animation_filter_settings.clear()
     bpy.types.OUTLINER_MT_collection.remove(viewport.collection_context)
     bpy.types.VIEW3D_MT_object_context_menu.remove(viewport.object_context_sets)
     bpy.types.VIEW3D_MT_object_context_menu.remove(viewport.object_context_apply_types)

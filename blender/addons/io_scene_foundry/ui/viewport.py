@@ -7,6 +7,7 @@ from ..icons import get_icon_id
 from ..tools.instance_proxies import coacd_property_annotations, draw_coacd_settings, run_coacd
 from ..tools.property_apply import apply_prefix, apply_props_material
 from .. import utils
+from ..game_capabilities import mesh_type_supported, marker_type_supported
 
 from ..constants import VALID_MESHES 
 
@@ -107,7 +108,7 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
         asset_type = nwo.asset_type
         h4 = utils.is_corinth(context)
         project = utils.get_project(nwo.scene_project)
-        weather_polyhedra = project is not None and project.game in {'halo1', 'halo2'}
+        weather_polyhedra = project is not None and mesh_type_supported('weather_polyhedron', project.game)
         index = 0
         if asset_type == 'model' or asset_type == 'resource' or asset_type == 'multi_model':
             # index += 1
@@ -171,7 +172,9 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
                     utils.nwo_enum(
                         "weather_polyhedron",
                         "Weather Polyhedron",
-                        "Closed volume that blocks weather particles in Halo 1 and Halo 2",
+                        ("Legacy weather volume; exported to the BSP, but superseded by clusters in Halo 3 and ODST"
+                         if project.game in {'halo3', 'halo3odst'} else
+                         "Convex volume that blocks weather particles"),
                         "rain_blocker",
                         index,
                     )
@@ -316,7 +319,7 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
                 )
             )
 
-        return items
+        return [item for item in items if mesh_type_supported(item[0], utils.get_game(), asset_type)]
 
     m_type: bpy.props.EnumProperty(
         items=m_type_items,
@@ -337,8 +340,7 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
     @classmethod
     def description(cls, context, properties) -> str:
         items = cls.m_type_items(cls, context)
-        enum = items[properties['m_type']]
-        return enum[2]
+        return next((item[2] for item in items if item[0] == properties.m_type), cls.bl_description)
 
     def draw(self, context):
         self.layout.use_property_split = True
@@ -356,6 +358,9 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
 
     def execute(self, context):
         apply_materials = utils.get_prefs().apply_materials
+        if not mesh_type_supported(self.m_type, utils.get_game(), utils.get_scene_props().asset_type):
+            self.report({'ERROR'}, 'This mesh type is not supported by the selected game')
+            return {'CANCELLED'}
         prefix_setting = utils.get_prefs().apply_prefix
         original_selection = context.selected_objects
         original_active = context.object
@@ -409,6 +414,8 @@ class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
                 utils.set_active_object(converted_ob)
                 converted_ob.select_set(True)
                 converted_ob.data.nwo.mesh_type = mesh_type
+                if self.m_type == 'physics' and utils.get_game() == 'halo1':
+                    converted_ob.nwo.mesh_primitive_type = '_connected_geometry_primitive_type_sphere'
 
                 if self.apply_prefix:
                     apply_prefix(converted_ob, self.m_type, prefix_setting)
@@ -438,10 +445,15 @@ class NWO_OT_ApplyTypeMeshSingle(NWO_OT_ApplyTypeMesh):
     bl_description = "Applies the specified mesh type to the active object"
     
     def execute(self, context):
+        if not mesh_type_supported(self.m_type, utils.get_game(), utils.get_scene_props().asset_type):
+            self.report({'ERROR'}, 'This mesh type is not supported by the selected game')
+            return {'CANCELLED'}
         apply_materials = utils.get_prefs().apply_materials
         prefix_setting = utils.get_prefs().apply_prefix
         mesh_type, material = utils.mesh_and_material(self.m_type, context)
         ob = context.object
+        if self.m_type == 'physics' and utils.get_game() == 'halo1':
+            ob.nwo.mesh_primitive_type = '_connected_geometry_primitive_type_sphere'
         ob.data.nwo.mesh_type = mesh_type
 
         apply_prefix(ob, self.m_type, prefix_setting)
@@ -564,7 +576,7 @@ class NWO_OT_ApplyTypeMarker(bpy.types.Operator):
                                       ('scenario_object', 'Scenario Object', 'scenario')):
                 index += 1
                 items.append(utils.nwo_enum(kind, label, '', icon, index))
-        return items
+        return [item for item in items if marker_type_supported(item[0], utils.get_game(), asset_type)]
 
     m_type: bpy.props.EnumProperty(
         items=m_type_items,
@@ -573,8 +585,7 @@ class NWO_OT_ApplyTypeMarker(bpy.types.Operator):
     @classmethod
     def description(cls, context, properties) -> str:
         items = cls.m_type_items(cls, context)
-        enum = items[properties['m_type']]
-        return enum[2]
+        return next((item[2] for item in items if item[0] == properties.m_type), cls.bl_description)
 
     def draw(self, context):
         count = 1 if self.bl_idname.endswith('_single') else sum(ob.type == 'EMPTY' for ob in context.selected_objects)
@@ -618,6 +629,9 @@ class NWO_OT_ApplyTypeMarker(bpy.types.Operator):
 
     def execute(self, context):
         prefix_setting = utils.get_prefs().apply_prefix
+        if not marker_type_supported(self.m_type, utils.get_game(), utils.get_scene_props().asset_type):
+            self.report({'ERROR'}, 'This marker type is not supported by the selected game')
+            return {'CANCELLED'}
         marker_type, display_type = self.get_marker_type()
         original_selection = context.selected_objects
         original_active = context.object
@@ -649,6 +663,9 @@ class NWO_OT_ApplyTypeMarkerSingle(NWO_OT_ApplyTypeMarker):
     bl_description = "Applies the specified marker type to the active object"
     
     def execute(self, context):
+        if not marker_type_supported(self.m_type, utils.get_game(), utils.get_scene_props().asset_type):
+            self.report({'ERROR'}, 'This marker type is not supported by the selected game')
+            return {'CANCELLED'}
         prefix_setting = utils.get_prefs().apply_prefix
         apply_display = utils.get_prefs().apply_empty_display
         ob = context.object

@@ -221,7 +221,6 @@ def setup_multilayer(shader, tree, root):
         color = _vector(tree, 'SCALE', sample.outputs['Color'], weight, 'Weighted illumination sample')
         rgb = color if rgb is None else _vector(tree, 'ADD', rgb, color, 'Accumulated layers')
     tree.links.new(rgb, root.inputs['self_illum_map.rgb'])
-    root['h3_multilayer_samples'] = count
     if requested * 4 > 128 or root.inputs['layers_of_4'].is_linked:
         utils.print_warning('ODST multilayer preview uses up to 128 fixed samples. Reimport after changing layers_of_4; animated sample counts are not supported.')
 

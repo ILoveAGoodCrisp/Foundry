@@ -5,7 +5,7 @@ import uuid
 import bpy
 from functools import lru_cache
 
-from ..constants import VALID_OBJECTS, face_prop_descriptions
+from ..constants import face_prop_descriptions
 
 from .. import utils
 from ..tags.scenario_markers import enum_options
@@ -742,6 +742,10 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
 
     marker_type_help: bpy.props.IntProperty(options=set(), override={'LIBRARY_OVERRIDABLE'})
 
+    airprobe_bsp: bpy.props.StringProperty(name="Airprobe BSP", options=set(),
+        description="BSP tag name for this airprobe; leave empty to use its BSP set assignment",
+        override={'LIBRARY_OVERRIDABLE'})
+
     from .scenario_objects import scenario_object_types
     scenario_object_type: bpy.props.EnumProperty(name="Object Type", items=scenario_object_types, options=set())
     scenario_child_scenario: bpy.props.StringProperty(name="Child Scenario", options=set(),
@@ -772,7 +776,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
             return IgnoreReason.export_this.value
         ob = self.id_data
         ob: bpy.types.Object
-        if ob.type not in VALID_OBJECTS:
+        if not utils.valid_export_object_type(ob):
             return IgnoreReason.invalid_type.value
         
         # if not ob.users_collection:
@@ -818,6 +822,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
 
     def mesh_primitive_type_items(self, context):
+        if utils.get_game(use_external=False) == 'halo1':
+            return [('_connected_geometry_primitive_type_sphere', 'Mass Point Sphere', 'Halo 1 physics mass point', 3)]
         items = []
         items.append(("_connected_geometry_primitive_type_none", "None", "None", 0))
         items.append(("_connected_geometry_primitive_type_box", "Box", "Box", 1))
@@ -832,6 +838,12 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         )
 
         return items
+
+    def get_mesh_primitive_type(self):
+        return self.get('mesh_primitive_type', 3 if utils.get_game(use_external=False) == 'halo1' else 0)
+
+    def set_mesh_primitive_type(self, value):
+        self['mesh_primitive_type'] = value
     
     def update_mesh_primitive_type(self, context):
         match self.mesh_primitive_type:
@@ -847,6 +859,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="If this is not none then the in game physics shape will be simplified to the selected primitive, using the objects dimensions",
         items=mesh_primitive_type_items,
+        get=get_mesh_primitive_type,
+        set=set_mesh_primitive_type,
         override={'LIBRARY_OVERRIDABLE'},
         # update=update_mesh_primitive_type,
     )
@@ -1323,6 +1337,23 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         subtype='DISTANCE',
         override={'LIBRARY_OVERRIDABLE'},
     )
+    water_volume_direction: bpy.props.FloatVectorProperty(
+        name="Water Current Direction",
+        description="Halo 3 and ODST water current vector in game world axes; zero disables the current",
+        size=3,
+        default=(0, 0, 0),
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+
+    water_volume_angle: bpy.props.FloatProperty(
+        name="Water Current Angle",
+        description="Halo 3 and ODST water current angle",
+        subtype='ANGLE',
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+
     water_volume_flow_direction: bpy.props.FloatProperty(  # this something which can probably be automated?
         name="Water Volume Flow Direction",
         options=set(),
@@ -1495,7 +1526,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     player_start_survival_elite: bpy.props.BoolProperty(name="Survival Mode Elite", options=set())
     camera_point_name: bpy.props.StringProperty(name="Point Name", description="Script name of this camera point; empty uses the camera object name")
     camera_point_type: bpy.props.EnumProperty(name="Camera Point Type", items=camera_point_types)
-    camera_point_edit_as_relative: bpy.props.BoolProperty(name="Edit as Relative", options=set())
+    # camera_point_edit_as_relative: bpy.props.BoolProperty(name="Edit as Relative", options=set())
     camera_point_zone_set: bpy.props.IntProperty(name="Zone Set Index", default=-1, min=-1, max=32767, options=set())
     
     decorator_motion_scale: bpy.props.FloatProperty(
@@ -1512,6 +1543,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     detail_object_sprite_index: bpy.props.IntProperty(name="Sprite Index", min=0, max=15, options=set())
     decorator_permutation_index: bpy.props.IntProperty(name="Permutation Index", min=0, max=63, options=set())
     decorator_cluster_index: bpy.props.IntProperty(name="Cluster Index", default=-1, min=-1, max=32767, options=set())
+    decorator_bsp_index: bpy.props.IntProperty(name="Decorator BSP Index", default=-1, min=-1, max=32767, options=set())
     
     decorator_ground_tint: bpy.props.FloatProperty(
         name="Ground Tint Influence",
@@ -2368,3 +2400,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
 
 from .scenario_objects import add_object_properties
 add_object_properties(NWO_ObjectPropertiesGroup)
+
+from .halo2_water import halo2_water_properties
+NWO_ObjectPropertiesGroup.__annotations__.update(halo2_water_properties())

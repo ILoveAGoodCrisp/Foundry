@@ -6,6 +6,7 @@ import time
 import bpy
 import json
 from uuid import uuid4
+from subprocess import CalledProcessError
 
 from .cubemap import CubemapFarm
 
@@ -13,7 +14,9 @@ from .imposter_farm import ImposterFarm
 
 from ..patches import ToolPatcher
 
-from .scenario.lightmap import run_lightmapper
+from .scenario.lightmap import run_lightmapper, run_halo1_lightmapper
+from .cache_profiles import CACHE_PROFILES, cache_build_command
+from ..game_capabilities import LEGACY_GAMES, CORINTH_GAMES
 
 from ..tags.scenario import ScenarioMetadataTag
 from .. import utils
@@ -73,12 +76,15 @@ class ScenarioType(Enum):
     FIREFIGHT = 2
     
 class CacheBuilder:
-    def __init__(self, scenario_path: Path, context: bpy.types.Context, mp_validation: bool, own_asset: bool):
+    def __init__(self, scenario_path: Path, context: bpy.types.Context, mp_validation: bool, own_asset: bool, halo1_mode='classic'):
         self.project_dir = utils.get_project_path()
-        self.tags_dir = Path(self.project_dir, "tags")
+        self.tags_dir = Path(utils.get_tags_path())
+        self.game = utils.get_game(use_external=False)
+        self.profile = CACHE_PROFILES[self.game]
+        self.halo1_mode = halo1_mode
         self.scenario = scenario_path.with_suffix("")
         self.mod_name = self.scenario.name
-        self.map = Path(self.project_dir, "maps", f"{self.mod_name}.map")
+        self.map = Path(self.project_dir, self.profile.output_folder, f"{self.mod_name}.map")
         self.mcc_mods = Path(self.project_dir, "MCC")
         self.mod_dir = Path(self.mcc_mods, self.mod_name)
         self.game_engine = utils.project_game_for_mcc(context)
@@ -110,6 +116,10 @@ class CacheBuilder:
                 self._multiplayer_validation(tag)
                 
     def _multiplayer_validation(self, tag: ScenarioMetadataTag):
+        if self.game in LEGACY_GAMES:
+            if not tag.player_starting_transforms():
+                utils.print_warning('Scenario has no player starting locations. Add player starts before playing the cache')
+            return
         is_mp = self.scenario_type == ScenarioType.MULTIPLAYER
         type_txt = "multiplayer" if is_mp else "firefight"
         print(f"\n\n{type_txt.capitalize()} Validation")
@@ -251,8 +261,12 @@ class CacheBuilder:
         
     def lightmap(self):
         export = utils.get_export_props()
-        run_lightmapper(
-            self.game_engine != "HaloReach",
+        if self.game == 'halo1':
+            bsps = self.bsps if export.lightmap_all_bsps else [export.lightmap_specific_bsp]
+            run_halo1_lightmapper(str(self.scenario), bsps, export)
+            return True
+        result = run_lightmapper(
+            self.game in CORINTH_GAMES,
             str(self.scenario),
             export.lightmap_quality,
             export.lightmap_quality_h4,
@@ -262,20 +276,14 @@ class CacheBuilder:
             False,
             export.lightmap_threads,
             self.bsps)
+        return not result.lightmap_failed
     
     def build_cache(self, event_level=None) -> bool:
         # Get scenario type
         
-        # clear existing map file
-        if self.map.exists():
-            self.map.unlink()
         try:
             utils.run_tool(
-                [
-                    "build-cache-file",
-                    str(self.scenario),
-                    "pc",
-                ],
+                cache_build_command(self.game, self.scenario, self.halo1_mode),
                 event_level=event_level,
                 force_tool=True,
             )
@@ -641,6 +649,8 @@ class CacheBuilder:
             utils.copy_file(placeholder_rally_point, mod_rally_point)
     
     def generate_multiplayer_object_types(self):
+        if self.game in LEGACY_GAMES:
+            return
         gestalt = Path(self.project_dir, "reports", self.mod_name, f"{self.mod_name}.cache_file_resource_gestalt")
         if not gestalt.exists():
             utils.print_warning(f"Failed to find cache_file_resource_gestalt at [{gestalt}]. Unable to build multiplayer object types")
@@ -696,6 +706,8 @@ class CacheBuilder:
         
     
     def copy_sounds(self, custom_only: bool):
+        if not self.profile.separate_sound_banks:
+            return  # These cache workflows contain their compiled sound data.
         match self.game_engine:
             case "HaloReach":
                 default_files = mcc_reach_sounds
@@ -775,6 +787,9 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
     bl_label = "Build Cache File"
     bl_description = "Generates the cache file needed to load the map in MCC and optionally builds mod files"
     bl_options = {"UNDO"}
+
+    halo1_mode: bpy.props.EnumProperty(name="Halo 1 Cache Mode", options=set(),
+        items=[('classic', 'Classic', 'Classic graphics cache'), ('remastered', 'Remastered', 'Remastered graphics cache')], default='classic')
     
     filepath: bpy.props.StringProperty(
         name='Scenario Filepath',
@@ -907,29 +922,34 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         try:
             if force_asset_export or (self.rexport_scenario and own_asset):
                 if bpy.ops.nwo.export_scene.poll():
-                    bpy.ops.nwo.export_scene(for_cache_build=True)
+                    if bpy.ops.nwo.export_scene(for_cache_build=True) != {'FINISHED'}:
+                        self.report({'ERROR'}, 'Scenario export failed; cache compilation stopped')
+                        return {'CANCELLED'}
                 else:
-                    utils.print_warning("Unable to export scenario")
+                    self.report({'ERROR'}, 'Unable to export the scenario; cache compilation stopped')
+                    return {'CANCELLED'}
 
             if not full_path.exists():
                 self.report({'WARNING'}, f"Scenario file does not exist: {full_path}")
                 return {'CANCELLED'}
             
-            builder = CacheBuilder(relative_path, context, self.validate_multiplayer, own_asset)
+            builder = CacheBuilder(relative_path, context, self.validate_multiplayer, own_asset, self.halo1_mode)
             
-            if self.wetness_farm:
+            if self.wetness_farm and utils.supports_game_feature('wetness'):
                 builder.wetness()
             
             if self.lightmap:
                 if not scene_nwo_export.lightmap_all_bsps and scene_nwo_export.lightmap_specific_bsp not in builder.bsps:
                     utils.print_error(f"Skipping Lightmap. Specified BSP [{scene_nwo_export.lightmap_specific_bsp}] does not exist in the scenario tag: {builder.scenario.with_suffix('.scenario')}")
                 else:
-                    builder.lightmap()
+                    if not builder.lightmap():
+                        self.report({'ERROR'}, 'Lightmapping failed; cache compilation stopped')
+                        return {'CANCELLED'}
                     
-            if self.imposter_farm:
+            if self.imposter_farm and utils.supports_game_feature('imposter_farm'):
                 builder.imposters()
                 
-            if self.cubemap_farm:
+            if self.cubemap_farm and utils.supports_game_feature('cubemap_farm'):
                 builder.cubemaps()
             
             if utils.is_corinth(context) and self.texture_analysis:
@@ -968,7 +988,7 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
                 
                 scene_nwo.mod_name = builder.mod_name
                 
-            match self.sounds:
+            match self.sounds if builder.profile.separate_sound_banks else 'NONE':
                 case 'CUSTOM':
                     print("\n\nCopying Custom Sounds")
                     print("-----------------------------------------------------------------------\n")
@@ -990,6 +1010,10 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
         
         except KeyboardInterrupt:
             utils.print_warning("\n\nCANCELLED BY USER")
+            return {'CANCELLED'}
+        except (OSError, ValueError, RuntimeError, CalledProcessError) as error:
+            self.report({'ERROR'}, f'Cache build failed: {error}')
+            return {'CANCELLED'}
             
         return {"FINISHED"}
     
@@ -1015,32 +1039,41 @@ class NWO_OT_CacheBuild(bpy.types.Operator):
     
     def draw(self, context):
         corinth = utils.is_corinth(context)
+        game = utils.get_game(use_external=False)
         layout = self.layout
         layout.scale_y = 1.5
         layout.prop(self, "event_level", text="")
-        layout.prop(self, "sounds", text="")
+        if CACHE_PROFILES[game].separate_sound_banks:
+            layout.prop(self, "sounds", text="")
+        if game == 'halo1':
+            layout.prop(self, 'halo1_mode')
         layout.prop(self, "rebuild_cache")
         layout.prop(self, "build_mod")
-        layout.prop(self, "validate_multiplayer")
+        layout.prop(self, "validate_multiplayer", text='Check Player Starts' if game in LEGACY_GAMES else 'Validate Multiplayer')
         if corinth:
             layout.prop(self, "texture_analysis")
-        else:
+        elif utils.supports_game_feature('wetness'):
             layout.prop(self, "wetness_farm")
         
-        layout.prop(self, "imposter_farm")
-        layout.prop(self, "cubemap_farm")
+        if utils.supports_game_feature('imposter_farm'):
+            layout.prop(self, "imposter_farm")
+        if utils.supports_game_feature('cubemap_farm'):
+            layout.prop(self, "cubemap_farm")
         layout.prop(self, "launch_mcc")
         if utils.get_scene_props().asset_type == 'scenario':
             layout.prop(self, "rexport_scenario")
         layout.prop(self, "lightmap")
         if self.lightmap:
             export = utils.get_export_props()
-            if corinth:
+            if game == 'halo1':
+                from ..ui.bar import draw_halo1_lightmap_settings
+                draw_halo1_lightmap_settings(layout, export)
+            elif corinth:
                 layout.prop(export, "lightmap_quality_h4")
             else:
                 layout.prop(export, "lightmap_quality")
             if not export.lightmap_all_bsps:
                 layout.prop(export, "lightmap_specific_bsp")
             layout.prop(export, "lightmap_all_bsps")
-            if not corinth:
+            if not corinth and game != 'halo1':
                 layout.prop(export, "lightmap_threads")

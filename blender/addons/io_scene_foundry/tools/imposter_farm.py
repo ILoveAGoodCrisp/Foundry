@@ -172,9 +172,11 @@ class NWO_OT_InstanceImposterGenerate(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return utils.poll_project(cls)
+        return utils.current_project_valid() and utils.supports_game_feature('imposter_farm')
 
     def execute(self, context):
+        if not utils.require_game_feature(self, 'imposter_farm'):
+            return {'CANCELLED'}
         if not utils.require_project(self):
             return {'CANCELLED'}
         if not self.filepath or Path(self.filepath).suffix.lower() != ".scenario":

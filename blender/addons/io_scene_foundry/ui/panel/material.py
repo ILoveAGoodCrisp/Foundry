@@ -170,6 +170,8 @@ class NWO_MT_MaterialAttributeAddMenu(bpy.types.Menu):
         scene_nwo = utils.get_scene_props()
         project = utils.get_project(scene_nwo.scene_project)
         game = project.game if project else 'reach'
+        if game in {'halo4', 'halo2a'}:
+            game = 'corinth'
         asset_type = scene_nwo.asset_type
         
         for name, display_name, mask, _ in sorted(face_prop_type_items, key=lambda x: x[1]):

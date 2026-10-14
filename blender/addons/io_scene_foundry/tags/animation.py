@@ -1,4 +1,5 @@
 from __future__ import annotations
+from ..animation_events import set_animation_enum
 
 from contextlib import ExitStack, nullcontext
 from dataclasses import replace
@@ -687,11 +688,11 @@ class AnimationTag(AnimationGraphTag):
 
     def _new_tag_event(self, blender_animation, event_type, name, start_frame, frame_count):
         blender_event = blender_animation.animation_events.add()
-        blender_event.event_type = event_type
+        set_animation_enum(blender_event, 'event_type', event_type)
         blender_event.event_id = AnimationEvent().unique_id
         blender_event.frame_frame = blender_animation.frame_start + start_frame
         if frame_count > 1:
-            blender_event.multi_frame = 'range'
+            set_animation_enum(blender_event, 'multi_frame', 'range')
             blender_event.frame_range = blender_animation.frame_start + start_frame + frame_count - 1
         return blender_event
 
@@ -4257,7 +4258,7 @@ class AnimationTag(AnimationGraphTag):
                 animations.append(blender_animation.name)
                 
                 if tag_animation.composite_index > -1:
-                    blender_animation.animation_type = "composite"
+                    set_animation_enum(blender_animation, 'animation_type', 'composite')
                     blender_animation.overlay = overlay 
                     self._import_composite(blender_animation, tag_animation.composite_index, tag_animations)
                     continue
@@ -4274,23 +4275,23 @@ class AnimationTag(AnimationGraphTag):
                 match tag_animation.animation_type:
                     case AnimationType.NONE | AnimationType.BASE:
                         if tag_animation.world_relative:
-                            blender_animation.animation_type = "world"
+                            set_animation_enum(blender_animation, 'animation_type', 'world')
                         else:
-                            blender_animation.animation_type = "base"
+                            set_animation_enum(blender_animation, 'animation_type', 'base')
                         match tag_animation.frame_info_type:
                             case FrameInfoType.NONE:
-                                blender_animation.animation_movement_data = "none"
+                                set_animation_enum(blender_animation, 'animation_movement_data', 'none')
                             case FrameInfoType.DX_DY:
-                                blender_animation.animation_movement_data = "xy"
+                                set_animation_enum(blender_animation, 'animation_movement_data', 'xy')
                             case FrameInfoType.DX_DY_DYAW:
-                                blender_animation.animation_movement_data = "xyyaw"
+                                set_animation_enum(blender_animation, 'animation_movement_data', 'xyyaw')
                             case FrameInfoType.DX_DY_DZ_DYAW:
-                                blender_animation.animation_movement_data = "xyzyaw"
+                                set_animation_enum(blender_animation, 'animation_movement_data', 'xyzyaw')
                             case _:
-                                blender_animation.animation_movement_data = "full"
+                                set_animation_enum(blender_animation, 'animation_movement_data', 'full')
                                 
                     case AnimationType.OVERLAY:
-                        blender_animation.animation_type = "overlay"
+                        set_animation_enum(blender_animation, 'animation_type', 'overlay')
                         blender_animation.pose_overlay = tag_animation.is_pose_overlay
                         offset_nodes = tag_animation.shared_element.SelectField("object space offset nodes")
                         if offset_nodes is not None:
@@ -4304,7 +4305,7 @@ class AnimationTag(AnimationGraphTag):
                                 blender_animation.active_animation_node_index = len(blender_animation.animation_nodes) - 1
                             
                     case AnimationType.REPLACEMENT:
-                        blender_animation.animation_type = "replacement"
+                        set_animation_enum(blender_animation, 'animation_type', 'replacement')
                         replacement_node_indices = set()
                         correction_nodes = tag_animation.shared_element.SelectField("object-space parent nodes")
                         for node_element in correction_nodes.Elements if correction_nodes is not None else ():

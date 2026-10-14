@@ -4,6 +4,7 @@ from mathutils import Matrix
 from ..icons import get_icon_id
 
 from .. import utils
+from ..game_capabilities import marker_type_supported
 
 class NWO_MeshToMarker(bpy.types.Operator):
     bl_idname = 'nwo.mesh_to_marker'
@@ -149,7 +150,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
                                                         ('player_start', 'Player Starting Location', 'marker'), ('cutscene_flag', 'Cutscene Flag', 'marker'),
                                                         ('scenario_object', 'Scenario Object', 'scenario')), 5):
                 items.append(('_connected_geometry_marker_type_' + kind, label, '', get_icon_id(icon), index))
-        return items
+        return [item for item in items if marker_type_supported(item[0], utils.get_game(), utils.get_scene_props().asset_type)]
     
     marker_type: bpy.props.EnumProperty(
         name='Marker Type',
@@ -166,6 +167,9 @@ class NWO_MeshToMarker(bpy.types.Operator):
     meshes_selected: bpy.props.BoolProperty(options={'SKIP_SAVE'})
 
     def execute(self, context):
+        if not marker_type_supported(self.marker_type, utils.get_game(), utils.get_scene_props().asset_type):
+            self.report({'ERROR'}, 'This marker type is not supported by the selected game')
+            return {'CANCELLED'}
         self.meshes_selected = any([utils.is_mesh(ob) for ob in context.selected_objects])
         if not self.called_once and self.meshes_selected and self.marker_type == '_connected_geometry_marker_type_game_instance':
             self.maintain_mesh = True

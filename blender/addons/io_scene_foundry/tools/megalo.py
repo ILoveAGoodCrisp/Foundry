@@ -45,7 +45,7 @@ class NWO_OT_SelectMegaloVariant(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid()
+        return utils.current_project_valid() and utils.supports_game_feature('megalo')
 
     def invoke(self, context, event):
         try:
@@ -62,6 +62,8 @@ class NWO_OT_SelectMegaloVariant(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def execute(self, context):
+        if not utils.require_game_feature(self, 'megalo'):
+            return {'CANCELLED'}
         try:
             if self.variant not in valid_megalo_variants(utils.get_project_path()):
                 self.report({'ERROR'}, "The variant must exist in both maps/megalo and HotReload")
@@ -91,7 +93,7 @@ class NWO_OT_BuildMegaloVariants(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid()
+        return utils.current_project_valid() and utils.supports_game_feature('megalo')
 
     def invoke(self, context, event):
         self.directory = str(Path(utils.get_data_path(), "multiplayer", "megalo")) + os.sep
@@ -99,6 +101,8 @@ class NWO_OT_BuildMegaloVariants(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def execute(self, context):
+        if not utils.require_game_feature(self, 'megalo'):
+            return {'CANCELLED'}
         project_path = utils.get_project_path()
         if not project_path:
             self.report({'ERROR'}, "No active project")

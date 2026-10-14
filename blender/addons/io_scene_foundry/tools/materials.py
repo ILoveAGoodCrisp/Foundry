@@ -8,9 +8,9 @@ class SpecialMaterial:
         self.shader_path = shader_path
         self.is_face_property = is_face_property
     
-seamsealer = SpecialMaterial('+seamsealer', ['reach', 'h4'], ['scenario',], [1, 1, 1, 0.05], 'bungie_face_type=_connected_geometry_face_type_seam_sealer', True)
-sky = SpecialMaterial('+sky', ['reach', 'h4'], ['scenario',], [0.5, 0.7, 1, 0.05], 'bungie_face_type=_connected_geometry_face_type_sky', True)
-seam = SpecialMaterial('+seam', ['reach', 'h4'], ['scenario',], [0.4, 1.0, 0.4, 0.6], 'bungie_mesh_type=_connected_geometry_mesh_type_seam', True)
+seamsealer = SpecialMaterial('+seamsealer', ['halo1', 'halo2', 'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'], ['scenario',], [1, 1, 1, 0.05], 'bungie_face_type=_connected_geometry_face_type_seam_sealer', True)
+sky = SpecialMaterial('+sky', ['halo1', 'halo2', 'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'], ['scenario',], [0.5, 0.7, 1, 0.05], 'bungie_face_type=_connected_geometry_face_type_sky', True)
+seam = SpecialMaterial('+seam', ['halo2', 'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'], ['scenario',], [0.4, 1.0, 0.4, 0.6], 'bungie_mesh_type=_connected_geometry_mesh_type_seam', True)
 
 special_materials = seamsealer, sky, seam
 

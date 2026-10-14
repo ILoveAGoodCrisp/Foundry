@@ -463,7 +463,7 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
             ))
         return records
 
-    def render_materials(self) -> list[StructureBspRenderMaterial]:
+    def render_materials(self, *, include_lightmap: bool = True) -> list[StructureBspRenderMaterial]:
         records = []
         for index, element in enumerate(self.block(self.tag.root(), 'materials')):
             render_method = self.reference(element, 'render method')
@@ -480,7 +480,7 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
             analytical = LIGHTMAP_ANALYTICAL_LIGHT_ABSORB
             normal = LIGHTMAP_NORMAL_LIGHT_ABSORD
 
-            properties = element.field('properties')
+            properties = element.field('properties') if include_lightmap else None
             if properties is not None:
                 for prop in properties.as_block():
                     kind = self.value(prop, 'type')
@@ -494,7 +494,7 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                         additive = int(self.value(prop, 'long-value'))
                     elif kind == 'lightmap ignore default res scale':
                         ignore_default = bool(self.value(prop, 'int-value'))
-            else:
+            elif include_lightmap:
                 resolution = float(self.value(element, 'lightmap resolution scale'))
                 additive = int(self.value(element, 'lightmap additive transparency color'))
                 translucency = int(self.value(element, 'lightmap traslucency tint color'))
@@ -508,7 +508,7 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 both_sides = flags.get_flag('lighting from both sides')
                 transparency_override = flags.get_flag('transparency override')
                 ignore_default = flags.get_flag('ignore default resolution scale')
-                # Older Reach material records (including cinematic FX models)
+                # Older Reach material records
                 # predate the chart-group field. Keep the default for that layout.
                 chart_field = element.field('lightmap chart group index')
                 if chart_field is not None:

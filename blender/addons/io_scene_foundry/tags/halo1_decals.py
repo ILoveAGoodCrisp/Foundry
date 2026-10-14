@@ -152,18 +152,10 @@ def create_preview(placement, preview, material, collection, scenario_path, bvh=
     control['halo1_decal_placement'] = True
     control['halo1_source_scenario'] = str(scenario_path)
     control['halo1_source_decal'] = placement.definition or ''
-    control['halo1_source_position'] = placement.position
-    control['halo1_source_yaw'] = placement.yaw
-    control['halo1_source_pitch'] = placement.pitch
-    control['halo1_source_world_position'] = tuple(control.matrix_world.translation)
-    control['halo1_source_import_transform'] = import_transform.signature()
     if tags_root is not None:
         control['halo1_source_tags_root'] = str(tags_root)
     control['halo1_source_palette_index'] = placement.palette_index
     control['halo1_source_placement_index'] = placement.source_index
-    control['halo1_source_bitmap_index'] = preview.bitmap_index
-    control['halo1_source_sequence_index'] = preview.sequence_index
-    control['halo1_source_sprite_index'] = preview.sprite_index
     collection.objects.link(control)
 
     origin = control.matrix_world.translation.copy()
@@ -215,8 +207,6 @@ def create_preview(placement, preview, material, collection, scenario_path, bvh=
     ob.matrix_basis = Matrix.Identity(4)
     ob['halo1_decal_preview'] = True
     ob['halo1_decal_surface_fitted'] = fitted
-    ob['halo1_decal_no_random_rotation'] = preview.no_random_rotation
-    ob['halo1_decal_snap_to_axis'] = preview.snap_to_axis
     collection.objects.link(ob)
     return control, ob
 
@@ -224,39 +214,20 @@ def create_preview(placement, preview, material, collection, scenario_path, bvh=
 def placement_values(control):
     """Recover edited scenario placement values from the control, not its mesh.
 
-    Untouched positions and angles retain their original values despite float
-    rounding. Preview fitting and mesh edits never affect this placement.
+    Positions and angles come from the current control transform. Preview
+    fitting and mesh edits never affect this placement.
     """
     from mathutils import Matrix, Quaternion, Vector
     from .. import import_transform
     world_to_tag = import_transform.transform_matrix(Matrix.Scale(100, 4)).inverted_safe()
     position = world_to_tag @ control.matrix_world.translation
-    signature = import_transform.signature()
-    for prefix in ('halo1_last_export', 'halo1_source'):
-        world = control.get(prefix + '_world_position')
-        transform = control.get(prefix + '_import_transform')
-        if prefix == 'halo1_source' and world is None:
-            # Compatibility with previews made before transform snapshots.
-            rotation = placement_rotation(control['halo1_source_yaw'], control['halo1_source_pitch'])
-            matrix = Matrix.LocRotScale(Vector(control['halo1_source_position']) * 100,
-                                       Quaternion((rotation[3], *rotation[:3])), Vector.Fill(3, 1))
-            world = import_transform.object_matrix(matrix).translation
-            transform = signature
-        if world is not None and tuple(world) == tuple(control.matrix_world.translation) and tuple(transform) == signature:
-            position = tuple(control[prefix + '_position'])
-            break
     direction = import_transform.rotation_matrix().inverted().to_3x3() @ (
         control.matrix_world.to_3x3() @ Vector((1, 0, 0)))
     if not all(isfinite(v) for v in direction) or direction.length_squared < 1e-12:
         raise ValueError(f'{control.name}: the decal control has an invalid projection direction')
     direction.normalize()
-    prefix = 'halo1_last_export' if 'halo1_last_export_yaw' in control else 'halo1_source'
-    yaw, pitch = int(control[prefix + '_yaw']), int(control[prefix + '_pitch'])
-    x, y, z, w = placement_rotation(yaw, pitch)
-    original = Quaternion((w, x, y, z)) @ Vector((1, 0, 0))
-    if (direction - original).length > 1e-6:
-        yaw = max(-127, min(127, round(atan2(direction.y, direction.x) * 127 / pi)))
-        pitch = max(-127, min(127, round(asin(max(-1., min(1., direction.z))) * 254 / pi)))
+    yaw = max(-127, min(127, round(atan2(direction.y, direction.x) * 127 / pi)))
+    pitch = max(-127, min(127, round(asin(max(-1., min(1., direction.z))) * 254 / pi)))
     return dict(position=tuple(position), yaw=yaw, pitch=pitch,
                 palette_index=int(control['halo1_source_palette_index']),
                 source_index=int(control['halo1_source_placement_index']),

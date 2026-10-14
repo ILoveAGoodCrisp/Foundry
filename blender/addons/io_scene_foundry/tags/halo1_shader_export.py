@@ -175,8 +175,7 @@ def write_shader(shader):
                 attribute = utils.find_linked_node(group, 'self-illumination color source', 'ATTRIBUTE')
                 source = {'Primary Color': 'a', 'Secondary Color': 'b', 'Tertiary Color': 'c',
                           'Quaternary Color': 'd'}.get(attribute.attribute_name if attribute else '',
-                            group.get('halo1_self_illumination_color_source',
-                                      shader.required_field(illumination, 'color source').options().current_name))
+                            shader.required_field(illumination, 'color source').options().current_name)
             menu(illumination, 'color source', source)
         maps = child(root, 'maps')
         image(maps, 'base map')

@@ -57,7 +57,6 @@ def _fur(shader,tree,root):
     # Zero-weight original image keeps bitmap/transform ownership in the graph.
     rgb=_vector(tree,'ADD',rgb,_vector(tree,'SCALE',texture.outputs['Color'],0))
     tree.links.new(rgb,root.inputs['fur_hairs_map.rgb']);tree.links.new(alpha,root.inputs['fur_hairs_map.a'])
-    root['reach_fur_samples']=count
     if requested>128 or root.inputs['layers_of_4'].is_linked:utils.print_warning('Reach fur preview uses up to 128 fixed samples; reimport after layer-count changes.')
 
 def _screen(shader,tree,root,selected):

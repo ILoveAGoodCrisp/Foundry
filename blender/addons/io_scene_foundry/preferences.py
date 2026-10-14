@@ -15,7 +15,8 @@ from .utils import ProjectJSON, get_prefs, get_scene_props, get_tags_path, is_co
 from .utils import set_scene_project, set_project_list_index, project_selection_updates_suspended
 from .project_config import (CUSTOM_DIRECTORY_GAMES, DEFAULT_PROJECT_IMAGE, PROJECT_FIELDS, configuration_key,
                              directory_path, new_project_record, project_image_path, project_record,
-                             stored_directory, unique_project_name)
+                             stored_directory, unique_project_name, default_asset_folder_name,
+                             normalize_asset_folder)
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry"
 FOUNDRY_GUIDANCE = "https://halomods.com/Tools/Foundry"
 HALO_MODS_DISCORD = "https://discord.gg/mWY6SMr5z"
@@ -50,6 +51,8 @@ class NWO_Project_ListItems(bpy.types.PropertyGroup):
     tags_directory: StringProperty()
     data_directory: StringProperty()
     last_scenario: StringProperty()
+    default_asset_folder: StringProperty(name='Default Asset Folder', default=default_asset_folder_name(),
+        description='Folder beneath data prepended to suggested asset locations; leave blank to use data directly')
 
 class NWO_UL_Projects(bpy.types.UIList):
     def draw_item(
@@ -84,8 +87,8 @@ class NWO_OT_ProjectDirectoryBrowse(Operator):
         settings = context.project_directory_settings
         self._editing = settings.bl_rna.identifier == 'NWO_OT_project_edit'
         fields = ('display_name', 'project_path', 'image_path', 'use_project_thumbnail', 'tags_directory',
-                  'data_directory', 'duplicate') if self._editing else (
-                  'display_name', 'filepath', 'tags_directory', 'data_directory', 'set_scene_project')
+                  'data_directory', 'default_asset_folder', 'duplicate') if self._editing else (
+                  'display_name', 'filepath', 'tags_directory', 'data_directory', 'default_asset_folder', 'set_scene_project')
         # The file browser closes the settings dialog. Keep its unsaved values
         # and restore them when browsing completes or is cancelled.
         self._values = {name: getattr(settings, name) for name in fields}
@@ -160,6 +163,8 @@ class NWO_ProjectAdd(Operator):
 
     set_scene_project: BoolProperty(options={"HIDDEN"})
     display_name: StringProperty(name="Display Name")
+    default_asset_folder: StringProperty(name='Default Asset Folder', default=default_asset_folder_name(),
+        description='Folder beneath data prepended to suggested asset locations; leave blank to use data directly')
     resume_settings: BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
     tags_directory: StringProperty(name="Tags Folder", default="tags",
                                   description="Halo 1/2 tags folder, absolute or relative to the editing kit")
@@ -188,10 +193,15 @@ class NWO_ProjectAdd(Operator):
             return {'CANCELLED'}
         had_no_projects = not projects_list
         name = self.display_name.strip() or unique_project_name(metadata.display_name, get_prefs().projects)
-        record = new_project_record(new_project_path, name, self.tags_directory, self.data_directory,
-                                    **{field: str(getattr(metadata, 'name' if field == 'project_name' else field, '') or '')
-                                       if field != 'image_path' else DEFAULT_PROJECT_IMAGE
-                                       for field in PROJECT_FIELDS})
+        try:
+            record = new_project_record(new_project_path, name, self.tags_directory, self.data_directory,
+                                        default_asset_folder=self.default_asset_folder,
+                                        **{field: str(getattr(metadata, 'name' if field == 'project_name' else field, '') or '')
+                                           if field != 'image_path' else DEFAULT_PROJECT_IMAGE
+                                           for field in PROJECT_FIELDS if field != 'default_asset_folder'})
+        except ValueError as error:
+            self.report({'WARNING'}, str(error))
+            return {'CANCELLED'}
         error = validate_project_configuration(record, projects_list)
         if error:
             self.report({'WARNING'}, error)
@@ -225,6 +235,7 @@ class NWO_ProjectAdd(Operator):
     def draw(self, context):
         self.layout.label(text='Choose the editing kit folder containing tool.exe')
         self.layout.prop(self, 'display_name', text='Display Name (Optional)')
+        self.layout.prop(self, 'default_asset_folder')
         self.layout.label(text='Halo 1 / Halo 2 content folders')
         self.layout.label(text='Keep tags and data for the standard folders')
         # Do not launch a second file selector from inside the project browser.
@@ -237,6 +248,10 @@ def validate_project_configuration(record, records, exclude_id=''):
     key = configuration_key(record)
     if not record['name'].strip():
         return 'Enter a display name for this project'
+    try:
+        record['default_asset_folder'] = normalize_asset_folder(record.get('default_asset_folder', ''))
+    except ValueError as error:
+        return str(error)
     for other in records:
         if other['id'] == exclude_id:
             continue
@@ -325,6 +340,8 @@ class NWO_OT_ProjectEdit(Operator):
     bl_idname = "nwo.project_edit"
 
     display_name: StringProperty(name="Display Name")
+    default_asset_folder: StringProperty(name='Default Asset Folder',
+        description='Folder beneath data prepended to suggested asset locations; leave blank to use data directly')
     use_project_thumbnail: BoolProperty(name='Use Project Thumbnail', default=False,
                                        description='Use the project image when available instead of the game engine icon')
     image_path: StringProperty(name='Project Image', default=DEFAULT_PROJECT_IMAGE,
@@ -366,6 +383,7 @@ class NWO_OT_ProjectEdit(Operator):
         record.update(project_record(active_project))
         record.update(project_path=str(root), name=self.display_name.strip(), game=metadata.game,
                       tags_directory=self.tags_directory, data_directory=self.data_directory,
+                      default_asset_folder=self.default_asset_folder,
                       use_project_thumbnail=self.use_project_thumbnail)
         image = self.image_path.strip().strip('"')
         if image.startswith('//'):
@@ -415,6 +433,7 @@ class NWO_OT_ProjectEdit(Operator):
             self.project_path = active_project.project_path
             self.tags_directory = stored_directory(active_project.project_path, active_project.tags_directory)
             self.data_directory = stored_directory(active_project.project_path, active_project.data_directory)
+            self.default_asset_folder = active_project.default_asset_folder
         return context.window_manager.invoke_props_dialog(self, width=800,
             title='Duplicate Project' if self.duplicate else 'Edit Project Settings')
         
@@ -423,6 +442,7 @@ class NWO_OT_ProjectEdit(Operator):
         project = get_prefs().projects[get_prefs().current_project_index]
         layout.prop(self, "display_name")
         layout.prop(self, 'project_path')
+        layout.prop(self, 'default_asset_folder')
         layout.prop(self, 'use_project_thumbnail')
         row = layout.row(align=True)
         row.context_pointer_set('project_directory_settings', self)
@@ -672,6 +692,7 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
         row.prop(prefs, "toolbar_icons_only", text="Toolbar Icons Only")
         row = box.row(align=True)
         row.prop(prefs, "sidebar_icons_only")
+        box.prop(prefs, 'use_new_asset_editor_wizard')
 
     box = _settings_box(layout, "Projects", prefs, 'settings_projects_expanded') if show_projects else None
     if box is not None:
@@ -771,9 +792,11 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
         patches.enabled = prefs.allow_tool_patches
         if project and project.game == 'reach':
             patches.prop(prefs, 'patch_tool_node_depth_sort')
+        if project and project.game in {'halo2', 'halo3', 'halo3odst', 'reach'}:
             patches.prop(prefs, 'patch_tool_uncompressed_vertex_weights')
+        if project and project.game in {'halo2', 'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'}:
             patches.prop(prefs, 'patch_tool_skip_vertex_compression')
-        if project and project.game in {'reach', 'halo4', 'halo2a'}:
+        if project and project.game in {'halo2', 'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'}:
             patches.prop(prefs, 'patch_tool_skip_import_source_data')
         box.prop(prefs, 'allow_foundation_plugin_install')
         row = box.row(align=True)
@@ -836,6 +859,10 @@ class FoundryPreferences(AddonPreferences):
     projects : CollectionProperty(type=NWO_Project_ListItems)
 
     toolbar_icons_only : BoolProperty(name="Toolbar Icons Only", description="Toggle whether the Foundry Toolbar should only show icons")
+    use_new_asset_editor_wizard: BoolProperty(
+        name='Use New Asset Editor Wizard', default=True,
+        description='Open the New Asset editor wizard in the viewport; disable to use the original file browser operator',
+    )
     sidebar_icons_only: BoolProperty(
         name="Sidebar Icons Only",
         description="Show only icons in the Foundry sidebar; disable to show panel names beside them",
@@ -910,7 +937,7 @@ class FoundryPreferences(AddonPreferences):
     
     ignore_final_frame: BoolProperty(
         name="Update Timeline Range Ignore Last Frame",
-        description="Sets the timeline range 1 frame less than the frame count for base and world animations. This is to mimic the game import behavior for base animations where the final frame is cut and to ensure proper looping of the animation in the Blender viewport",
+        description="Skips the final frame when previewing base and world animations for seamless looping. Export still samples the full authored frame range",
         default=True,
     )
     
@@ -962,31 +989,31 @@ class FoundryPreferences(AddonPreferences):
     
     allow_tool_patches: BoolProperty(
         name="Allow Tool Patches",
-        description="Allow Foundry to patch tool.exe and tool_fast.exe. Disabling this means some features may be fail",
+        description="Allow Foundry to apply verified patches to the running Tool process. Disable to run unsupported Tool builds without patches",
         default=True,
     )
 
     patch_tool_node_depth_sort: BoolProperty(
         name="Ignore Node Depth Sort",
-        description="Patch Reach tool_fast.exe so render and animation nodes sort by Frame ID instead of hierarchy depth first",
+        description="Patch Reach tool.exe and tool_fast.exe so render and animation nodes sort by Frame ID instead of hierarchy depth first",
         default=False,
     )
 
     patch_tool_uncompressed_vertex_weights: BoolProperty(
         name="Uncompressed Vertex Weights",
-        description="Patch Reach tool.exe and tool_fast.exe to use uncompressed vertex weights",
+        description="Skip vertex weight quantization in Halo 2, Halo 3, ODST, and Reach tool.exe and tool_fast.exe",
         default=False,
     )
 
     patch_tool_skip_vertex_compression: BoolProperty(
         name="Skip Vertex Compression",
-        description="Patch Reach tool.exe and tool_fast.exe to skip vertex welding and degenerate triangle compression passes",
+        description="Skip vertex welding and degenerate triangle compression passes in Halo 2, Halo 3, ODST, Reach, Halo 4, and Halo 2 Anniversary tool.exe and tool_fast.exe",
         default=False,
     )
 
     patch_tool_skip_import_source_data: BoolProperty(
         name="Skip Import Source Data",
-        description="Skip embedding zipped geometry source files in tags when exporting with Reach, Halo 4, or Halo 2 Anniversary Tool. Import file metadata is retained",
+        description="Skip embedding zipped source files in tags when exporting with Halo 2, Halo 3, ODST, Reach, Halo 4, or Halo 2 Anniversary Tool. Import file metadata is retained",
         default=False,
     )
     

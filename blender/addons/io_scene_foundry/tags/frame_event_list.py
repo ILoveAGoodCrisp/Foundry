@@ -1,3 +1,4 @@
+from ..animation_events import set_animation_enum
 from pathlib import Path
 import random
 import bpy
@@ -290,9 +291,9 @@ def apply_event_map_to_blender(
             blender_event = blender_animation.animation_events.add()
             blender_event.frame_frame = blender_animation.frame_start + event.frame
             if event.end_frame > event.frame:
-                blender_event.multi_frame = 'range'
+                set_animation_enum(blender_event, 'multi_frame', 'range')
                 blender_event.frame_range = blender_animation.frame_start + event.end_frame
-            blender_event.frame_name = canonical_frame_event(event.type)
+            set_animation_enum(blender_event, 'frame_name', canonical_frame_event(event.type))
             blender_event.event_id = event.unique_id
             data_events = event.sound_events + event.effect_events + event.dialogue_events
             data_events.sort(key=lambda value: value.frame_offset)
@@ -300,18 +301,18 @@ def apply_event_map_to_blender(
                 blender_data_event = blender_event.event_data.add()
                 blender_data_event.frame_offset = data_event.frame_offset
                 if isinstance(data_event, SoundEvent):
-                    blender_data_event.data_type = 'SOUND'
+                    set_animation_enum(blender_data_event, 'data_type', 'SOUND')
                     blender_data_event.marker = blender_markers.get(data_event.marker_name)
                     blender_data_event.event_sound_tag = data_event.sound_reference.tag
                     apply_flags(blender_data_event, data_event.sound_reference)
                 elif isinstance(data_event, EffectEvent):
-                    blender_data_event.data_type = 'EFFECT'
+                    set_animation_enum(blender_data_event, 'data_type', 'EFFECT')
                     blender_data_event.marker = blender_markers.get(data_event.marker_name)
                     blender_data_event.event_effect_tag = data_event.effect_reference.tag
                     apply_flags(blender_data_event, data_event.effect_reference)
                     blender_data_event.damage_effect_reporting_type = data_event.damage_effect_reporting_type
                 else:
-                    blender_data_event.data_type = 'DIALOGUE'
+                    set_animation_enum(blender_data_event, 'data_type', 'DIALOGUE')
                     blender_data_event.dialogue_event = data_event.dialogue_type
         event_count += len(animation_events)
     return event_count

@@ -417,6 +417,8 @@ class GR2Importer:
         elif key in {'bungie_face_region', 'bungie_face_global_material', 'bungie_mesh_global_material'}:
             name, table = ('region', self.regions) if key.endswith('region') else ('global_material', self.global_materials)
             value = self.table_name(value, table)
+            if value == 'default':
+                return True
             self.set_property(utils.add_face_prop(mesh, name, mask), name, value)
             if name == 'region':
                 utils.add_region(value)
@@ -1263,12 +1265,6 @@ def import_sidecar(owner, path, *, tag_armature=None, setup_as_asset=True):
 
     root = bpy.data.collections.new(asset.name)
     owner.scene_collection.children.link(root)
-    root['sidecar_source'] = str(asset.path.resolve())
-    root['sidecar_asset_type'] = asset.asset_type
-    root['sidecar_source_blend'] = asset.source_blend
-    root['sidecar_xml'] = asset.xml
-    root['sidecar_output_tags'] = json.dumps(asset.output_tags)
-    root['sidecar_networks'] = json.dumps([asdict(source) for source in asset.sources + asset.aliases])
     scenario = asset.asset_type in {'scenario', 'prefab', 'multi_prefab'}
     set_type = utils.SetType.SCENARIO if scenario else utils.SetType.MODEL
     groups, rigs, objects, actions, imported_animations = {}, {}, [], [], []
@@ -1336,7 +1332,6 @@ def import_sidecar(owner, path, *, tag_armature=None, setup_as_asset=True):
             rigs[source.rig_key] = rig
         for collection in set(bpy.data.collections) - before[1]:
             collection.name = f'{kind or "GR2"}: {source.network.get("Name") or resolved.stem}'
-            collection['sidecar_references'] = json.dumps([asdict(entry) for entry in references])
             if kind != 'skeleton':
                 collection.nwo.type = 'permutation'
                 collection.nwo.permutation = utils.add_permutation(source.permutation, set_type)

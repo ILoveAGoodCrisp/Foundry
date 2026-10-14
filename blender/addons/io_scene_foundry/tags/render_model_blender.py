@@ -177,7 +177,6 @@ class RenderModelTag(RenderModelMetadataTag):
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         for node in self.nodes:
             arm.create_bone(node)
-            node.bone['foundry_tag_node_name'] = node.name
         for node in self.nodes: arm.parent_bone(node)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         # Set render_model ref for node order

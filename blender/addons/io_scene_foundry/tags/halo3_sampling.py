@@ -26,7 +26,10 @@ def _ensure_value(shader, root, name):
     port = root.inputs.get(name); parameter = shader.shader_parameters.get(name)
     if port is None or parameter is None or port.is_linked: return
     kind = AnimatedParameterType.COLOR if parameter.type in {1, 5} else AnimatedParameterType.VALUE
-    shader._setup_input_with_function(port, shader._value_from_parameter(parameter, kind), True)
+    # RGB defaults are RGBA tuples; ARGB defaults pair that tuple with alpha.
+    # Sampling controls need the color component, not the separate alpha value.
+    shader._setup_input_with_function(
+        port, shader._value_from_parameter(parameter, kind), color_no_alpha=parameter.type == 1)
 
 
 def height_closure(tree, texture):
@@ -91,7 +94,6 @@ def setup_parallax(shader, tree, root, selected):
     for sample in targets:
         own_mapping = _mapping(sample)
         tree.links.new(helper.outputs['Vector'], own_mapping.inputs['Vector'] if own_mapping else sample.inputs['Vector'])
-    root['h3_parallax_sampling'] = mode
 
 
 def setup_scope_blur(shader, tree, root):
@@ -140,7 +142,6 @@ def setup_flat_environment(shader, tree, root, selected):
         if port.name=='Reflection':continue
         _ensure_value(shader,root,port.name);_copy_input(tree,root.inputs[port.name],port)
     tree.links.new(helper.outputs['Cube Vector' if cube else 'UV'],texture.inputs['Vector'])
-    root['h3_flat_environment_sampling'] = mode
 
 
 def setup_sampling(shader, tree, root, selected):

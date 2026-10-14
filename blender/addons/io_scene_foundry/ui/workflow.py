@@ -38,15 +38,16 @@ _visibility = {}
 _owner = object()
 
 
-def draw_text(layout, message, context=None, icon='NONE'):
-    """Wrap guidance and paths at the available sidebar or dialog width."""
+def draw_text(layout, message, context=None, icon='NONE', *, width=None):
+    """Wrap at the region width, or an explicit dialog width in UI units."""
     context = context or bpy.context
-    region = getattr(context, 'region', None)
-    width = getattr(region, 'width', 360)
-    if region is not None and region.type == 'UI':
-        width *= abs(region.view2d.region_to_view(1, 0)[0] - region.view2d.region_to_view(0, 0)[0])
-    scale = context.preferences.system.ui_scale or 1.0
-    columns = max(18, min(95, int((width / scale - 64) / 7)))
+    if width is None:
+        region = getattr(context, 'region', None)
+        width = getattr(region, 'width', 360)
+        if region is not None and region.type == 'UI':
+            width *= abs(region.view2d.region_to_view(1, 0)[0] - region.view2d.region_to_view(0, 0)[0])
+        width /= context.preferences.system.ui_scale or 1.0
+    columns = max(18, min(95, int((width - 64) / 7)))
     for index, line in enumerate(textwrap.wrap(str(message), columns) or ['']):
         layout.label(text=line, icon=icon if index == 0 else 'NONE', translate=False)
 
@@ -240,6 +241,12 @@ def check_asset(context):
         enabled = [anim for anim in nwo.animations if anim.export_this]
         names = set()
         for anim in enabled:
+            if utils.uses_legacy_export():
+                from ..game_capabilities import validate_legacy_animation
+                try:
+                    validate_legacy_animation(anim, utils.get_game(), anim.name)
+                except ValueError as exc:
+                    add('ERROR', str(exc), 'animation_manager')
             if anim.name in names:
                 add('WARNING', f'{anim.name}: duplicate animation name.', 'animation_manager')
             names.add(anim.name)

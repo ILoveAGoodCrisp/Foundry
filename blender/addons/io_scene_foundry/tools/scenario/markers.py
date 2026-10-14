@@ -7,6 +7,24 @@ from ...tags.scenario_markers import PLAYER_FIELDS, block_fields, MARKER_PREFIX
 from .targets import scenario_targets
 
 
+def gather_scenario_markers(context):
+    from types import SimpleNamespace
+    markers = []
+    collection_map = utils.create_parent_mapping(context)
+    with utils.DepsgraphRead():
+        for instance in context.evaluated_depsgraph_get().object_instances:
+            evaluated = instance.instance_object if instance.is_instance else instance.object
+            original = evaluated.original
+            parent = instance.parent if instance.is_instance else original
+            if (original.type != 'EMPTY' or original.nwo.marker_type not in {
+                    MARKER_PREFIX + 'player_start', MARKER_PREFIX + 'cutscene_flag'}
+                    or utils.ignore_for_export_fast(original, collection_map, parent)):
+                continue
+            markers.append(SimpleNamespace(name=original.name, nwo=original.nwo,
+                matrix_world=instance.matrix_world.copy()))
+    return markers
+
+
 def gather_camera_points(context):
     from types import SimpleNamespace
     cameras = []
@@ -33,7 +51,7 @@ def camera_point_placement(camera):
     nwo = camera.nwo
     return ScenarioCameraPoint(nwo.camera_point_name.strip() or camera.name, tuple(position),
         (orientation.z, -orientation.y, orientation.x), camera.data.angle,
-        int(nwo.camera_point_type), nwo.camera_point_edit_as_relative, nwo.camera_point_zone_set)
+        int(nwo.camera_point_type), nwo.camera_point_zone_set)
 
 
 def export_camera_points(camera_objects=None, *, context=None, scenario_path=None, tags_root=None, game=None):
@@ -74,11 +92,12 @@ def marker_placement(ob, game):
     return ScenarioMarkerPlacement(name, tuple(matrix.translation), rotation, options)
 
 
-def export_scenario_markers(objects, *, scenario_path, tags_root, game, clear_player_starts=False):
+def export_scenario_markers(objects, *, scenario_path, tags_root, game, clear_player_starts=False,
+                            clear_cutscene_flags=False):
     starts = [marker_placement(ob, game) for ob in objects if ob.nwo.marker_type == MARKER_PREFIX + 'player_start']
     flags = [marker_placement(ob, game) for ob in objects if ob.nwo.marker_type == MARKER_PREFIX + 'cutscene_flag']
-    if not starts and not flags and not clear_player_starts:
-        return
+    if not starts and not flags and not clear_player_starts and not clear_cutscene_flags:
+        return 0
     with scenario_targets(objects, scenario_path=scenario_path, tags_root=tags_root, game=game,
             include_existing_children=True) as targets:
         for scenario, objects_ in targets:
@@ -86,8 +105,12 @@ def export_scenario_markers(objects, *, scenario_path, tags_root, game, clear_pl
             flags_ = [marker_placement(ob, game) for ob in objects_ if ob.nwo.marker_type == MARKER_PREFIX + 'cutscene_flag']
             if starts or clear_player_starts:
                 scenario.write_marker_placements('player starting locations', starts_)
+            if clear_cutscene_flags:
+                scenario.block(scenario.tag.root(), 'cutscene flags').clear()
+                scenario.tag_has_changes = True
             if flags_:
                 scenario.write_marker_placements('cutscene flags', flags_)
+    return len(starts) + len(flags)
 
 
 def markers_to_blender(scenario, collection, bvh=None, bsp_indices=None):
@@ -147,7 +170,7 @@ def camera_points_to_blender(scenario, collection):
             Vector(point.position) * 100, rotation.to_quaternion(), Vector.Fill(3, 1)))
         camera.nwo.camera_point_name = point.name
         camera.nwo.camera_point_type = str(point.camera_type)
-        camera.nwo.camera_point_edit_as_relative = point.edit_as_relative
+        # camera.nwo.camera_point_edit_as_relative = point.edit_as_relative
         camera.nwo.camera_point_zone_set = point.zone_set_index
         collection.objects.link(camera)
         objects.append(camera)

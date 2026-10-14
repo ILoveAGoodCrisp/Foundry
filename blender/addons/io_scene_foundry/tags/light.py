@@ -15,17 +15,9 @@ import bpy
 
 def h3_falloff(maximum_distance: float, distance_diffusion: float,
                angular_smoothness: float) -> tuple[float, float, float]:
-    """Approximate H3's diffusion curve with Foundry's linear fade interval.
-
-    H3 stores a hard maximum and a diffusion control rather than Reach's start
-    and end distances. More diffusion keeps the light visible farther out.
-    """
-    maximum_distance = max(0.0, maximum_distance) if isfinite(maximum_distance) else 0.0
-    distance_diffusion = max(0.0, distance_diffusion) if isfinite(distance_diffusion) else 0.0
-    angular_smoothness = max(0.0, angular_smoothness) if isfinite(angular_smoothness) else 0.0
-    start = maximum_distance * distance_diffusion / (1.0 + distance_diffusion)
-    spot_blend = angular_smoothness / (1.0 + angular_smoothness)
-    return start, maximum_distance, spot_blend
+    """Legacy caller interface; diffusion is now evaluated by the shader."""
+    maximum_distance = maximum_distance if isfinite(maximum_distance) and maximum_distance > 0 else 5.0
+    return 0.0, maximum_distance, 0.0
 
 
 class LightTag(BlenderTag, TagDocument):
@@ -74,7 +66,7 @@ class LightTag(BlenderTag, TagDocument):
             # H1 stores the angle from the axis; Blender stores the full cone.
             data.spot_size = min(2.0 * cutoff, pi)
             data.spot_blend = max(0.0, min(1.0, 1.0 - falloff / cutoff))
-        light_node = utils.make_halo_light(data)
+        light_node = utils.make_halo_light(data, game=self.game)
         tree = data.node_tree
         if primary_scale:
             attribute = tree.nodes.new('ShaderNodeAttribute')
@@ -91,11 +83,6 @@ class LightTag(BlenderTag, TagDocument):
         else:
             light_node.inputs[0].default_value = (*data.color, 1.0)
             light_node.inputs[1].default_value = max(0.0, upper[3])
-        data['halo1_radius'] = radius
-        data['halo1_radius_modifier'] = radius_bounds
-        data['halo1_color_lower_bound'] = lower
-        data['halo1_color_upper_bound'] = upper
-        data['halo1_secondary_scale'] = secondary_scale
         data.nwo.light_specular_contribution = not self.required_field(root, 'flags').get_flag('no specular')
         if attachment is not None:
             attachment.function_names.update(name for name in (primary_scale, secondary_scale) if name)
@@ -143,6 +130,13 @@ class LightTag(BlenderTag, TagDocument):
         data = bpy.data.lights.new(self.tag_path.ShortName, type=('POINT', 'AREA', 'SPOT')[kind])
         data.color = rgb(upper)
         data.nwo.light_intensity = max(0.0, brightness.lower, brightness.upper)
+        data.nwo.light_preview_model = 'LEGACY'
+        data.nwo.light_emitter_radius = radius * maximum_size
+        data.nwo.light_source_type = ('POINT', 'POINT', 'SPOT')[kind]
+        half_life = root.field('lightmap half-life') or root.field('lightmap half life')
+        lightmap_scale = root.field('lightmap light scale')
+        data.nwo.light_half_life = import_transform.distance(float(half_life.value)) if half_life is not None else 0.0
+        data.nwo.light_lightmap_scale = (float(lightmap_scale.value) or 1.0) if lightmap_scale is not None else 1.0
         data.nwo.light_far_attenuation_start = import_transform.distance(start * maximum_size)
         data.nwo.light_far_attenuation_end = import_transform.distance(end * maximum_size)
         data.nwo.light_shadows = not flags.get_flag('no shadow')
@@ -160,12 +154,13 @@ class LightTag(BlenderTag, TagDocument):
             data.shape = 'RECTANGLE'
             data.size = import_transform.distance(max(0.0, self.value(root, 'near width')) * maximum_size)
             data.size_y = data.size * max(0.0, self.value(root, 'height stretch'))
-        light_node = utils.make_halo_light(data, primary_scale, secondary_scale, gobo_image=gobo_image)
+        light_node = utils.make_halo_light(data, primary_scale, secondary_scale, gobo_image=gobo_image, game=self.game)
         tree = data.node_tree
-        light_node.inputs[0].default_value = (*data.color, 1.0)
+        light_node.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)
         light_node.inputs[1].default_value = 1.0
         color_function = animations.get('color animation')
         if color_function is not None:
+            data.color = (1.0, 1.0, 1.0)
             output = color_function.to_blend_nodes(tree=tree, force_time_period=True)
             if not color_function.is_color:
                 ramp = tree.nodes.new('ShaderNodeValToRGB')
@@ -184,15 +179,6 @@ class LightTag(BlenderTag, TagDocument):
             mapping.inputs['To Max'].default_value = brightness.upper / peak if peak else 0.0
             tree.links.new(output, mapping.inputs['Value'])
             tree.links.new(mapping.outputs[0], light_node.inputs[1])
-        data['halo2_type'] = self.value(root, 'type')
-        data['halo2_size_modifier'] = size_bounds
-        data['halo2_near_width'] = self.value(root, 'near width')
-        data['halo2_height_stretch'] = self.value(root, 'height stretch')
-        data['halo2_diffuse_lower_bound'] = rgb(lower)
-        data['halo2_diffuse_upper_bound'] = rgb(upper)
-        data['halo2_specular_lower_bound'] = rgb(self.value(root, 'specular lower bound'))
-        data['halo2_specular_upper_bound'] = rgb(self.value(root, 'specular upper bound'))
-        data['halo2_brightness_bounds'] = (brightness.lower, brightness.upper)
         if len(self.block(root, 'gel animation')):
             utils.print_warning(f'{self.tag_path.ShortName}: animated H2 gels are not previewed; using the static gel')
         if attachment is not None:
@@ -216,9 +202,13 @@ class LightTag(BlenderTag, TagDocument):
             data.use_shadow = shadows
             # Blender's spot cone cannot express the rectangular near plane or
             # spherical component of an H3 frustum. Retain them for refinement.
-            data['halo3_frustum_near_width'] = self.value(root, 'frustum near width')
-            data['halo3_frustum_height_scale'] = self.value(root, 'frustum height scale')
-            data['halo3_percent_spherical'] = self.value(root, 'percent spherical')
+            data.nwo.light_preview_model = 'H3_DYNAMIC'
+            data.nwo.light_source_type = 'SPOT' if is_spot_light else 'POINT'
+            data.nwo.light_distance_diffusion = max(1e-6, self.value(root, 'distance diffusion'))
+            data.nwo.light_angular_smoothness = max(0.0, self.value(root, 'angular smoothness')) or 1.0
+            data.nwo.light_percent_spherical = self.value(root, 'percent spherical') if is_spot_light else 1.0
+            fov = radians(self.value(root, 'frustum field of view'))
+            data.nwo.light_cone_angle = fov if fov > 0 else 0.5
         # intensity_scale = 1
         if is_spot_light:
             # intensity_scale = 100
@@ -272,7 +262,7 @@ class LightTag(BlenderTag, TagDocument):
             if gobo_info.image:
                 gobo_image = gobo_info.image
 
-        utils.make_halo_light(data, primary_scale, secondary_scale, color_node, strength_node, gobo_image)
+        utils.make_halo_light(data, primary_scale, secondary_scale, color_node, strength_node, gobo_image, game=self.game)
         
         return data
     
@@ -375,7 +365,7 @@ class LightTag(BlenderTag, TagDocument):
             data.energy = nwo.light_intensity * utils.get_import_scale(bpy.context) ** 2
         else:
             strength = intensity.to_blend_nodes(name=f'{self.tag_path.ShortName}_strength', normalize=True) if animated_intensity else None
-            utils.make_halo_light(data, primary_scale, secondary_scale, strength_node_tree=strength, gobo_image=gobo_image)
+            utils.make_halo_light(data, primary_scale, secondary_scale, strength_node_tree=strength, gobo_image=gobo_image, game=self.game)
         if attachment is not None and animated_intensity:
             if intensity.uses_input:
                 attachment.function_names.add(intensity.input)

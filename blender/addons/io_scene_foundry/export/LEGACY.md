@@ -65,6 +65,18 @@ objects with 54 faces, removing 11 internal fragment boundaries. Portals 20
 and 35 each have one face. The clean surfaces compile to 69 portal fragments,
 compared with 94 from the previous visible-fan repair.
 
+H1 import also restores shared corners where distinct source portal planes
+intersect. Independent wall recovery can move those endpoints apart even when
+each resulting face is planar. The final import pass uses the original BSP
+junctions, bounds movement to 0.03 tag units, and rejects ambiguous, collapsed,
+reversed, or warped results. Coplanar fragment contacts retain their wall overlap.
+This is ordinary editable mesh geometry; it adds no saved source metadata.
+For `levels/b40/b40_a`, fresh portal import and a repaired saved/reopened blend
+compiled without portal-closure errors. The complete production export retained
+all 65 clusters, 92 unique connections, and sky assignments; the failing JMS had
+six yellow closure faces and 91 connections. Its five degenerate-triangle and
+nearly-coplanar warnings remain.
+
 Every JMS contains a skeleton. When the Blender scene has no armature, Foundry
 writes one identity bone named `implied_root_node` and binds otherwise unparented
 vertices, markers, collision records, and physics records to that serialized
@@ -99,10 +111,12 @@ does not provide the H3 draft variant. H1 dispatches its separate `model`,
 `collision-geometry`, and `physics` commands according to the available source
 directories. H1 always launches `tool.exe`, even when the project preference is
 set to `tool_fast`, because H1 does not provide a compatible fast executable.
-Before H1 Tool runs, Foundry creates any unresolved material tags so Tool does
-not open its interactive shader-class prompt: scenario structure uses
-`shader_environment`, while all other asset types use `shader_model`. Generated
-shaders are written to the asset's `shaders` folder under the tags directory. Animation
+Before H1 Tool runs, Foundry resolves selected shader paths and supplies a shared
+grey fallback for unresolved materials so Tool does not open its interactive
+shader-class prompt. Scenario exports preserve the selected shader classes,
+including `shader_model`. Non-scenario exports convert `shader_environment` to
+`shader_model`, keeping the original tag and assigning the new path to the
+material. Animation
 sources use `animations` on H1 and `model-animations`
 on H2–ODST. Native
 `blam-tags` documents perform Foundry's tag pre-processing and post-processing,

@@ -806,7 +806,7 @@ class RenderArmature():
         self.bones: Node = []
         
     def create_bone(self, node: Node):
-        bone = self.data.edit_bones.new(node.name)
+        bone = self.data.edit_bones.new(node.name or 'frame')
         bone.length = 5 * import_transform.scale_factor()
         
         loc = (node.inverse_position)
@@ -2478,14 +2478,6 @@ class HavokCollision:
         for override, mask in global_material_override_masks.items():
             utils.add_face_prop(mesh, "global_material", None if mask.all() else mask).global_material = override
 
-        if len(render_triangle_mappings) == len(mesh.polygons):
-            render_triangle_indices = np.array([mapping[0] if mapping else -1 for mapping in render_triangle_mappings], dtype=np.int32)
-            render_triangle_counts = np.array([len(mapping) for mapping in render_triangle_mappings], dtype=np.int32)
-            render_triangle_index_attribute = mesh.attributes.new("foundry_havok_render_triangle_index", 'INT', 'FACE')
-            render_triangle_index_attribute.data.foreach_set("value", render_triangle_indices)
-            render_triangle_count_attribute = mesh.attributes.new("foundry_havok_render_triangle_count", 'INT', 'FACE')
-            render_triangle_count_attribute.data.foreach_set("value", render_triangle_counts)
-
         if not for_physics:
             mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
 
@@ -2609,10 +2601,14 @@ class Emissive:
         result.attenuation_falloff = record.attenuation_falloff
         result.attenuation_cutoff = record.attenuation_cutoff
         result.bounce_ratio = record.bounce_ratio
+        result.use_attenuation = getattr(record, 'use_attenuation', True)
+        result.attenuation_world_units = getattr(record, 'attenuation_world_units', False)
+        result.frustum_blend = getattr(record, 'frustum_blend', 0.0)
         return result
 
 class Material:
     def __init__(self, element: TagFieldBlockElement, emissives: list[Emissive] = [], for_bsp=False):
+        self.for_bsp = for_bsp
         self.index = element.ElementIndex
         render_method_path = element.SelectField("render method").Path
         self.name = render_method_path.ShortName
@@ -2652,6 +2648,7 @@ class Material:
     @classmethod
     def from_native(cls, record, emissives: list[Emissive] = [], for_bsp=False):
         result = cls.__new__(cls)
+        result.for_bsp = for_bsp
         result.index = record.index
         result.name = record.render_method.ShortName
         permutation = getattr(record, 'shader_permutation', None)
@@ -3030,7 +3027,10 @@ class MeshSubpart:
         corinth = utils.is_corinth(bpy.context)
         project = utils.get_project()
         game = project.game if project else None
-        supports = lambda prop_type, face_mode=None: not game or face_prop_game_supported(prop_type, game, face_mode)
+        supports = lambda prop_type, face_mode=None: (
+            (getattr(material, 'for_bsp', False)
+             or not (prop_type.startswith('lightmap_') or face_mode == 'lightmap_only'))
+            and (not game or face_prop_game_supported(prop_type, game, face_mode)))
             
         if self.is_water_surface:
             bm = bmesh.new()
@@ -3101,6 +3101,10 @@ class MeshSubpart:
             prop = utils.add_face_prop(mesh, "emissive", all_indices)
             atten_factor = 1 if utils.is_corinth(bpy.context) else 0.01
             e = material.emissive
+            if getattr(e, 'attenuation_world_units', False):
+                atten_factor = 1
+            prop.material_lighting_attenuation_mode = 'ENABLED' if getattr(e, 'use_attenuation', True) else 'DISABLED'
+            prop.material_lighting_frustum_blend = getattr(e, 'frustum_blend', 0.0)
             prop.material_lighting_attenuation_cutoff = e.attenuation_cutoff * atten_factor * (1 / WU_SCALAR)
             prop.material_lighting_attenuation_falloff = e.attenuation_falloff * atten_factor * (1 / WU_SCALAR)
             prop.material_lighting_emissive_focus = radians(180 * (1 - e.focus))
@@ -3500,7 +3504,10 @@ class Mesh:
         material = subpart.part.material
         project = utils.get_project()
         game = project.game if project else None
-        supports = lambda prop_type, face_mode=None: not game or face_prop_game_supported(prop_type, game, face_mode)
+        supports = lambda prop_type, face_mode=None: (
+            (getattr(material, 'for_bsp', False)
+             or not (prop_type.startswith('lightmap_') or face_mode == 'lightmap_only'))
+            and (not game or face_prop_game_supported(prop_type, game, face_mode)))
 
         if subpart.part.part_type == PartType.transparent and supports('transparent'):
             utils.add_face_prop(mesh, "transparent", all_indices)
@@ -3553,6 +3560,10 @@ class Mesh:
             prop = utils.add_face_prop(mesh, "emissive", all_indices)
             atten_factor = 1 if self.corinth else 0.01
             emissive = material.emissive
+            if getattr(emissive, 'attenuation_world_units', False):
+                atten_factor = 1
+            prop.material_lighting_attenuation_mode = 'ENABLED' if getattr(emissive, 'use_attenuation', True) else 'DISABLED'
+            prop.material_lighting_frustum_blend = getattr(emissive, 'frustum_blend', 0.0)
             prop.material_lighting_attenuation_cutoff = emissive.attenuation_cutoff * atten_factor * (1 / WU_SCALAR)
             prop.material_lighting_attenuation_falloff = emissive.attenuation_falloff * atten_factor * (1 / WU_SCALAR)
             prop.material_lighting_emissive_focus = radians(180 * (1 - emissive.focus))
@@ -3858,9 +3869,6 @@ class Mesh:
             self._set_uv_layer_data(lighting_uv_layer, lighting_texcoords, loop_vertex_indices)
 
         mesh.normals_split_custom_set_from_vertices(normals)
-        if source_geometry is not None:
-            from .halo1_bsp_blender import attach_source_attributes
-            attach_source_attributes(mesh, source_geometry)
         if self.is_pca or self.from_vert_normals: # ensures mesh reimports as closely to the original as possible, necessary for re-using PCA animation
             mesh.nwo.from_vert_normals = True
 
@@ -4023,7 +4031,7 @@ class Mesh:
             # H1 model sidedness belongs to the shader. Retain compiled LOD
             # faces instead of replacing overlaps with geometry face flags.
             if not getattr(self, 'preserve_overlapping_faces', False):
-                utils.set_two_sided(mesh, is_io)
+                utils.set_two_sided(mesh, is_io, orient_two_sided=not is_bsp_geometry)
             utils.apply_loop_normals(mesh)
             # utils.loop_normal_magic(mesh)
             

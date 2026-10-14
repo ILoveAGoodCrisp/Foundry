@@ -59,7 +59,9 @@ class AutoBSPAssigner:
         if ob.type not in VALID_MESHES or ob.data is None:
             return ""
 
-        mesh_type = ob.data.nwo.mesh_type or "_connected_geometry_mesh_type_default"
+        source = getattr(ob, 'ob', None)
+        data = source.data if source is not None and source.type == 'POINTCLOUD' else ob.data
+        mesh_type = data.nwo.mesh_type or "_connected_geometry_mesh_type_default"
         if mesh_type == "_connected_geometry_mesh_type_structure":
             seam_material = ob.data.materials.get("+seam")
             if seam_material is not None and len(ob.data.materials) == 1:
@@ -102,6 +104,10 @@ class AutoBSPAssigner:
             if utils.ignore_for_export_fast(original, self.collection_map, parent):
                 continue
 
+            if original.type == 'POINTCLOUD' and (inst.object.type != 'MESH'
+                    or utils.is_decorator_cloud(original)):
+                continue
+
             proxy = utils.ExportObject()
             proxy.name = original.name
             proxy.ob = original
@@ -111,6 +117,10 @@ class AutoBSPAssigner:
             proxy.matrix_world = inst.matrix_world.copy()
             proxy.eval_ob = obj
             proxy.modifiers = tuple(obj.modifiers)
+            if original.type == 'POINTCLOUD':
+                proxy.type = 'MESH'
+                proxy.data = inst.object.data
+                proxy.eval_ob = inst.object
             proxy.collection_region = self._manual_region(proxy, parent)
             yield proxy
 
@@ -152,7 +162,7 @@ class AutoBSPAssigner:
 
     def _object_bvh(self, ob):
         eval_ob = ob.eval_ob
-        if eval_ob is None and ob.ob is not None:
+        if eval_ob is None and ob.ob is not None and ob.ob.type != 'POINTCLOUD':
             eval_ob = ob.ob.evaluated_get(self.depsgraph)
 
         mesh = None

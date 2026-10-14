@@ -16,7 +16,7 @@ class NWO_AppendFoundryMaterials(bpy.types.Operator):
         return utils.current_project_valid()
 
     def execute(self, context):
-        game = 'h4' if utils.is_corinth(context) else 'reach'
+        game = utils.get_game(use_external=False)
         asset_type = utils.get_scene_props().asset_type
         count = add_special_materials(game, asset_type)
         
@@ -50,6 +50,7 @@ def ensure_special_material(definition, *, name=None, exclude=()):
 
 
 def add_special_materials(game, asset_type):
+    game = {'h4': 'halo4', 'corinth': 'halo4'}.get(game, game)
     blender_materials = bpy.data.materials
     count = 0
     for m in special_materials:

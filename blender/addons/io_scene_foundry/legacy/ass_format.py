@@ -6,7 +6,6 @@ bindings, so an exporter can populate this model from evaluated virtual geometry
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
-import math
 
 from .jms_format import Reader, JMSError, Vertex, Triangle
 
@@ -16,31 +15,6 @@ class ASSError(JMSError):
 
 
 class ASSReader(Reader):
-    def __init__(self, stream):
-        super().__init__(stream)
-        self.invalid_uv_components = 0
-        self.first_invalid_uv_line = 0
-
-    def uv_vector(self, size):
-        values = []
-        for _ in range(size):
-            token = self.text()
-            invalid = bool(re.fullmatch(r'[+-]?1\.#(?:IND|QNAN|SNAN|INF)0*', token, re.I))
-            if not invalid:
-                try:
-                    invalid = not math.isfinite(float(token.replace(',', '.')))
-                except ValueError:
-                    pass  # Let the strict numeric reader report malformed text.
-            if invalid:
-                self.invalid_uv_components += 1
-                if not self.first_invalid_uv_line:
-                    self.first_invalid_uv_line = self.line
-                values.append(0.0)
-            else:
-                self.pending.appendleft(token)
-                values.append(self.number())
-        return tuple(values)
-
     def text(self):
         while not self.pending:
             try:
@@ -58,6 +32,12 @@ class ASSReader(Reader):
                     break
                 elif line[pos] == '"':
                     end = line.find('"', pos + 1)
+                    # Shipped ASS sources can contain unescaped quotes in
+                    # names (e.g. %"-?bridge_cliffsupp05). Only a quote at a
+                    # token boundary closes the string; keep interior quotes.
+                    while (end >= 0 and end + 1 < len(line)
+                           and not line[end + 1].isspace() and line[end + 1] != ';'):
+                        end = line.find('"', end + 1)
                     if end < 0:
                         raise ASSError(f'Unterminated string at line {self.line}')
                     self.pending.append(line[pos + 1:end])

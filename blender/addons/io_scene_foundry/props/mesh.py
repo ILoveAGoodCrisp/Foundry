@@ -145,6 +145,23 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         options=set(),
         items=face_mode_ui_items,
     )
+
+    def get_collision_face_mode(self):
+        return 3 if self.get('face_mode') == 3 else 2
+
+    def set_collision_face_mode(self, value):
+        self['face_mode'] = value
+
+    # Share the saved face-mode value without restricting the enum used by
+    # importers, materials, or meshes that later change their object type.
+    collision_face_mode: bpy.props.EnumProperty(
+        name="Face Mode",
+        description=face_prop_descriptions['face_mode'],
+        options=set(),
+        items=[item for item in FACE_MODE_UI_ITEMS if item[0] in {'collision_only', 'sphere_collision_only'}],
+        get=get_collision_face_mode,
+        set=set_collision_face_mode,
+    )
     
     two_sided: bpy.props.BoolProperty(
         name="Two Sided",
@@ -411,7 +428,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         description="Whether the emissive surface uses distance attenuation",
         items=[('AUTO', "Automatic", "Calculate distances when both are zero"),
                ('ENABLED', "Enabled", "Use the specified falloff and cutoff distances"),
-               ('DISABLED', "Disabled", "Emit without distance attenuation")],
+               ('DISABLED', "Disabled", "Disable the authored window; Halo 3/ODST still use their built-in 20 to 21 world-unit window")],
         default='AUTO', options=set(),
     )
 
@@ -475,7 +492,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     material_lighting_emissive_focus: bpy.props.FloatProperty(
         name="Material Lighting Emissive Focus",
         options=set(),
-        description="Controls the spread of the light. 0 degrees will emit light in a hemisphere from each point, 180 degrees will emit light nearly perpendicular to the surface",
+        description="Controls the spread of the light. 180 degrees emits into a hemisphere; smaller angles focus emission towards the surface normal",
         min=0,
         default=radians(180), 
         max=radians(180),
@@ -493,7 +510,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     )
 
     material_lighting_emissive_per_unit: bpy.props.BoolProperty(
-        name="Normalize",
+        name="Power Per Unit Area",
         options=set(),
         description="When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
         default=True,

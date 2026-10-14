@@ -5,6 +5,45 @@ from .. import utils
 
 class NWO_LightPropertiesGroup(bpy.types.PropertyGroup):
     # LIGHTS #
+    def update_preview_model(self, context):
+        light = self.id_data
+        tree = light.node_tree
+        if tree is None:
+            return
+        node = next((n for n in tree.nodes if n.type == 'GROUP' and n.node_tree
+                     and n.node_tree.name == 'Halo Light'), None)
+        if node is not None:
+            from ..lighting_preview import configure_light
+            configure_light(light, node, utils.get_game())
+
+    light_preview_model: bpy.props.EnumProperty(
+        name="Lighting Model", options=set(), default='AUTO', update=update_preview_model,
+        items=[('AUTO', 'Project Default', 'Use the project baked-light model'),
+               ('H3_DYNAMIC', 'Halo 3 / ODST Dynamic', 'Softened inverse-square runtime light'),
+               ('H3_BAKED', 'Halo 3 / ODST Baked', 'Faux generic light'),
+               ('H2_BAKED', 'Halo 2 Baked', 'Relative photon sphere preview'),
+               ('LEGACY', 'Legacy / Reach', 'Existing light preview')])
+    light_source_type: bpy.props.EnumProperty(
+        name="Source Type", options=set(), default='AUTO',
+        items=[('AUTO', 'Blender Type', ''), ('POINT', 'Omni', ''),
+               ('SPOT', 'Spot', ''), ('SUN', 'Directional', '')])
+    light_distance_diffusion: bpy.props.FloatProperty(name="Distance Diffusion", default=0.1, min=0,
+        description="H3 softened inverse-square denominator, in squared world units", options=set())
+    light_angular_smoothness: bpy.props.FloatProperty(name="Angular Smoothness", default=1, min=0, options=set())
+    light_percent_spherical: bpy.props.FloatProperty(name="Percent Spherical", default=1, min=0, max=1, options=set())
+    light_cone_angle: bpy.props.FloatProperty(name="Cone Angle", default=0.5, min=0, max=6.283185307, subtype='ANGLE', options=set())
+    light_hotspot_angle: bpy.props.FloatProperty(name="Hotspot Angle", default=0.5, min=0, max=6.283185307, subtype='ANGLE', options=set())
+    light_use_near_attenuation: bpy.props.BoolProperty(name="Use Near Attenuation", default=False, options=set())
+    light_use_far_attenuation: bpy.props.BoolProperty(name="Use Far Attenuation", default=True, options=set())
+    light_near_attenuation_start: bpy.props.FloatProperty(name="Near Start", default=0, min=0, subtype='DISTANCE', options=set())
+    light_near_attenuation_end: bpy.props.FloatProperty(name="Near End", default=0, min=0, subtype='DISTANCE', options=set())
+    light_directional_hotspot: bpy.props.FloatProperty(name="Directional Hotspot Diameter", default=1000, min=0,
+        description="H3 directional-light footprint in scene units", subtype='DISTANCE', options=set())
+    light_directional_falloff: bpy.props.FloatProperty(name="Directional Falloff Diameter", default=1100, min=0, subtype='DISTANCE', options=set())
+    light_half_life: bpy.props.FloatProperty(name="Half Life", default=0, min=0, subtype='DISTANCE', options=set())
+    light_lightmap_scale: bpy.props.FloatProperty(name="Lightmap Scale", default=1, min=0, options=set())
+    light_emitter_radius: bpy.props.FloatProperty(name="H2 Light Radius", default=1, min=0,
+        description="Runtime sphere radius in world units; baked emitter radius is one tenth of this", options=set())
 
     # light_game_type: bpy.props.EnumProperty(
     #     name="Light Game Type",

@@ -4,6 +4,7 @@ import bpy
 
 from .decorator_exporter import NWO_OT_DecoratorCloudToInstances, NWO_OT_ExportDecorators, NWO_OT_GetDecoratorTypes
 from .airprobe_exporter import NWO_OT_ExportAirprobes
+from .scenario.metadata import NWO_OT_ExportScenarioMetadata
 from .decal_exporter import NWO_OT_ExportDecals
 from .scenario.objects import NWO_OT_RefreshScenarioObjects, NWO_OT_SelectChildScenario, NWO_OT_GetScenarioAirprobes
 
@@ -22,7 +23,10 @@ from .shader_duplicate import NWO_OT_ShaderDuplicate
 from .camera_sync import NWO_OT_CameraSync
 from .prefab_exporter import NWO_OT_ExportPrefabs
 from .light_exporter import NWO_OT_ExportLights
-from .asset_creator import NWO_OT_NewAsset #, NWO_OT_NewChildAsset
+from .asset_creator import NWO_OT_NewAsset, NWO_OT_AssetWizardBrowse
+from .asset_creator_legacy import NWO_OT_NewAssetLegacy
+from .asset_template import NWO_OT_AssetWizardTagBrowse, NWO_OT_AssetWizardTagSearch
+from .asset_types import NWO_MT_AssetType, NWO_OT_SetAssetType
 from .animation.rename_importer import NWO_OT_RenameImporter
 from .animation.fcurve_transfer import NWO_OT_MovementDataToPedestal
 from .animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationDeadZoneAdd, NWO_OT_AnimationDeadZoneMove, NWO_OT_AnimationDeadZoneRemove, NWO_OT_AnimationGroupAdd, NWO_OT_AnimationGroupMove, NWO_OT_AnimationGroupRemove, NWO_OT_AnimationLeafAdd, NWO_OT_AnimationLeafMove, NWO_OT_AnimationLeafRemove, NWO_OT_AnimationPhaseSetAdd, NWO_OT_AnimationPhaseSetMove, NWO_OT_AnimationPhaseSetRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationDeadZone, NWO_UL_AnimationGroup, NWO_UL_AnimationLeaf, NWO_UL_AnimationPhaseSet
@@ -87,6 +91,8 @@ from .halo_join import NWO_JoinHalo
 # PROPERTIES MANAGER TOOL
 
 classes = (
+    NWO_OT_SetAssetType,
+    NWO_MT_AssetType,
     NWO_OT_DebugNewUserExperience,
     NWO_HaloLauncherPropertiesGroup,
     NWO_ModelVariantViewerNameItem,
@@ -244,6 +250,10 @@ classes = (
     NWO_OT_MovementDataToPedestal,
     NWO_OT_RenameImporter,
     NWO_OT_NewAsset,
+    NWO_OT_NewAssetLegacy,
+    NWO_OT_AssetWizardBrowse,
+    NWO_OT_AssetWizardTagBrowse,
+    NWO_OT_AssetWizardTagSearch,
     NWO_OT_ExportLights,
     NWO_OT_ExportPrefabs,
     NWO_OT_CameraSync,
@@ -270,6 +280,7 @@ classes = (
     NWO_OT_GenerateWetnessData,
     NWO_OT_ExportHalo1DecalPlacements,
     NWO_OT_ExportDecorators,
+    NWO_OT_ExportScenarioMetadata,
     NWO_OT_ExportAirprobes,
     NWO_OT_ExportDecals,
     NWO_OT_RefreshScenarioObjects,
@@ -284,6 +295,8 @@ classes = (
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
+    from .asset_wizard_ui import register as register_asset_wizard
+    register_asset_wizard()
         
     bpy.types.Scene.nwo_shader_build = bpy.props.PointerProperty(
         type=NWO_ShaderPropertiesGroup,
@@ -298,6 +311,8 @@ def register():
     )
     
 def unregister():
+    from .asset_wizard_ui import unregister as unregister_asset_wizard
+    unregister_asset_wizard()
     restore_new_user_debug()
     del bpy.types.Scene.nwo_halo_launcher
     del bpy.types.Scene.nwo_shader_build

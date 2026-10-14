@@ -1219,10 +1219,9 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             }
             for blender_event in blender_animation.animation_events:
                 if blender_event.event_type != '_connected_geometry_animation_event_type_frame':
-                    utils.print_warning(
+                    raise ValueError(
                         f'{supplied_name}: {blender_event.event_type} cannot be stored '
-                        f'in a {self.game} animation graph. Skipping event')
-                    continue
+                        f'in a {self.game} animation graph')
                 start = utils.game_frame(
                     blender_event.frame_frame - blender_animation.frame_start)
                 end = (utils.game_frame(

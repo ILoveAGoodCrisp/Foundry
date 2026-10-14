@@ -145,4 +145,3 @@ def setup_water_sampling(shader, tree, root):
                      'Composed slope with original bitmap ownership')
     tree.links.new(result, root.inputs['wave_slope_array.rgb'])
     tree.links.new(sampler.outputs['Choppiness'], root.inputs['wave_slope_array.a'])
-    root['reach_water_sampling_revision'] = 3

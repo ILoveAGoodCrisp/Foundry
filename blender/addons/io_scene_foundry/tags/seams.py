@@ -14,6 +14,18 @@ class SeamGeometry:
 class StructureSeamsDocument(TagDocument):
     tag_ext = 'structure_seams'
 
+    def matches_triangles(self, triangles):
+        from ..legacy.seam_geometry import seam_surface
+
+        original_points = []
+        for element in self.block(self.tag.root(), 'seams'):
+            original = self.required_field(element, 'original').as_struct()
+            original_points.extend(tuple(self.value(p, 'original vertex').to_array())
+                                   for p in self.block(original, 'original vertices'))
+        compiled = [tuple(seam.vertices[index] for index in triangle)
+                    for seam in self.read_geometry() for triangle in seam.triangles]
+        return seam_surface(triangles) == seam_surface(compiled, original_points)
+
     def read_geometry(self):
         result = []
         for index, element in enumerate(self.block(self.tag.root(), 'seams')):

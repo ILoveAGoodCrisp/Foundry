@@ -6,14 +6,17 @@ from ...icons import get_icon_id
 
 from ... import constants
 from ... import utils
+from ... import game_capabilities as capabilities
 from ... import startup
 from ..bar import draw_halo1_lightmap_settings
 from .. import workflow
+from .animation import animation_track_warning
 import bpy
 import blf
 
 from ...props.object import IgnoreReason
 from ...tools.object_visibility import visibility_items
+from ...tools.asset_types import draw_asset_type_menu
 
 FOUNDRY_DOCS = r"https://halomods.com/Tools/Foundry"
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry"
@@ -22,10 +25,43 @@ from mathutils import Vector
 
 
 from ...tags.connected_material import functions_list
+from ...tags.halo1_shader_conversion import shader_path_warning
+from ...tags.halo2_water import WATER_APPEARANCE_FIELDS
 from ...constants import FORCED_SHADER_PERMUTATION
 game_functions = {func.name for func in functions_list}
+
+
+def draw_halo2_water(layout, nwo):
+    layout.label(text='One water definition per BSP')
+    layout.label(text='Height follows the water plane')
+    draw_tag_path(layout, nwo, 'halo2_water_shader')
+    for suffix, _, _, _ in WATER_APPEARANCE_FIELDS:
+        if suffix in {'sun_specular_power', 'sun_dir_heading', 'fog_near'}:
+            layout.separator()
+        layout.prop(nwo, 'halo2_water_' + suffix)
+
+
+def draw_fog_settings(layout, nwo, game):
+    if game in {'halo1', 'halo2'}:
+        layout.label(text='Assign fog to this plane in Sapien')
+    elif game in {'halo3', 'halo3odst'}:
+        layout.label(text='Fog sheets are not supported by this game', icon='ERROR')
+        layout.label(text='Use atmosphere fog in Sapien')
+    else:
+        draw_tag_path(layout, nwo, 'fog_appearance_tag')
+        layout.prop(nwo, 'fog_volume_depth', text='Fog Volume Depth')
+
 all_change_color_prop_names = ("Primary Color", "Secondary Color", "Tertiary Color", "Quaternary Color")
 all_change_color_prop_display_names = ("Primary", "Secondary", "Tertiary", "Quaternary")
+
+def _draw_event_data_recovery(layout, data, game):
+    for prop in ('marker','marker_name','flag_allow_on_player','flag_left_arm_only','flag_right_arm_only',
+                 'flag_first_person_only','flag_third_person_only','flag_forward_only','flag_reverse_only',
+                 'flag_fp_no_aged_weapons','event_model','variant'):
+        if getattr(data, prop, None) and not capabilities.event_data_property_supported(game, prop, data.data_type):
+            row = layout.row()
+            row.alert = True
+            row.prop(data, prop, text='Unsupported ' + prop.removeprefix('flag_').replace('_', ' ').title() + ' (clear)')
 
 BONE_COLLECTION_UI_GROUPS = (
     ("Deform", ("Free Deform Bones", "Controlled Deform Bones", "Helper Deform Bones", "Face Deform Bones")),
@@ -373,6 +409,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     def draw(self, context):
         self.context = context
         layout = self.layout
+        from ..window import is_foundry_window
+        if is_foundry_window(context):
+            from ..bar import foundry_toolbar
+            foundry_toolbar(layout, context, standalone=True)
+            layout.separator()
         if not utils.get_prefs().projects:
             from ...preferences import draw_first_project_setup
             draw_first_project_setup(layout)
@@ -447,6 +488,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     icon="PINNED" if panel_pinned else "UNPINNED",
                     emboss=False,
                 ).panel_str = p
+                row_header.operator(
+                    "nwo.open_foundry_window",
+                    text="",
+                    icon="WINDOW",
+                    emboss=False,
+                )
 
                 if panel_expanded:
                     draw_panel = getattr(self, f"draw_{p}")
@@ -513,7 +560,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = box.column()
         row = col.row()
         row.scale_y = 1.5
-        row.prop(nwo, "asset_type", text="")
+        draw_asset_type_menu(row, nwo)
         col.separator()
         asset_name = nwo.asset_name
         
@@ -574,6 +621,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 self.draw_rig_ui(self.context, nwo)
                 
             elif nwo.asset_type == "scenario":
+                self.box.prop(nwo, 'scenario_authoring_all')
                 self.draw_expandable_box(self.box.box(), nwo, 'scenario')
                 # self.draw_expandable_box(self.box.box(), nwo, 'zone_sets')
                 self.draw_expandable_box(self.box.box(), nwo, 'lighting')
@@ -581,10 +629,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 game = utils.get_game(nwo.scene_project, use_external=False)
                 self.draw_expandable_box(self.box.box(), nwo, 'decals')
                 self.draw_expandable_box(self.box.box(), nwo, 'decorators')
-                self.box.prop(nwo, 'player_starts_from_blender')
-                self.box.prop(nwo, 'camera_points_from_blender')
+                self.draw_expandable_box(self.box.box(), nwo, 'scenario_metadata')
                 self.draw_expandable_box(self.box.box(), nwo, 'scenario_objects')
-                if game == 'reach':
+                if capabilities.supports(game, 'airprobes'):
                     self.draw_expandable_box(self.box.box(), nwo, 'airprobes')
                 # self.draw_expandable_box(self.box.box(), nwo, 'objects')
                 if self.h4:
@@ -621,6 +668,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 box_cin_set.label(text="Cinematic Settings")
                 col = box_cin_set.column()
                 col.use_property_split = True
+                project = utils.get_project(nwo.scene_project)
+                if project and project.game in {'halo3', 'halo3odst', 'halo4'}:
+                    col.prop(nwo, "cinematic_disable_letterbox")
                 self.draw_script_field(col, nwo, "cinematic_header", "cinematic_header_text", "cinematic_header_use_text", "Header Script")
                 self.draw_script_field(col, nwo, "cinematic_footer", "cinematic_footer_text", "cinematic_footer_use_text", "Footer Script")
                 self.draw_script_field(col, nwo, "cinematic_skip_footer", "cinematic_skip_footer_text", "cinematic_skip_footer_use_text", "Skip Script")
@@ -628,7 +678,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(nwo, "cinematic_channel_type")
                 col.prop(nwo, "cinematic_easing_in_time")
                 col.prop(nwo, "cinematic_easing_out_time")
-                project = utils.get_project(nwo.scene_project)
                 if project and project.game in {'halo3', 'halo3odst'}:
                     col.prop(nwo, "cinematic_fade_in_color")
                     col.prop(nwo, "cinematic_fade_in_time")
@@ -755,7 +804,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.prop(item, "event_type")
             if item.event_type == '_connected_geometry_animation_event_type_frame':
                 row = col.row()
-                row.prop(item, "multi_frame", expand=True)
+                if utils.get_game() != 'halo1':
+                    row.prop(item, 'multi_frame', expand=True)
                 if item.multi_frame == "range":
                     row = col.row(align=True)
                     row.prop(item, "frame_frame", text="Frame Start")
@@ -803,29 +853,45 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.separator()
                     if data.data_type == 'DIALOGUE':
                         col.prop(data, "dialogue_event")
-                        col.prop(data, "damage_effect_reporting_type")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'damage_effect_reporting_type', data.data_type):
+                            col.prop(data, "damage_effect_reporting_type")
                     else:
                         if data.data_type == 'EFFECT':
                             draw_tag_path(col, data, "event_effect_tag")
-                            col.prop(data, "marker")
-                            col.prop(data, "marker_name")
+                            if capabilities.event_data_property_supported(utils.get_game(), 'damage_effect_reporting_type', data.data_type):
+                                col.prop(data, 'damage_effect_reporting_type')
+                            if capabilities.event_data_property_supported(utils.get_game(), 'marker', data.data_type):
+                                col.prop(data, "marker")
+                            if capabilities.event_data_property_supported(utils.get_game(), 'marker_name', data.data_type):
+                                col.prop(data, "marker_name")
                         else:
                             draw_tag_path(col, data, "event_sound_tag")
-                            col.prop(data, "marker")
-                            col.prop(data, "marker_name")
+                            if capabilities.event_data_property_supported(utils.get_game(), 'marker', data.data_type):
+                                col.prop(data, "marker")
+                            if capabilities.event_data_property_supported(utils.get_game(), 'marker_name', data.data_type):
+                                col.prop(data, "marker_name")
                         col.separator()
                         if self.h4:
                             draw_tag_path(col, data, "event_model")
                             col.prop(data, "variant")
                         col.separator()
-                        col.prop(data, "flag_allow_on_player")
-                        col.prop(data, "flag_left_arm_only")
-                        col.prop(data, "flag_right_arm_only")
-                        col.prop(data, "flag_first_person_only")
-                        col.prop(data, "flag_third_person_only")
-                        col.prop(data, "flag_forward_only")
-                        col.prop(data, "flag_reverse_only")
-                        col.prop(data, "flag_fp_no_aged_weapons")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_allow_on_player', data.data_type):
+                            col.prop(data, "flag_allow_on_player")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_left_arm_only', data.data_type):
+                            col.prop(data, "flag_left_arm_only")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_right_arm_only', data.data_type):
+                            col.prop(data, "flag_right_arm_only")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_first_person_only', data.data_type):
+                            col.prop(data, "flag_first_person_only")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_third_person_only', data.data_type):
+                            col.prop(data, "flag_third_person_only")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_forward_only', data.data_type):
+                            col.prop(data, "flag_forward_only")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_reverse_only', data.data_type):
+                            col.prop(data, "flag_reverse_only")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_fp_no_aged_weapons', data.data_type):
+                            col.prop(data, "flag_fp_no_aged_weapons")
+                        _draw_event_data_recovery(col, data, utils.get_game())
                 else:
                     box.operator("nwo.single_add_animation_event_data", icon="ADD", text="Add Event Data")
                 
@@ -948,6 +1014,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         box.prop(nwo, "decals_from_blender")
         if nwo.decals_from_blender:
             box.operator("nwo.export_decals", icon='EXPORT')
+            box.prop(nwo, "decals_export_on_save")
 
     def draw_decorators(self, box: bpy.types.UILayout, nwo):
         box_decorators = box.box()
@@ -961,6 +1028,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             return
         box_decorators.operator("nwo.export_decorators", icon='EXPORT')
         box_decorators.prop(nwo, "decorators_export_on_save")
+
+    def draw_scenario_metadata(self, box: bpy.types.UILayout, nwo):
+        from ...props.scenario_authoring import METADATA_PROPERTIES, scenario_metadata_enabled
+        for prop in METADATA_PROPERTIES:
+            box.prop(nwo, prop)
+        if scenario_metadata_enabled(nwo):
+            box.operator('nwo.export_scenario_metadata', icon='EXPORT')
+            box.prop(nwo, 'scenario_metadata_export_on_save')
 
     def draw_airprobes(self, box: bpy.types.UILayout, nwo):
         box_airprobes = box.box()
@@ -981,7 +1056,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         else:
             lighting_name = "Lightmap Model"
         
-        if self.asset_type != 'scenario' or game == 'reach' or self.h4:
+        if capabilities.supports(game, 'lighting_info'):
             box_lights = box.box()
             box_lights.label(text="Lights")
             box_lights.operator("nwo.export_lights", icon='EXPORT')
@@ -1010,7 +1085,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 box_lightmapping.prop(scene_nwo_export, "lightmap_quality_h4")
             else:
                 box_lightmapping.prop(scene_nwo_export, "lightmap_quality")
-            if not halo1 and (not self.h4 or scene_nwo_export.lightmap_quality_h4 in {'__custom__', '__asset__'}):
+            if capabilities.supports(game, 'lightmap_region') and (not self.h4 or scene_nwo_export.lightmap_quality_h4 in {'__custom__', '__asset__'}):
                 box_lightmapping.prop(scene_nwo_export, "lightmap_region")
             if not scene_nwo_export.lightmap_all_bsps:
                 box_lightmapping.prop(scene_nwo_export, "lightmap_specific_bsp")
@@ -1303,7 +1378,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col = box.column()
         draw_tag_path(col, nwo, "template_model_animation_graph")
         col.separator()
-        draw_tag_path(col, nwo, "parent_animation_graph", set_row_split=True)
+        if utils.get_game() != 'halo1':
+            draw_tag_path(col, nwo, "parent_animation_graph", set_row_split=True)
+        elif nwo.parent_animation_graph:
+            recovery = col.column()
+            recovery.alert = True
+            draw_tag_path(recovery, nwo, "parent_animation_graph", text="Unsupported Parent Graph (clear)")
         project = utils.get_project(nwo.scene_project)
         row = col.row()
         row.use_property_split = True
@@ -1963,6 +2043,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         function_props = [k for k in custom_props if k in game_functions]
         built_in_props = set(change_colors_props + weapon_props + shader_props + function_props)
         tag_props = [k for k in custom_props if k.lower() == k and k and k not in built_in_props]
+        if ob.animation_data is not None:
+            # Imported function outputs are calculated by drivers, not edited here.
+            driven_paths = {curve.data_path for curve in ob.animation_data.drivers}
+            function_props = [k for k in function_props
+                              if f'["{bpy.utils.escape_identifier(k)}"]' not in driven_paths]
+            tag_props = [k for k in tag_props
+                         if f'["{bpy.utils.escape_identifier(k)}"]' not in driven_paths]
         has_driver_remap = ob.type == 'ARMATURE'
 
         if not (change_colors_props or weapon_props or shader_props or function_props or tag_props or has_driver_remap):
@@ -2117,6 +2204,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row.operator("nwo.clear_control_rig", icon='TRASH')
         box.separator()
         box.operator("nwo.bake_to_control", icon='POSE_HLT')
+        box.separator()
+        self.draw_rig_validation(box, self.scene_nwo)
 
     def draw_bone_collections(self, box: bpy.types.UILayout, arm: bpy.types.Object):
         collections_all = getattr(arm.data, "collections_all", arm.data.collections)
@@ -2443,11 +2532,25 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.prop(nwo, 'camera_point_name')
             if 'type' in fields:
                 col.prop(nwo, 'camera_point_type')
-                col.prop(nwo, 'camera_point_edit_as_relative')
+                # col.prop(nwo, 'camera_point_edit_as_relative')
             if 'zone set' in fields:
                 col.prop(nwo, 'camera_point_zone_set')
             if 'field of view' in fields:
                 col.prop(ob.data, 'angle', text='Field of View')
+            return
+
+        if utils.is_decorator_cloud(ob):
+            cloud_box = box.box()
+            cloud_box.label(text='Decorator Point Cloud', icon='OUTLINER_OB_POINTCLOUD')
+            count = len(ob.data.points) if ob.type == 'POINTCLOUD' else len(ob.data.vertices)
+            cloud_box.label(text=f'{count:,} placement points')
+            draw_tag_path(cloud_box, nwo, 'marker_decorator_tag_name')
+            cloud_box.prop(nwo, 'marker_game_instance_tag_variant_name', text='Decorator Type')
+            if self.asset_type == 'scenario':
+                cloud_box.prop(self.scene_nwo, 'decorators_from_blender')
+                from ...tools.scenario.objects import draw_child_scenario
+                draw_child_scenario(cloud_box, nwo, game)
+            cloud_box.operator('nwo.decorator_cloud_to_instances', icon='OUTLINER_OB_EMPTY')
             return
 
         instanced = ob.is_instancer and ob.instance_collection and ob.instance_collection.all_objects
@@ -2514,7 +2617,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
         if is_light:
             is_sun = data.type == 'SUN'
-            halo_light = data.use_custom_distance and not is_sun
+            halo_light = data.use_custom_distance and (not is_sun or utils.get_game() in {'halo3', 'halo3odst'})
             row.prop(data, "type", expand=True)
             col = box.column()
             col.use_property_split = True
@@ -2536,10 +2639,34 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 box_halo.prop(nwo, "light_intensity")
                 box_halo.prop(nwo, "light_far_attenuation_start", text="Light Falloff")
                 box_halo.prop(nwo, "light_far_attenuation_end", text="Light Cutoff")
+                if utils.get_game() in {'halo2', 'halo3', 'halo3odst'}:
+                    box_halo.prop(nwo, "light_preview_model")
+                    if nwo.light_preview_model == 'H3_DYNAMIC':
+                        box_halo.prop(nwo, "light_distance_diffusion")
+                        box_halo.prop(nwo, "light_angular_smoothness")
+                        box_halo.prop(nwo, "light_percent_spherical")
+                    if nwo.light_source_type == 'SPOT':
+                        box_halo.prop(nwo, "light_cone_angle")
+                        if nwo.light_preview_model != 'H3_DYNAMIC':
+                            box_halo.prop(nwo, "light_hotspot_angle")
+                    if nwo.light_preview_model == 'H3_BAKED':
+                        box_halo.prop(nwo, "light_use_near_attenuation")
+                        if nwo.light_use_near_attenuation:
+                            box_halo.prop(nwo, "light_near_attenuation_start")
+                            box_halo.prop(nwo, "light_near_attenuation_end")
+                        box_halo.prop(nwo, "light_use_far_attenuation")
+                    elif nwo.light_preview_model == 'H2_BAKED':
+                        box_halo.prop(nwo, "light_emitter_radius")
+                        box_halo.prop(nwo, "light_lightmap_scale")
+                        box_halo.prop(nwo, "light_half_life")
+                    if is_sun:
+                        box_halo.prop(nwo, "light_directional_hotspot")
+                        box_halo.prop(nwo, "light_directional_falloff")
             
-            box_ins = box.box()
+            box_ins = box.box() if game == 'reach' or self.h4 else box
             box_ins.use_property_split = True
-            box_ins.label(text="Light Instance Properties")
+            if game == 'reach' or self.h4:
+                box_ins.label(text="Light Instance Properties")
             col = box_ins.column()
             
             is_dynamic = self.h4 and (ob_nwo.light_mode == "_connected_geometry_light_mode_dynamic" or ob_nwo.is_cinematic_light)
@@ -2550,7 +2677,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             if self.h4:
                 if not ob_nwo.is_cinematic_light:
                     col.prop(ob_nwo, "light_mode", expand=True)
-            else:
+            elif game == 'reach':
                 col.prop(ob_nwo, "light_game_type", text="Light Type")
                 col.prop(ob_nwo, "light_screenspace_has_specular")
                 col.prop(ob_nwo, "light_bounce_ratio", text="Light Bounce Ratio")
@@ -2825,12 +2952,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
             elif nwo.mesh_type == "_connected_geometry_mesh_type_portal":
                 row = col.row()
-                row.prop(
-                    nwo,
-                    "portal_type",
-                    text="Portal Type",
-                    expand=True,
-                )
+                if game != 'halo1':
+                    row.prop(nwo, "portal_type", text="Portal Type", expand=True)
 
                 col.separator()
 
@@ -2841,23 +2964,19 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     "portal_ai_deafening",
                     text="AI Deafening",
                 )
-                col.prop(
-                    nwo,
-                    "portal_blocks_sounds",
-                    text="Blocks Sounds",
-                )
-                col.prop(nwo, "portal_is_door", text="Is Door")
+                if game != 'halo1':
+                    col.prop(nwo, "portal_blocks_sounds", text="Blocks Sounds")
+                    col.prop(nwo, "portal_is_door", text="Is Door")
 
             elif (
                 nwo.mesh_type
                 == "_connected_geometry_mesh_type_planar_fog_volume"
             ):
-                draw_tag_path(col, nwo, "fog_appearance_tag")
-                col.prop(
-                    nwo,
-                    "fog_volume_depth",
-                    text="Fog Volume Depth",
-                )
+                draw_fog_settings(col, nwo, game)
+            elif nwo.mesh_type == '_connected_geometry_mesh_type_weather_polyhedron':
+                if game in {'halo3', 'halo3odst'}:
+                    col.label(text='Legacy weather polyhedron', icon='INFO')
+                    col.label(text='Use clusters for weather in this game')
                 
             elif (
                 nwo.mesh_type
@@ -2886,9 +3005,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             elif (
                 nwo.mesh_type == "_connected_geometry_mesh_type_water_surface"
             ):
+                if game == 'halo2':
+                    draw_halo2_water(col, nwo)
+                    return
                 row = col.row()
                 row.prop(nwo, "water_type", expand=True)
-                if nwo.water_type != 'SURFACE':  
+                if nwo.water_type != 'SURFACE' and game in {'halo3', 'halo3odst'}:
+                    col.prop(nwo, 'water_volume_direction')
+                    col.prop(nwo, 'water_volume_angle')
+                elif nwo.water_type != 'SURFACE':
                     col.prop(
                         nwo,
                         "water_volume_depth",
@@ -2928,7 +3053,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     row.use_property_split = False
                     picon = 'CHECKBOX_HLT' if nwo.proxy_instance else 'CHECKBOX_DEHLT'
                     row.prop(nwo, "proxy_instance", text="Instanced Structure", icon=picon)
-                if game != 'halo1' and (nwo.mesh_type in {"_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision"} or (
+                if self.asset_type == 'scenario' and nwo.mesh_type == "_connected_geometry_mesh_type_collision":
+                    if h4:
+                        col.prop(nwo, "poop_collision_type")
+                    if game != 'halo1':
+                        col.prop(nwo, "poop_pathfinding", text="Pathfinding Policy")
+                elif game != 'halo1' and (nwo.mesh_type in {"_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision"} or (
                     nwo.mesh_type == "_connected_geometry_mesh_type_structure"
                     and h4
                     and nwo.proxy_instance
@@ -3108,6 +3238,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if h4:
                     col.prop(nwo, 'decal_force_planar')
                     col.prop(nwo, 'decal_cull_angle')
+            elif nwo.marker_type == '_connected_geometry_marker_type_airprobe':
+                if utils.supports_game_feature('airprobes'):
+                    self.draw_table_menus(col, nwo, ob)
+                    if self.h4:
+                        col.prop(nwo, 'airprobe_bsp')
             elif nwo.marker_type == '_connected_geometry_marker_type_decorator':
                 draw_tag_path(col, nwo, 'marker_decorator_tag_name')
                 project = utils.get_project()
@@ -3429,6 +3564,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         nwo = id.nwo if for_material  else id.data.nwo
         props = nwo.material_props if for_material else nwo.face_props
         active_prop_index = nwo.material_props_active_index if for_material else nwo.face_props_active_index
+        scenario_collision = (not for_material and self.asset_type == 'scenario'
+                              and nwo.mesh_type == '_connected_geometry_mesh_type_collision')
         
         context = self.context
         if not for_material and id.type == 'MESH':
@@ -3507,12 +3644,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             match item.type:
                 case 'face_sides':
                     col.prop(item, 'two_sided')
-                    if not for_material:
-                        col.operator('nwo.update_two_sided_preview', text='Update Two-Sided Preview', icon='MATERIAL')
-                    if self.h4:
+                    if self.h4 and not scenario_collision:
                         col.prop(item, 'face_sides_type')
                 case 'face_mode':
-                    col.prop(item, 'face_mode')
+                    col.prop(item, 'collision_face_mode' if scenario_collision else 'face_mode')
                 case 'region':
                     row = box.row()
                     row.label(text='Region')
@@ -3595,10 +3730,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 
     def draw_instance_proxies(self, box, ob):
         nwo = ob.data.nwo
-        collision = nwo.proxy_collision
-        physics = [getattr(nwo, f"proxy_physics{i}", None) for i in range(200)]
+        supported_types = capabilities.instance_proxy_types(utils.get_game())
+        if not supported_types:
+            return
+        collision = nwo.proxy_collision if 'collision' in supported_types else None
+        physics = ([getattr(nwo, f"proxy_physics{i}", None) for i in range(200)]
+                   if 'physics' in supported_types else [])
         all_physics_slots_used = all(physics)
-        cookie_cutter = nwo.proxy_cookie_cutter
+        cookie_cutter = nwo.proxy_cookie_cutter if 'cookie_cutter' in supported_types else None
 
         if collision:
             row = box.row(align=True)
@@ -3612,12 +3751,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.operator("nwo.proxy_instance_edit", text=f"Edit Proxy Physics [{idx}]", icon_value=get_icon_id("physics")).proxy = item.name
                 row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = item.name
 
-        if not self.h4 and cookie_cutter:
+        if cookie_cutter:
             row = box.row(align=True)
             row.operator("nwo.proxy_instance_edit", text="Edit Proxy Cookie Cutter", icon_value=get_icon_id("cookie_cutter")).proxy = cookie_cutter.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = cookie_cutter.name
 
-        can_add_proxy = not (collision and all_physics_slots_used and (self.h4 or cookie_cutter))
+        can_add_proxy = (('collision' in supported_types and not collision)
+                         or ('physics' in supported_types and not all_physics_slots_used)
+                         or ('cookie_cutter' in supported_types and not cookie_cutter))
         has_physics = any(physics)
         if can_add_proxy or has_physics:
             row = box.row(align=True)
@@ -3631,7 +3772,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     icon="TRASH",
                 )
     
-        if len(self.context.selected_objects) > 1:
+        if (collision or has_physics or cookie_cutter) and len(self.context.selected_objects) > 1:
             row = box.row()
             row.scale_y = 1.3
             row.operator("nwo.proxy_instance_copy_to_selected", text="Copy to Selected", icon="DUPLICATE")
@@ -3727,6 +3868,15 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.operator("nwo.shader_finder_single", icon_value=get_icon_id("material_finder"), text="")
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "shader_path"
                 row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'shader_path'
+                scene = utils.get_scene_props()
+                project = utils.get_project(scene.scene_project)
+                if project and project.game == 'halo1':
+                    warning = shader_path_warning(nwo.shader_path, scene.asset_type)
+                    if warning:
+                        for line in warning.splitlines():
+                            warning_row = col.row()
+                            warning_row.alert = True
+                            warning_row.label(text=line, icon='ERROR')
                 has_valid_path = nwo.shader_path and Path(utils.get_tags_path(), utils.relative_path(nwo.shader_path)).exists()
                 if has_valid_path:
                     col.separator()
@@ -4042,14 +4192,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
 
     def draw_animation_manager(self):
         box = self.box
-        
+
         context = self.context
         ob = context.object
         scene_nwo = utils.get_scene_props()
-        
+
         if self.asset_type == 'cinematic':
             return self.draw_cinematic_events(self.context.scene.nwo, ob, box) # cinematic events are scene specific
-        
+
         row = box.row()
         if not scene_nwo.animations:
             box.operator("nwo.new_animation", icon="ANIM", text="New Animation")
@@ -4066,7 +4216,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             scene_nwo,
             "active_animation_index",
         )
-        
+
         col = row.column(align=True)
         col.operator("nwo.new_animation", icon="ADD", text="")
         col.operator("nwo.delete_animation", icon="REMOVE", text="")
@@ -4078,28 +4228,24 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         if not ob or ob.type != "ARMATURE":
             col.separator()
             col.operator("nwo.select_armature", text="", icon='OUTLINER_OB_ARMATURE')
-            
+
         col.separator()
         col.menu("NWO_MT_AnimationTools", text="", icon='DOWNARROW_HLT')
-        
+
         col = box.column()
         row = col.row()
-        
+
         if scene_nwo.active_animation_index < 0:
             col.label(text="No Animation Selected")
             return
-        
+
         animation = scene_nwo.animations[min(scene_nwo.active_animation_index, len(scene_nwo.animations) - 1)]
-        workflow.draw_text(box, f"Animation: {animation.name}", context, 'ANIM')
-        if ob and ob.animation_data and ob.animation_data.action:
-            workflow.draw_text(box, f"Loaded action: {ob.animation_data.action.name}", context)
-        frames = max(0, animation.frame_end - animation.frame_start + 1)
-        workflow.draw_text(box, f"Authored: {frames} frames · Export samples: {utils.game_frame(frames)} at 30 fps", context)
-        if utils.get_prefs().ignore_final_frame and animation.animation_type in {'base', 'world'}:
-            workflow.draw_text(box, "Loop preview omits the final frame. The export still samples the authored range.", context)
-        box.row(align=True).prop(scene_nwo, 'workflow_animation_section', expand=True)
-        section = scene_nwo.workflow_animation_section
-        
+        if utils.uses_legacy_export():
+            try:
+                capabilities.validate_legacy_animation(animation, utils.get_game(), animation.name)
+            except ValueError as exc:
+                workflow.draw_text(box, str(exc), context, 'ERROR')
+
         col = box.column()
         row = col.row()
         row.use_property_split = True
@@ -4110,146 +4256,127 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row = col.row()
             row.use_property_split = True
             row.prop_search(animation, "blend_screen", scene_nwo, "blend_screens")
-        
-        if section == 'PLAYBACK':
-            is_composite = animation.animation_type == 'composite'
-        
-            if is_composite:
-                if self.h4:
-                    return self.draw_animation_composites(box, animation)
-                else:
-                    return col.label(text="Composite animations not valid for Reach")
-        
-            elif animation.animation_type != 'world':
-                row = col.row()
-                row.use_property_split = True
-                if animation.animation_type == 'base':
-                    row.prop(animation, 'animation_movement_data')     
-                elif animation.animation_type == 'replacement':
-                    row.prop(animation, 'animation_space', expand=True)
-                col.separator()
-                row = col.row(align=False)
-                row.use_property_split = False
-                row.prop(animation, "frame_start", text='Start Frame', icon='KEYFRAME_HLT')
-                row.prop(animation, "frame_end", text='End Frame', icon='KEYFRAME_HLT')
-                tokens = utils.tokenise(animation.name)
-                if tokens and tokens[0] == "suspension":
-                    col.separator()
-                    row = col.row()
-                    row.use_property_split = True
-                    row.prop(animation, "suspension_marker", icon='OUTLINER_OB_EMPTY')
-                    col.separator()
-                    row = col.row()
-                    row.use_property_split = True
-                    row.prop(animation, "suspension_contact_marker", icon='OUTLINER_OB_EMPTY')
-                    col.separator()
-                    row = col.row()
-                    row.use_property_split = True
-                    row.prop_search(animation, "suspension_destroyed_region_name", scene_nwo, "regions_table")
-                    if animation.suspension_destroyed_region_name:
-                        col.separator()
-                        row = col.row()
-                        row.use_property_split = True
-                        row.prop(animation, "suspension_destroyed_contact_marker", icon='OUTLINER_OB_EMPTY')
-                
-                col.separator()
-                row = col.row()
-                row.use_property_split = True
-                if animation.animation_type == 'overlay':
-                    row.prop(animation, "pose_overlay")
-                    if animation.pose_overlay and not animation.external:
-                        col.operator('nwo.generate_poses', text='Generate Poses', icon='ANIM')
-                
-        if section == 'TRACKS':
-            col.separator()
-            if animation.external:
-                col.prop(animation, "external")
-                row = col.row(align=True)
-                row.prop(animation, "gr2_path")
-                row.operator("nwo.select_external_animation_path", text="", icon='FILEBROWSER').path_type = 'GR2'
-                if utils.has_gr2_viewer():
-                    row.operator("nwo.open_external_animation_gr2", icon_value=get_icon_id("granny3d"), text="")
-                row = col.row(align=True)
-                row.prop(animation, "blend_path")
-                row.operator("nwo.select_external_animation_path", text="", icon='FILEBROWSER').path_type = 'BLEND'
-                row.operator("nwo.open_external_animation_blend", icon='BLENDER', text="")
-            else:
-                row = col.row()
-                row.label(text="Action Tracks")
-                row = col.row()
-                rows = 3
-                row.template_list(
-                    "NWO_UL_ActionTrack",
-                    "",
-                    animation,
-                    "action_tracks",
-                    animation,
-                    "active_action_group_index",
-                    rows=rows,
-                )
-                if ob is not None:
-                    col.label(text=f"Current Action: {ob.name} -> {ob.animation_data.action.name if ob.animation_data and ob.animation_data.action else 'NONE'}")
-                    if ob.type == 'MESH' and ob.data.shape_keys:
-                        col.label(text=f"Current Shape Key Action: {ob.name} -> {ob.data.shape_keys.animation_data.action.name if ob.data.shape_keys.animation_data and ob.data.shape_keys.animation_data.action else 'NONE'}")
-                col = row.column(align=True)
-                col.operator("nwo.action_track_add", text="", icon="ADD")
-                col.operator("nwo.action_track_remove", icon="REMOVE", text="")
-                col.separator()
-                col.operator("nwo.action_track_move", text="", icon="TRIA_UP").direction = 'up'
-                col.operator("nwo.action_track_move", icon="TRIA_DOWN", text="").direction = 'down'
-            
-                col = box.column(align=True)
-                if not scene_nwo.is_child_asset:
-                    col.separator()
-                    row = col.row()
-                    row.operator("nwo.animation_move_to_own_blend", icon='BLENDER')
-                    row.operator("nwo.animation_link_to_gr2", icon='LINKED')
-                if utils.has_gr2_viewer():
-                    col.operator("nwo.open_external_animation_gr2", icon_value=get_icon_id("granny3d"))
-                col.separator()
-                row = col.row()
-                row.operator("nwo.animation_frames_sync_to_keyframes", text="Sync Frame Range to Keyframes", icon='FILE_REFRESH', depress=scene_nwo.keyframe_sync_active)
-                row.operator("nwo.action_tracks_set_active", icon='ACTION_TWEAK')
-                col.separator()
-                col.separator()
-            
-        if section == 'EVENTS':
-            row = col.row()
-            if not scene_nwo.is_child_asset:
-                # ANIMATION RENAMES
-                if not animation.animation_renames:
-                    row.operator("nwo.animation_rename_add", text="New Rename", icon_value=get_icon_id('animation_rename'))
-                else:
-                    self.draw_expandable_box(box.box(), scene_nwo, "animation_renames", "Renames", ob=animation)
 
-            # ANIMATION EVENTS
-            if not animation.external:
-                if not animation.animation_events:
-                    if animation.animation_renames:
-                        row = box.row()
-                    row.operator("nwo.animation_event_list_add", text="New Event", icon_value=get_icon_id('animation_event'))
-                    if bpy.ops.nwo.paste_events.poll():
-                        row.operator("nwo.paste_events", icon="PASTEDOWN")
-                else:
-                    self.draw_expandable_box(box.box(), scene_nwo, "animation_events", "Events", ob=animation)
-                    
-            # ANIMATION NODES
-            if not scene_nwo.is_child_asset:
-                col = box.column()
-                col.separator()
-                if not animation.animation_nodes:
-                    col.operator("nwo.add_animation_node", text="New Animation Node", icon='BONE_DATA')
-                else:
-                    self.draw_expandable_box(box.box(), scene_nwo, "animation_nodes", "Nodes", ob=animation)
-            
-        if section == 'EXPORT':
+        is_composite = animation.animation_type == 'composite'
+
+        if is_composite:
+            if self.h4:
+                self.draw_animation_composites(box, animation)
+            else:
+                col.label(text=f"Composite animations are not supported by {workflow.GAME_NAMES.get(utils.get_game(), utils.get_game())}")
+
+        elif animation.animation_type != 'world':
+            row = col.row()
+            row.use_property_split = True
+            if animation.animation_type == 'base':
+                row.prop(animation, 'animation_movement_data')
+            elif animation.animation_type == 'replacement':
+                row.prop(animation, 'animation_space', expand=True)
             if not project or project.game != 'halo1':
-                col.prop(animation, 'compression')
-            # TAG INFO
-            if not scene_nwo.is_child_asset:
-                self.draw_expandable_box(box.box(), scene_nwo, "animation_tag_props", "Tag Properties", ob=animation)
-            
+                row = col.row()
+                row.use_property_split = True
+                row.prop(animation, "compression", text="Compression")
+            col.separator()
+            row = col.row(align=False)
+            row.use_property_split = False
+            row.prop(animation, "frame_start", text='Start Frame', icon='KEYFRAME_HLT')
+            row.prop(animation, "frame_end", text='End Frame', icon='KEYFRAME_HLT')
+            tokens = utils.tokenise(animation.name)
+            if tokens and tokens[0] == "suspension":
+                col.separator()
+                row = col.row()
+                row.use_property_split = True
+                row.prop(animation, "suspension_marker", icon='OUTLINER_OB_EMPTY')
+                col.separator()
+                row = col.row()
+                row.use_property_split = True
+                row.prop(animation, "suspension_contact_marker", icon='OUTLINER_OB_EMPTY')
+                col.separator()
+                row = col.row()
+                row.use_property_split = True
+                row.prop_search(animation, "suspension_destroyed_region_name", scene_nwo, "regions_table")
+                if animation.suspension_destroyed_region_name:
+                    col.separator()
+                    row = col.row()
+                    row.use_property_split = True
+                    row.prop(animation, "suspension_destroyed_contact_marker", icon='OUTLINER_OB_EMPTY')
+
+            col.separator()
+            row = col.row()
+            row.use_property_split = True
+            if animation.animation_type == 'overlay':
+                row.prop(animation, "pose_overlay")
+                if animation.pose_overlay and not animation.external:
+                    col.operator('nwo.generate_poses', text='Generate Poses', icon='ANIM')
+
+        if animation.animation_type in {'world', 'composite'} and (not project or project.game != 'halo1'):
+            row = col.row()
+            row.use_property_split = True
+            row.prop(animation, "compression", text="Compression")
+
+        col.separator()
+        if animation.external:
+            col.prop(animation, "external")
+            row = col.row(align=True)
+            row.prop(animation, "gr2_path")
+            row.operator("nwo.select_external_animation_path", text="", icon='FILEBROWSER').path_type = 'GR2'
+            if utils.has_gr2_viewer():
+                row.operator("nwo.open_external_animation_gr2", icon_value=get_icon_id("granny3d"), text="")
+            row = col.row(align=True)
+            row.prop(animation, "blend_path")
+            row.operator("nwo.select_external_animation_path", text="", icon='FILEBROWSER').path_type = 'BLEND'
+            row.operator("nwo.open_external_animation_blend", icon='BLENDER', text="")
+        else:
+            row = col.row()
+            row.label(text="Action Tracks")
+            row = col.row()
+            rows = 3
+            row.template_list(
+                "NWO_UL_ActionTrack",
+                "",
+                animation,
+                "action_tracks",
+                animation,
+                "active_action_group_index",
+                rows=rows,
+            )
+            col = row.column(align=True)
+            col.operator("nwo.action_track_add", text="", icon="ADD")
+            col.operator("nwo.action_track_remove", icon="REMOVE", text="")
+            col.separator()
+            col.operator("nwo.action_track_move", text="", icon="TRIA_UP").direction = 'up'
+            col.operator("nwo.action_track_move", icon="TRIA_DOWN", text="").direction = 'down'
+
+            col = box.column(align=True)
+            if utils.has_gr2_viewer():
+                col.operator("nwo.open_external_animation_gr2", icon_value=get_icon_id("granny3d"))
+            warning = animation_track_warning(animation)
+            if warning:
+                workflow.draw_text(col, warning, context, 'ERROR')
+            col.separator()
+            row = col.row()
+            row.operator("nwo.animation_frames_sync_to_keyframes", text="Sync Frame Range to Keyframes", icon='FILE_REFRESH', depress=scene_nwo.keyframe_sync_active)
+            row.operator("nwo.action_tracks_set_active", icon='ACTION_TWEAK')
+            col.separator()
+
+        if not scene_nwo.is_child_asset:
+            self.draw_expandable_box(box.box(), scene_nwo, "animation_renames",
+                                     f"Renames ({len(animation.animation_renames)})", ob=animation)
+
+        if not animation.external:
+            self.draw_expandable_box(box.box(), scene_nwo, "animation_events",
+                                     f"Events ({len(animation.animation_events)})", ob=animation)
+
+        if not scene_nwo.is_child_asset:
+            self.draw_expandable_box(box.box(), scene_nwo, "animation_nodes",
+                                     f"Nodes ({len(animation.animation_nodes)})", ob=animation)
+            tag_props_label = "Tag Properties (Blender)" if animation.author_type == 'BLENDER' else "Tag Properties"
+            self.draw_expandable_box(box.box(), scene_nwo, "animation_tag_props", tag_props_label, ob=animation)
+
     def draw_animation_renames(self, box, animation):
+        if not animation.animation_renames:
+            box.operator("nwo.animation_rename_add", text="New Rename", icon_value=get_icon_id('animation_rename'))
+            return
         rename_box = box.box()
         col = rename_box.column()
         row = col.row()
@@ -4275,6 +4402,11 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.operator("nwo.animation_rename_move", icon="TRIA_DOWN", text="").direction = 'down'
         
     def draw_animation_events(self, box, animation):
+        if not animation.animation_events:
+            box.operator("nwo.animation_event_list_add", text="New Event", icon_value=get_icon_id('animation_event'))
+            if bpy.ops.nwo.paste_events.poll():
+                box.operator("nwo.paste_events", icon="PASTEDOWN")
+            return
         scene_nwo = self.scene_nwo
         event_box = box.box()
         row = event_box.row()
@@ -4321,7 +4453,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.prop(item, "event_type")
             if item.event_type == '_connected_geometry_animation_event_type_frame':
                 row = col.row()
-                row.prop(item, "multi_frame", expand=True)
+                if utils.get_game() != 'halo1':
+                    row.prop(item, 'multi_frame', expand=True)
                 if item.multi_frame == "range":
                     row = col.row(align=True)
                     row.prop(item, "frame_frame", text="Frame Start")
@@ -4369,27 +4502,41 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                     col.separator()
                     if data.data_type == 'DIALOGUE':
                         col.prop(data, "dialogue_event")
-                        col.prop(data, "damage_effect_reporting_type")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'damage_effect_reporting_type', data.data_type):
+                            col.prop(data, "damage_effect_reporting_type")
                     else:
                         if data.data_type == 'EFFECT':
                             draw_tag_path(col, data, "event_effect_tag")
-                            col.prop(data, "marker")
+                            if capabilities.event_data_property_supported(utils.get_game(), 'damage_effect_reporting_type', data.data_type):
+                                col.prop(data, 'damage_effect_reporting_type')
+                            if capabilities.event_data_property_supported(utils.get_game(), 'marker', data.data_type):
+                                col.prop(data, "marker")
                         else:
                             draw_tag_path(col, data, "event_sound_tag")
-                            col.prop(data, "marker")
+                            if capabilities.event_data_property_supported(utils.get_game(), 'marker', data.data_type):
+                                col.prop(data, "marker")
                         col.separator()
                         if self.h4:
                             draw_tag_path(col, data, "event_model")
                             col.prop(data, "variant")
                         col.separator()
-                        col.prop(data, "flag_allow_on_player")
-                        col.prop(data, "flag_left_arm_only")
-                        col.prop(data, "flag_right_arm_only")
-                        col.prop(data, "flag_first_person_only")
-                        col.prop(data, "flag_third_person_only")
-                        col.prop(data, "flag_forward_only")
-                        col.prop(data, "flag_reverse_only")
-                        col.prop(data, "flag_fp_no_aged_weapons")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_allow_on_player', data.data_type):
+                            col.prop(data, "flag_allow_on_player")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_left_arm_only', data.data_type):
+                            col.prop(data, "flag_left_arm_only")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_right_arm_only', data.data_type):
+                            col.prop(data, "flag_right_arm_only")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_first_person_only', data.data_type):
+                            col.prop(data, "flag_first_person_only")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_third_person_only', data.data_type):
+                            col.prop(data, "flag_third_person_only")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_forward_only', data.data_type):
+                            col.prop(data, "flag_forward_only")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_reverse_only', data.data_type):
+                            col.prop(data, "flag_reverse_only")
+                        if capabilities.event_data_property_supported(utils.get_game(), 'flag_fp_no_aged_weapons', data.data_type):
+                            col.prop(data, "flag_fp_no_aged_weapons")
+                        _draw_event_data_recovery(col, data, utils.get_game())
                     
                     
                     
@@ -4451,6 +4598,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 col.prop(item, "import_name")
     
     def draw_animation_nodes(self, box, animation):
+        if not animation.animation_nodes:
+            box.operator("nwo.add_animation_node", text="New Animation Node", icon='BONE_DATA')
+            return
         ob = self.context.object
         node_box = box.box()
         col = node_box.column()
@@ -4487,6 +4637,18 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.separator()
         col.prop(animation, "weight")
         col.prop(animation, "loop_frame_index")
+        if utils.get_game() == 'halo1':
+            for prop in ('disable_interpolation_in','disable_interpolation_out','disable_mode_ik','disable_weapon_ik',
+                         'disable_weapon_aim','disable_look_screen','disable_transition_adjustment','force_weapon_ik_on',
+                         'enable_animated_source_interpolation','disable_ik_sets','disable_ik_chains','translate_and_scale_root_only',
+                         'enable_blend_out_on_replacement_anims','disable_subframe_interp_on_loop',
+                         'do_not_monitor_changes','verify_sound_events','do_not_inherit_for_player_graphs',
+                         'override_blend_in_time','override_blend_out_time'):
+                if getattr(animation, prop):
+                    recovery = col.row()
+                    recovery.alert = True
+                    recovery.prop(animation, prop, text='Unsupported ' + prop.replace('_', ' ').title() + ' (clear)')
+            return
         col.label(text="Flags")
         col.prop(animation, "disable_interpolation_in")
         col.prop(animation, "disable_interpolation_out")
@@ -4534,11 +4696,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         workflow.draw_asset_checks(self.box, self.context)
         shader_type = "Material" if self.h4 else "Shader"
         self.draw_expandable_box(self.box.box(), nwo, "asset_shaders", f"Material Batches ({shader_type}s)")
-        self.draw_expandable_box(self.box.box(), nwo, "importer", "Import Assets")
         self.draw_expandable_box(self.box.box(), nwo, "camera_sync")
         self.draw_expandable_box(self.box.box(), nwo, "animation_tools")
-        if utils.poll_ui(('model', 'animation', 'sky', 'resource')):
-            self.draw_expandable_box(self.box.box(), nwo, "rig_tools")
         self.draw_expandable_box(self.box.box(), nwo, "scenario_tools", "Level Tools")
         self.draw_expandable_box(self.box.box(), nwo, "cache_tools", "Game and Cache Tools")
             
@@ -4546,17 +4705,21 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = box.row()
         col = row.column()
         col.operator('nwo.auto_seam', text='Auto-Seam', icon_value=get_icon_id('seam'))
-        col.operator('nwo.cubemap', text='Cubemap Farm', icon_value=get_icon_id("cubemap"))
-        col.operator('nwo.instance_imposter_generate', text='Imposter Farm', icon_value=get_icon_id('imposter'))
-        col.operator('nwo.generate_wetness_data', text='Generate Wetness Data', icon='MOD_FLUIDSIM')
+        if utils.supports_game_feature('cubemap_farm'):
+            col.operator('nwo.cubemap', text='Cubemap Farm', icon_value=get_icon_id("cubemap"))
+        if utils.supports_game_feature('imposter_farm'):
+            col.operator('nwo.instance_imposter_generate', text='Imposter Farm', icon_value=get_icon_id('imposter'))
+        if utils.supports_game_feature('wetness'):
+            col.operator('nwo.generate_wetness_data', text='Generate Wetness Data', icon='MOD_FLUIDSIM')
         project = utils.get_project(self.scene_nwo.scene_project)
-        if project is not None and project.game == 'halo1':
-            col.operator('nwo.export_halo1_decal_placements', icon='EXPORT')
+        # if project is not None and project.game == 'halo1':
+        #     col.operator('nwo.export_halo1_decal_placements', icon='EXPORT')
         
     def draw_cache_tools(self, box, nwo):
         col = box.column()
         col.operator("nwo.cache_build", icon_value=get_icon_id("excession"))
-        col.operator("nwo.build_megalo_variants", text="Build Megalo Variants", icon='FILE_SCRIPT')
+        if utils.supports_game_feature('megalo'):
+            col.operator("nwo.build_megalo_variants", text="Build Megalo Variants", icon='FILE_SCRIPT')
         col.operator("nwo.launch_mcc", icon_value=get_icon_id("tag_test"))
         if bpy.ops.nwo.open_mod_folder.poll():
             col.operator("nwo.open_mod_folder", icon='FILE_FOLDER')
@@ -4577,19 +4740,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         else:
             col.operator("nwo.launch_tagtest", text="Launch Game", icon_value=get_icon_id("tag_test")).ignore_play = True
         
-    def draw_importer(self, box, nwo):
-        row = box.row()
-        col = row.column()
-        if self.scene_nwo.asset_type == 'cinematic':
-            col.operator('nwo.foundry_import', text="Import Cinematic Objects", icon='IMPORT').scope = 'object'
-            col.operator('nwo.foundry_import', text="Import Cinematic Scenarios", icon='IMPORT').scope = 'scenario'
-        else:
-            col.operator('nwo.foundry_import', text="Import Models & Animations", icon='IMPORT').scope = 'sidecar,gr2,jma,jms,model,render_model,collision_model,physics_model,sky,scenario,scenario_structure_bsp,scenario_structure_lighting_info,particle_model,animation,prefab,structure_design,polyart_asset,decorator_set,cinematic'
-                
-            col.operator('nwo.foundry_import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
-            col.operator('nwo.rename_import', text="Import Animation Renames & Copies", icon_value=get_icon_id("animation_rename"))
-        
-    def draw_rig_tools(self, box, nwo):
+    def draw_rig_validation(self, box, nwo):
         row = box.row()
         col = row.column()
         col.use_property_split = True
@@ -4616,12 +4767,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.label(text='Rig has bone names that exceed 31 characters', icon='ERROR')
             
     def draw_animation_tools(self, box, nwo):
-        row = box.row()
-        col = row.column()
-        col.use_property_split = True
-        col.operator("nwo.movement_data_transfer", icon='GRAPH')
-        col.operator("nwo.convert_legacy_pose_overlays", icon='GRAPH', text="Convert Legacy Pose Overlays")
-        col.operator("nwo.generate_aim_look_overlays", icon='GRAPH')
         self.draw_expandable_box(box.box(), nwo, "game_animation_copy_settings")
         
     def draw_game_animation_copy_settings(self, box, nwo):
@@ -4631,7 +4776,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.prop(nwo, "animation_cmd_object_type")
         if nwo.animation_cmd_object_type != "player":
             col.prop(nwo, "animation_cmd_expression")
-        col.prop(nwo, "animation_cmd_loop")
+        if utils.get_game() != 'halo1':
+            col.prop(nwo, "animation_cmd_loop")
         
         draw_tag_path(col, nwo, "animation_cmd_path", set_row_split=True)
         if nwo.animation_cmd_path.strip() and Path(utils.get_tags_path(), utils.relative_path(nwo.animation_cmd_path)).exists():
@@ -4665,7 +4811,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.operator("nwo.shader_to_nodes_bulk", text=f"Convert {shader_type}s to Blender Materials", icon='NODE_MATERIAL')
         if h4:
             col.operator("nwo.shader_to_material", text="Convert Shaders to Material Tags", icon_value=get_icon_id("material_exporter"))
-        col.operator("nwo.build_shader_templates", text=f"Generate Missing Shader Templates", icon='VIEWZOOM')
+        if utils.supports_game_feature('shader_templates'):
+            col.operator("nwo.build_shader_templates", text="Generate Missing Shader Templates", icon='VIEWZOOM')
         col.separator()
         col.operator("nwo.stomp_materials", text=f"Remove Duplicate Materials", icon='X')
         col.operator("nwo.clear_shader_paths", text=f"Clear {shader_type} Paths", icon='X')
@@ -4775,20 +4922,20 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col2.label(text=perm_name, icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked else 0)
             if show_halo2_lod:
                 col3.label(text="LOD")
-        if auto_bsp or nwo.region_name_locked or nwo.permutation_name_locked or region_name.endswith('*'):
-            col.prop(self.scene_nwo, 'workflow_assignment_details_expanded', text='Assignment Details',
-                     icon='TRIA_DOWN' if self.scene_nwo.workflow_assignment_details_expanded else 'TRIA_RIGHT', emboss=False)
-            if self.scene_nwo.workflow_assignment_details_expanded:
-                if auto_bsp:
-                    workflow.draw_text(col, "BSP is assigned automatically from the object's origin.", self.context)
-                for kind, title, locked in (('region', region_name, nwo.region_name_locked), ('permutation', perm_name, nwo.permutation_name_locked)):
-                    if locked:
-                        owner = workflow.controlling_collection(ob, kind)
-                        workflow.draw_text(col, f"{title} inherited from {owner.name if owner else 'a collection'}: {locked}", self.context, 'LINKED')
-                        if owner:
-                            col.operator('nwo.workflow_select_collection', text='Inspect Controlling Collection', icon='OUTLINER_COLLECTION').collection_name = owner.name
-                if region_name.endswith('*'):
-                    workflow.draw_text(col, "Some faces override this object's region. Inspect Mesh Properties.", self.context)
+        # if auto_bsp or nwo.region_name_locked or nwo.permutation_name_locked or region_name.endswith('*'):
+        #     col.prop(self.scene_nwo, 'workflow_assignment_details_expanded', text='Assignment Details',
+        #              icon='TRIA_DOWN' if self.scene_nwo.workflow_assignment_details_expanded else 'TRIA_RIGHT', emboss=False)
+        #     if self.scene_nwo.workflow_assignment_details_expanded:
+        #         if auto_bsp:
+        #             workflow.draw_text(col, "BSP is assigned automatically from the object's origin.", self.context)
+                # for kind, title, locked in (('region', region_name, nwo.region_name_locked), ('permutation', perm_name, nwo.permutation_name_locked)):
+                #     if locked:
+                #         owner = workflow.controlling_collection(ob, kind)
+                #         workflow.draw_text(col, f"{title} inherited from {owner.name if owner else 'a collection'}: {locked}", self.context, 'LINKED')
+                        # if owner:
+                        #     col.operator('nwo.workflow_select_collection', text='Inspect Controlling Collection', icon='OUTLINER_COLLECTION').collection_name = owner.name
+                # if region_name.endswith('*'):
+                #     workflow.draw_text(col, "Some faces override this object's region. Inspect Mesh Properties.", self.context)
         if auto_bsp:
             col1.label(text="Auto", icon_value=get_icon_id("region"))
         else:

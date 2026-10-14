@@ -334,8 +334,16 @@ def used_inputs(node):
 
 
 def refresh_node(node):
-    if node.type != 'GROUP' or not managed(node.node_tree) or not node.id_data.is_editable:
+    if node.type != 'GROUP' or node.node_tree is None or not node.id_data.is_editable:
         return 0
+    hidden = set(json.loads(node.node_tree.get('foundry_hidden_inputs', '[]')))
+    changes = 0
+    for socket in node.inputs:
+        if socket.name in hidden and not socket.is_linked and not socket.hide:
+            socket.hide = True
+            changes += 1
+    if not managed(node.node_tree):
+        return changes
     key = (node.node_tree.as_pointer(), _state(node))
     needed = _cache.get(key)
     if needed is None:
@@ -345,14 +353,13 @@ def refresh_node(node):
         if name.endswith('_option_choices'):
             categories.update(json.loads(node.node_tree[name]))
     toggles = {s.identifier for s in node.node_tree.interface.items_tree if s.item_type=='SOCKET' and s.is_panel_toggle}
-    changes = 0
     for socket in node.inputs:
         # Keep main tag-category menus and stage/map panel toggles accessible.
         # Submenus inside a disabled stage can disappear with its parameters.
         keep = socket.name in categories and socket.type == 'MENU' or socket.identifier in toggles
         # Blender refuses hide=True on linked sockets. Do not repeatedly try
         # to set it: that would trigger redraw/dependency updates every tick.
-        hide = not socket.is_linked and not keep and socket.identifier not in needed
+        hide = not socket.is_linked and (socket.name in hidden or (not keep and socket.identifier not in needed))
         if socket.hide != hide:
             socket.hide = hide
             changes += 1
@@ -399,8 +406,10 @@ def _loaded(*_):
 
 @persistent
 def _updated(scene, depsgraph):
-    if any(isinstance(update.id, bpy.types.NodeTree) for update in depsgraph.updates):
-        _cache.clear()
+    global _refresh_h1_areas
+    for update in depsgraph.updates:
+        if isinstance(update.id, bpy.types.NodeTree):
+            _cache.clear()
 
 
 def _tick():

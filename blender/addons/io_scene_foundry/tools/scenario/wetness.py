@@ -44,9 +44,11 @@ class NWO_OT_GenerateWetnessData(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return utils.current_project_valid()
+        return utils.current_project_valid() and utils.supports_game_feature('wetness')
 
     def execute(self, context):
+        if not utils.require_game_feature(self, 'wetness'):
+            return {'CANCELLED'}
         if not self.filepath or Path(self.filepath).suffix.lower() != ".scenario":
             self.report({"WARNING"}, "No scenario path given. Operation cancelled")
             return {'CANCELLED'}

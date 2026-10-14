@@ -11,7 +11,56 @@ from statistics import median
 
 _ROW = 24.0
 _GAP_X = 120.0
-_GAP_Y = 80.0
+_GAP_Y = 40.0
+
+
+def _group_geometry(node):
+    """Follow interface order and instance panel state, including nested panels."""
+    items = list(node.node_tree.interface.items_tree)
+    sockets = {(socket.is_output, socket.identifier): socket
+               for socket in (*node.inputs, *node.outputs)}
+    # Older Blender releases expose interface defaults but no per-node state.
+    closed = {state.identifier: state.is_collapsed for state in getattr(node, 'panel_states', ())}
+    parents = {}
+    visible_panels = set()
+    for item in items:
+        path = []
+        parent = item.parent
+        while parent:
+            path.append(parent)
+            parent = parent.parent
+        parents[item] = path
+        if item.item_type != 'SOCKET':
+            continue
+        socket = sockets.get((item.in_out == 'OUTPUT', item.identifier))
+        if socket is None or not socket.enabled or socket.hide or socket.is_unavailable:
+            continue
+        if getattr(socket, 'is_icon_visible', True) or any(closed.get(p.identifier, p.default_closed) for p in path):
+            visible_panels.update(path)
+
+    offsets, collapsed = {}, {}
+    y = 40.0
+    for item in items:
+        parent_offset = next((collapsed[p] for p in parents[item] if p in collapsed), None)
+        if item.item_type == 'PANEL':
+            if parent_offset is not None:
+                collapsed[item] = parent_offset
+            elif item in visible_panels:
+                if closed.get(item.identifier, item.default_closed):
+                    collapsed[item] = y
+                y += _ROW
+            continue
+        socket = sockets.get((item.in_out == 'OUTPUT', item.identifier))
+        if socket is None or not socket.enabled or socket.hide or socket.is_unavailable:
+            continue
+        # Collapsed sockets attach to the visible panel header. Inferred hidden
+        # sockets retain their interface order without occupying a full row.
+        offsets[socket] = parent_offset if parent_offset is not None else y
+        if parent_offset is None and getattr(socket, 'is_icon_visible', True):
+            y += _ROW
+            if not socket.is_output and socket.type == 'VECTOR' and not socket.is_linked and not socket.hide_value:
+                y += 2 * _ROW
+    return y + 20.0, offsets
 
 
 def _geometry(node):
@@ -20,6 +69,8 @@ def _geometry(node):
         return 16.0, {socket: 8.0 for socket in (*node.inputs, *node.outputs)}
     if node.hide:
         return 40.0, {socket: 20.0 for socket in (*node.inputs, *node.outputs)}
+    if node.type == 'GROUP' and node.node_tree:
+        return _group_geometry(node)
 
     offsets = {}
     y = 40.0
@@ -31,30 +82,27 @@ def _geometry(node):
     # Controls appear between the outputs and inputs. Leave conservative space
     # for nodes with previews, selectors, curves, and operation menus.
     controls = {
-        'ShaderNodeTexImage': 220.0,
+        'ShaderNodeTexImage': 120.0 if getattr(node, 'image', None) else 70.0,
         'ShaderNodeTexEnvironment': 180.0,
         'ShaderNodeTexCoord': 60.0,
-        'ShaderNodeUVMap': 40.0,
+        'ShaderNodeUVMap': 20.0,
         'ShaderNodeAttribute': 80.0,
         'ShaderNodeRGB': 180.0,
         'ShaderNodeFloatCurve': 260.0,
         'ShaderNodeVectorCurve': 260.0,
         'ShaderNodeRGBCurve': 260.0,
         'ShaderNodeValToRGB': 220.0,
-        'ShaderNodeMapping': 40.0,
+        'ShaderNodeMapping': 28.0,
+        'ShaderNodeOutputMaterial': 0.0,
     }
     y += controls.get(node.bl_idname, 0.0 if node.type == 'GROUP' else 60.0)
-    # Open interface panels have their own headers as well as socket rows.
-    if node.type == 'GROUP' and node.node_tree:
-        y += sum(_ROW for item in node.node_tree.interface.items_tree
-                 if item.item_type == 'PANEL')
     for socket in node.inputs:
         if not socket.enabled or socket.hide:
             continue
         offsets[socket] = y
         y += _ROW
         if socket.type == 'VECTOR' and not socket.is_linked and not socket.hide_value:
-            y += 3 * _ROW
+            y += 2 * _ROW
     return y + 20.0, offsets
 
 
@@ -147,6 +195,19 @@ def _place(nodes, links, widths, heights, sockets):
             preferred[node] = median(targets) if targets else 0.0
         column.sort(key=lambda node: (-preferred[node], order[node]))
         positions = _pack(column, preferred, heights)
+        # A shader's connected inputs often occupy its lower half. Center a
+        # taller source stack around that shader instead of extending it down
+        # from those sockets, while retaining the socket-based branch order.
+        targets = {link.to_node for node in column for link in outgoing[node]
+                   if link.to_node in locations}
+        if len(column) > 1 and len(targets) == 1:
+            target = next(iter(targets))
+            if target.type == 'GROUP' and any(s.type == 'SHADER' for s in target.outputs):
+                top = max(positions.values())
+                bottom = min(positions[node] - heights[node] for node in column)
+                if top - bottom > heights[target]:
+                    shift = locations[target][1] - heights[target] / 2 - (top + bottom) / 2
+                    positions = {node: y + shift for node, y in positions.items()}
         for node in column:
             locations[node] = (x, positions[node])
 

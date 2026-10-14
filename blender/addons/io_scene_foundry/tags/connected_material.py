@@ -653,6 +653,27 @@ functions_list = [
 ]
 
 game_functions = {func.name: func for func in functions_list}
+
+
+def add_change_color_attributes(shader, tree, node, *, decal=False):
+    """Only create attributes consumed by the currently selected options.
+
+    Call after connecting the shader to Material Output so Blender's menu
+    dependency analysis can mark unused group inputs inactive.
+    """
+    for index, name in enumerate(('Primary Color', 'Secondary Color', 'Tertiary Color', 'Quaternary Color')):
+        socket = node.inputs.get(name)
+        if socket is None or socket.is_inactive:
+            continue
+        attribute = tree.nodes.new('ShaderNodeAttribute')
+        if decal:
+            attribute.attribute_type = 'OBJECT'
+            attribute.attribute_name = 'nwo.cc_' + ('primary', 'secondary', 'tertiary', 'quaternary')[index]
+        else:
+            attribute.attribute_type = 'INSTANCER'
+            attribute.attribute_name = name
+            shader.game_functions.add(name)
+        tree.links.new(attribute.outputs['Color'], socket)
     
 def add_attribute_node(tree: bpy.types.NodeTree, function_name: str):
     group = bpy.data.node_groups.get(f"function -> {function_name}")
