@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import bpy
 from .. import utils
+from ..material_shader_library import group_name
 
 SHADER_LIBRARIES = {
     'halo1': ('h1_nodes.blend', 'foundry_h1.'),
@@ -12,7 +13,7 @@ SHADER_LIBRARIES = {
     'halo3odst': ('h3_nodes.blend', 'foundry_h3odst.'),
     'reach': ('reach_nodes.blend', 'foundry_reach.'),
     'halo4': ('h4_nodes.blend', None),
-    'halo2a': ('h4_nodes.blend', None),
+    'halo2a': ('h2amp_nodes.blend', None),
 }
 SEARCHABLE_SHADER_GAMES = {'halo2', 'halo4', 'halo2a'}
 # Keep dynamic enum strings alive, and scope catalogs to their game and project.
@@ -35,8 +36,8 @@ def shader_node_items(context, *, refresh=False):
 
     material_shaders = set()
     if tags_dir:
-        for _, _, files in os.walk(Path(tags_dir, 'shaders')):
-            material_shaders.update(Path(file).stem for file in files
+        for folder, _, files in os.walk(Path(tags_dir, 'shaders')):
+            material_shaders.update(group_name(Path(folder, file).relative_to(tags_dir)).casefold() for file in files
                                     if file.endswith('.material_shader'))
 
     items = []
@@ -52,7 +53,7 @@ def shader_node_items(context, *, refresh=False):
                     continue
                 display_name = name.replace('_', ' ').title()
             else:
-                if name not in material_shaders:
+                if name.casefold() not in material_shaders:
                     continue
                 display_name = name.replace('_', ' ').title()
             items.append((name, display_name, name))
@@ -138,6 +139,9 @@ class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
             tree = context.material.node_tree
             shader = tree.nodes.new('ShaderNodeGroup')
             shader.node_tree = node_group
+            if node_group.get('foundry_source_compiled'):
+                from ..tags.material_source_io import make_instance
+                make_instance(tree, shader)
             if (shader.node_tree.get('h2_preview_transparent_placeholder') or
                     shader.node_tree.get('h2_surface_mode','opaque') != 'opaque' or shader.node_tree.get('h2_multichannel_revision')):
                 context.material.surface_render_method = 'BLENDED'
