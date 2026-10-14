@@ -9,6 +9,51 @@ from ...tags.halo1_emissive import (asset_shader_folder, localize_shader_environ
                                     write_material_emissive, read_material_emissive)
 
 
+class NWO_OT_RebuildFoundryMeshPreviews(bpy.types.Operator):
+    bl_idname = 'nwo.rebuild_foundry_mesh_previews'
+    bl_label = 'Rebuild Foundry Mesh Previews'
+    bl_description = 'Rebuild Foundry face and material previews for every mesh in the scene, including hidden meshes, skipping linked library data'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return (context.scene is not None and context.mode in {'OBJECT', 'EDIT_MESH'}
+                and not utils.get_scene_props().export_in_progress
+                and any(ob.type == 'MESH' for ob in context.scene.objects))
+
+    def execute(self, context):
+        objects = [ob for ob in context.scene.objects if ob.type == 'MESH']
+        scene_meshes = {ob.data for ob in objects}
+        # Object-linked material slots can differ between users of one mesh.
+        scene_materials = {slot.material for ob in objects for slot in ob.material_slots
+                           if slot.material is not None}
+        meshes = {mesh for mesh in scene_meshes if mesh.library is None}
+        materials = {mat for mat in scene_materials if mat.library is None}
+        game = utils.get_game(utils.get_scene_props().scene_project)
+        was_edit_mode = context.mode == 'EDIT_MESH'
+        if was_edit_mode:
+            bpy.ops.object.mode_set(mode='OBJECT')
+        try:
+            for mesh in meshes:
+                utils.update_foundry_mesh(mesh, game, arrange_nodes=False, update_materials=False)
+            for mat in materials:
+                previous_nodes = set(mat.node_tree.nodes) if mat.node_tree else set()
+                utils.update_foundry_material(mat, game, arrange_nodes=False)
+                if mat.node_tree and set(mat.node_tree.nodes) != previous_nodes:
+                    utils.arrange(mat.node_tree)
+        finally:
+            if was_edit_mode:
+                bpy.ops.object.mode_set(mode='EDIT')
+
+        message = f'Rebuilt Foundry previews for {len(meshes)} meshes and {len(materials)} materials'
+        linked_meshes = len(scene_meshes) - len(meshes)
+        linked_materials = len(scene_materials) - len(materials)
+        if linked_meshes or linked_materials:
+            message += f'; skipped {linked_meshes} linked meshes and {linked_materials} linked materials'
+        self.report({'INFO'}, message)
+        return {'FINISHED'}
+
+
 class NWO_OT_UpdateHaloMaterialEmissive(bpy.types.Operator):
     bl_idname = 'nwo.update_halo_material_emissive'
     bl_label = 'Update Shader Emission'
