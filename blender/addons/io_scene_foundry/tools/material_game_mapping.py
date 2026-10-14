@@ -1,14 +1,16 @@
 """Translate imported material graphs without changing the source tag context.
 
-The source reader owns bitmap extraction, UVs and animation. This module only
-replaces surface groups, reusing their upstream sockets. See
-blender/material_game_mapping.md for the mappings and approximation boundaries.
+The source reader owns bitmap extraction, UVs and animation. Equivalent H4/H2AMP
+templates transfer directly; other families use Reach as a semantic bridge.
 """
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 import re
 
+import bpy
+
 from .. import utils
+from ..material_shader_library import MATERIAL_LIBRARIES, source_shader
 from .material_bitmap_mapping import DataTextureBaker
 
 
@@ -106,6 +108,10 @@ def _put(tree, socket, value):
         # Changing the default does not override an existing Blender link.
         for link in list(socket.links):
             tree.links.remove(link)
+        # Source-built templates can expose an unused menu with no enum items.
+        # Its existing empty value is valid, but Blender rejects assigning it.
+        if socket.type == 'MENU' and value == socket.default_value:
+            return
         if socket.type == 'RGBA' and isinstance(value, (float, int)):
             value = (value, value, value, 1.0)
         socket.default_value = value
@@ -528,6 +534,41 @@ def _new_group(tree, library, name):
     return group
 
 
+def _equivalent_material_group(tree, source, source_game, target_game, notes, baker, created_groups):
+    if (source_game not in MATERIAL_LIBRARIES or target_game not in MATERIAL_LIBRARIES
+            or source.type != 'GROUP'):
+        return None
+    shader = source_shader(source.node_tree)
+    resource = utils.add_node_from_resources(MATERIAL_LIBRARIES[target_game], shader)
+    if resource is None:
+        return None
+    target = tree.nodes.new('ShaderNodeGroup')
+    target.node_tree = resource
+    source_compiled = bool(source.node_tree.get('foundry_source_compiled'))
+    if source_compiled != bool(resource.get('foundry_source_compiled')):
+        tree.nodes.remove(target)
+        return None
+    source_inputs = Counter((s.name, s.type) for s in source.inputs)
+    target_inputs = Counter((s.name, s.type) for s in target.inputs)
+    if source_inputs - target_inputs:
+        tree.nodes.remove(target)
+        return None
+    if source_compiled:
+        from .material_source_mapping import copy_source_samples
+        copy_source_samples(source, target, created_groups)
+    m = Mapping(tree, source, target, notes, baker)
+    copied = m.matching_inputs()
+    missing = [s.name for s in source.inputs if s.identifier not in copied]
+    if missing:
+        raise ValueError(f'Equivalent material could not preserve controls: {", ".join(missing)}')
+    target['foundry_material_shader_path'] = source_shader(resource)
+    # Preserve linked non-surface outputs too, particularly vertex displacement.
+    for socket in source.outputs:
+        if socket.is_linked and not any(s.name == socket.name and s.type == socket.type for s in target.outputs):
+            raise ValueError(f'Target material has no equivalent {socket.name} output')
+    return target
+
+
 def _target_group(tree, source, target_game):
     library, prefix = GAME_LIBRARIES[target_game]
     family = _family(source)
@@ -566,8 +607,10 @@ def _surface_nodes(tree):
             continue
         seen.add(node)
         name = _name(node)
-        if node.type == 'BSDF_PRINCIPLED' or (node.type == 'GROUP' and
-                (name.startswith(('foundry_h1.', 'foundry_h3.', 'foundry_h3odst.', 'foundry_reach.', 'srf_')))):
+        if node.type == 'BSDF_PRINCIPLED' or (node.type == 'GROUP' and node.node_tree and
+                any(s.type == 'SHADER' for s in node.outputs) and
+                (node.node_tree.get('foundry_material_shader') or
+                 name.startswith(('foundry_h1.', 'foundry_h3.', 'foundry_h3odst.', 'foundry_reach.', 'srf_')))):
             yield node
             continue
         pending.extend(link.from_node for socket in node.inputs for link in socket.links)
@@ -608,13 +651,11 @@ def _prepare_shader_export(tree, group, baker, notes):
         if not any(s.is_linked for s in sockets.values()):
             continue
         color_signal = _signal(rgb) if rgb is not None else _signal(alpha)
-        alpha_signal = _signal(alpha) if alpha is not None and alpha.is_linked else None
+        alpha_signal = _signal(alpha) if alpha is not None else None
         if (hasattr(color_signal, 'is_output') and color_signal.node.type in {'TEX_IMAGE', 'TEX_ENVIRONMENT'}
                 and color_signal.name == ('Color' if rgb is not None else 'Alpha')
                 and (alpha_signal is None or (hasattr(alpha_signal, 'is_output')
                      and alpha_signal.node == color_signal.node and alpha_signal.name == 'Alpha'))):
-            if rgb is not None and alpha is not None and color_signal.node.outputs.get('Alpha'):
-                _put(tree, alpha, color_signal.node.outputs['Alpha'])
             continue
         data_map = any(word in name.lower() for word in
                        ('normal', 'bump', 'mask', 'control', 'multipurpose', 'specular', 'material_texture', 'change_color', 'blend_map'))
@@ -682,7 +723,8 @@ def convert_material_game(material, source_game, target_game, *, layout=True):
     if not sources:
         utils.print_warning(f'{material.name}: no supported source surface; keeping source nodes')
         return False
-    if any(source.type == 'GROUP' and source.node_tree.get('foundry_source_compiled') for source in sources):
+    if target_game not in MATERIAL_LIBRARIES and any(
+            source.type == 'GROUP' and source.node_tree.get('foundry_source_compiled') for source in sources):
         # These templates contain independent image samples inside the group.
         # The generic socket mapper cannot see them and would silently replace
         # their textures with defaults. Keep the usable source material intact.
@@ -692,11 +734,19 @@ def convert_material_game(material, source_game, target_game, *, layout=True):
         return False
     original_nodes = set(tree.nodes)
     replacements = []
+    created_groups = []
     notes = set()
     project = utils.get_project(use_external=False)
     baker = DataTextureBaker(tree, project.data_directory if project else None)
     try:
         for source in sources:
+            direct = _equivalent_material_group(tree, source, source_game, target_game, notes, baker, created_groups)
+            if direct is not None:
+                direct.location = source.location
+                replacements.append((source, direct, [], True))
+                continue
+            if source.type == 'GROUP' and source.node_tree.get('foundry_source_compiled'):
+                raise ValueError('Source-built material has no compatible target template; an explicit mapping is required')
             current = source
             # A Reach surface is the common semantic bridge for classic/H4
             # graphs. Intermediate groups are removed after final wiring.
@@ -727,27 +777,35 @@ def convert_material_game(material, source_game, target_game, *, layout=True):
                     _modern_to_h4(m)
             target.location = source.location
             _prepare_shader_export(tree, target, baker, notes)
-            replacements.append((source, target, intermediates))
+            replacements.append((source, target, intermediates, False))
     except Exception as exc:
         for node in list(tree.nodes):
             if node not in original_nodes:
                 tree.nodes.remove(node)
+        for group in created_groups:
+            if group.users == 0:
+                bpy.data.node_groups.remove(group)
         material['foundry_material_conversion_error'] = str(exc)
         utils.print_warning(f'{material.name}: material conversion failed ({exc}); keeping source nodes. Material is not ready for target-game shader export')
         return False
 
+    source_render_method = material.surface_render_method
     material.surface_render_method = 'DITHERED'
-    for source, target, intermediates in replacements:
+    for source, target, intermediates, direct in replacements:
         shader_output = next(socket for socket in target.outputs if socket.type == 'SHADER')
         for socket in source.outputs:
             for link in list(socket.links):
-                if socket.type == 'SHADER':
+                if direct:
+                    output = next(s for s in target.outputs if s.name == socket.name and s.type == socket.type)
+                    tree.links.new(output, link.to_socket)
+                elif socket.type == 'SHADER':
                     tree.links.new(shader_output, link.to_socket)
         tree.nodes.remove(source)
         for node in intermediates:
             tree.nodes.remove(node)
         blend = _value(target, 'blend_mode', _value(target, 'blend mode', 'opaque'))
-        if blend != 'opaque' or _value(target, 'Alpha-Blended Decal', False):
+        if (blend and blend != 'opaque') or _value(target, 'Alpha-Blended Decal', False) or (
+                direct and not blend and source_render_method == 'BLENDED'):
             material.surface_render_method = 'BLENDED'
     _remove_unused_nodes(tree)
     if 'foundry_material_conversion_error' in material:
