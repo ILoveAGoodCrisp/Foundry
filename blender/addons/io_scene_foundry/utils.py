@@ -3189,6 +3189,12 @@ material_shader_fallbacks = {
 }
 
 def add_node_from_resources(blend_name, name, check_multiple=False) -> bpy.types.NodeGroup | None:
+    if blend_name in {'h4_nodes', 'h2amp_nodes'}:
+        from .material_shader_library import load_group
+        library = Path(MATERIAL_RESOURCES, f'{blend_name}.blend')
+        if library.is_file():
+            return load_group(library, name, link=get_prefs().link_resource_nodes, fallback=check_multiple)
+        return None
     node_group = bpy.data.node_groups.get(name)
     if node_group is not None:
         return node_group
@@ -3219,7 +3225,7 @@ def add_node_from_resources(blend_name, name, check_multiple=False) -> bpy.types
                         break
                 
     if found:
-        return bpy.data.node_groups[name]
+        return data_to.node_groups[0]
 
 def rgb_to_float_list(red, green, blue):
     return [red / 255, green / 255, blue / 255]
