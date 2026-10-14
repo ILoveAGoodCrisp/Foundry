@@ -1,4 +1,5 @@
 """Translate resolved Foundry face properties into legacy material variants."""
+import re
 from ..exceptions import ExportCancelled
 from ..legacy.lighting import ass_rgb
 from ..seam_materials import seam_material_name
@@ -9,12 +10,19 @@ def material_variant(shader, props, global_material='default', ass_version=None,
     def get(name, default=0):
         return props.get('bungie_' + name, default)
 
+    def number(value):
+        # Material deduplication compares these records. Equivalent RNA floats
+        # and integer defaults must not create separate native materials.
+        return str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
+
     name = shader
     special = {13: '+portal', 14: '+seam', 15: '+fog', 16: '+cookiecutter',
                17: '+water', 18: '+water', 8: '+rainblocker', 9: '+rain'}
     if target_game == 'halo2':
         # H2 distinguishes fog from water with the $ flag on +media.
         special.update({15: '+media', 17: '+media', 18: '+media'})
+        if re.fullmatch(r'\+portal\d*', shader, re.IGNORECASE):
+            special[13] = shader
     water_surface = target_game in {'halo3', 'halo3odst'} and get('mesh_type') == 17
     if target_game in {'halo3', 'halo3odst'}:
         if get('mesh_type') == 1:
@@ -107,16 +115,16 @@ def material_variant(shader, props, global_material='default', ass_version=None,
         lightmap = (lmres_scale, props.get('foundry_lightmap_photon_fidelity', 1), *tint,
                     int(get('lightmap_transparency_override')), *additive, int(get('lighting_use_shader_gel')),
                     int(get('lightmap_ignore_default_resolution_scale')))
-        lighting += ('BM_LMRES ' + ' '.join(map(str, lightmap)),)
+        lighting += ('BM_LMRES ' + ' '.join(map(number, lightmap)),)
         basic = bool(power or props.get('foundry_lighting_basic_present'))
         if basic:
-            lighting += ('BM_LIGHTING_BASIC ' + ' '.join(map(str, (power, *color, get('lighting_emissive_quality', 1),
+            lighting += ('BM_LIGHTING_BASIC ' + ' '.join(map(number, (power, *color, get('lighting_emissive_quality', 1),
                 int(get('lighting_emissive_per_unit')), get('lighting_emissive_focus')))),)
         if basic or props.get('foundry_lighting_attenuation_authored'):
-            lighting += ('BM_LIGHTING_ATTEN ' + ' '.join(map(str, (int(get('lighting_attenuation_enabled')),
+            lighting += ('BM_LIGHTING_ATTEN ' + ' '.join(map(number, (int(get('lighting_attenuation_enabled')),
                 get('lighting_attenuation_falloff'), get('lighting_attenuation_cutoff')))),)
         if props.get('foundry_lighting_frustum_present'):
-            lighting += ('BM_LIGHTING_FRUS ' + ' '.join(map(str, (
+            lighting += ('BM_LIGHTING_FRUS ' + ' '.join(map(number, (
                 props['foundry_lighting_frustum_blend'], props['foundry_lighting_frustum_falloff'],
                 props['foundry_lighting_frustum_cutoff']))),)
     if global_material and global_material != 'default':

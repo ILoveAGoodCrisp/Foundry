@@ -112,7 +112,7 @@ def transform(matrix, scale=1, inverse_rotation=False):
     rotation = matrix.to_quaternion()
     if inverse_rotation:
         rotation.invert()
-    return jms.Transform((rotation.x, rotation.y, rotation.z, rotation.w), tuple(matrix.translation * scale))
+    return jms.Transform((rotation.x, rotation.y, rotation.z, rotation.w), tuple(c * scale for c in matrix.translation))
 
 
 def write_outputs(outputs, *, maya_order=False):
@@ -1603,9 +1603,11 @@ class LegacyExportScene(ExportScene):
                     materials[face] = (-1, materials[face][1])
         return materials
 
-    def vertices(self, node, matrix, weighted=True, implied_root=False, *, ass_uvs=False):
+    def vertices(self, node, matrix, weighted=True, implied_root=False, *, ass_uvs=False, unit_scale=None):
         mesh = node.mesh
         normal_matrix = matrix.to_3x3().inverted().transposed()
+        position_rows = tuple(tuple(row) for row in matrix)[:3]
+        unit_scale = self.to_halo_scale if unit_scale is None else unit_scale
         vertices = []
         skinned = weighted and mesh.bone_weights is not None
         palette = tuple(self.bone_index.get(name) for name in mesh.bone_bindings) if skinned else ()
@@ -1643,7 +1645,11 @@ class LegacyExportScene(ExportScene):
                 # Native text export keeps V in its authoring convention.
                 # A float32 1-V round trip destroys small UV components.
                 texcoords = tuple(tuple(uv[i]) for uv in uv_layers)
-                output_position = tuple((matrix @ Vector(position)) * self.to_halo_scale)
+                # Keep conversion arithmetic in double precision until Tool
+                # reads the text. A float32 scale/unscale pair moves shared
+                # structure vertices by an extra ulp and creates thin slivers.
+                output_position = tuple((sum(row[c] * position[c] for c in range(3)) + row[3])
+                                        * unit_scale for row in position_rows)
                 vertices.append(jms.Vertex(output_position, tuple(normal),
                     influences, texcoords, tuple(colors[i]) if colors is not None else None))
         return vertices
@@ -1918,6 +1924,9 @@ class LegacyExportScene(ExportScene):
         asset = ass.ASS(name=name, version=self.ass_version)
         cache, geometries = {}, {}
         node_instances = {}
+        from ..legacy.ass_hierarchy import AssHierarchy
+        hierarchy = AssHierarchy(asset, self.virtual_scene.depsgraph, self.to_halo_scale, self.rotation_correction) if self.supports_bsp else None
+        hierarchy_nodes = {}
         asset.instances.append(ass.Instance(-1, 'frame', -1, -1, 0, ass.Transform(), ass.Transform()))
         for bone in self.bones:
             parent = self.bone_parents[bone.name]
@@ -1941,15 +1950,24 @@ class LegacyExportScene(ExportScene):
             rebuilt = Matrix.LocRotScale(loc, rot, scale)
             uniform = uniform and max(abs(matrix[r][c] - rebuilt[r][c]) for r in range(4) for c in range(4)) < 1e-5
             local = ass.Transform((rot.x, rot.y, rot.z, rot.w),
-                                  tuple(loc * self.to_halo_scale),
+                                  tuple(c * self.to_halo_scale for c in loc),
                                   tuple(scale)) if uniform else ass.Transform()
             pivot = ass.Transform()
-            key = (id(node.mesh), tuple(m[0] for m in materials.values()), node.negative_scaling)
+            placement = hierarchy.placement(node) if hierarchy is not None and node.proxy_parent is None else None
+            local_units = placement is not None or (node.proxy_parent is not None and id(node.proxy_parent) in hierarchy_nodes)
+            mesh_units = None
+            if placement is not None:
+                hierarchy_parent, local, pivot, mesh_units = placement
+                uniform = True
+                hierarchy_nodes[id(node)] = (pivot, mesh_units)
+            elif local_units:
+                _, mesh_units = hierarchy_nodes[id(node.proxy_parent)]
+            key = (id(node.mesh), tuple(m[0] for m in materials.values()), node.negative_scaling, mesh_units)
             geometry_index = geometries.get(key) if uniform else None
             if geometry_index is None:
                 geometry = ass.Geometry('MESH')
                 geometry.vertices = self.vertices(node, Matrix.Identity(4) if uniform else matrix, bool(self.bones),
-                                                  ass_uvs=self.ass_version >= 5)
+                                                  ass_uvs=self.ass_version >= 5, unit_scale=mesh_units)
                 palette = sorted({b for vertex in geometry.vertices for b, _ in vertex.influences})
                 palette_map = {b: i for i, b in enumerate(palette)}
                 for vertex in geometry.vertices:
@@ -1960,11 +1978,12 @@ class LegacyExportScene(ExportScene):
                 for face in range(len(triangles)) if face_order is None else face_order:
                     triangle = triangles[face]
                     indices = tuple(int(i) for i in triangle)
-                    if node.negative_scaling and not (uniform and scale[0] < 0):
+                    if node.negative_scaling and not (uniform and (node.matrix_world.is_negative if local_units else scale[0] < 0)):
                         indices = indices[0], indices[2], indices[1]
                     geometry.triangles.append(jms.Triangle(materials[face][0], indices))
                 try:
-                    removed, repaired = clean_ass_mesh(geometry)
+                    removed, repaired = clean_ass_mesh(geometry,
+                        preserve_degenerate=self.target_game in ASS_GAMES and self.supports_bsp)
                 except ValueError as error:
                     raise ExportCancelled(f'{node.name}: {error}') from error
                 if not geometry.triangles:
@@ -1987,9 +2006,11 @@ class LegacyExportScene(ExportScene):
                     suffix = instance_name.rpartition(':')[2].lstrip('+')
                     instance_name = '+weather_' + (suffix or str(len(asset.instances)))
             parent = node_instances.get(id(node.proxy_parent), 0)
+            if placement is not None:
+                parent = hierarchy_parent
             if node.proxy_parent is not None:
                 # Proxy coordinates are already local to the owning instance.
-                local = ass.Transform()
+                local = hierarchy_nodes[id(node.proxy_parent)][0] if local_units else ass.Transform()
             instance_index = len(asset.instances)
             asset.instances.append(ass.Instance(geometry_index, instance_name, instance_index,
                 parent, 0, local, pivot, geometry_bones))
@@ -2082,11 +2103,10 @@ class LegacyExportScene(ExportScene):
             asset.instances.append(ass.Instance(
                 geometry_index, ob.name, len(asset.instances), 0, 0,
                 ass.Transform(value.rotation, value.translation), ass.Transform()))
-        if self.target_game == 'halo2' and self.supports_bsp:
-            # H2 treats the first instance as the scene wrapper. The export
-            # frame must be its child, with BSP geometry below that frame.
-            # Flattening geometry directly beneath the wrapper can leave Tool
-            # with no material-bearing environment (Delta Halo's bsp_x05).
+        if self.target_game in ASS_GAMES and self.supports_bsp:
+            # Tool selects the first authored frame beneath the scene wrapper.
+            # Keep geometry, references and lights within that same export frame:
+            # root-level siblings of retained source frames are otherwise culled.
             for instance in asset.instances:
                 if instance.parent >= 0:
                     instance.parent += 1
