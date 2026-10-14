@@ -1531,6 +1531,12 @@ class VirtualMesh:
                 add_triangle_mod(scene, eval_ob)
 
             mesh = eval_ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
+            # Geometry nodes can add or replace material slots. Use the evaluated
+            # object's slots to match its faces and retain object-linked overrides.
+            # Resolve evaluated material copies back to their stable IDs so linked
+            # objects can reuse meshes cached under their original material slots.
+            self.bpy_materials = tuple(slot.material.original if slot.material else None
+                                       for slot in eval_ob.material_slots)
         else:
             mesh = ob.data
             if self.pca_enabled and scene.corinth:
@@ -2010,7 +2016,7 @@ class VirtualMesh:
             self.legacy_face_order = None if sorted_order is None else np.argsort(sorted_order)
             # Read actual material assignments, including intentionally empty slots.
             self.legacy_no_material = np.array([
-                face.material_index >= len(mesh.materials) or mesh.materials[face.material_index] is None
+                face.material_index >= num_materials or self.bpy_materials[face.material_index] is None
                 for face in mesh.polygons], dtype=np.bool_)
             if sorted_order is not None:
                 self.legacy_no_material = self.legacy_no_material[sorted_order]
@@ -3377,6 +3383,10 @@ class VirtualScene:
         return obs
 
     def supports_multiple_materials(self, ob: bpy.types.Object, props: dict, mesh_type: int) -> bool:
+        if self.game == 'halo2' and mesh_type == MeshType.portal.value:
+            # +portal and +portal2 can share one mesh. Tool uses their distinct
+            # material assignments when constructing portal boundaries.
+            return True
         if mesh_type in {
             MeshType.default.value,
             MeshType.poop.value,
