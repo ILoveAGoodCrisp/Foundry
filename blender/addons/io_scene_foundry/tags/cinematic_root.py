@@ -36,7 +36,9 @@ class CinematicScenarioDocument(TagDocument):
         field.set((1 << count) - 1)
         self.tag_has_changes = True
 
-    def link_cinematic(self, cinematic, zone_set):
+    def link_cinematic(self, cinematic, zone_set='cinematic'):
+        if not zone_set or not zone_set.strip():
+            zone_set = 'cinematic'
         root = self.tag.root()
         cinematics = self.block(root, 'cinematics')
         cinematic_index = None
@@ -51,8 +53,6 @@ class CinematicScenarioDocument(TagDocument):
             cinematics = self.block(root, 'cinematics')
             self.set_reference(cinematics[cinematic_index], 'name', cinematic)
 
-        if not zone_set:
-            return
         zone_sets = self.block(root, 'zone sets')
         zone_set_index = None
         for index in range(len(zone_sets)):
@@ -67,7 +67,10 @@ class CinematicScenarioDocument(TagDocument):
             self._enable_all_flags(element, 'bsp zone flags', len(self.block(root, 'structure bsps')))
             if element.field('structure design zone flags') is not None:
                 self._enable_all_flags(element, 'structure design zone flags', len(self.block(root, 'structure designs')))
-        self._set_indexed_flag(zone_sets[zone_set_index], 'cinematic zones', cinematic_index)
+        # Older H3 scenarios have no per-zone cinematic mask. The cinematic's
+        # scenario/zone-set reference still links it to the zone created above.
+        if zone_sets[zone_set_index].field('cinematic zones') is not None:
+            self._set_indexed_flag(zone_sets[zone_set_index], 'cinematic zones', cinematic_index)
         return zone_set_index
 
     def update_anchors(self, cinematic_scenes, corinth):
