@@ -47,16 +47,20 @@ def _ass_mesh_is_clean(geometry):
     return True
 
 
-def clean_ass_mesh(geometry):
+def clean_ass_mesh(geometry, *, preserve_degenerate=False):
     """Drop zero-area faces and recover invalid normals from incident faces.
 
     Preserve authored normals and all attributes on retained vertices. Use the
     largest incident face for recovery so opposing faces cannot cancel out.
+    ASS structure compilation can use zero-area faces when constructing portal
+    boundaries. Preserve those when requested, repairing their zero Blender
+    normals instead of silently changing the native partition inputs.
     """
     if _ass_mesh_is_clean(geometry):
         return 0, 0
     triangles = []
     face_normals = {}
+    used = set()
     removed = repaired = 0
     for triangle in geometry.triangles:
         points = [geometry.vertices[i].position for i in triangle.vertices]
@@ -68,23 +72,47 @@ def clean_ass_mesh(geometry):
         length = hypot(*normal)
         if not isfinite(length):
             raise ValueError('ASS mesh contains non-finite triangle coordinates')
-        if length == 0:
+        if length == 0 and not preserve_degenerate:
             removed += 1
             continue
         triangles.append(triangle)
+        used.update(triangle.vertices)
+        if length == 0:
+            continue
         for index in triangle.vertices:
             if index not in face_normals or length > face_normals[index][0]:
                 face_normals[index] = length, normal
 
     remap = {}
     vertices = []
+    coincident_normals = {}
+    vertex_materials = {}
+    if preserve_degenerate:
+        for triangle in triangles:
+            for index in triangle.vertices:
+                vertex_materials.setdefault(index, set()).add(triangle.material)
+        for index in sorted(used):
+            vertex = geometry.vertices[index]
+            length = hypot(*vertex.normal)
+            if length > 0 and isfinite(length):
+                for material in vertex_materials[index]:
+                    key = (vertex.position, vertex.uvs, vertex.color, vertex.influences, material)
+                    coincident_normals.setdefault(key, tuple(c / length for c in vertex.normal))
     for index, vertex in enumerate(geometry.vertices):
-        if index not in face_normals:
+        if index not in used:
             continue
         length = hypot(*vertex.normal)
         if not all(isfinite(c) for c in vertex.normal) or length == 0:
-            face_length, normal = face_normals[index]
-            vertex = replace(vertex, normal=tuple(c / face_length for c in normal))
+            # Blender gives isolated zero-area corners a zero normal. Recover
+            # from an equivalent current corner first: a synthetic up vector
+            # can contaminate visible wall normals when Tool welds the faces.
+            normal = next((coincident_normals[key] for material in sorted(vertex_materials.get(index, ()))
+                           if (key := (vertex.position, vertex.uvs, vertex.color, vertex.influences, material))
+                           in coincident_normals), None)
+            if normal is None:
+                face_length, face_normal = face_normals.get(index, (1, (0, 0, 1)))
+                normal = tuple(c / face_length for c in face_normal)
+            vertex = replace(vertex, normal=normal)
             repaired += 1
         remap[index] = len(vertices)
         vertices.append(vertex)

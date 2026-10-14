@@ -271,8 +271,10 @@ class JMSImporter:
                 # inverse world matrix here amplifies cancellation at distant
                 # positions and needlessly makes every ASS instance unique.
                 # Only a real change to a basis column requires a geometry bake.
+                # Float32 matrix-to-Euler conversion near a vertical axis can
+                # introduce a few parts per million without any actual shear.
                 if any((actual.col[c] - expected.col[c]).length >
-                       1e-6 * max(actual.col[c].length, expected.col[c].length)
+                       1e-5 * max(actual.col[c].length, expected.col[c].length)
                        for c in range(3)):
                     residual = ob.matrix_world.inverted_safe() @ matrices[ob]
                     if ob.data.users > 1:
@@ -461,20 +463,26 @@ class JMSImporter:
             from ..export.shader_collections import ShaderCollections
             self.shader_collections = ShaderCollections(utils.get_tags_path(), game)
         parts = name.split(maxsplit=1)
-        if len(parts) != 2:
+        if not parts:
             return ''
-        # A tag's material table can disambiguate a stale authoring collection.
-        supplied = self.shader_paths.get(parts[1].casefold(), '')
-        if supplied:
-            return supplied
-        collection = self.shader_collections.prefix_directories.get(parts[0].casefold())
-        if collection is None:
-            return ''
-        directory = Path(utils.get_tags_path(), collection[1])
-        for extension in utils.shader_exts:
-            path = directory / (parts[1] + extension)
-            if path.is_file():
-                return str(path.relative_to(utils.get_tags_path()))
+        collection = (self.shader_collections.prefix_directories.get(parts[0].casefold())
+                      if len(parts) == 2 else None)
+        names = [parts[-1]]
+        # H2 authoring sources use numeric material-instance suffixes, such as
+        # window_high_rise2. Prefer an exact tag before trying the base shader.
+        if game == 'halo2' and (base := names[0].rstrip('0123456789')) and base != names[0]:
+            names.append(base)
+        for shader_name in names:
+            # A tag's material table can disambiguate a stale authoring collection.
+            supplied = self.shader_paths.get(shader_name.casefold(), '')
+            if supplied:
+                return supplied
+            if collection is not None:
+                directory = Path(utils.get_tags_path(), collection[1])
+                for extension in utils.shader_exts:
+                    path = directory / (shader_name + extension)
+                    if path.is_file():
+                        return str(path.relative_to(utils.get_tags_path()))
         return ''
 
     def material(self, name, shader_path='', source_name=''):
@@ -550,6 +558,13 @@ class JMSImporter:
                     utils.add_face_prop(ob.data, 'global_material', mask).global_material = self.collision_material_name(index, material)
         source_props = next((self.props.get(index) for index in faces_by_material), None)
         _, display_material = self.owner.mesh_and_material(self.mesh_kind(source_props), self.is_model)
+        if not self.is_model and self.owner.game == 'halo2':
+            if any(material is not None and material.name.casefold().startswith('+portal')
+                   for material in ob.data.materials):
+                # H2's numbered portal materials affect native partitioning.
+                # Keep their editable names and face assignments instead of
+                # replacing every slot with the common Portal display material.
+                display_material = None
         if not self.is_model and self.owner.game in {'halo3', 'halo3odst'}:
             if any(material is not None and material.name.casefold().startswith('+seam:')
                    for material in ob.data.materials):
@@ -604,6 +619,8 @@ class JMSImporter:
                 continue
             # Object-only portal policies cannot be represented by face layers.
             groups = defaultdict(list)
+            preserve_order = not self.is_model and self.owner.game == 'halo2'
+            previous_group, run = None, 0
             for triangle in triangles:
                 # Repeated vertex indices create invalid loops that can crash
                 # Blender's custom-normal calculation. Keep them in source data.
@@ -620,7 +637,16 @@ class JMSImporter:
                     continue
                 policy = (tuple(getattr(props, p, False) for p in ('portal_one_way', 'portal_door', 'portal_vis_blocker', 'blocks_sound', 'ai_deafening', 'portal_exact'))
                           if kind == 'portal' else ())
-                groups[(kind, policy)].append(triangle)
+                group = (kind, policy)
+                if preserve_order:
+                    # Tool's BSP construction is sensitive to triangle order.
+                    # Split mixed surfaces into consecutive runs instead of
+                    # moving every portal face to the end of the source mesh.
+                    if group != previous_group:
+                        run += 1
+                        previous_group = group
+                    group = (kind, (policy, run))
+                groups[group].append(triangle)
             for (kind, _), faces in groups.items():
                 remap = {}
                 faces_by_material = defaultdict(list)
@@ -637,9 +663,13 @@ class JMSImporter:
                 ob = self.object(name, mesh)
                 if object_rotation:
                     ob.matrix_world = self.rotation
-                mesh.from_pydata([rotation @ (Vector(v.position) * self.scale) for v in vertices], [], local_faces)
+                mesh.from_pydata([rotation @ Vector(tuple(c * self.scale for c in v.position))
+                                  for v in vertices], [], local_faces)
                 mesh.update()
-                mesh.polygons.foreach_set('use_smooth', [True] * len(mesh.polygons))
+                # Zero-area faces cannot define a Blender normal space. Smooth
+                # fans through them corrupt custom normals on adjacent visible
+                # faces. Keep the faces, but isolate their shading fans.
+                mesh.polygons.foreach_set('use_smooth', [face.area > 0 for face in mesh.polygons])
                 mesh.normals_split_custom_set_from_vertices([(rotation @ Vector(v.normal)).normalized() for v in vertices])
                 loop_vertices = [loop.vertex_index for loop in mesh.loops]
                 for uv_index in range(max((len(v.uvs) for v in vertices), default=0)):

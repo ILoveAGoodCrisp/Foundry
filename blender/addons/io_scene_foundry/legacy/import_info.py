@@ -12,13 +12,26 @@ def bsp_shader_paths(document):
     paths = {}
     for block_name in ('materials', 'collision materials'):
         for element in document.block(document.tag.root(), block_name):
-            reference = document.reference(element, field_name)
+            if document.game == 'halo2' and block_name == 'collision materials':
+                reference = (document.reference(element, 'new shader')
+                             or document.reference(element, 'old shader'))
+            else:
+                reference = document.reference(element, field_name)
             if reference is None:
                 continue
             name = reference.ShortName.casefold()
             path = reference.RelativePathWithExtension
             paths[name] = path if paths.get(name, path) == path else ''
     return paths
+
+
+def bsp_game_object_paths(document):
+    """Retain ASS BSP reference types even when their target tags are absent."""
+    if document.game not in {'halo2', 'halo3', 'halo3odst'}:
+        return ()
+    return tuple(reference.RelativePathWithExtension
+                 for element in document.block(document.tag.root(), 'environment object palette')
+                 if (reference := document.reference(element, 'definition')) is not None)
 
 
 def main_frame_scope(names, parents, order, identifiers=None):
