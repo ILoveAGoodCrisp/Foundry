@@ -1,8 +1,8 @@
 """Native ASS scene adapter, sharing Foundry geometry/material construction with JMS."""
 from collections import defaultdict
 from dataclasses import replace
-from math import radians
-from pathlib import Path
+from math import log2, radians
+from pathlib import Path, PureWindowsPath
 import re
 
 import bpy
@@ -10,7 +10,7 @@ from mathutils import Matrix, Quaternion, Vector
 
 from .ass_format import ASS, ASSError
 from .coordinates import axis_rotation
-from .references import ass_reference_type, ass_reference_name, embedded_game_object_tag
+from .references import ASS_GAMES, ass_reference_type, ass_reference_name, embedded_game_object_tag
 from .jms_format import JMS, Material, Node, Transform, Shape
 from .jms_importer import JMSImporter, TagBoneMappingError, is_frame_name, canonical_bone_name
 from .import_info import BSP_TAG_KINDS, MODEL_TAG_KINDS, main_frame_scope
@@ -22,7 +22,7 @@ from ..uv_channels import store_uv_w
 class ASSImporter(JMSImporter):
     def __init__(self, owner, path, legacy_type, *, parent_collection=None,
                  tag_armature=None, geometry_only=False, allowed_region_permutations=(), shader_paths=None,
-                 import_info_kind='', render_only=False):
+                 import_info_kind='', render_only=False, game_object_paths=()):
         self.owner, self.path = owner, Path(path)
         self.ass = ASS.from_file(path)
         self.import_info_kind = import_info_kind
@@ -37,6 +37,7 @@ class ASSImporter(JMSImporter):
         self.tag_bone_names, self.geometry_only = {}, geometry_only
         self.allowed_region_permutations = set(allowed_region_permutations)
         self.shader_paths = shader_paths or {}
+        self.game_object_paths = frozenset(PureWindowsPath(path) for path in game_object_paths)
         self.source_indices, self.templates, self.anchors = {}, {}, {}
         self.frame_instances = set()
         self.instance_objects = {}
@@ -48,6 +49,10 @@ class ASSImporter(JMSImporter):
             self.is_model = False
         elif import_info_kind in MODEL_TAG_KINDS:
             self.is_model = True
+        # Power-of-two local units retain every source float exactly. The
+        # ordinary frame transform supplies the remaining scene-unit scale.
+        self.hierarchy_units = not self.is_model
+        self.geometry_scale = 2.0 ** round(log2(self.scale)) if self.hierarchy_units else self.scale
         self.bone_instances = weighted if self.is_model else set()
         if self.is_model:
             self.bone_instances |= {index for index, i in enumerate(self.ass.instances)
@@ -133,6 +138,21 @@ class ASSImporter(JMSImporter):
             self.owner.set_permutation(ob, 'default')
         return ob
 
+    def place_local(self, ob, transform, *, reference=False):
+        """Construct source TRS channels without inverting a parent world matrix."""
+        x, y, z, w = transform.rotation
+        ob.rotation_mode = 'QUATERNION'
+        ob.rotation_quaternion = Quaternion((w, x, y, z))
+        ob.location = tuple(value * self.geometry_scale for value in transform.translation)
+        ob.scale = transform.scale
+        if reference:
+            ob.rotation_quaternion = ob.rotation_quaternion @ axis_rotation(-self.owner.from_x_rot).to_quaternion()
+
+    def remove_import_info_frames(self):
+        if self.hierarchy_units:
+            return  # These editable transforms retain pivots and source precision.
+        super().remove_import_info_frames()
+
     def store_metadata(self):
         # ASS records are import-time data. Blender objects and Foundry
         # properties are the only persisted authoring state.
@@ -179,6 +199,12 @@ class ASSImporter(JMSImporter):
             # BM_LIGHTING_BASIC record. Explicit lighting records take priority.
             if self.owner.game in {'halo3', 'halo3odst'}:
                 p.emissive_power = p.emissive_power_scale
+                if not self.is_model and p.lightmap_resolution_scale_legacy is None:
+                    # Tool defaults to 3 when an ASS material has no lightmap
+                    # record. Retain that value as an editable face setting;
+                    # an explicit BM_LMRES record below still takes priority.
+                    p.lightmap_resolution_scale_legacy = 3.0
+                    p.lightmap_resolution_scale = 7
             p.ignore_default_resolution = False
             for record in material.lighting:
                 parts = record.split()
@@ -327,8 +353,9 @@ class ASSImporter(JMSImporter):
                 result.append(ob)
             return result
         self.active_kind, self.active_geometry = kind, geometry
-        old_rotation, old_arm = self.rotation, self.armature
+        old_rotation, old_arm, old_scale = self.rotation, self.armature, self.scale
         self.rotation, self.armature = Matrix.Identity(4), None
+        self.scale = self.geometry_scale
         before = len(self.objects)
         try:
             if geometry.kind == 'MESH':
@@ -345,7 +372,7 @@ class ASSImporter(JMSImporter):
                 super().build_shapes()
                 self.jms.shapes = []
         finally:
-            self.rotation, self.armature = old_rotation, old_arm
+            self.rotation, self.armature, self.scale = old_rotation, old_arm, old_scale
         result = self.objects[before:]
         self.templates[cache_key] = result
         return result
@@ -381,8 +408,23 @@ class ASSImporter(JMSImporter):
         self.node_matrices()
         self.build_armature()
         self.build_materials()
+        unit_frame = None
+        if self.hierarchy_units:
+            unit_frame = self.object('frame units')
+            unit_frame.nwo.is_frame = True
+            unit_frame.rotation_mode = 'QUATERNION'
+            unit_frame.rotation_quaternion = self.rotation.to_quaternion()
+            unit_frame.scale = (self.scale / self.geometry_scale,) * 3
+        included = {index for index in self.order if self.includes_instance(index)}
+        required = set(included)
+        if self.hierarchy_units:
+            for index in included:
+                parent = self.ass.instances[index].parent
+                while parent >= 0 and parent not in required:
+                    required.add(parent)
+                    parent = self.ass.instances[parent].parent
         for index in self.order:
-            if not self.includes_instance(index):
+            if index not in required:
                 continue
             instance = self.ass.instances[index]
             if index in self.bone_map:
@@ -400,7 +442,17 @@ class ASSImporter(JMSImporter):
                     self.bone_map[instance.parent], self.ass.instances[instance.parent].name)
             else:
                 anchor.parent = self.anchors.get(instance.parent)
-            anchor.matrix_world = self.scene_matrix(self.world[index])
+            if self.hierarchy_units:
+                if anchor.parent is None:
+                    anchor.parent = unit_frame
+                self.place_local(anchor, instance.local)
+            else:
+                anchor.rotation_mode = 'QUATERNION'
+                anchor.matrix_world = self.scene_matrix(self.world[index])
+            if index not in included:
+                # A culled wrapper still contributes its editable transform,
+                # without bringing its display shape or siblings into the BSP.
+                continue
             if is_frame_name(instance.name):
                 # Tool treats frames as hierarchy nodes even when Max exports
                 # their helper display mesh. Import-info must match direct ASS
@@ -420,8 +472,12 @@ class ASSImporter(JMSImporter):
             # to an existing game-object asset instead carries preview geometry
             # (Flood Voi's floodballs), which must not become static BSP walls.
             reference_type = ass_reference_type(instance.name)
-            embedded_tag = (self.embedded_game_object_tag(geometry)
-                            if geometry is not None and not self.is_model and not reference_type else '')
+            # The compiled palette records Tool's resolved type. H3 can compile
+            # a ?machine? source reference as scenery; preserve that exact path.
+            # Without a palette match, an explicit prefix still takes priority
+            # over another object type that happens to exist on disk.
+            embedded_tag = (self.embedded_game_object_tag(geometry, known_only=bool(reference_type))
+                            if geometry is not None and not self.is_model else '')
             if embedded_tag:
                 reference_type = Path(embedded_tag).suffix
             reference_only = bool(reference_type or (geometry and geometry.kind == 'MESH' and geometry.xref_path
@@ -431,8 +487,8 @@ class ASSImporter(JMSImporter):
                 continue
             matrix = self.scene_matrix(self.world[index] @ self.ass_matrix(instance.pivot))
             if reference_only:
-                if self.owner.game == 'halo2':
-                    # H2 Tool places the referenced object at its node transform.
+                if self.owner.game in ASS_GAMES:
+                    # Tool places the referenced object at its node transform.
                     # The object-offset pivot belongs only to the embedded preview
                     # mesh; applying it rotates/offsets devices in the rebuilt BSP.
                     matrix = self.scene_matrix(self.world[index])
@@ -501,16 +557,26 @@ class ASSImporter(JMSImporter):
                               for mod in ob.modifiers)
                 ob.parent = self.armature if skinned else anchor
                 ob.parent_type = 'OBJECT'
-                ob.matrix_world = matrix
+                if not self.is_model:
+                    pivot = instance.pivot
+                    if reference_only and self.owner.game in ASS_GAMES:
+                        pivot = replace(pivot, rotation=(0, 0, 0, 1), translation=(0, 0, 0), scale=(1, 1, 1))
+                    self.place_local(ob, pivot, reference=reference_only)
+                    if reference_only or ob.type == 'LIGHT':
+                        # Referenced previews and light data already use scene units.
+                        ob.scale *= self.geometry_scale / self.scale
+                else:
+                    ob.matrix_world = matrix
             self.instance_objects[index] = objects
-        if not self.import_info_kind:
+        if not self.import_info_kind and not self.hierarchy_units:
             self.collapse_frames()
         self.link_collision_proxies()
         bpy.context.view_layer.update()
 
-    def embedded_game_object_tag(self, geometry):
+    def embedded_game_object_tag(self, geometry, *, known_only=False):
         return embedded_game_object_tag(geometry.xref_path, geometry.xref_name,
-                                        utils.get_tags_path(), utils.get_data_path())
+                                        utils.get_tags_path(), utils.get_data_path(), self.game_object_paths,
+                                        known_only=known_only)
 
     def includes_instance(self, index):
         instance = self.ass.instances[index]
@@ -527,6 +593,8 @@ class ASSImporter(JMSImporter):
             return True
         if self.source_node_scope is not None and index not in self.source_node_scope:
             return False
+        if not self.is_model and is_frame_name(instance.name):
+            return True  # Primitive frame display shapes are not physics meshes.
         physics = not reference and (instance.name.startswith('$') or (not instance.name.startswith('#') and geometry is not None
                   and geometry.kind in {'SPHERE', 'BOX', 'PILL'}))
         if self.import_info_kind == 'physics_model':
@@ -615,7 +683,7 @@ class ASSImporter(JMSImporter):
                            for n in child.data.corner_normals]
                 # Convert the translation to Blender units before baking the
                 # child's current local geometry into the render instance.
-                relative.translation *= self.scale
+                relative.translation *= self.geometry_scale
                 points = [relative @ vertex.co for vertex in child.data.vertices]
                 for vertex, point in zip(child.data.vertices, points):
                     vertex.co = point
@@ -665,8 +733,9 @@ class ASSImporter(JMSImporter):
 
 def import_ass(owner, path, legacy_type, *, parent_collection=None, tag_armature=None,
                geometry_only=False, allowed_region_permutations=(), shader_paths=None, import_info_kind='',
-               render_only=False):
+               render_only=False, game_object_paths=()):
     return ASSImporter(owner, path, legacy_type, parent_collection=parent_collection,
                        tag_armature=tag_armature, geometry_only=geometry_only,
                        allowed_region_permutations=allowed_region_permutations, shader_paths=shader_paths,
-                       import_info_kind=import_info_kind, render_only=render_only).build()
+                       import_info_kind=import_info_kind, render_only=render_only,
+                       game_object_paths=game_object_paths).build()

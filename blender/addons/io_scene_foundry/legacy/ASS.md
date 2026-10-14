@@ -47,6 +47,8 @@ collision/sphere-only flags survive that conversion. Authoring objects outside
 the source export frame remain excluded, and unassigned triangles retain -1.
 Shader collection prefixes and the compiled BSP's shader references resolve
 full shader paths before basename searches, including shared shader basenames.
+Halo 2 numeric material-instance suffixes fall back to the base shader only
+after exact compiled paths and collection filenames have been checked.
 
 Halo 3 and ODST seam surfaces use `+seam:<bsp_name>` materials, for example
 `+seam:example_seams_1`. Assign the material to the seam faces to identify their
@@ -57,10 +59,12 @@ format from their BSP assignment; the generated backface uses the back-facing BS
 Material-authored named seams are exported as supplied without an automatic
 backface; author the other side separately when needed.
 
-Halo 2 structure files include a scene wrapper and a named child export frame.
-Geometry, markers and collision-proxy parent indices are placed beneath that
-frame. Tool can reject geometry attached directly to the wrapper with the
-misleading message "unable to parse any materials". Max material symbols may be
+Halo 2, Halo 3 and ODST structure files include a scene wrapper and a named
+child export frame. Geometry, references, lights, markers and collision-proxy
+parent indices are placed beneath that frame. Root-level siblings of retained
+source frames are culled by Tool. Halo 2 can also reject geometry attached
+directly to the wrapper with the misleading message "unable to parse any
+materials". Max material symbols may be
 separated by spaces; the importer retains the complete trailing symbol group,
 including render-only flags before a later symbol.
 
@@ -94,8 +98,15 @@ structural walls. Empty XREF meshes also become reference markers.
 Shared Max files can resolve a named XREF through the child asset directory
 beside the source file (for example, `cinematic_objects.max` contains
 `cinematic_anchor`). Primitive device references remain references, not physics
-shapes. Halo 2 reference placement uses the accumulated node transform without
+shapes. ASS reference placement uses the accumulated node transform without
 the embedded preview's object-offset pivot, matching Tool's environment objects.
+Halo 2, Halo 3 and ODST imports consult the compiled BSP's environment-object
+palette, so an absent target tag remains an editable reference instead of
+becoming static preview geometry or resolving to a different existing object
+type, even when a source name's reference prefix disagrees with the palette.
+Without a palette match, an explicit reference prefix remains authoritative.
+Matching uses the exact source asset directory, not a name search;
+structural XREFs outside that palette keep their mesh payload.
 Authored normals, color seams and the third UV component remain per corner
 through the final import cleanup. Material symbols are read from the suffix;
 interior punctuation, such as `Material #3451`, remains part of the shader name.
@@ -103,6 +114,10 @@ interior punctuation, such as `Material #3451`, remains part of the shader name.
 Photon fidelity is an editable face/material property. Different tint,
 transparency and numeric variants remain separate during cleanup even when their
 display names agree. Absent basic emissive records remain absent on unlit faces.
+Halo 3 and ODST structure materials without a lightmap-resolution record use
+Tool's default of 3, exposed as an editable face property. Explicit records and
+name settings take priority. Equivalent integer and floating-point lighting
+values serialize identically so they do not create redundant material variants.
 
 ASS import does not persist source transforms, instance records, identifiers,
 ordering, pivots, policy snapshots, material tables or reference payloads in
@@ -111,8 +126,10 @@ saved scenes. Current evaluated geometry, Blender transforms, names and visible
 Foundry settings are the authoring state. Parent transforms and pivots are
 represented by Blender's actual hierarchy and geometry during import.
 
-Embedded BSP sources are culled to the authored frame before helper frames are
-removed. Frame selection recognizes the `b_`, `b `, `bip_` and `bip ` names used
+Embedded BSP sources are culled to the authored frame. Structure imports retain
+editable frame and pivot transforms, including ancestor transforms above the
+culled scope. Primitive frame display shapes never become physics or structure
+geometry. Frame selection recognizes the `b_`, `b `, `bip_` and `bip ` names used
 by Max, as well as `frame` names. Siblings attached to the scene wrapper remain
 outside the asset. Lighting-name tokens such as `LP:6` are case-insensitive and
 do not hide preceding material symbols or become part of shader lookup names.
@@ -120,8 +137,9 @@ do not hide preceding material symbols or become part of shader lookup names.
 Instances referencing the same geometry and skin palette, with compatible mesh
 and collision-proxy settings, share Blender mesh data. Frame cleanup ignores
 floating-point transform noise, including inverse translation cancellation far
-from the origin. During frame cleanup, mesh data is only separated when an
-actual shear correction needs to be baked into the geometry.
+from the origin and matrix-to-Euler rounding near a vertical axis. During frame
+cleanup, mesh data is only separated when an actual shear correction needs to be
+baked into the geometry.
 
 Export retains representable signed uniform scale and bakes nonuniform scale
 or shear into the evaluated vertices. Collision proxy coordinates are local to
@@ -129,6 +147,27 @@ their current owning instance. Instance IDs and geometry tables are generated
 from the export batch. Game-object references use the current editable tag
 path. ASS output uses fixed decimal precision to avoid truncating large
 translations.
+
+Structure imports use power-of-two local geometry units, with an ordinary root
+frame supplying the remaining conversion to scene units. This avoids rounding
+every vertex and local translation during scale/unscale. Export converts those
+units before native world-matrix construction and writes current local frame
+channels and mesh pivots separately, preserving linked geometry. Constrained
+objects, parent inverses, nonuniform scale and other unsupported hierarchies use
+evaluated world geometry instead. Mesh and transform edits remain authoritative;
+the exporter does not restore source records or repair individual scenes.
+
+Halo 2 portal material names such as `+portal2` and their per-face assignments
+remain editable materials through import, virtual geometry and ASS export.
+Replacing them all with `+portal` changes native portal construction. Halo 2
+mixed surface meshes are split into consecutive runs so their triangle order
+survives the separate Blender mesh types. Halo 2, Halo 3 and ODST structure
+export retains zero-area faces that participate in native partitioning and
+instance merging. Legacy import isolates zero-area faces from smooth normal
+fans so Blender cannot corrupt neighboring custom normals. Export recovers
+their invalid normals from current coincident corners with matching material
+and vertex attributes before using geometric fallbacks. It never deletes the
+faces to repair their normals. Other ASS cleanup keeps its existing behavior.
 
 The legacy exporter populates `ASS` from evaluated virtual geometry, with
 material variants from Foundry face properties and separate geometry and
