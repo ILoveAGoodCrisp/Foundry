@@ -18,6 +18,8 @@ from .. import utils
 import bpy
 
 from ..constants import MATERIAL_SHADERS_DIR
+from ..material_shader_library import (MATERIAL_LIBRARIES, find_shader_tag,
+                                       group_name, parameter_key, source_shader)
 
 srgb_names = "color map", "control map", "self illum"
 
@@ -94,26 +96,17 @@ class MaterialTag(ShaderTag):
         self.reference_material_shader = self._native_root.SelectField("Reference:material shader")
         self.alpha_blend_mode = self._native_root.SelectField('CharEnum:alpha blend mode')
     
-    @classmethod
-    def _get_info(cls, material_shader_path: TagReference | str):
+    def _get_info(self, material_shader_path: TagReference | str):
         if material_shader_path is None:
             return
         
-        key = str(Path(utils.get_tags_path(), material_shader_path)) if isinstance(material_shader_path, str) else material_shader_path.Filename
-        material_parameters = cls.material_shaders.get(key)
+        filename = str(Path(self.tags_dir, material_shader_path)) if isinstance(material_shader_path, str) else material_shader_path.Filename
+        key = (self.game, os.path.normcase(filename))
+        material_parameters = self.material_shaders.get(key)
         if material_parameters is None:
             with MaterialShaderTag(path=material_shader_path) as material_shader:
                 material_parameters = material_shader.get_defaults()
-                cls.material_shaders[key] = material_parameters
-        
-        # with MaterialShaderTag(path=material_shader_path) as material_shader:
-        #     cls.default_parameters, cls.shader_parameters = material_shader.get_defaults()
-        # if not cls.global_material_shader or cls.last_group_node != cls.group_node or path == "":
-        #     group_node_name = utils.dot_partition(cls.group_node.node_tree.name.lower().replace(' ', '_'))
-        #     path = cls._material_shader_path_from_group_node(group_node_name)
-        #     assert path, f"Group node in use for material but no corresponding material shader found. Expected material shader named {group_node_name} in {MATERIAL_SHADERS_DIR} (or sub-folders)"
-        #     with MaterialShaderTag(path=path) as material_shader:
-        #         cls.material_shader_data[material_shader.tag_path.RelativePath] = material_shader.read_parameters()
+                self.material_shaders[key] = material_parameters
         
         return material_parameters
     
@@ -124,12 +117,18 @@ class MaterialTag(ShaderTag):
                 if self.path_exists(bitmap):
                     return bitmap
 
-    def _material_shader_path_from_group_node(self, group_node_name):
-        filename = group_node_name + '.material_shader'
-        path = utils.find_file_in_directory(str(Path(self.tags_dir, MATERIAL_SHADERS_DIR)), filename)
-        if not path:
-            return ''
-        return utils.relative_path(path)
+    def _material_shader_path_from_group_node(self, group):
+        if not isinstance(group, str):
+            node = group if getattr(group, 'type', None) == 'GROUP' else None
+            resource = node.node_tree if node else group
+            if resource.get('foundry_material_game', self.game) != self.game:
+                return ''
+            # Keep an imported tag's full path, including approximate previews.
+            source = node.get('foundry_material_shader_path') if node else None
+            source = source or source_shader(resource)
+        else:
+            source = source_shader(group)
+        return find_shader_tag(self.tags_dir, source)
 
     def _group_node_is_export_candidate(self, group_node: bpy.types.Node | None) -> bool:
         if group_node is None or group_node.type != "GROUP":
@@ -138,8 +137,7 @@ class MaterialTag(ShaderTag):
         if group_tree is None:
             return False
 
-        group_node_name = utils.dot_partition(group_tree.name.lower().replace(' ', '_'))
-        return bool(self._material_shader_path_from_group_node(group_node_name))
+        return bool(self._material_shader_path_from_group_node(group_node))
 
     def _material_parameter_from_input(self, input: bpy.types.NodeSocket, parameters: dict[str, MaterialParameter], cull_chars: str, ignored_parameters: set[str] = None):
         ignored_parameters = ignored_parameters or set()
@@ -175,15 +173,28 @@ class MaterialTag(ShaderTag):
                     pending.append(link.from_node)
 
     def _source_from_input_and_parameter_type(self, input, parameter_type, source_node=None):
+        if parameter_type == 'bitmap' and input.is_linked:
+            sample = input.links[0].from_node
+            while sample.type == 'REROUTE' and sample.inputs[0].is_linked:
+                sample = sample.inputs[0].links[0].from_node
+            original = sample.inputs.get(sample.get('foundry_material_texture_input', ''))
+            if original is not None:
+                return super()._source_from_input_and_parameter_type(original, parameter_type, sample)
         return super()._source_from_input_and_parameter_type(input, parameter_type, source_node)
+
+    def _function_parameters_from_node(self, source, parameter_type):
+        if parameter_type == 'bitmap' and isinstance(source, bpy.types.Node) and source.get('foundry_material_parameter'):
+            from .material_source_io import mapping
+            return mapping(source, AnimatedParameterType)
+        return super()._function_parameters_from_node(source, parameter_type)
 
     def _from_nodes_group(self):
         name_type_node_dict = {}
         inputs = self.group_node.inputs
         cull_chars = " _-()'\""
         
-        group_node_name = utils.dot_partition(self.group_node.node_tree.name.lower().replace(' ', '_'))
-        material_shader_path = self._material_shader_path_from_group_node(group_node_name)
+        group_node_name = self.group_node.node_tree.name
+        material_shader_path = self._material_shader_path_from_group_node(self.group_node)
         if not material_shader_path:
             utils.print_warning(f"No material shader found for group node [{group_node_name}]. Falling back to adaptive basic mapping")
             return
@@ -218,6 +229,12 @@ class MaterialTag(ShaderTag):
                 parameter_name, value = self._material_parameter_from_input(i, parameters, cull_chars, ignored_parameters)
                 if parameter_name:
                     name_type_node_dict[parameter_name] = [value.type_name, self._source_from_input_and_parameter_type(i, value.type_name, upstream_node)]
+
+        if self.group_node.node_tree.get('foundry_source_compiled'):
+            from .material_source_io import textures
+            for name, source in textures(self.group_node).items():
+                if name in parameters:
+                    name_type_node_dict[name] = ['bitmap', source]
 
         for name, value in name_type_node_dict.items():
             param_type, source = value
@@ -430,23 +447,17 @@ class MaterialTag(ShaderTag):
     def _to_nodes_group(self, blender_material: bpy.types.Material):
         if self.reference_material_shader.Path is None:
             return
-        material_shader_name = self.reference_material_shader.Path.ShortName
-        material_shader_parameters = self.material_shaders.get(material_shader_name)
-        if material_shader_parameters is None:
-            return
-        
-        node_tree = None
-        actual_material_shader_name = material_shader_name
-        if len(material_shader_name) > 63:
-            actual_material_shader_name = material_shader_name[8:]
-            node_tree = utils.add_node_from_resources("h4_nodes", name=actual_material_shader_name, check_multiple=False) # cut off srf_pbr_
-        
-        if node_tree is None:
-            node_tree = utils.add_node_from_resources("h4_nodes", name=material_shader_name, check_multiple=True)
+        shader_path = self.reference_material_shader.Path.RelativePath
+        material_shader_name = self.reference_material_shader.Path.ShortName.casefold()
+        material_shader_parameters = self._get_info(self.reference_material_shader.Path)
+        if not material_shader_parameters:
+            return self._to_nodes_bsdf(blender_material)
+        library = MATERIAL_LIBRARIES[self.game]
+        node_tree = utils.add_node_from_resources(library, name=shader_path, check_multiple=True)
         if node_tree is None:
             utils.print_warning(f"No node group for {material_shader_name}, creating BSDF shader nodes")
             return self._to_nodes_bsdf(blender_material)
-        elif actual_material_shader_name != node_tree.name:
+        elif group_name(shader_path).casefold() != node_tree.get('foundry_resource_name', node_tree.name).casefold():
             utils.print_warning(f"Failed to find node group for {material_shader_name}, using {node_tree.name} instead")
         
         tree = blender_material.node_tree
@@ -454,26 +465,33 @@ class MaterialTag(ShaderTag):
         nodes.clear()
         group_node = nodes.new(type='ShaderNodeGroup')
         group_node.node_tree = node_tree
+        group_node['foundry_material_shader_path'] = shader_path
         
         material_parameters = {}
         material_parameters_true = {}
         
-        for element in self.block_parameters.Elements:
-            shader_parameter = material_shader_parameters.get(element.Fields[0].GetStringData())
-            if shader_parameter is None:
-                continue
-
+        for shader_parameter in material_shader_parameters.values():
             mat_par = MaterialParameter(shader_parameter)
-            material_parameters[mat_par.ui_name.lower().replace(" ", "_")] = mat_par
-            material_parameters_true[mat_par.name] = mat_par
+            material_parameters[parameter_key(mat_par.ui_name)] = mat_par
+            material_parameters_true[parameter_key(mat_par.name)] = mat_par
 
         self.populate_chiefster_node(tree, group_node, material_parameters, material_parameters_true)
+
+        if node_tree.get('foundry_source_compiled'):
+            from .material_source_io import make_instance, populate
+            make_instance(tree, group_node)
+            populate(self, group_node, material_parameters_true)
+            output = nodes.new('ShaderNodeOutputMaterial')
+            tree.links.new(group_node.outputs['Shader'], output.inputs['Surface'])
+            if group_node.outputs.get('Displacement') is not None:
+                tree.links.new(group_node.outputs['Displacement'], output.inputs['Displacement'])
+            return
         
         # Handle special case group nodes
         match material_shader_name:
             case 'srf_pbr_covenant':
                 rainbow_node = tree.nodes.new('ShaderNodeGroup')
-                rainbow_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_pbr_covenant rainbow_map_vector')
+                rainbow_node.node_tree = utils.add_node_from_resources(library, name='srf_pbr_covenant rainbow_map_vector')
                 self.populate_chiefster_node(tree, rainbow_node, material_parameters, material_parameters_true)
                 
                 if group_node.inputs['rainbow_map'].links:
@@ -481,7 +499,7 @@ class MaterialTag(ShaderTag):
                     tree.links.new(input=rainbow_map_node.inputs[0], output=rainbow_node.outputs[0])
                 
                 reflection_node = tree.nodes.new('ShaderNodeGroup')
-                reflection_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_pbr_covenant reflection_map_vector')
+                reflection_node.node_tree = utils.add_node_from_resources(library, name='srf_pbr_covenant reflection_map_vector')
                 self.populate_chiefster_node(tree, reflection_node, material_parameters, material_parameters_true)
                 
                 if rainbow_node.inputs['reflection_map'].links:
@@ -490,24 +508,22 @@ class MaterialTag(ShaderTag):
                     
             case 'srf_pbr_ca_terrain_macrocolor_paintrough_world' | 'srf_pbr_ca_terrain_world_blend':
                 vector_node = tree.nodes.new('ShaderNodeGroup')
-                vector_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_pbr_ca_terrain_macrocolor_paintrough_world - vector')
+                vector_node.node_tree = utils.add_node_from_resources(library, name='srf_pbr_ca_terrain_macrocolor_paintrough_world - vector')
                 
                 if group_node.inputs['layer2_coMap'].links:
                     coMap_node = group_node.inputs['layer2_coMap'].links[0].from_node
-                    tree.links.new(input=coMap_node.inputs[0], output=vector_node.outputs[0])
-                
-                coMap_xz_node = tree.nodes.new('ShaderNodeTexImage')
-                coMap_xz_node.image = coMap_node.image
-                coMap_xz_node.extension = coMap_node.extension
-                
-                tree.links.new(input=coMap_xz_node.inputs[0], output=vector_node.outputs[1])
-                
-                tree.links.new(input=group_node.inputs["layer2_coMap_xz"], output=coMap_xz_node.outputs[0])
-                tree.links.new(input=group_node.inputs["layer2_coMap_alpha_xz"], output=coMap_xz_node.outputs[1])
+                    if coMap_node.type == 'TEX_IMAGE':
+                        tree.links.new(input=coMap_node.inputs[0], output=vector_node.outputs[0])
+                        coMap_xz_node = tree.nodes.new('ShaderNodeTexImage')
+                        coMap_xz_node.image = coMap_node.image
+                        coMap_xz_node.extension = coMap_node.extension
+                        tree.links.new(input=coMap_xz_node.inputs[0], output=vector_node.outputs[1])
+                        tree.links.new(input=group_node.inputs['layer2_coMap_xz'], output=coMap_xz_node.outputs[0])
+                        tree.links.new(input=group_node.inputs['layer2_coMap_alpha_xz'], output=coMap_xz_node.outputs[1])
                 
             case 'srf_blinn_detail_satramp':
                 vector_node = tree.nodes.new('ShaderNodeGroup')
-                vector_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_blinn_detail_satramp - saturation_ramp_vector')
+                vector_node.node_tree = utils.add_node_from_resources(library, name='srf_blinn_detail_satramp - saturation_ramp_vector')
                 
                 if group_node.inputs['saturation_ramp'].links:
                     sat_ramp_node = group_node.inputs['saturation_ramp'].links[0].from_node
@@ -517,7 +533,7 @@ class MaterialTag(ShaderTag):
                 
             case 'srf_matcap_normal_uv2':
                 vector_node = tree.nodes.new('ShaderNodeGroup')
-                vector_node.node_tree = utils.add_node_from_resources("h4_nodes", name='srf_matcap_normal_uv2 - edge_map_vector')
+                vector_node.node_tree = utils.add_node_from_resources(library, name='srf_matcap_normal_uv2 - edge_map_vector')
                 has_edge_map = False
                 if group_node.inputs['edge_map'].links:
                     has_edge_map = True
@@ -548,6 +564,9 @@ class MaterialTag(ShaderTag):
                     normal_detail_node = group_node.inputs['normal_detail_map'].links[0].from_node
                     utils.insert_uv_map_node(normal_detail_node, "UVMap1")
 
+        from .material_vectors import setup_material_vectors
+        setup_material_vectors(self, tree, group_node, material_parameters, material_parameters_true)
+
         # Make the Output
         node_output = nodes.new(type='ShaderNodeOutputMaterial')
 
@@ -555,7 +574,33 @@ class MaterialTag(ShaderTag):
         tree.links.new(input=node_output.inputs[0], output=group_node.outputs[0])
             
             
+    def _value_from_parameter(self, parameter, value_type):
+        """Material tags use a different type enum from render-method options."""
+        value = parameter.default
+        for element in self.block_parameters.Elements:
+            if parameter_key(element.Fields[0].GetStringData()) != parameter_key(parameter.name):
+                continue
+            match ParameterType(parameter.type):
+                case ParameterType.REAL:
+                    value = element.SelectField('real').Data
+                case ParameterType.INT:
+                    value = element.SelectField(r'int\bool').Data
+                case ParameterType.BOOL:
+                    value = bool(element.SelectField(r'int\bool').Data)
+                case ParameterType.COLOR:
+                    value = convert_argb(element.SelectField('color').Data)
+            for animated in element.SelectField(self.function_parameters).Elements:
+                if animated.Fields[0].Value == value_type.value:
+                    function = Function()
+                    function.from_element(animated, self.animated_function)
+                    return function
+            break
+        return value
+
     def populate_chiefster_node(self, tree: bpy.types.NodeTree, node: bpy.types.Node, material_parameters: dict[MaterialParameter], material_parameters_true: dict[MaterialParameter]):
+        parameters = {parameter_key(p.name): p for p in material_parameters_true.values()}
+        display_parameters = {parameter_key(p.ui_name): p for p in material_parameters.values()}
+        populated_bitmaps = set()
         for input in cast(list[bpy.types.NodeSocket], node.inputs):
             match input.name:
                 case 'blend mode':
@@ -585,11 +630,14 @@ class MaterialTag(ShaderTag):
                         # else:
                         input.default_value = 1
                     # parameter_type = self._parameter_type_from_name(parameter_name)
-                    parameter = material_parameters.get(parameter_name_ui)
+                    key = parameter_key(parameter_name_ui)
+                    parameter = parameters.get(key) or display_parameters.get(key)
+                    alpha_only = False
+                    if parameter is None and key.endswith('alpha'):
+                        parameter = parameters.get(key[:-5]) or display_parameters.get(key[:-5])
+                        alpha_only = parameter is not None and parameter.type == ParameterType.BITMAP.value
                     if parameter is None:
-                        parameter = material_parameters_true.get(parameter_name_ui)
-                        if parameter is None:
-                            continue
+                        continue
                     parameter_type = ParameterType(parameter.type)
                     match parameter_type:
                         case ParameterType.COLOR:
@@ -597,7 +645,17 @@ class MaterialTag(ShaderTag):
                         case ParameterType.REAL | ParameterType.INT | ParameterType.BOOL:
                             self._setup_input_with_function(input, self._value_from_parameter(parameter, AnimatedParameterType.VALUE), for_alpha=True)
                         case _:
-                            self.group_set_image(tree, node, parameter, ChannelType.DEFAULT, specified_input=parameter_name_ui)
+                            if alpha_only and parameter.name in populated_bitmaps:
+                                continue
+                            image = self.group_set_image(tree, node, parameter,
+                                ChannelType.ALPHA if alpha_only else ChannelType.DEFAULT,
+                                specified_input=input.name.lower())
+                            if image and not alpha_only:
+                                populated_bitmaps.add(parameter.name)
+                                alpha_key = parameter_key(input.name + '_alpha')
+                                alpha_input = next((s for s in node.inputs if parameter_key(s.name) == alpha_key), None)
+                                if alpha_input is not None and 'Alpha' in image.outputs:
+                                    tree.links.new(image.outputs['Alpha'], alpha_input)
                             
 
 def link_change_color(tree: bpy.types.NodeTree, input: bpy.types.NodeGroupInput, attribute: str):

@@ -2940,6 +2940,9 @@ class ShaderTag(BlenderTag, TagDocument):
         texcoord = None
         row = 0
         imported_maps = set()
+        data_maps = {'change_color_map', 'multichannel_map', 'bump_map', 'active_camo_bump_map'}
+        data_maps.update(json.loads(group_tree.get('h2_data_maps', '[]')))
+        address_modes = json.loads(group_tree.get('h2_bitmap_address_modes', '{}'))
         for socket in group.inputs:
             name, separator, channel = socket.name.rpartition('.')
             if not separator or channel not in {'rgb', 'a', 'alpha'}:
@@ -2974,7 +2977,7 @@ class ShaderTag(BlenderTag, TagDocument):
                 image.name = name
                 image.label = name
                 image.image = result.image
-                if name in {'change_color_map', 'multichannel_map', 'bump_map', 'active_camo_bump_map'}:
+                if name in data_maps:
                     # RGB channels are data masks. A separate image view avoids
                     # changing the colour space of another use of the bitmap.
                     mask_name = result.image.name + ' [H2 data]'
@@ -2985,6 +2988,16 @@ class ShaderTag(BlenderTag, TagDocument):
                     image.image = mask_image
                     image.image.colorspace_settings.name = 'Non-Color'
                     image.image.alpha_mode = 'CHANNEL_PACKED'
+                if image.type == 'TEX_IMAGE':
+                    modes = address_modes.get(name)
+                    if name == 'foreground_map':
+                        # Emblem UVs extend beyond the foreground image; keep
+                        # those areas transparent instead of repeating it.
+                        image.extension = 'CLIP'
+                    elif modes == ['clamp', 'clamp']:
+                        image.extension = 'EXTEND'
+                    elif modes == ['clamp to border', 'clamp to border']:
+                        image.extension = 'CLIP'
                 self._setup_sequence_driver(tree, image, result.sequence_length,
                                             self._halo2_parameter_function(element, 'bitmap index') if element is not None else None)
                 image.location = (-400, -row * 280)
