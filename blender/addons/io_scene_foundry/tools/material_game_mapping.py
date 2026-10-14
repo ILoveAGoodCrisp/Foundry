@@ -18,7 +18,7 @@ GAME_LIBRARIES = {
     'halo3odst': ('h3_nodes', 'foundry_h3odst.'),
     'reach': ('reach_nodes', 'foundry_reach.'),
     'halo4': ('h4_nodes', ''),
-    'halo2a': ('h4_nodes', ''),
+    'halo2a': ('h2amp_nodes', ''),
 }
 MODERN_GAMES = {'halo3', 'halo3odst', 'reach'}
 
@@ -58,6 +58,10 @@ PARAMETER_ALIASES = (
 
 
 def _name(node):
+    if node.type == 'GROUP' and node.node_tree:
+        source = node.node_tree.get('foundry_material_shader')
+        if source:
+            return source.rsplit('/', 1)[-1]
     name = node.node_tree.name if node.type == 'GROUP' and node.node_tree else node.type
     base, dot, suffix = name.rpartition('.')
     return base if dot and suffix.isdigit() else name
@@ -677,6 +681,14 @@ def convert_material_game(material, source_game, target_game, *, layout=True):
     sources = list(_surface_nodes(tree))
     if not sources:
         utils.print_warning(f'{material.name}: no supported source surface; keeping source nodes')
+        return False
+    if any(source.type == 'GROUP' and source.node_tree.get('foundry_source_compiled') for source in sources):
+        # These templates contain independent image samples inside the group.
+        # The generic socket mapper cannot see them and would silently replace
+        # their textures with defaults. Keep the usable source material intact.
+        reason = 'Source-built material textures require an explicit target-game mapping'
+        material['foundry_material_conversion_error'] = reason
+        utils.print_warning(f'{material.name}: {reason}; keeping source nodes')
         return False
     original_nodes = set(tree.nodes)
     replacements = []
