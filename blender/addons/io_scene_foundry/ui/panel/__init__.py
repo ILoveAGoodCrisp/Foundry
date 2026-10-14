@@ -4809,6 +4809,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         col.operator("nwo.shader_farm", text=f"Batch Build {shader_type}s", icon_value=get_icon_id("material_exporter"))
         col.separator()
         col.operator("nwo.shader_to_nodes_bulk", text=f"Convert {shader_type}s to Blender Materials", icon='NODE_MATERIAL')
+        col.operator("nwo.rebuild_foundry_mesh_previews", icon='FILE_REFRESH')
         if h4:
             col.operator("nwo.shader_to_material", text="Convert Shaders to Material Tags", icon_value=get_icon_id("material_exporter"))
         if utils.supports_game_feature('shader_templates'):
