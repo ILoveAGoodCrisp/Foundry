@@ -143,6 +143,146 @@ def set_control_rig_inverted(context, arm: bpy.types.Object, inverted: bool):
         )
 
 
+def copy_control_prop_value(value):
+    for conversion_method in ("to_list", "to_dict"):
+        convert = getattr(value, conversion_method, None)
+        if convert is not None:
+            return convert()
+
+    return value
+
+
+def armature_pose_state(arm: bpy.types.Object) -> tuple[dict[str, Matrix], dict[str, object]]:
+    """Records the local transform of every pose bone and the current control rig property values"""
+    matrices = {pbone.name: pbone.matrix_basis.copy() for pbone in arm.pose.bones}
+    settings_bone = arm.pose.bones.get(settings_control_name)
+    props = {key: copy_control_prop_value(settings_bone[key]) for key in settings_bone.keys()} if settings_bone is not None else {}
+
+    return matrices, props
+
+
+def apply_armature_pose_state(arm: bpy.types.Object, state: tuple[dict[str, Matrix], dict[str, object]]):
+    matrices, props = state
+    for pbone in arm.pose.bones:
+        matrix = matrices.get(pbone.name)
+        if matrix is not None:
+            pbone.matrix_basis = matrix.copy()
+
+    settings_bone = arm.pose.bones.get(settings_control_name)
+    if settings_bone is not None:
+        for key, value in props.items():
+            settings_bone[key] = value
+
+
+def slot_bone_curve_counts(action: bpy.types.Action, slot: bpy.types.ActionSlot, arm: bpy.types.Object) -> tuple[int, int]:
+    """Returns how many curves the slot holds for this armature's deform bones and control bones"""
+    channelbag = anim_utils.action_get_channelbag_for_slot(action, slot)
+    if channelbag is None:
+        return 0, 0
+
+    deform_curves = control_curves = 0
+    for fcurve in channelbag.fcurves:
+        match = POSE_BONE_DATA_PATH_RE.search(fcurve.data_path)
+        if match is None or arm.pose.bones.get(match.group(1)) is None:
+            continue
+
+        if is_control_bone_name(match.group(1)):
+            control_curves += 1
+        else:
+            deform_curves += 1
+
+    return deform_curves, control_curves
+
+
+def slot_belongs_to_another_object(slot: bpy.types.ActionSlot, arm: bpy.types.Object) -> bool:
+    """Whether the slot is another data-block's, either in use by one or named after one"""
+    if any(user != arm for user in slot.users()):
+        return True
+
+    named_object = bpy.data.objects.get(slot.name_display)
+
+    return named_object is not None and named_object != arm
+
+
+def suitable_action_slot(action: bpy.types.Action, arm: bpy.types.Object) -> bpy.types.ActionSlot | None:
+    """Returns the slot of the action to bake this armature with, or None when it has no claim to one.
+
+    An action holds a slot per data-block it drives, so plenty of actions have no slot for an object
+    at all, and one shared between two rigs has a slot for each. Binding a node tree or shape key
+    slot raises an error, and binding a slot belonging to another object would bake this rig's
+    animation into that object's channels, so neither is ever considered
+    """
+    shared_with_another_object = False
+    candidates = []
+    for slot in action.slots:
+        if slot.target_id_type not in {'UNSPECIFIED', arm.id_type}:
+            continue  # a slot for a node tree or shape keys says nothing about who owns this action
+
+        if slot_belongs_to_another_object(slot, arm):
+            shared_with_another_object = True
+        else:
+            candidates.append(slot)
+
+    if not candidates:
+        return None
+
+    for slot in candidates:
+        if arm in slot.users() or slot.name_display == arm.name:
+            return slot
+
+    if shared_with_another_object:
+        # The action drives another object and nothing marks any of the rest as this armature's, so
+        # the remaining slots are far more likely to be that object's than they are to be ours
+        return None
+
+    if len(candidates) == 1:
+        return candidates[0]
+
+    # Nothing names a slot as this armature's, which is the case for an action whose slot was named
+    # before the rig was renamed, so go by which one actually animates this rig. An action baked by
+    # an older version can carry a spare slot holding nothing but control rig curves, and it is the
+    # slot with the deform animation that is worth baking from
+    return max(candidates, key=lambda slot: slot_bone_curve_counts(action, slot, arm))
+
+
+def set_action_for_bake(arm: bpy.types.Object, action: bpy.types.Action, pose_state) -> bpy.types.ActionSlot | None:
+    """Assigns an action ready for baking, returning the bound slot, or None when it cannot be baked.
+
+    Blender only binds a slot by itself when it can match one to the armature. An action it cannot
+    match is left assigned with no slot, which means it drives no bones at all, so the rig stays
+    frozen in the pose of the previously handled action and anim_utils.bake_action creates a brand
+    new slot to write into rather than baking into the slot the animation actually plays
+
+    The rig is also put back into the state it started in, so that an action is never evaluated on a
+    rig still posed by the last one baked
+    """
+    animation_data = arm.animation_data
+    apply_armature_pose_state(arm, pose_state)
+    animation_data.action = action
+    if animation_data.action_slot is None:
+        slot = suitable_action_slot(action, arm)
+        if slot is None:
+            return None
+        animation_data.action_slot = slot
+
+    slot = animation_data.action_slot
+    if not any(slot_bone_curve_counts(action, slot, arm)):
+        return None
+
+    # Foundry looks slots up by identifier, so keep those lookups pointed at the bound slot
+    animation_data.last_slot_identifier = slot.identifier
+
+    return slot
+
+
+def restore_armature_action(arm: bpy.types.Object, action, slot, slot_identifier: str):
+    animation_data = arm.animation_data
+    animation_data.action = action
+    if action is not None and slot is not None:
+        animation_data.action_slot = slot
+    animation_data.last_slot_identifier = slot_identifier
+
+
 def bake_control_rig_actions(context, arm: bpy.types.Object, actions):
     actions = list(dict.fromkeys(action for action in actions if action is not None))
     if not actions or not armature_has_control_rig(arm):
@@ -152,7 +292,9 @@ def bake_control_rig_actions(context, arm: bpy.types.Object, actions):
         arm.animation_data_create()
 
     original_action = arm.animation_data.action
+    original_slot = arm.animation_data.action_slot
     original_slot_identifier = arm.animation_data.last_slot_identifier
+    original_pose_state = armature_pose_state(arm)
     original_active = context.view_layer.objects.active
     selected_objects = [ob for ob in context.selected_objects]
     selected_pose_bones = {pb.name: pb.select for pb in arm.pose.bones}
@@ -203,21 +345,19 @@ def bake_control_rig_actions(context, arm: bpy.types.Object, actions):
 
     try:
         for action in actions:
-            print(f"Baking action: {action.name}")
+            if set_action_for_bake(arm, action, original_pose_state) is None:
+                continue
 
+            print(f"Baking action: {action.name}")
             start, end = utils.get_frame_start_end_from_keyframes(action, arm)
             if end - start < 1:
                 continue
 
-            if len(action.slots):
-                slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
-                arm.animation_data.last_slot_identifier = slot.identifier
-            arm.animation_data.action = action
             anim_utils.bake_action(arm, action=action, frames=range(start, end + 1), bake_options=options)
             baked_count += 1
     finally:
-        arm.animation_data.action = original_action
-        arm.animation_data.last_slot_identifier = original_slot_identifier
+        restore_armature_action(arm, original_action, original_slot, original_slot_identifier)
+        apply_armature_pose_state(arm, original_pose_state)
         for pb in arm.pose.bones:
             pb.select = selected_pose_bones.get(pb.name, False)
         utils.deselect_all_objects()
@@ -428,7 +568,9 @@ def correct_baked_ik_target_actions(context, arm: bpy.types.Object, actions):
         return 0
 
     original_action = arm.animation_data.action
+    original_slot = arm.animation_data.action_slot
     original_slot_identifier = arm.animation_data.last_slot_identifier
+    original_pose_state = armature_pose_state(arm)
     original_frame = context.scene.frame_current
     original_mode = context.mode
     original_active = context.view_layer.objects.active
@@ -441,14 +583,12 @@ def correct_baked_ik_target_actions(context, arm: bpy.types.Object, actions):
 
     try:
         for action in list(dict.fromkeys(action for action in actions if action is not None)):
+            if set_action_for_bake(arm, action, original_pose_state) is None:
+                continue
+
             start, end = utils.get_frame_start_end_from_keyframes(action, arm)
             if end < start:
                 continue
-
-            if len(action.slots):
-                slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
-                arm.animation_data.last_slot_identifier = slot.identifier
-            arm.animation_data.action = action
 
             for prop_name, _fkb, ikb, ptb, _chain in contexts:
                 remove_settings_prop_fcurve(action, arm, prop_name)
@@ -485,10 +625,10 @@ def correct_baked_ik_target_actions(context, arm: bpy.types.Object, actions):
 
             corrected_count += 1
     finally:
+        restore_armature_action(arm, original_action, original_slot, original_slot_identifier)
+        apply_armature_pose_state(arm, original_pose_state)
         for prop_name in prop_names:
             settings_bone[prop_name] = 0.0
-        arm.animation_data.action = original_action
-        arm.animation_data.last_slot_identifier = original_slot_identifier
         context.scene.frame_set(original_frame)
         utils.deselect_all_objects()
         for ob in selected_objects:
@@ -510,7 +650,9 @@ def correct_baked_head_look_target_actions(context, arm: bpy.types.Object, actio
         return 0
 
     original_action = arm.animation_data.action
+    original_slot = arm.animation_data.action_slot
     original_slot_identifier = arm.animation_data.last_slot_identifier
+    original_pose_state = armature_pose_state(arm)
     original_frame = context.scene.frame_current
     original_mode = context.mode
     original_active = context.view_layer.objects.active
@@ -524,14 +666,12 @@ def correct_baked_head_look_target_actions(context, arm: bpy.types.Object, actio
     try:
         muted_constraints = mute_constraints_by_name(arm, (head_track_constraint_name, eye_track_constraint_name))
         for action in list(dict.fromkeys(action for action in actions if action is not None)):
+            if set_action_for_bake(arm, action, original_pose_state) is None:
+                continue
+
             start, end = utils.get_frame_start_end_from_keyframes(action, arm)
             if end < start:
                 continue
-
-            if len(action.slots):
-                slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
-                arm.animation_data.last_slot_identifier = slot.identifier
-            arm.animation_data.action = action
 
             for control_bone, _source_bones, _axis_index, _distance in contexts:
                 remove_pose_bone_transform_fcurves(action, arm, control_bone.name)
@@ -553,8 +693,8 @@ def correct_baked_head_look_target_actions(context, arm: bpy.types.Object, actio
     finally:
         for con, muted in muted_constraints:
             con.mute = muted
-        arm.animation_data.action = original_action
-        arm.animation_data.last_slot_identifier = original_slot_identifier
+        restore_armature_action(arm, original_action, original_slot, original_slot_identifier)
+        apply_armature_pose_state(arm, original_pose_state)
         context.scene.frame_set(original_frame)
         utils.deselect_all_objects()
         for ob in selected_objects:
@@ -595,7 +735,9 @@ def correct_baked_pole_target_actions(context, arm: bpy.types.Object, actions):
         return 0
 
     original_action = arm.animation_data.action
+    original_slot = arm.animation_data.action_slot
     original_slot_identifier = arm.animation_data.last_slot_identifier
+    original_pose_state = armature_pose_state(arm)
     original_frame = context.scene.frame_current
     original_mode = context.mode
     original_active = context.view_layer.objects.active
@@ -607,14 +749,12 @@ def correct_baked_pole_target_actions(context, arm: bpy.types.Object, actions):
 
     try:
         for action in list(dict.fromkeys(action for action in actions if action is not None)):
+            if set_action_for_bake(arm, action, original_pose_state) is None:
+                continue
+
             start, end = utils.get_frame_start_end_from_keyframes(action, arm)
             if end < start:
                 continue
-
-            if len(action.slots):
-                slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
-                arm.animation_data.last_slot_identifier = slot.identifier
-            arm.animation_data.action = action
 
             for _fkb, ptb, _chain in contexts:
                 remove_pose_bone_transform_fcurves(action, arm, ptb.name)
@@ -638,8 +778,8 @@ def correct_baked_pole_target_actions(context, arm: bpy.types.Object, actions):
 
             corrected_count += 1
     finally:
-        arm.animation_data.action = original_action
-        arm.animation_data.last_slot_identifier = original_slot_identifier
+        restore_armature_action(arm, original_action, original_slot, original_slot_identifier)
+        apply_armature_pose_state(arm, original_pose_state)
         context.scene.frame_set(original_frame)
         utils.deselect_all_objects()
         for ob in selected_objects:
@@ -681,7 +821,12 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
         set_control_rig_inverted(context, arm, False)
         if was_inverted and baked_count:
             correct_baked_control_target_actions(context, arm, actions)
-        
+
+        if not baked_count:
+            self.report({'WARNING'}, f"No actions found animating the bones of {arm.name}")
+        else:
+            self.report({'INFO'}, f"Baked {baked_count} action{'s' if baked_count > 1 else ''} to the control rig")
+
         return {'FINISHED'}
     
     def invoke(self, context, _):
