@@ -1,4 +1,5 @@
 from collections import defaultdict
+from pathlib import Path
 from typing import cast
 from mathutils import Matrix, Vector
 
@@ -7,6 +8,7 @@ from .cinematic_lighting import CinematicLightingTag
 from .cinematic import CinematicCameraDocument, CinematicSceneDataTag, cinematic_blender_lens
 from .blender import BlenderTag
 from .cinematic_script import encode_script_data
+from .cinematic_weapon import cinematic_weapon_attachment
 from .cinematic_extra import import_extra_camera_tracks, read_texture_camera_settings
 from .. import utils
 from ..props.scene import NWO_CinematicEvent
@@ -214,13 +216,19 @@ class CinematicCustomScript:
         self.frame = 0
         self.script = ""
         self.weapon_name = ""
+        self.weapon_barrel = 0
         self.node_id = 0
         self.sequence_id = 0
 
-    def set_weapon_trigger_script(self, weapon_name: str, firing: bool):
+    def set_weapon_trigger_script(self, weapon_name: str, firing: bool, barrel: int = 0, *, game: str = None):
         self.use_maya_value = True
         self.weapon_name = weapon_name
-        self.script = f'weapon_set_primary_barrel_firing (cinematic_weapon_get "{weapon_name}") {int(firing)}'
+        self.weapon_barrel = barrel
+        if game in {'halo3', 'halo3odst'}:
+            weapon = f'(unit_get_primary_weapon (unit (cinematic_object_get "{weapon_name}")))'
+        else:
+            weapon = f'(cinematic_weapon_get "{weapon_name}")'
+        self.script = f'weapon_hold_trigger {weapon} {barrel} {int(firing)}'
         
     
         
@@ -232,7 +240,7 @@ class CinematicCustomScript:
         
         return event
         
-    def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set, corinth: bool, actor_attachment_names: dict | None = None, actor_attachment_weapon_names: dict | None = None):
+    def from_event(self, event: NWO_CinematicEvent, object_tag_weapon_names: dict, actor_objects: set, corinth: bool, actor_attachment_names: dict | None = None, actor_attachment_weapon_names: dict | None = None, *, game: str = None):
         self.use_maya_value = True
         actor_name = actor_objects.get(event.actor, "")
         actor_attachment_names = actor_attachment_names or {}
@@ -258,7 +266,8 @@ class CinematicCustomScript:
                     else:
                         weapon_name = object_tag_weapon_names.get(event.actor, "")
                     if weapon_name:
-                        self.set_weapon_trigger_script(weapon_name, event.script_type == "WEAPON_TRIGGER_START")
+                        self.set_weapon_trigger_script(weapon_name, event.script_type == "WEAPON_TRIGGER_START",
+                                                       int(event.script_weapon_barrel), game=game)
                     elif event.actor:
                         utils.print_warning(f"Event at frame {event.frame} tries to fire a weapon but actor {event.actor.name} is not an weapon tag or does not use a weapon tag attachment")
                             
@@ -402,6 +411,8 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
 
     def _add_export_attachment(self, block, invisible, marker_name, object_name,
                                attachment_marker_name, attachment_type):
+        attachment_type = cinematic_weapon_attachment(attachment_type,
+            tags_root=self.tags_root, game=self.game, definitions=self.definitions)
         element = block[block.add()]
         flags = element.field('flags')
         if flags is not None:
@@ -414,6 +425,8 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
     def write_export_objects(self, actors, script_from_text, data=None):
         objects = self.block(self.tag.root(), 'objects')
         objects.clear()
+        emulate_attachment_visibility = self.game in {'halo3', 'halo3odst'}
+        hidden_attachments = {}
         data_objects = None
         if data is not None:
             data_objects = data.block(data.tag.root(), 'objects')
@@ -425,9 +438,12 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
             self._set_value(element, 'variant name', actor.variant)
             actor_nwo = actor.ob.nwo
             attachments = self.block(element, 'attachments')
+            actor_hidden_attachments = []
             if actor.weapon_tag is not None:
                 self._add_export_attachment(attachments, True, 'primary_trigger',
                     f'{actor.name}_weapon', 'primary_trigger', actor.weapon_tag)
+                if emulate_attachment_visibility:
+                    actor_hidden_attachments.append(f'{actor.name}_weapon')
             for index, attachment in enumerate(actor_nwo.attachments):
                 attachment_type = attachment.attachment_type.strip()
                 if not attachment_type:
@@ -442,6 +458,13 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
                     f'{actor.name}_{base_name}_{index + 1}', replace_spaces=True)
                 self._add_export_attachment(attachments, attachment.invisible,
                     marker_name, object_name, attachment_marker, attachment_type)
+                if emulate_attachment_visibility and attachment.invisible:
+                    actor_hidden_attachments.append(object_name)
+
+            if actor_hidden_attachments:
+                for shot_index in actor.shots_active:
+                    if 0 <= shot_index < 32:
+                        hidden_attachments.setdefault(shot_index, []).extend(actor_hidden_attachments)
 
             flags = self.required_field(element, 'flags')
             special_case = actor.name in {'player0', 'player1', 'player2', 'player3'}
@@ -494,6 +517,25 @@ class NativeCinematicSceneTag(BlenderTag, CinematicCameraDocument):
         self.tag_has_changes = True
         if data is not None:
             data.tag_has_changes = True
+        return hidden_attachments
+
+    def write_attachment_visibility_header(self, attachments_by_shot):
+        if self.game not in {'halo3', 'halo3odst'}:
+            return
+        root = self.tag.root()
+        shot_count = min(len(self.block(root, 'shots')), 32)
+        names = dict.fromkeys(name for shot_index, attachments in attachments_by_shot.items()
+                              if 0 <= shot_index < shot_count for name in attachments)
+        header = self.required_field(root, 'header').as_struct()
+        text = bytes(self.value(header, 'script')).rstrip(b'\x00').decode('utf-8-sig')
+        existing_lines = {line.strip() for line in text.splitlines()}
+        commands = '\n'.join(command for name in names
+            if (command := f'(object_set_scale (cinematic_object_get "{name}") 0.00000001 1)')
+            not in existing_lines)
+        if commands:
+            # Apply defaults before the user's header. Near-zero scale keeps
+            # effects active; repeated shots or exports must not add duplicates.
+            self._set_script(root, 'header', f'{commands}\n{text}' if text else commands)
     
     def to_blender(self, film_aperture: float, cinematic_name: str, data: CinematicSceneDataTag):
         with CinematicCameraDocument(data.tag_path.Filename, tags_root=utils.get_tags_path(),

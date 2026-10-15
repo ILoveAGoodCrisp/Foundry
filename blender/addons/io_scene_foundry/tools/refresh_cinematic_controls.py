@@ -4,6 +4,7 @@ import bpy
 from .. import utils
 
 from ..tags.cinematic_root import NativeCinematicTag
+from ..tags.cinematic_debug import LOOP_VARIABLE, h3_debug_commands
 
 REACH_LOOP_IT_WORKS = False
 
@@ -11,10 +12,11 @@ def new_command(command_name: str, command: str):
     return f'<item type = command name = "{command_name}" variable = "{command}">\n'
 
 def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, shot_index) -> bool:
-    # using cache_file_builder_unshare_unique_map_locations as a variable for looping. It is enabled by default in reach+
+    # All controls use existing engine globals; no mission source is installed.
     menu_commands = []
     cin_name = cinematic_path.with_suffix("").name
-    playback_suffix = ' (fade_in 0 0 0 0) (cinematic_show_letterbox_immediate 0)' if utils.get_game() in {'halo3', 'halo3odst'} else ''
+    h3 = utils.get_game() in {'halo3', 'halo3odst'}
+    playback_suffix = ' (fade_in 0 0 0 0) (cinematic_show_letterbox_immediate 0)' if h3 else ''
     scene_index = -1
     with NativeCinematicTag(path=cinematic_path) as cinematic:
         for index, (scene, _) in enumerate(cinematic.scene_references()):
@@ -25,16 +27,33 @@ def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, 
         if scene_index == -1:
             return False
 
+        if h3:
+            # current_shot_index is already one-based; 0 means no active marker.
+            shot_index = max(1, shot_index)
+            try:
+                h3_commands = h3_debug_commands(cinematic, scene_name, shot_index)
+                # Quote loop_it strings inside the debug menu's variable attribute.
+                h3_commands = {kind: command.replace('"', '\\"')
+                               for kind, command in h3_commands.items()}
+            except (OSError, ValueError, RuntimeError) as error:
+                utils.print_warning(f'Failed to update H3/ODST cinematic controls: {error}')
+                return False
+
         if corinth:
             bsp_zone_flags = cinematic.playback_bsp_zone_flags()
         # LOOP
-        if corinth or REACH_LOOP_IT_WORKS:
-            loop_command = '<item type = global name = "Foundry: Loop" variable = "cache_file_builder_unshare_unique_map_locations">\n'
+        if h3 or corinth or REACH_LOOP_IT_WORKS:
+            if h3:
+                loop_command = f'<item type = global name = "Foundry: Loop (0 Off / 1 On)" inc = 1 min = 0 max = 1 variable = "{LOOP_VARIABLE}">\n'
+            else:
+                loop_command = '<item type = global name = "Foundry: Loop" variable = "cache_file_builder_unshare_unique_map_locations">\n'
             menu_commands.append(loop_command)
         
         # PLAY CINEMATIC
         command_name = f"Foundry: Start {cin_name}"
-        if corinth:
+        if h3:
+            command = h3_commands['cinematic']
+        elif corinth:
             command = f'cinematic_debug_play \\"{cin_name}\\" \\"\\" cache_file_builder_unshare_unique_map_locations {bsp_zone_flags}'
         else:
             body = f'({cin_name}_debug){playback_suffix}'
@@ -47,7 +66,9 @@ def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, 
         if scene_name:
             # PLAY SCENE
             command_name = f"Foundry: Start Scene {scene_name}"
-            if corinth:
+            if h3:
+                command = h3_commands['scene']
+            elif corinth:
                 command = f'cinematic_debug_play \\"{cin_name}\\" \\"1 {scene_index} 0\\" cache_file_builder_unshare_unique_map_locations {bsp_zone_flags}'
             else:
                 body = f'(begin_{cin_name}_debug) (!{scene_name}) (end_{cin_name}_debug){playback_suffix}'
@@ -60,7 +81,9 @@ def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, 
             
             # PLAY SHOT
             command_name = f"Foundry: Start Scene {scene_name} Shot {shot_index}"
-            if corinth:
+            if h3:
+                command = h3_commands['shot']
+            elif corinth:
                 command = f'cinematic_debug_play \\"{cin_name}\\" \\"1 {scene_index} 1 {shot_index}\\" cache_file_builder_unshare_unique_map_locations {bsp_zone_flags}'
             else:
                 body = f'(begin_{cin_name}_debug) (cinematic_print \\"beginning scene {scene_index + 1}\\") (cinematic_scripting_create_scene {scene_index}) ({scene_name}_sh{shot_index}) (cinematic_scripting_destroy_scene {scene_index}) (end_{cin_name}_debug){playback_suffix}'
@@ -78,7 +101,9 @@ def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, 
         
         # STOP
         command_name = f"Foundry: Stop"
-        if corinth:
+        if h3:
+            command = h3_commands['stop']
+        elif corinth:
             command = "cinematic_debug_stop"
         else:
             command = f"(loop_clear) (end_{cin_name}_debug)"
@@ -111,7 +136,7 @@ def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, 
 class NWO_OT_RefreshCinematicControls(bpy.types.Operator):
     bl_idname = "nwo.refresh_cinematic_controls"
     bl_label = "Refresh Cinematic Controls"
-    bl_description = "Rewrites the current set of cinematic controls using the current scene state (current cinematic, current cinematic scene, current shot). Remember to reparse the debug menu [debug_menu_rebuild] to see the changes in game"
+    bl_description = "Rewrites the current set of cinematic controls using the current scene state (current cinematic, current cinematic scene, current shot). Reparse the debug menu [debug_menu_rebuild] to see changes in game"
     bl_options = {"UNDO"}
 
     @classmethod
@@ -130,7 +155,10 @@ class NWO_OT_RefreshCinematicControls(bpy.types.Operator):
         scene_name = f"{asset_name}_{utils.get_asset_name()}" if scene_nwo.is_child_asset else f"{asset_name}_000"
         shot_index = utils.current_shot_index(context)
         if add_controls_to_debug_menu(utils.is_corinth(context), Path(asset_path, asset_name).with_suffix(".cinematic"), scene_name, shot_index):
-            self.report({'INFO'}, f"Updated debug menu with cinematic controls: [Cinematic: {asset_name}], [Scene: {scene_name}], [Shot: {shot_index + 1}]",)
+            if utils.get_game() in {'halo3', 'halo3odst'}:
+                self.report({'INFO'}, f"Updated cinematic controls: [Cinematic: {asset_name}], [Scene: {scene_name}], [Shot: {max(1, shot_index)}]. Run debug_menu_rebuild to refresh the menu",)
+            else:
+                self.report({'INFO'}, f"Updated debug menu with cinematic controls: [Cinematic: {asset_name}], [Scene: {scene_name}], [Shot: {shot_index + 1}]",)
             return {"FINISHED"}
         else:
             self.report({'WARNING'}, "Failed to update debug menu",)

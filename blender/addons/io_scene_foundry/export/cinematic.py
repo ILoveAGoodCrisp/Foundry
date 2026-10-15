@@ -775,7 +775,7 @@ class QUA:
                 native_scene.write_export_header(
                     self.scene_name, cin_scene_settings.reset_object_lighting,
                     header, footer)
-                native_scene.write_export_objects(self.objects, script_from_text)
+                attachment_visibility = native_scene.write_export_objects(self.objects, script_from_text)
                 native_scene.write_camera_shots(
                     self.shots, False, script_from_text, rebuild=not self.preserve_unexported_shots)
                 native_scene.write_extra_camera_frames(self.extra_cameras, self.shots, False, rebuild=not self.preserve_unexported_shots)
@@ -785,10 +785,12 @@ class QUA:
                 native_scene.write_lighting_events(lighting)
                 native_scene.write_script_events(
                     scripts, self.get_shot_index_and_frame, False, script_from_text)
+                native_scene.write_attachment_visibility_header(attachment_visibility)
                 native_scene.write_content_events(
                     dialogue, effects, self.get_shot_index_and_frame)
 
     def _collect_scene_events(self, blender_scene):
+        game = utils.get_project().game
         music = {}
         object_function_keyframes = {}
         dialogue = {}
@@ -888,14 +890,14 @@ class QUA:
                     item = CinematicCustomScript()
                     item.from_event(event, object_tag_weapon_names, actor_objects,
                                     self.corinth, actor_attachment_names,
-                                    actor_attachment_weapon_names)
+                                    actor_attachment_weapon_names, game=game)
                     if item.script.strip():
                         frame_index = frame - frame_start + int(self.corinth)
                         custom_scripts[item] = frame_index
                         if (event.script_type == 'WEAPON_TRIGGER_START'
                                 and not event.script_bool and item.weapon_name):
                             release = CinematicCustomScript()
-                            release.set_weapon_trigger_script(item.weapon_name, False)
+                            release.set_weapon_trigger_script(item.weapon_name, False, item.weapon_barrel, game=game)
                             custom_scripts[release] = frame_index + 1
                 case 'MUSIC':
                     item = CinematicMusic()
