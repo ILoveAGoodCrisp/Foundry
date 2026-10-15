@@ -21,8 +21,8 @@ def material_variant(shader, props, global_material='default', ass_version=None,
     if target_game == 'halo2':
         # H2 distinguishes fog from water with the $ flag on +media.
         special.update({15: '+media', 17: '+media', 18: '+media'})
-        if re.fullmatch(r'\+portal\d*', shader, re.IGNORECASE):
-            special[13] = shader
+    if target_game in {'halo2', 'halo3', 'halo3odst'} and re.fullmatch(r'\+portal[\w]*', shader, re.IGNORECASE):
+        special[13] = shader
     water_surface = target_game in {'halo3', 'halo3odst'} and get('mesh_type') == 17
     if target_game in {'halo3', 'halo3odst'}:
         if get('mesh_type') == 1:

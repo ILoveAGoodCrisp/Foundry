@@ -107,6 +107,9 @@ type, even when a source name's reference prefix disagrees with the palette.
 Without a palette match, an explicit reference prefix remains authoritative.
 Matching uses the exact source asset directory, not a name search;
 structural XREFs outside that palette keep their mesh payload.
+Structure markers likewise use the node transform, excluding their preview
+pivot. Halo 3/ODST materials with a missing compiled shader class resolve to a
+unique existing sibling shader class; existing or ambiguous paths are unchanged.
 Authored normals, color seams and the third UV component remain per corner
 through the final import cleanup. Material symbols are read from the suffix;
 interior punctuation, such as `Material #3451`, remains part of the shader name.
@@ -118,6 +121,9 @@ Halo 3 and ODST structure materials without a lightmap-resolution record use
 Tool's default of 3, exposed as an editable face property. Explicit records and
 name settings take priority. Equivalent integer and floating-point lighting
 values serialize identically so they do not create redundant material variants.
+Unmarked Halo 3/ODST instances use the editable Automatic lighting policy.
+Export omits the lighting suffix so Tool selects its native policy; explicit
+per-pixel, per-vertex and single-probe settings still emit their normal flags.
 
 ASS import does not persist source transforms, instance records, identifiers,
 ordering, pivots, policy snapshots, material tables or reference payloads in
@@ -133,6 +139,8 @@ geometry. Frame selection recognizes the `b_`, `b `, `bip_` and `bip ` names use
 by Max, as well as `frame` names. Siblings attached to the scene wrapper remain
 outside the asset. Lighting-name tokens such as `LP:6` are case-insensitive and
 do not hide preceding material symbols or become part of shader lookup names.
+Sources without an authored frame include every root, including unparented
+instances alongside the scene wrapper.
 
 Instances referencing the same geometry and skin palette, with compatible mesh
 and collision-proxy settings, share Blender mesh data. Frame cleanup ignores
@@ -157,9 +165,20 @@ objects, parent inverses, nonuniform scale and other unsupported hierarchies use
 evaluated world geometry instead. Mesh and transform edits remain authoritative;
 the exporter does not restore source records or repair individual scenes.
 
-Halo 2 portal material names such as `+portal2` and their per-face assignments
-remain editable materials through import, virtual geometry and ASS export.
-Replacing them all with `+portal` changes native portal construction. Halo 2
+Halo 2/3/ODST portals always use the object **Portal Index** for grouping.
+The object **Portal Index** is a material group, not a device-machine door index.
+`-1` assigns distinct groups to separate objects;
+`0` exports `+portal`, and positive values export `+portalN`. Matching explicit
+indices share a group when the other material properties match. Automatic groups
+avoid explicit indices in the BSP, regardless of display material names.
+Import assigns explicit indices to the original material groups, retaining
+canonical numeric names and assigning unused numbers to other names such as
+`+portal_door`. Mixed groups split into consecutive object runs without changing
+face order. Imported portals use Foundry's standard **Portal** display material;
+their indices preserve the source grouping independently of material slots.
+The names themselves do not set door policy: the `|` suffix or ASS `BM_FLAGS`
+door bit does. This was verified with native Halo 2, Halo 3 and ODST controls.
+Halo 2/3/ODST
 mixed surface meshes are split into consecutive runs so their triangle order
 survives the separate Blender mesh types. Halo 2, Halo 3 and ODST structure
 export retains zero-area faces that participate in native partitioning and
@@ -168,6 +187,16 @@ fans so Blender cannot corrupt neighboring custom normals. Export recovers
 their invalid normals from current coincident corners with matching material
 and vertex attributes before using geometric fallbacks. It never deletes the
 faces to repair their normals. Other ASS cleanup keeps its existing behavior.
+Repeated-index structure triangles receive distinct coincident Blender vertices
+so the face remains editable without invalid custom-normal loops.
+
+Halo 3/ODST seam compilation sees only the level's BSP ASS files, excluding
+design files. It starts without an existing seam tag because Tool otherwise
+reuses old plane data and identical sources can produce different partitions.
+The previous tag is restored if generation or validation fails. Seams are
+regenerated for structure exports even when their faces are unchanged: nearby
+structure planes also affect them. If the complete compiled seam data changes,
+both sides are rebuilt; identical results preserve a selected BSP export's scope.
 
 The legacy exporter populates `ASS` from evaluated virtual geometry, with
 material variants from Foundry face properties and separate geometry and

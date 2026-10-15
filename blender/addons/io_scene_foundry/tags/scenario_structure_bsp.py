@@ -505,11 +505,14 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         havok = self._read_havok_collisions(materials, self.havok_geometry())
         return havok[0].to_bvh() if havok else None
 
-    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1, import_havok=False, skip_structure_merge=False, merge_render_collision=True):
+    def to_blend_objects(self, collection: bpy.types.Collection, for_cinematic: bool, lighting_info_path: Path = None, import_geometry=True, import_lights=True, always_get_structure_collision=False, sky_index=-1, import_havok=None, skip_structure_merge=False, merge_render_collision=True):
         
         objects = []
         game_objects = []
         bvh = None
+        if import_havok is None:
+            import_havok = self.game in {'halo4', 'halo2a'}
+        import_havok = import_havok and not for_cinematic
         
         if not import_geometry and not import_lights and not import_havok:
             if always_get_structure_collision:
@@ -621,6 +624,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         native_render_meshes = (
             self.render_meshes(native_instance_definitions) if import_geometry else []
         )
+        source_shape_names = next((record.source_shape_names for record in native_render_meshes
+                                   if record.source_shape_names), ())
         structure_meta_data = self.structure_meta_data()
             
         # Get all emissive data
@@ -679,7 +684,6 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         # Get all instance definitions
         instance_definitions = []
         instances = []
-        created_instance_indices = set()
         ig_collection = None
         permitted_collections = set()
         num_defs = len(native_instance_definitions)
@@ -709,6 +713,10 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     objects.extend(definition.create(None, None))
                     utils.update_job_count(process, "", definition.index, num_defs)
                 utils.update_job_count(process, "", num_defs, num_defs)
+            if havok_collisions:
+                proxy_objects, havok_standalone_face_indices = self._create_havok_instance_proxies(
+                    havok_collisions, instances, havok_standalone_face_indices)
+                objects.extend(proxy_objects)
             
             # Create instanced geometries
         
@@ -726,7 +734,6 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                     ob = io.create()
                     objects.append(ob)
                     io_collection.objects.link(ob)
-                    created_instance_indices.add(io.index)
         
         # if poops:
         #     with bpy.context.temp_override(selected_editable_objects=poops, object=poops[0]):
@@ -753,23 +760,6 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         ]
         if not for_cinematic:
             collision = get_collision()
-            if import_havok:
-                proxy_objects, havok_standalone_face_indices = self._create_havok_instance_proxies(
-                    havok_collisions,
-                    instances,
-                    havok_standalone_face_indices,
-                )
-                objects.extend(proxy_objects)
-                if ig_collection is not None:
-                    for io in instances:
-                        if io.index in created_instance_indices or not (io.definition.blender_render or io.definition.blender_collision):
-                            continue
-                        io_collection = io.get_collection(ig_collection, permitted_collections, self.tag_path.ShortName)
-                        permitted_collections.add(io_collection)
-                        ob = io.create()
-                        objects.append(ob)
-                        io_collection.objects.link(ob)
-                        created_instance_indices.add(io.index)
             if collision is not None:
                 # The compiler mapping restores the original shared render
                 # triangles. Recover missing collision coverage separately;
@@ -873,19 +863,28 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                         
         seam_collection = None
 
+        from .source_shapes_blender import has_source_shapes, reconstruct_objects, weld_source_vertices
+
         def add_structure_object(ob: bpy.types.Object, seam_name: str | None = None, connect_edges=False):
+            for piece in reconstruct_objects([ob], source_shape_names):
+                add_structure_piece(piece, seam_name, connect_edges)
+
+        def add_structure_piece(ob: bpy.types.Object, seam_name: str | None = None, connect_edges=False):
             nonlocal seam_collection
-            if not for_cinematic:
+            source_shape = has_source_shapes(ob.data)
+            if source_shape:
+                weld_source_vertices(ob.data)
+            if not for_cinematic and not source_shape:
                 # Reconnect exact splits before stitching collision edges.
                 weld_classic_vertices(ob.data)
-            if not for_cinematic:
+            if not for_cinematic and not source_shape:
                 from .bsp_import_geometry import recover_folded_patch_boundaries
                 repaired = recover_folded_patch_boundaries(ob.data, 0.025 * import_transform.scale_factor())
                 if repaired:
                     utils.print_step(f"Recovered {repaired} folded source boundaries")
-            if connect_edges and not for_cinematic:
+            if connect_edges and not for_cinematic and not source_shape:
                 utils.connect_verts_on_edge(ob.data, spatial_search=True)
-            if not for_cinematic:
+            if not for_cinematic and not source_shape:
                 from .bsp_import_geometry import repair_collision_triangulation
                 repair_collision_triangulation(ob.data, 0.025 * import_transform.scale_factor())
             objects.append(ob)
@@ -974,12 +973,16 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         # Render meshes without native planes or with custom normals are skipped.
         from .collision_outline import stabilize_seam_boundaries
         stabilize_seam_boundaries(objects)
+        objects = reconstruct_objects(objects, source_shape_names)
         ob_meshes = {o.data for o in objects if o.type == 'MESH'}
         for me in ob_meshes:
             # Reconnect UV/normal splits in merged or separate clusters,
             # shared instance definitions, collision proxies and water.
             # Process shared meshes once rather than once per placement.
-            weld_classic_vertices(me)
+            if has_source_shapes(me):
+                weld_source_vertices(me)
+            else:
+                weld_classic_vertices(me)
             utils.consolidate_face_attributes(me, preserve_special_faces=True)
             utils.consolidate_materials(me)
                 
@@ -1146,6 +1149,44 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
         return surface_triangle_mapping, standalone_face_indices
 
     @staticmethod
+    def _shared_havok_instance_groups(havok_collisions, instances):
+        """Only put equivalent placed collision back onto a shared definition."""
+        instances_by_index = {instance.index: instance for instance in instances}
+        groups = {collision: collision.source_instance_face_indices() for collision in havok_collisions}
+        by_definition = {}
+        for collision, source_groups in groups.items():
+            for index, faces in source_groups.items():
+                instance = instances_by_index.get(index)
+                if instance is not None:
+                    key = (instance.definition, collision.collision_type)
+                    by_definition.setdefault(key, {}).setdefault(index, []).append((collision, faces))
+        for placements in by_definition.values():
+            if len(placements) < 2:
+                continue
+            expected = None
+            equivalent = True
+            for parts in placements.values():
+                triangles = []
+                for collision, faces in parts:
+                    signature = collision.local_geometry_signature(faces)
+                    if signature is None:
+                        equivalent = False
+                        break
+                    triangles.extend(signature)
+                signature = tuple(sorted(triangles))
+                if expected is None:
+                    expected = signature
+                elif signature != expected:
+                    equivalent = False
+                if not equivalent:
+                    break
+            if not equivalent:
+                for index, parts in placements.items():
+                    for collision, _ in parts:
+                        groups[collision].pop(index, None)
+        return groups
+
+    @staticmethod
     def _map_havok_instance_collision(
         havok_collisions: list[HavokCollision],
         instances: list[Instance],
@@ -1159,6 +1200,7 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             return fallback_face_indices
 
         triangle_counts = {}
+        triangle_indices = {}
         for instance in instances:
             definition = instance.definition
             if definition in triangle_counts:
@@ -1178,13 +1220,17 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             except (IndexError, ValueError):
                 triangle_counts[definition] = 0
                 continue
-            triangle_counts[definition] = len(mesh.tris)
+            triangle_indices[definition] = {face.index for face in mesh.tris}
+            triangle_counts[definition] = max(triangle_indices[definition], default=-1) + 1
 
         instances_by_index = {instance.index: instance for instance in instances}
         claimed_render_triangles = {}
         mapped_definitions = set()
+        shared_groups = ScenarioStructureBspTag._shared_havok_instance_groups(havok_collisions, instances)
         for collision in havok_collisions:
-            for source_instance_index, face_indices in collision.source_instance_face_indices().items():
+            if not collision.has_render_triangle_mappings:
+                continue
+            for source_instance_index, face_indices in shared_groups[collision].items():
                 instance = instances_by_index.get(source_instance_index)
                 if instance is None:
                     continue
@@ -1197,6 +1243,12 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 # faces for the standalone fallback instead of mixing a mesh.
                 if definition.havok_collision_type_name not in {None, collision.collision_type_name}:
                     continue
+
+                # Degenerate render triangles leave holes in the source IDs.
+                # A numeric range alone would claim faces no Blender polygon has.
+                face_indices = [index for index in face_indices if all(
+                    triangle in triangle_indices[definition]
+                    for triangle in collision.render_triangle_mappings[index])]
 
                 definition_claims = claimed_render_triangles.setdefault(definition, {})
                 definition_mapped_faces = set()
@@ -1246,8 +1298,9 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
 
         instances_by_index = {instance.index: instance for instance in instances}
         parts_by_definition = {}
+        shared_groups = ScenarioStructureBspTag._shared_havok_instance_groups(havok_collisions, instances)
         for collision in havok_collisions:
-            for source_instance_index, face_indices in collision.source_instance_face_indices().items():
+            for source_instance_index, face_indices in shared_groups[collision].items():
                 face_indices = [face_index for face_index in face_indices if face_index in allowed_face_indices[collision]]
                 if not face_indices:
                     continue
@@ -1258,14 +1311,16 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 definition = instance.definition
                 render_object = definition.blender_render
                 has_render_mesh = render_object is not None and render_object.type == 'MESH'
+                collision_type_name = collision.collision_type_name
+                # Check type before claiming a face covered by an existing proxy.
+                # A play-collision proxy cannot replace a bullet/invisible layer.
+                if definition.havok_collision_type_name not in {None, collision_type_name}:
+                    continue
                 if has_render_mesh and render_object.data.nwo.proxy_collision is not None:
-                    claimed_face_indices[collision].update(face_indices)
                     continue
                 if not has_render_mesh and definition.blender_collision is not None:
-                    claimed_face_indices[collision].update(face_indices)
                     continue
 
-                collision_type_name = collision.collision_type_name
                 # Tool cannot safely partition shared proxy vertices by
                 # collision type, so recover at most one type per definition.
                 if definition.havok_collision_type_name not in {None, collision_type_name}:
@@ -1332,6 +1387,15 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
             definition.has_collision = True
             if has_render_mesh:
                 collision_object.nwo.proxy_type = "collision"
+                if definition.surface_triangle_mapping:
+                    # A proxy replaces the render object's collision on export.
+                    # Keep mapped render faces and remaining collision together.
+                    utils.add_face_prop(collision_object.data, 'face_mode').face_mode = 'collision_only'
+                    utils.join_objects([render_object, collision_object], cleanup_geometry=False,
+                                       preserve_special_faces=True)
+                    definition.blender_collision = None
+                    definition.collision_is_proxy = False
+                    continue
                 render_object.data.nwo.proxy_collision = collision_object
                 definition.collision_is_proxy = True
                 proxy_count += 1
@@ -1360,6 +1424,8 @@ class ScenarioStructureBspTag(ScenarioStructureBspMetadataTag):
                 record.bounds_max, record.collision_type)
             if collision is not None:
                 havok_collisions.append(collision)
+            else:
+                utils.print_warning(f'{name}: Havok payload contains no supported collision triangles')
 
         return sorted(havok_collisions, key=lambda collision: collision.collision_type)
     

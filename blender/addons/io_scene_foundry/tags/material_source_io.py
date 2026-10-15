@@ -6,6 +6,8 @@ from .material_vectors import _time
 
 def make_instance(tree, node):
     node.node_tree=node.node_tree.copy()
+    from ..tools.wrinkle_tension import patch_material_group
+    patch_material_group(node.node_tree)
     node.node_tree['foundry_source_instance']=True
     node.node_tree.use_fake_user=False
     if node.node_tree.get('foundry_support_level')=='partial':

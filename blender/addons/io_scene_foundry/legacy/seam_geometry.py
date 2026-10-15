@@ -1,9 +1,54 @@
 """Compare authored ASS seams with native Tool geometry, without a build cache."""
 from collections import Counter, defaultdict
 from math import sqrt
+from contextlib import contextmanager
+from pathlib import Path
+from uuid import uuid4
 
 from .ass_format import ASS
 from ..seam_materials import seam_material_name
+
+
+@contextmanager
+def fresh_structure_seams(path):
+    """Regenerate seams without Tool reusing old planes; roll back failures."""
+    path = Path(path)
+    backup = path.with_name(path.name + '.rebuild-' + uuid4().hex) if path.is_file() else None
+    if backup is not None:
+        path.rename(backup)
+    try:
+        yield
+    except BaseException:
+        path.unlink(missing_ok=True)
+        if backup is not None:
+            backup.rename(path)
+        raise
+    else:
+        if backup is not None:
+            backup.unlink()
+
+
+@contextmanager
+def structure_seam_sources(sources):
+    """Expose only BSP sources to Tool's folder-wide seam compilation.
+
+    Design meshes contribute planes even without seam faces. Keep their ASS
+    files out of this pass, then restore them for the structure-design import.
+    """
+    allowed = {Path(source).resolve() for source in sources}
+    moved = []
+    try:
+        for directory in sorted({source.parent for source in allowed}):
+            for source in directory.iterdir():
+                if source.suffix.casefold() != '.ass' or source.resolve() in allowed or not source.is_file():
+                    continue
+                temporary = source.with_name(source.name + '.seams-' + uuid4().hex)
+                source.rename(temporary)
+                moved.append((source, temporary))
+        yield
+    finally:
+        for source, temporary in reversed(moved):
+            temporary.rename(source)
 
 
 def _transform_point(point, transform):

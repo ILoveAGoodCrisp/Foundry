@@ -39,7 +39,7 @@ def main_frame_scope(names, parents, order, identifiers=None):
 
     ASS exporters can add several sentinel frames above the actual export frame.
     Their transforms still contribute to world matrices, but their other children
-    are outside the asset. Files without an authored frame use their first root.
+    are outside the asset. Files without any frame include every scene root.
     """
     frames = {i for i in order if names[i].casefold() == 'frame'
               or names[i].casefold().startswith(FRAME_PREFIXES)}
@@ -56,9 +56,9 @@ def main_frame_scope(names, parents, order, identifiers=None):
         roots = [i for i in order if parents[i] == -1]
     if not roots:
         return None
-    root = roots[0]
+    selected_roots = set(roots[:1] if candidates else roots)
     included = set()
     for i in order:
-        if i == root or parents[i] in included:
+        if i in selected_roots or parents[i] in included:
             included.add(i)
     return included

@@ -105,11 +105,17 @@ Full and Tags Only exports support H1 through ODST model, sky, and animation
 assets. H1 and H2 scenario exports compile each structure BSP and create or
 update the parent `.scenario` tag with the compiled BSP references. Existing
 scenario contents and existing BSP entries are preserved; a new scenario also
-receives its selected scenario type and a default player start/profile. H2–ODST run the editing kit's `bulk-import-model-folder` workflow over
-the JMS/ASS source tree; H2 always uses its standard command because that kit
-does not provide the H3 draft variant. H1 dispatches its separate `model`,
+receives its selected scenario type and a default player start/profile. H2–ODST run the editing kit's `bulk-import-model-folder` workflow only when
+render, collision, and physics source files are all present. Otherwise, Foundry
+runs only the individual `render`, `collision`, and `physics` commands with
+available JMS/ASS sources, then creates or updates the parent `.model` tag and
+its component references natively. H3/ODST individual render imports preserve
+the selected final/draft mode. H2 always uses its standard bulk command because
+that kit does not provide the H3 draft variant. H1 dispatches its separate `model`,
 `collision-geometry`, and `physics` commands according to the available source
-directories. H1 always launches `tool.exe`, even when the project preference is
+directories; the shared H1 physics folder only triggers the collision or physics
+step when the corresponding geometry is present and enabled for export.
+H1 always launches `tool.exe`, even when the project preference is
 set to `tool_fast`, because H1 does not provide a compatible fast executable.
 Before H1 Tool runs, Foundry resolves selected shader paths and supplies a shared
 grey fallback for unresolved materials so Tool does not open its interactive

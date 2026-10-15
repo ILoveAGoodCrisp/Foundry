@@ -499,7 +499,7 @@ class LegacyExportScene(ExportScene):
         return utils.run_tool(tool_args, **kwargs)
 
     def prepare_structure_seams(self, sources):
-        """Build missing/changed seams; return whether all BSPs need updating."""
+        """Rebuild current seams; return whether all BSPs need updating."""
         triangles = [triangle for source in sources for triangle in ass_seam_triangles(source)]
         self.structure_seams_present = bool(triangles)
         seams = Path(self.tags_dir, self.asset_path_relative,
@@ -517,30 +517,33 @@ class LegacyExportScene(ExportScene):
                         # this export; scenario postprocessing unlinks the tag.
                         return True
             return False
+        previous = None
         if seams.is_file():
             try:
                 with StructureSeamsDocument(seams, tags_root=self.tags_dir,
                                             game=self.target_game, must_exist=True) as tag:
-                    if tag.matches_triangles(triangles):
-                        print('--- Skipping structure seams: seam geometry is unchanged', flush=True)
-                        return False
+                    previous = tag.compilation_signature()
             except Exception as error:
-                # An unreadable or unmatchable output must never be treated as
-                # up to date. The current ASS geometry remains authoritative.
-                print(f'--- Rebuilding structure seams: {error}', flush=True)
+                print(f'--- Rebuilding unreadable structure seams: {error}', flush=True)
         print(f'--- Tool processing structure seams: {self.asset_path_relative}', flush=True)
-        self._run_import_tool(
-            ['structure-seams', self.asset_path_relative],
-            event_level=self.export_settings.event_level,
-            force_tool=True,
-        )
-        if not seams.is_file():
-            raise ExportCancelled(f'Seam compilation did not create the expected tag: {seams}')
-        with StructureSeamsDocument(seams, tags_root=self.tags_dir,
-                                    game=self.target_game, must_exist=True) as tag:
-            if not any(seam.triangles for seam in tag.read_geometry()):
-                raise ExportCancelled(f'Seam compilation produced no seam geometry: {seams}')
-        return True
+        from ..legacy.seam_geometry import fresh_structure_seams, structure_seam_sources
+        # Tool also uses surrounding BSP planes, so matching only the seam
+        # faces cannot detect every change. An existing tag seeds its plane
+        # solver and can retain different results for identical current input.
+        with structure_seam_sources(sources), fresh_structure_seams(seams):
+            self._run_import_tool(
+                ['structure-seams', self.asset_path_relative],
+                event_level=self.export_settings.event_level,
+                force_tool=True,
+            )
+            if not seams.is_file():
+                raise ExportCancelled(f'Seam compilation did not create the expected tag: {seams}')
+            with StructureSeamsDocument(seams, tags_root=self.tags_dir,
+                                        game=self.target_game, must_exist=True) as tag:
+                if not any(seam.triangles for seam in tag.read_geometry()):
+                    raise ExportCancelled(f'Seam compilation produced no seam geometry: {seams}')
+                current = tag.compilation_signature()
+        return previous != current
 
     def write_tags(self, single_animation=False):
         """Compile legacy model sources, then update object tags natively."""
@@ -724,16 +727,47 @@ class LegacyExportScene(ExportScene):
                         for destination in destinations:
                             self.repair_halo1_shader_paths(destination, expected)
                 if physics.is_dir() and any(physics.glob('*.jms')):
-                    for command in ('collision-geometry', 'physics'):
+                    # Collision triangles and physics mass points share the
+                    # same source folder in H1, but need separate imports.
+                    mesh_types = {data[0].get('bungie_mesh_type')
+                                  for data in self.ob_halo_data.values()}
+                    for role, mesh_type, command in (
+                            ('collision', 2, 'collision-geometry'),
+                            ('physics', 12, 'physics')):
+                        if role not in self.export_tag_types or mesh_type not in mesh_types:
+                            continue
                         self._run_import_tool([command, self.asset_path_relative],
                                        event_level=self.export_settings.event_level,
                                        **halo1_tool_options)
             else:
-                command = ('bulk-import-model-folder'
-                           if self.target_game == 'halo2' or self.export_settings.lightmap_structure
-                           else 'bulk-import-model-folder-draft')
-                self._run_import_tool([command, self.asset_path_relative],
-                               event_level=self.export_settings.event_level)
+                sources = {}
+                for role in ('render', 'collision', 'physics'):
+                    directory = Path(self.asset_path, role)
+                    sources[role] = directory.is_dir() and any(
+                        path.is_file() and path.suffix.lower() in {'.jms', '.ass'}
+                        for path in directory.iterdir())
+                if all(sources.values()):
+                    command = ('bulk-import-model-folder'
+                               if self.target_game == 'halo2' or self.export_settings.lightmap_structure
+                               else 'bulk-import-model-folder-draft')
+                    self._run_import_tool([command, self.asset_path_relative],
+                                   event_level=self.export_settings.event_level)
+                else:
+                    # Bulk import attempts all three components even when a
+                    # source folder is empty or absent, producing Tool errors.
+                    for role, present in sources.items():
+                        if not present:
+                            continue
+                        command = [role, self.asset_path_relative]
+                        if role == 'render' and self.target_game in {'halo3', 'halo3odst'}:
+                            command.append('final' if self.export_settings.lightmap_structure else 'draft')
+                        self._run_import_tool(command, event_level=self.export_settings.event_level)
+                    # Individual imports only create component tags; bulk
+                    # import would also create and link the parent model tag.
+                    model_path = Path(self.tags_dir, self.asset_path_relative,
+                                      self.asset_name).with_suffix('.model')
+                    with ModelTag(path=model_path) as model:
+                        model.set_asset_paths()
 
         animation_dir = Path(self.asset_path, 'animations')
         has_animation_sources = (animation_dir.is_dir() and any(
@@ -1508,6 +1542,8 @@ class LegacyExportScene(ExportScene):
             for key, array in overrides:
                 value = array[face]
                 props[key] = value.tolist() if hasattr(value, 'tolist') else value
+            if ass_version is not None and props.get('bungie_mesh_type') == 13:
+                shader = getattr(self, 'portal_material_names', {}).get(id(node), {}).get(shader, shader)
             region = props.get('bungie_face_region', node.region or 'default')
             if not isinstance(region, str):
                 region = regions[region]
@@ -1560,7 +1596,10 @@ class LegacyExportScene(ExportScene):
             faces = range(int(start), int(start + count))
             if not faces:
                 continue
-            shader = self.legacy_shader_name(mat)
+            # Portal materials identify partition groups, never shader tags.
+            shader = ((getattr(mat, 'legacy_shader_name', '') or mat.name)
+                      if self.target_game in ASS_GAMES and node.props.get('bungie_mesh_type') == 13
+                      else self.legacy_shader_name(mat))
             if not overrides:
                 materials.update(dict.fromkeys(faces, resolve(faces.start, shader)))
                 continue
@@ -1940,6 +1979,12 @@ class LegacyExportScene(ExportScene):
         # ordinary nodes first even if the virtual-scene dictionary order was
         # changed by evaluation.
         ordered_nodes = sorted(nodes, key=lambda node: node.proxy_parent is not None)
+        from ..legacy.portal_groups import allocate_portal_materials
+        self.portal_material_names = allocate_portal_materials(
+            (id(node), node.props.get('foundry_portal_group_index', -1),
+             tuple(getattr(mat, 'legacy_shader_name', '') or mat.name for mat, _, _ in node.mesh.groups))
+            for node in ordered_nodes
+            if self.target_game in ASS_GAMES and node.props.get('bungie_mesh_type') == 13)
         for node in ordered_nodes:
             foundry_output._raise_if_cancel_requested()
             materials = self.face_materials(node, asset, cache)

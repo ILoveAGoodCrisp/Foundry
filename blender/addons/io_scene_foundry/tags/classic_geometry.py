@@ -627,7 +627,8 @@ def weld_classic_vertices(mesh, *, preserve_deformation=False):
     triangulation removes duplicate triangles sharing the same vertex IDs,
     even when one is render-only and the other supplies collision.
     Optionally keep coincident vertices distinct when their skin weights or
-    shape-key positions differ, so editable model imports retain animation.
+    shape-key positions or authored PCA wrinkle data differ, so editable model
+    imports retain animation and wrinkle seams.
     """
     bm = bmesh.new()
     try:
@@ -663,11 +664,14 @@ def weld_classic_vertices(mesh, *, preserve_deformation=False):
         protected = set()
         shape_layers = tuple(bm.verts.layers.shape.values()) if preserve_deformation else ()
         deform_layer = bm.verts.layers.deform.active if preserve_deformation else None
+        pca_layers = tuple(layer for layer in bm.verts.layers.float_vector.values()
+                           if layer.name.startswith('foundry_pca_')) if preserve_deformation else ()
         for vertex in bm.verts:
             role = bool(vertex.link_faces) and all(f in noncollision for f in vertex.link_faces)
             shapes = tuple(tuple(vertex[layer]) for layer in shape_layers)
             weights = tuple(sorted(vertex[deform_layer].items())) if deform_layer is not None else ()
-            by_position[tuple(vertex.co), role, shapes, weights].append(vertex)
+            pca = tuple(tuple(vertex[layer]) for layer in pca_layers)
+            by_position[tuple(vertex.co), role, shapes, weights, pca].append(vertex)
         for face in bm.faces:
             coords = frozenset(tuple(v.co) for v in face.verts)
             # Cross-role overlays are already protected by the weld key.

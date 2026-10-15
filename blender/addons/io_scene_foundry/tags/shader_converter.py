@@ -271,7 +271,7 @@ class ShaderTag(BlenderTag, TagDocument):
     h3_group_families = frozenset({
         'shader', 'shader_custom', 'shader_decal', 'shader_halogram',
         'shader_terrain', 'shader_cortana', 'shader_foliage', 'shader_skin',
-        'shader_water',
+        'shader_water', 'shader_black',
     })
     group_option_start_input = 8
     palette_vector_node_name = "palettized_plasma - palette_vector"
@@ -1392,7 +1392,11 @@ class ShaderTag(BlenderTag, TagDocument):
                     return 
                     
             case 'real':
-                element.SelectField('real').SetStringData(str(source))
+                # Render-method reals are authored by their value function.
+                # A nonzero legacy scalar can trigger Reach's old roughness
+                # migration as well, which asserts when that function exists.
+                # H4 materials still use their scalar field as a default.
+                element.SelectField('real').SetStringData(str(source if self.corinth else 0))
             case 'int':
                 element.SelectField('int\\bool').SetStringData(str(source))
             case 'bool':
@@ -1637,6 +1641,10 @@ class ShaderTag(BlenderTag, TagDocument):
         else:
             self._to_nodes_bsdf(blender_material)
         
+        if self.corinth:
+            from ..tools.wrinkle_tension import setup_material_users
+            setup_material_users(blender_material)
+
         if not self.corinth:
             flags = self._native_root.SelectField("Struct:render_method[0]/WordFlags:shader flags")
             if flags is not None and flags.TestBit("only render for shields"):
@@ -3458,7 +3466,11 @@ class ShaderTag(BlenderTag, TagDocument):
         
         if animated_parameters:
             node = tree.nodes.new('ShaderNodeGroup')
-            if self.has_rotating_bitmaps:
+            # The shader-wide rotation option also appears on ordinary tiled
+            # textures (e.g. Reach Spartan detail maps). Only use the rotation
+            # interpretation when this bitmap authors SCALE_X, its angle;
+            # otherwise the rotate group silently drops uniform/Y scaling.
+            if self.has_rotating_bitmaps and AnimatedParameterType.SCALE_X in animated_parameters:
                 # SCALE X = the angle of rotation
                 # TRANSLATION X, TRANSLATION Y = vector of the center of rotation
                 node.node_tree = utils.add_node_from_resources("shared_nodes", 'Texture Rotate')

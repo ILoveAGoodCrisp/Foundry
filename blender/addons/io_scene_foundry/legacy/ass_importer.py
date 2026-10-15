@@ -482,19 +482,21 @@ class ASSImporter(JMSImporter):
                 reference_type = Path(embedded_tag).suffix
             reference_only = bool(reference_type or (geometry and geometry.kind == 'MESH' and geometry.xref_path
                                   and not (geometry.vertices and geometry.triangles)))
+            marker_only = not self.is_model and instance.name.startswith('#')
             if self.geometry_only and (instance.name.startswith('#') or geometry is None
                                        or reference_only or geometry.kind == 'GENERIC_LIGHT'):
                 continue
             matrix = self.scene_matrix(self.world[index] @ self.ass_matrix(instance.pivot))
-            if reference_only:
+            if reference_only or marker_only:
                 if self.owner.game in ASS_GAMES:
-                    # Tool places the referenced object at its node transform.
+                    # Tool places references and markers at the node transform.
                     # The object-offset pivot belongs only to the embedded preview
                     # mesh; applying it rotates/offsets devices in the rebuilt BSP.
                     matrix = self.scene_matrix(self.world[index])
                 # Referenced models already use the scene's forward axes.
                 # Convert the marker's local basis as well as its world basis.
                 matrix = marker_axis.local_axes(matrix, self.owner.from_x_rot)
+            if reference_only:
                 ob = self.object(ass_reference_name(instance.name) if reference_type else instance.name.lstrip('#'))
                 from ..tools.importer import XREF
                 path = geometry.xref_path if geometry else ''
@@ -559,9 +561,9 @@ class ASSImporter(JMSImporter):
                 ob.parent_type = 'OBJECT'
                 if not self.is_model:
                     pivot = instance.pivot
-                    if reference_only and self.owner.game in ASS_GAMES:
+                    if (reference_only or marker_only) and self.owner.game in ASS_GAMES:
                         pivot = replace(pivot, rotation=(0, 0, 0, 1), translation=(0, 0, 0), scale=(1, 1, 1))
-                    self.place_local(ob, pivot, reference=reference_only)
+                    self.place_local(ob, pivot, reference=reference_only or marker_only)
                     if reference_only or ob.type == 'LIGHT':
                         # Referenced previews and light data already use scene units.
                         ob.scale *= self.geometry_scale / self.scale

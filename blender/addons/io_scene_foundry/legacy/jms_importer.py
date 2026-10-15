@@ -453,7 +453,21 @@ class JMSImporter:
 
     def source_shader_path(self, name):
         """Resolve authoring collection prefixes before basename shader search."""
-        supplied = self.shader_paths.get(name.casefold(), '')
+        def compiled_path(shader_name):
+            supplied = self.shader_paths.get(shader_name.casefold(), '')
+            if supplied and getattr(self.owner, 'game', '') in {'halo3', 'halo3odst'}:
+                path = Path(utils.get_tags_path(), supplied)
+                if not path.is_file():
+                    # Some shipped BSP palettes retain a stale shader class.
+                    # Tool resolves the existing shader by name; use the unique
+                    # sibling class instead of exporting the invalid fallback.
+                    alternatives = [path.with_suffix(ext) for ext in utils.shader_exts
+                                    if path.with_suffix(ext).is_file()]
+                    if len(alternatives) == 1:
+                        return str(alternatives[0].relative_to(utils.get_tags_path()))
+            return supplied
+
+        supplied = compiled_path(name)
         if supplied:
             return supplied
         game = getattr(self.owner, 'game', '')
@@ -474,7 +488,7 @@ class JMSImporter:
             names.append(base)
         for shader_name in names:
             # A tag's material table can disambiguate a stale authoring collection.
-            supplied = self.shader_paths.get(shader_name.casefold(), '')
+            supplied = compiled_path(shader_name)
             if supplied:
                 return supplied
             if collection is not None:
@@ -557,14 +571,13 @@ class JMSImporter:
                 elif mask.any():
                     utils.add_face_prop(ob.data, 'global_material', mask).global_material = self.collision_material_name(index, material)
         source_props = next((self.props.get(index) for index in faces_by_material), None)
+        if (not self.is_model and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_portal'
+                and self.owner.game in {'halo2', 'halo3', 'halo3odst'}):
+            # build_meshes splits portal material groups into consecutive runs.
+            # Store the source group before replacing its display material.
+            source_index = next(iter(faces_by_material))
+            ob.nwo.portal_group_index = self.portal_indices[source_index]
         _, display_material = self.owner.mesh_and_material(self.mesh_kind(source_props), self.is_model)
-        if not self.is_model and self.owner.game == 'halo2':
-            if any(material is not None and material.name.casefold().startswith('+portal')
-                   for material in ob.data.materials):
-                # H2's numbered portal materials affect native partitioning.
-                # Keep their editable names and face assignments instead of
-                # replacing every slot with the common Portal display material.
-                display_material = None
         if not self.is_model and self.owner.game in {'halo3', 'halo3odst'}:
             if any(material is not None and material.name.casefold().startswith('+seam:')
                    for material in ob.data.materials):
@@ -593,6 +606,14 @@ class JMSImporter:
 
     def build_meshes(self):
         j = self.jms
+        indexed_portals = not self.is_model and self.owner.game in {'halo2', 'halo3', 'halo3odst'}
+        if indexed_portals and not hasattr(self, 'portal_indices'):
+            from .portal_groups import portal_material_indices, portal_material_name
+            names = {index: j.materials[index].name for index, props in self.props.items()
+                     if props.mesh_type == 'portal'}
+            indices = portal_material_indices(names.values())
+            self.portal_indices = {index: indices[portal_material_name(name) or name.casefold()]
+                                   for index, name in names.items()}
         if self.import_info_kind == 'physics_model' and j.version >= 8206:
             return
         if self.is_model and self.mesh_kind(None) == 'physics' and j.shapes:
@@ -619,12 +640,13 @@ class JMSImporter:
                 continue
             # Object-only portal policies cannot be represented by face layers.
             groups = defaultdict(list)
-            preserve_order = not self.is_model and self.owner.game == 'halo2'
+            preserve_order = not self.is_model and self.owner.game in {'halo2', 'halo3', 'halo3odst'}
             previous_group, run = None, 0
             for triangle in triangles:
-                # Repeated vertex indices create invalid loops that can crash
-                # Blender's custom-normal calculation. Keep them in source data.
-                if len(set(triangle.vertices)) != 3:
+                # ASS BSP construction can depend on zero-area faces. Give
+                # repeated corners separate editable vertices below so their
+                # loops remain valid for Blender's custom-normal calculation.
+                if not preserve_order and len(set(triangle.vertices)) != 3:
                     skipped_triangles += 1
                     continue
                 props = self.props.get(triangle.material)
@@ -637,6 +659,8 @@ class JMSImporter:
                     continue
                 policy = (tuple(getattr(props, p, False) for p in ('portal_one_way', 'portal_door', 'portal_vis_blocker', 'blocks_sound', 'ai_deafening', 'portal_exact'))
                           if kind == 'portal' else ())
+                if indexed_portals and kind == 'portal':
+                    policy += (self.portal_indices[triangle.material],)
                 group = (kind, policy)
                 if preserve_order:
                     # Tool's BSP construction is sensitive to triangle order.
@@ -651,10 +675,21 @@ class JMSImporter:
                 remap = {}
                 faces_by_material = defaultdict(list)
                 local_faces = []
+                source_indices = []
                 for triangle in faces:
-                    local_faces.append(tuple(remap.setdefault(i, len(remap)) for i in triangle.vertices))
+                    local_face = []
+                    for i in triangle.vertices:
+                        if i not in remap:
+                            remap[i] = len(source_indices)
+                            source_indices.append(i)
+                        local_index = remap[i]
+                        if local_index in local_face:
+                            local_index = len(source_indices)
+                            source_indices.append(i)
+                        local_face.append(local_index)
+                    local_faces.append(tuple(local_face))
                     faces_by_material[triangle.material].append(len(local_faces) - 1)
-                vertices = [j.vertices[i] for i in remap]
+                vertices = [j.vertices[i] for i in source_indices]
                 if self.geometry_only and self.tag_armature is not None:
                     name = f'{region}:{permutation}' + (f':{lod.upper()}' if lod else '')
                 else:
@@ -683,7 +718,7 @@ class JMSImporter:
                 if lod_label in {'L1', 'L2', 'L3', 'L4', 'L5', 'L6'}:
                     ob.nwo.mesh_lod = lod_label
                 self.apply_materials(ob, faces_by_material)
-                self.mesh_created(ob, list(remap))
+                self.mesh_created(ob, source_indices)
                 if self.armature:
                     # Mesh coordinates are world-space; preserve them on transformed rigs.
                     ob.parent = self.armature

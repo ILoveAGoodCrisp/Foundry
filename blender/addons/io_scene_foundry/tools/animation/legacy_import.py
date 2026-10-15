@@ -61,21 +61,22 @@ def blend_screen_duplicate_frames(screen, frame_start=1):
     """Map repeated yaw/pitch samples to their first authored pose.
 
     Compare the two aim rotations separately: yaw remains meaningful at the
-    pitch poles. Wraps distinguish otherwise identical screen coordinates.
+    pitch poles. Reach rejects coincident aim directions even when the samples
+    have different wrap labels (for example a legacy screen's -180/+180 seam).
     The additive reference is not a blend-screen sample.
     """
     unique = []
     duplicates = {}
-    for index, (yaw, pitch, wrap) in enumerate(screen.transforms):
+    for index, (yaw, pitch, _wrap) in enumerate(screen.transforms):
         frame = frame_start + index + 1
-        for first_frame, first_yaw, first_pitch, first_wrap in unique:
-            if wrap == first_wrap and all(abs(a[row][column] - b[row][column]) <= 1e-6
+        for first_frame, first_yaw, first_pitch in unique:
+            if all(abs(a[row][column] - b[row][column]) <= 1e-6
                    for a, b in ((yaw, first_yaw), (pitch, first_pitch))
                    for row in range(3) for column in range(3)):
                 duplicates[frame] = first_frame
                 break
         else:
-            unique.append((frame, yaw, pitch, wrap))
+            unique.append((frame, yaw, pitch))
     return duplicates
 
 
@@ -106,6 +107,14 @@ def strip_reach_blend_screen_duplicates(armature, animations, duplicate_frames):
                 point.co = (frame_map[frame], value)
                 point.interpolation = 'LINEAR'
             curve.update()
+        # A removed pose must not move its wrap onto the retained pose: opposite
+        # seam endpoints would then give that frame conflicting wrap directions.
+        for index in reversed(range(len(animation.animation_events))):
+            event = animation.animation_events[index]
+            if (event.frame_frame in duplicates
+                    and event.event_type == '_connected_geometry_animation_event_type_import'
+                    and event.import_name in {'Wrapped Left', 'Wrapped Right'}):
+                animation.animation_events.remove(index)
         for event in animation.animation_events:
             start = frame_map.get(event.frame_frame, event.frame_frame)
             end = frame_map.get(event.frame_range, event.frame_range)

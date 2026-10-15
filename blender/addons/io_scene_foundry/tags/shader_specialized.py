@@ -1,5 +1,18 @@
-"""H3 specialized render methods, dispatched through the named option library."""
+"""Specialized render methods, dispatched through the named option libraries."""
 from .shader_converter import ShaderTag
+
+
+class ShaderBlackTag(ShaderTag):
+    """ODST's fixed black surface; its sole category has no options."""
+    tag_ext = 'shader_black'
+    group_node_name = 'foundry_h3odst.shader_black'
+    category_parameters = None
+    category_parameters_path = None
+
+    def _edit_tag(self):
+        # black.fx ignores material inputs. Keep the initialized definition and
+        # dummy option, and preserve existing metadata instead of basic mapping.
+        self.tag_has_changes = True
 
 
 class ShaderCortanaTag(ShaderTag):
