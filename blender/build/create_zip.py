@@ -1,5 +1,6 @@
 from zipfile import ZipFile, ZIP_DEFLATED
 import os
+import re
 from pathlib import Path
 
 def main():
@@ -30,7 +31,7 @@ def main():
             for file in files:
                 file_path = dir_path / file
 
-                if file_path.suffix == ".pyc":
+                if file_path.suffix == ".pyc" or re.search(r"\.blend\d+$", file, re.IGNORECASE):
                     continue
 
                 archive_path = Path("io_scene_foundry") / file_path.relative_to(extension_path)

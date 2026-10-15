@@ -14,6 +14,8 @@ import sys
 import tempfile
 import zipfile
 
+from update_blam_tags_typings import stage_typings
+
 PROFILES = ('haloce_mcc', 'halo2_mcc', 'halo3_mcc', 'halo3odst_mcc',
             'haloreach_mcc', 'halo4_mcc', 'halo2amp_mcc')
 SCHEMAS = ('scenario.json', 'scenario_cinematics_resource.json',
@@ -26,7 +28,7 @@ SCHEMAS = ('scenario.json', 'scenario_cinematics_resource.json',
            'camera_track.json', 'bitmap.json', 'globals.json', 'render_method_option.json',
            'render_method_definition.json', 'material_shader.json', 'model.json',
            'sound_effect_collection.json', 'sound_classes.json', 'cache_file_sound.json',
-           'render_method.json', 'material.json', 'shader.json', 'shader_cortana.json',
+           'render_method.json', 'material.json', 'shader.json', 'shader_black.json', 'shader_cortana.json',
            'shader_custom.json', 'shader_decal.json', 'shader_foliage.json',
            'shader_fur.json', 'shader_fur_stencil.json', 'shader_glass.json',
            'shader_halogram.json', 'shader_mux.json', 'shader_mux_material.json',
@@ -123,6 +125,7 @@ def main():
             raise RuntimeError(f'Expected one wheel, got {wheels}')
         wheel = wheels[0]
         validate_wheel(wheel)
+        stage_typings(wheel, addon.parents[2] / 'typings/blam_tags/__init__.pyi')
         (addon / 'wheels').mkdir(exist_ok=True)
         shutil.copy2(wheel, addon / 'wheels' / wheel.name)
         hashes = stage_schemas(source, addon)
