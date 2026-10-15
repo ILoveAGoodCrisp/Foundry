@@ -41,13 +41,6 @@ def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, 
 
         if corinth:
             bsp_zone_flags = cinematic.playback_bsp_zone_flags()
-        # LOOP
-        if h3 or corinth or REACH_LOOP_IT_WORKS:
-            if h3:
-                loop_command = f'<item type = global name = "Foundry: Loop (0 Off / 1 On)" inc = 1 min = 0 max = 1 variable = "{LOOP_VARIABLE}">\n'
-            else:
-                loop_command = '<item type = global name = "Foundry: Loop" variable = "cache_file_builder_unshare_unique_map_locations">\n'
-            menu_commands.append(loop_command)
         
         # PLAY CINEMATIC
         command_name = f"Foundry: Start {cin_name}"
@@ -114,6 +107,14 @@ def add_controls_to_debug_menu(corinth: bool, cinematic_path: Path, scene_name, 
             command_name = "Foundry: Step One Frame"
             command = "cinematic_step_one_frame"
             menu_commands.append(new_command(command_name, command))
+
+        # LOOP
+        if h3 or corinth or REACH_LOOP_IT_WORKS:
+            if h3:
+                loop_command = f'<item type = global name = "Foundry: Loop (0 Off / 1 On)" inc = 1 min = 0 max = 1 variable = "{LOOP_VARIABLE}">\n'
+            else:
+                loop_command = '<item type = global name = "Foundry: Loop" variable = "cache_file_builder_unshare_unique_map_locations">\n'
+            menu_commands.append(loop_command)
             
             
     menu_path = Path(utils.get_project_path(), 'bin', 'debug_menu_user_init.txt')
