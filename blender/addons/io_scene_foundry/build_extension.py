@@ -340,7 +340,8 @@ def render_manifest(version: str, wheel_files: list[str]) -> str:
         "[build]\n"
         "paths_exclude_pattern = [\n"
         '  "/.git/",\n'
-        '  "__pycache__/"\n'
+        '  "__pycache__/",\n'
+        '  "*.blend[0-9]*"\n'
         "]\n"
     )
 
