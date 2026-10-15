@@ -427,6 +427,11 @@ class InstanceDefinition:
                 self.blender_cookie.nwo.proxy_type = "cookie_cutter"
                 self.blender_render.data.nwo.proxy_cookie_cutter = self.blender_cookie
 
+        if utils.is_corinth() and render_valid and not self.surface_triangle_mapping:
+            # Havok is authoritative for Corinth collision. Unmapped render
+            # faces must not acquire new physical coverage when re-exported.
+            utils.add_face_prop(self.blender_render.data, 'face_mode').face_mode = 'render_only'
+
         if render_valid and self.has_collision and not self.collision_is_proxy:
             from .classic_geometry import weld_classic_vertices
             from .bsp_import_geometry import (reconnect_collinear_triangles, retriangulate_render_slivers,
@@ -535,6 +540,9 @@ class Instance:
         ob.matrix_world = import_transform.object_matrix(self.matrix)
         ob.scale = Vector.Fill(3, self.scale)
         nwo = ob.nwo
+        from .source_shapes_blender import has_source_shapes, INSTANCE_NAME
+        if ob.type == 'MESH' and has_source_shapes(ob.data):
+            ob[INSTANCE_NAME] = self.name
         nwo.poop_excluded_from_lightprobe = self.not_in_lightprobes
         nwo.poop_render_only = self.render_only
         nwo.poop_does_not_block_aoe = self.not_block_aoe
@@ -1907,6 +1915,20 @@ class HavokCollision:
             grouped.setdefault(instance_index, []).append(face_index)
         return grouped
 
+    def local_geometry_signature(self, face_indices):
+        """Compare shared collision without depending on pool/triangle ordering."""
+        if not self.has_source_local_vertices:
+            return None
+        triangles = []
+        has_mappings = self.has_render_triangle_mappings
+        for index in face_indices:
+            points = tuple(self.source_local_vertices[vertex] for vertex in self.faces[index])
+            # Cyclic permutations retain winding; reversed triangles stay distinct.
+            points = min(points, points[1:] + points[:1], points[2:] + points[:2])
+            mappings = self.render_triangle_mappings[index] if has_mappings else ()
+            triangles.append((points, self.material_indices[index], tuple(sorted(mappings))))
+        return tuple(sorted(triangles))
+
     @property
     def unmapped_face_indices(self) -> list[int]:
         return self.get_unmapped_face_indices()
@@ -1925,7 +1947,7 @@ class HavokCollision:
     def to_surface_triangle_mappings(
         self,
         section_triangle_ranges: list[tuple[int, int, int]] | None = None,
-        claimed_render_triangles: dict[tuple[int, int], str] | None = None,
+        claimed_render_triangles: dict[tuple[int, int], tuple[str, int]] | None = None,
         rejected_face_indices: set[int] | None = None,
         face_indices: list[int] | None = None,
         mapped_face_indices: set[int] | None = None,
@@ -1942,18 +1964,21 @@ class HavokCollision:
                 continue
 
             render_triangle_indices = self.render_triangle_mappings[face_index]
+            material_index = self.material_indices[face_index] if face_index < len(self.material_indices) else -1
+            claim = (self.collision_type_name, material_index)
             resolved_triangles = []
             has_matching_collision_type = False
             has_collision_type_conflict = False
             for render_triangle_index in render_triangle_indices:
                 resolved = self._resolve_render_triangle_index(render_triangle_index, section_triangle_ranges)
                 if resolved is None:
-                    continue
+                    has_collision_type_conflict = True
+                    break
 
                 if claimed_render_triangles is not None:
                     claimed_collision_type = claimed_render_triangles.get(resolved)
                     if claimed_collision_type is not None:
-                        if claimed_collision_type != self.collision_type_name:
+                        if claimed_collision_type != claim:
                             has_collision_type_conflict = True
                         else:
                             has_matching_collision_type = True
@@ -1974,7 +1999,6 @@ class HavokCollision:
             if not resolved_triangles:
                 continue
 
-            material_index = self.material_indices[face_index] if face_index < len(self.material_indices) else -1
             material = self.collision_materials[material_index] if 0 <= material_index < len(self.collision_materials) else None
             group_key = material_index
             surface, triangle_mappings = grouped_mappings.get(group_key, (None, None))
@@ -1986,7 +2010,7 @@ class HavokCollision:
             for section_index, local_triangle_index in resolved_triangles:
                 triangle_mappings.append(DirectTriangleMapping(local_triangle_index, section_index))
                 if claimed_render_triangles is not None:
-                    claimed_render_triangles[(section_index, local_triangle_index)] = self.collision_type_name
+                    claimed_render_triangles[(section_index, local_triangle_index)] = claim
 
         return [
             SurfaceMapping.from_render_triangles(surface, triangle_mappings)
@@ -2020,8 +2044,14 @@ class HavokCollision:
             return None
 
         data = bytes(serialized_data)
-        mesh_data = cls._extract_static_compound_mesh_data(data, len(collision_materials))
-        if mesh_data is None:
+        if data.startswith(HavokTagfileReader._MAGIC):
+            # The object graph is authoritative. Scanning a failed tagfile for
+            # plausible pools can silently import just one child or random bytes.
+            try:
+                mesh_data = cls._extract_tagfile_mesh_data(data, len(collision_materials))
+            except (EOFError, IndexError, KeyError, struct.error, UnicodeDecodeError, ValueError) as error:
+                raise ValueError(f'{name}: cannot decode Havok collision: {error}') from error
+        else:
             mesh_data = cls._extract_mesh_data(data, len(collision_materials))
         if mesh_data is None:
             return None
@@ -2040,20 +2070,19 @@ class HavokCollision:
         return cls(name, vertices, faces, material_indices, collision_materials, render_triangle_mappings, collision_type, source_instance_indices, source_local_vertices)
 
     @classmethod
-    def _extract_static_compound_mesh_data(cls, data: bytes, material_count: int):
-        if not data.startswith(HavokTagfileReader._MAGIC) or b"HaloStaticCompoundMeshShape" not in data:
-            return None
-
-        try:
-            root = HavokTagfileReader(data).parse()
-        except (EOFError, IndexError, KeyError, struct.error, UnicodeDecodeError, ValueError):
-            return None
-        if not isinstance(root, dict) or "hkpStaticCompoundShape" not in root.get("classes", ()):
-            return None
-
-        instances = root.get("fields", {}).get("instances")
-        if not isinstance(instances, list) or not instances:
-            return None
+    def _extract_tagfile_mesh_data(cls, data: bytes, material_count: int):
+        root = cls._unwrap_collision_shape(HavokTagfileReader(data).parse())
+        if not isinstance(root, dict):
+            raise ValueError('missing root shape')
+        classes = root.get('classes', ())
+        if 'hkpStaticCompoundShape' in classes:
+            instances = root.get('fields', {}).get('instances', [])
+            if not isinstance(instances, list):
+                raise ValueError('invalid compound instances')
+        elif 'HaloCompressedMeshShape' in classes:
+            instances = [{'fields': {'shape': root}}]
+        else:
+            raise ValueError(f'unsupported root shape {classes}')
 
         vertices = []
         faces = []
@@ -2063,35 +2092,37 @@ class HavokCollision:
         source_local_vertices = []
         for instance in instances:
             if not isinstance(instance, dict):
-                continue
+                raise ValueError('invalid compound instance')
             instance_fields = instance.get("fields", {})
             source_instance_index = instance_fields.get("userData", -1)
             if not isinstance(source_instance_index, int):
                 source_instance_index = -1
             transform = cls._static_compound_instance_matrix(instance_fields.get("transform"))
             if transform is None:
-                continue
+                raise ValueError('invalid compound transform')
 
-            for compressed_shape in cls._find_compressed_mesh_shapes(instance_fields.get("shape")):
-                storage_definitions = compressed_shape.get("fields", {}).get("meshStorageDefinitions", ())
-                if not isinstance(storage_definitions, list):
-                    continue
-                for storage in storage_definitions:
-                    mesh_data = cls._mesh_data_from_storage(storage, material_count)
-                    if mesh_data is None:
-                        continue
+            compressed_shape = cls._unwrap_collision_shape(instance_fields.get('shape'))
+            if not isinstance(compressed_shape, dict) or 'HaloCompressedMeshShape' not in compressed_shape.get('classes', ()):
+                raise ValueError('unsupported compound child shape')
+            storage_definitions = compressed_shape.get("fields", {}).get("meshStorageDefinitions", ())
+            if not isinstance(storage_definitions, list) or not storage_definitions:
+                raise ValueError('missing mesh storage definitions')
+            for storage in storage_definitions:
+                mesh_data = cls._mesh_data_from_storage(storage, material_count)
+                if mesh_data is None:
+                    raise ValueError('invalid mesh storage')
 
-                    storage_vertices, storage_faces, storage_materials, storage_mappings = mesh_data
-                    first_vertex = len(vertices)
-                    vertices.extend((transform @ Vector(vertex)).to_tuple() for vertex in storage_vertices)
-                    source_local_vertices.extend(storage_vertices)
-                    faces.extend(
-                        (a + first_vertex, b + first_vertex, c + first_vertex)
-                        for a, b, c in storage_faces
-                    )
-                    material_indices.extend(storage_materials)
-                    render_triangle_mappings.extend(storage_mappings)
-                    source_instance_indices.extend([source_instance_index] * len(storage_faces))
+                storage_vertices, storage_faces, storage_materials, storage_mappings = mesh_data
+                first_vertex = len(vertices)
+                vertices.extend((transform @ Vector(vertex)).to_tuple() for vertex in storage_vertices)
+                source_local_vertices.extend(storage_vertices)
+                faces.extend(
+                    (a + first_vertex, b + first_vertex, c + first_vertex)
+                    for a, b, c in storage_faces
+                )
+                material_indices.extend(storage_materials)
+                render_triangle_mappings.extend(storage_mappings or [()] * len(storage_faces))
+                source_instance_indices.extend([source_instance_index] * len(storage_faces))
 
         if not vertices or not faces:
             return None
@@ -2100,9 +2131,25 @@ class HavokCollision:
         return vertices, faces, material_indices, render_triangle_mappings, source_instance_indices, source_local_vertices
 
     @staticmethod
+    def _unwrap_collision_shape(shape):
+        """MOPPs add acceleration data, without changing the child's coordinates."""
+        visited = set()
+        while isinstance(shape, dict) and 'hkpMoppBvTreeShape' in shape.get('classes', ()):
+            if id(shape) in visited:
+                raise ValueError('cyclic MOPP shape')
+            visited.add(id(shape))
+            container = shape.get('fields', {}).get('child')
+            if not isinstance(container, dict):
+                raise ValueError('missing MOPP child container')
+            shape = container.get('fields', {}).get('childShape')
+        return shape
+
+    @staticmethod
     def _static_compound_instance_matrix(transform):
-        if not isinstance(transform, tuple) or len(transform) < 11:
+        if transform is None:
             return Matrix.Identity(4)
+        if not isinstance(transform, tuple) or len(transform) != 12:
+            return None
         values = transform[:11]
         if not all(math.isfinite(value) for value in values):
             return None
@@ -2158,14 +2205,14 @@ class HavokCollision:
         valid_triangle_indices = []
         for triangle_index, index in enumerate(range(0, len(index_values), 4)):
             a, b, c, combined_material = index_values[index:index + 4]
-            if min(a, b, c) < 0 or max(a, b, c) >= len(vertices) or len({a, b, c}) < 3:
+            if min(a, b, c) < 0 or max(a, b, c) >= len(vertices):
+                raise ValueError('Havok triangle vertex is out of range')
+            if len({a, b, c}) < 3:
                 continue
             faces.append((a, b, c))
             material_indices.append(cls._material_index_from_combined_data(combined_material, material_count))
             valid_triangle_indices.append(triangle_index)
 
-        if not faces:
-            return None
         render_triangle_mappings = cls._render_mappings_from_storage(
             fields.get("RenderMapping"),
             fields.get("IORenderTriangleIndices"),
@@ -3161,6 +3208,8 @@ class Mesh:
         mesh.raw_lightmap_texcoords = list(geometry.lightmap_texcoords)
         mesh.raw_vertex_colors = list(geometry.vertex_colors)
         mesh.source_geometry = geometry if preserve_source else None
+        mesh.source_shape_names = getattr(geometry, 'source_shape_names', ())
+        mesh.source_vertex_keys = getattr(geometry, 'source_vertex_keys', ())
         mesh.has_lightmap_uvs = getattr(geometry, 'has_lightmap_uvs', False)
         mesh.is_halo1_bsp = getattr(geometry, 'halo1_source', None) is not None
         mesh.raw_texcoords1 = []
@@ -3764,9 +3813,12 @@ class Mesh:
         # placements still share their completed definition's mesh normally.
         is_bsp_geometry = name.startswith(('cluster:', 'instance_definition:'))
         has_tag_path = self.tag_path is not None and not is_bsp_geometry
+        # Reconstruction replaces/splits these meshes after skin groups are
+        # assigned. Cache entries must not retain the discarded combined mesh.
+        cache_mesh = has_tag_path and not getattr(self, 'source_vertex_keys', ())
         matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
         final_matrix = import_transform.object_matrix(matrix)
-        if has_tag_path:
+        if cache_mesh:
             transform_signature = import_transform.signature()
             if subpart is None:
                 mesh_key = self.index, self.tag_path, transform_signature
@@ -3803,7 +3855,7 @@ class Mesh:
         mesh = bpy.data.meshes.new(name)
         ob = bpy.data.objects.new(name, mesh)
         
-        if has_tag_path and not self.is_pca:
+        if cache_mesh and not self.is_pca:
             mesh_cache[mesh_key] = mesh
 
         positions = self.raw_positions[idx_start:idx_end + 1]
@@ -3818,6 +3870,16 @@ class Mesh:
             indices = [[i - idx_start for i in tri] for tri in indices]
 
         mesh.from_pydata(positions, [], indices)
+
+        if getattr(self, 'source_vertex_keys', ()):
+            from .source_shapes_blender import store_source_shapes
+            store_source_shapes(mesh, self.source_shape_names, self.source_vertex_keys, idx_start)
+
+        if self.corinth and has_tag_path and str(self.tag_path).endswith('.render_model') and not is_io:
+            from .pca_mapping import store_mapping
+            source_mesh = self.index if self.real_mesh_index is None else self.real_mesh_index
+            store_mapping(mesh, self.tag_path, source_mesh, len(self.raw_positions),
+                          range(idx_start, idx_end + 1))
 
         if name.startswith('cluster:') and collision_info is not None and subpart is None:
             # Preserve tag triangle identity through water/seam separation and
@@ -4030,7 +4092,8 @@ class Mesh:
             utils.save_loop_normals_mesh(mesh)
             # H1 model sidedness belongs to the shader. Retain compiled LOD
             # faces instead of replacing overlaps with geometry face flags.
-            if not getattr(self, 'preserve_overlapping_faces', False):
+            from .source_shapes_blender import has_source_shapes
+            if not getattr(self, 'preserve_overlapping_faces', False) and not has_source_shapes(mesh):
                 utils.set_two_sided(mesh, is_io, orient_two_sided=not is_bsp_geometry)
             utils.apply_loop_normals(mesh)
             # utils.loop_normal_magic(mesh)

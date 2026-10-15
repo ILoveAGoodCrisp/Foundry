@@ -16,12 +16,13 @@ from .targets import scenario_targets
 SCENARIO_OBJECT = '_connected_geometry_marker_type_scenario_object'
 
 
-def scenario_object_orientation(matrix, game, *, importing=False):
-    if game not in {'halo3', 'halo3odst'}:
+def scenario_object_export_matrix(ob, game):
+    matrix = utils.halo_transforms_matrix(ob.matrix_world, marker=True)
+    if game not in {'halo3', 'halo3odst'} or ob.nwo.get('scenario_object_native_axes', False):
         return matrix
-    # H3/ODST scenario headings need a quarter turn to align with imported object geometry.
-    # Rotate the heading around the placement itself, preserving its world position.
-    result = Matrix.Rotation(pi / 2 if importing else -pi / 2, 4, 'Z') @ matrix
+    # Older scenes stored an extra world-space quarter turn on H3/ODST
+    # placements. Keep their export unchanged; new imports use native axes.
+    result = Matrix.Rotation(-pi / 2, 4, 'Z') @ matrix
     result.translation = matrix.translation
     return result
 
@@ -41,7 +42,7 @@ def gather_scenario_objects(context):
 
 
 def object_placement(ob, game, scenario):
-    matrix = scenario_object_orientation(utils.halo_transforms_matrix(ob.matrix_world, marker=True), game)
+    matrix = scenario_object_export_matrix(ob, game)
     scale = ob.matrix_world.to_scale()
     if game != 'halo1' and max(abs(value) for value in scale) - min(abs(value) for value in scale) > 0.0001:
         raise ValueError(f'{ob.name}: scenario objects require uniform scale')
@@ -59,7 +60,7 @@ def object_placement(ob, game, scenario):
     if parent_name:
         if not parent.nwo.scenario_object_unique_name:
             raise ValueError(f'{ob.name}: the parent Scenario Object must have Unique Name enabled')
-        parent_matrix = scenario_object_orientation(utils.halo_transforms_matrix(parent.matrix_world, marker=True), game)
+        parent_matrix = scenario_object_export_matrix(parent, game)
         parent_position, parent_rotation, _ = parent_matrix.decompose()
         parent_sign = -1 if parent.matrix_world.determinant() < 0 else 1
         parent_placement = Matrix.LocRotScale(parent_position, parent_rotation,
@@ -159,6 +160,7 @@ def read_scenario_objects(scenario, inherited_bsps=()):
 
 def apply_object_properties(nwo, point, game):
     """Share authoring settings between the full importer and placement refresh."""
+    nwo['scenario_object_native_axes'] = True
     nwo.marker_type = SCENARIO_OBJECT
     nwo.scenario_object_type = point.block
     nwo.marker_game_instance_tag_name = point.definition
@@ -192,7 +194,9 @@ def object_import_matrix(point, parent_index, named, game):
             parent, grandparent = named[parent_index]
             return native_world(parent, grandparent, (*ancestors, parent_index)) @ local
         return local
-    world = scenario_object_orientation(native_world(point, parent_index), game, importing=True)
+    # The marker conversion already changes both world and local axes. The
+    # model preview (source or compiled) uses the same scene convention.
+    world = native_world(point, parent_index)
     world.translation *= 100
     return import_transform.marker_matrix(world)
 

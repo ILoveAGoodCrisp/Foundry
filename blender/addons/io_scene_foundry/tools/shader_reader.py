@@ -10,7 +10,7 @@ from ..tags.shader_custom import ShaderCustomTag
 from ..tags.shader_halogram import ShaderHalogramTag
 from ..tags.shader_foliage import ShaderFoliageTag
 from ..tags.shader_terrain import ShaderTerrainTag
-from ..tags.shader_specialized import ShaderCortanaTag, ShaderSkinTag, ShaderWaterTag
+from ..tags.shader_specialized import ShaderBlackTag, ShaderCortanaTag, ShaderSkinTag, ShaderWaterTag
 from ..tags.material import MaterialTag
 from ..tags.shader_converter import ShaderTag, build_templates
 from ..tags.shader_decal import ShaderDecalTag
@@ -234,6 +234,9 @@ def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str, always_e
     else:
         shader_type = Path(tag_path).suffix[1:]
         match shader_type:
+            case 'shader_black':
+                with ShaderBlackTag(path=tag_path) as shader:
+                    shader.to_nodes(mat, always_extract_bitmaps, layout=False)
             case 'shader':
                 with ShaderTag(path=tag_path) as shader:
                     shader.to_nodes(mat, always_extract_bitmaps, layout=False)

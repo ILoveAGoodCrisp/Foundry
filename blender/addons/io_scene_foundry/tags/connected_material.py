@@ -1109,8 +1109,8 @@ class Function:
         if len(data) < 20:
             raise ValueError(f'Halo 2 mapping data is too short: {len(data)} bytes')
         function_type, output_type, exponent = data[0], data[1], data[2]
-        if output_type in {2, 3, 4, 0x20, 0x40, 0x80}:
-            raise ValueError('Halo 2 color-output object functions are not implemented')
+        # if output_type in {2, 3, 4, 0x20, 0x40, 0x80}:
+        #     raise ValueError('Halo 2 color-output object functions are not implemented')
 
         self.clamp_min = struct.unpack_from('<f', data, 4)[0]
         self.clamp_max = struct.unpack_from('<f', data, 8)[0]

@@ -24,7 +24,7 @@ SHADER_TYPES_BY_GAME = {
         'shader_fur', 'shader_fur_stencil', 'shader_glass', 'shader_mux',
         'shader_mux_material', 'shader_screen'}),
     'halo3odst': tuple(kind for kind in MODERN_SHADER_TYPES if kind not in {
-        'shader_fur', 'shader_fur_stencil', 'shader_glass', 'shader_mux', 'shader_mux_material'}),
+        'shader_fur', 'shader_fur_stencil', 'shader_glass', 'shader_mux', 'shader_mux_material'}) + ('shader_black',),
     'reach': MODERN_SHADER_TYPES,
     'halo4': ('material',),
     'halo2a': ('material',),

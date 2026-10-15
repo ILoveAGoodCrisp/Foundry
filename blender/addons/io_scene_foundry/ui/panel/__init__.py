@@ -1402,6 +1402,13 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row = col.row()
             row.use_property_split = True
             row.prop(nwo, "blend_screens_from_blender")
+        elif project and project.game in {'reach', 'halo4', 'halo2a'}:
+            col.prop(nwo, "setup_overlay_groups")
+            overlay = col.column()
+            overlay.enabled = nwo.setup_overlay_groups
+            overlay.prop(nwo, "overlay_group_profile")
+            overlay.prop(nwo, "overlay_group_overrides")
+            overlay.operator('nwo.preview_overlay_groups', icon='VIEWZOOM')
         tag_path = utils.get_asset_animation_graph()
         if tag_path:
             col.operator('nwo.open_foundation_tag', icon_value=utils.get_tag_editor_icon_id(), text="Open Animation Graph Tag").tag_path = tag_path
@@ -2951,6 +2958,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                         row.prop(nwo, "havok_angular_damping")
 
             elif nwo.mesh_type == "_connected_geometry_mesh_type_portal":
+                if game in {'halo2', 'halo3', 'halo3odst'}:
+                    col.prop(nwo, "portal_group_index")
+                    if nwo.portal_group_index == -1:
+                        col.label(text="-1: Automatic groups")
                 row = col.row()
                 if game != 'halo1':
                     row.prop(nwo, "portal_type", text="Portal Type", expand=True)
@@ -3554,6 +3565,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         self.draw_expandable_box(self.box.box(), self.scene_nwo, "instance_proxies", ob=ob)
         
     def draw_mesh_properties(self, box, ob):
+        if ob.type == 'MESH' and utils.is_corinth(self.context) and ob.data.shape_keys:
+            box.operator('nwo.setup_wrinkle_tension', icon='GEOMETRY_NODES')
         self.draw_face_material_properties(box, ob, False)
         
     def draw_material_attributes(self, box, ob):
@@ -4096,11 +4109,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 match event.script_type:
                     case 'CUSTOM':
                         self.draw_script_field(col, event, "script", "text", "script_use_text", "Script")
-                    case 'WEAPON_TRIGGER_START':
+                    case 'WEAPON_TRIGGER_START' | 'WEAPON_TRIGGER_STOP':
                         draw_script_target("Actor")
-                        col.prop(event, "script_bool", text="Hold Trigger")
-                    case 'WEAPON_TRIGGER_STOP':
-                        draw_script_target("Actor")
+                        row = col.row()
+                        row.prop(event, "script_weapon_barrel", expand=True)
+                        if event.script_type == 'WEAPON_TRIGGER_START':
+                            col.prop(event, "script_bool", text="Hold Trigger")
                     case 'SET_VARIANT':
                         draw_script_target()
                         row = col.row()
@@ -4256,6 +4270,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             row = col.row()
             row.use_property_split = True
             row.prop_search(animation, "blend_screen", scene_nwo, "blend_screens")
+            if not animation.external:
+                col.operator('nwo.generate_blend_screen_poses', icon='ANIM')
 
         is_composite = animation.animation_type == 'composite'
 
@@ -4304,7 +4320,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col.separator()
             row = col.row()
             row.use_property_split = True
-            if animation.animation_type == 'overlay':
+            if animation.animation_type == 'overlay' and (not project or project.game not in capabilities.LEGACY_GAMES):
                 row.prop(animation, "pose_overlay")
                 if animation.pose_overlay and not animation.external:
                     col.operator('nwo.generate_poses', text='Generate Poses', icon='ANIM')

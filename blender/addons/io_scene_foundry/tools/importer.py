@@ -331,7 +331,6 @@ IMPORT_TEMPLATE_VALUES = {
         "tag_bsp_skip_structure_merge": False,
         "tag_bsp_merge_render_collision": True,
         "tag_bsp_render_only": False,
-        "tag_bsp_import_havok": True,
         "tag_import_design": True,
         "tag_scenario_import_objects": True,
         "tag_scenario_import_markers": True,
@@ -355,7 +354,6 @@ IMPORT_TEMPLATE_VALUES = {
         "tag_bsp_skip_structure_merge": False,
         "tag_bsp_merge_render_collision": True,
         "tag_bsp_render_only": False,
-        "tag_bsp_import_havok": True,
         "tag_import_design": True,
         "tag_scenario_import_objects": False,
         "tag_scenario_import_markers": False,
@@ -379,7 +377,6 @@ IMPORT_TEMPLATE_VALUES = {
         "tag_bsp_skip_structure_merge": False,
         "tag_bsp_merge_render_collision": True,
         "tag_bsp_render_only": True,
-        "tag_bsp_import_havok": False,
         "tag_import_design": False,
         "tag_scenario_import_objects": True,
         "tag_scenario_import_markers": True,
@@ -433,8 +430,6 @@ def apply_import_template(operator, template):
         return
 
     for prop_name, value in values.items():
-        if prop_name == "tag_bsp_import_havok" and not utils.is_corinth():
-            continue
         if hasattr(operator, prop_name):
             setattr(operator, prop_name, value)
 
@@ -458,6 +453,7 @@ def configure_dropped_object_marker(marker, scene_nwo, tag_path):
 
     marker.nwo.marker_type = '_connected_geometry_marker_type_scenario_object'
     marker.nwo.scenario_object_type = block
+    marker.nwo['scenario_object_native_axes'] = True
     marker.empty_display_type = 'ARROWS'
     for field in object_fields(game, block):
         if field.path[-1] == 'variant name':
@@ -521,7 +517,7 @@ def draw_import_template(operator, layout):
     preset = operator.import_template
     values = IMPORT_TEMPLATE_VALUES.get(preset, {})
     changed = any(getattr(operator, name) != value for name, value in values.items()
-                  if hasattr(operator, name) and (name != 'tag_bsp_import_havok' or utils.is_corinth()))
+                  if hasattr(operator, name))
     if changed:
         row.label(text='Custom')
 
@@ -563,7 +559,7 @@ def draw_import_mesh_options(operator, layout):
     if import_type not in {'bitmap', 'camera_track', 'model_animation_graph', 'model_animations',
                            'jmm', 'jma', 'jmt', 'jmz', 'jmv', 'jmw', 'jmo', 'jmr', 'jmrx'}:
         layout.prop(operator, "make_meshes_editable")
-    if import_type not in {'gr2', 'sidecar', 'jms', 'ass',
+    if import_type not in {'gr2', 'sidecar', 'jms', 'ass', 'model_animation_graph', 'model_animations',
                            'jmm', 'jma', 'jmt', 'jmz', 'jmv', 'jmw', 'jmo', 'jmr', 'jmrx'}:
         layout.prop(operator, "use_import_info")
 
@@ -576,7 +572,7 @@ def draw_animation_conversions(operator, layout, enabled=None):
     row.prop(operator, "convert_animations")
 
 
-def draw_animation_graph_import_options(operator, layout, corinth, include_generate_frames=False):
+def draw_animation_graph_import_options(operator, layout, corinth):
     box = import_options_box(layout)
     box.prop(operator, "tag_animation")
     col = box.column(align=True)
@@ -597,8 +593,6 @@ def draw_animation_graph_import_options(operator, layout, corinth, include_gener
     col.prop(operator, "graph_generate_renames")
     col.prop(operator, "graph_import_events")
     col.prop(operator, "graph_import_ik_chains")
-    if include_generate_frames:
-        col.prop(operator, "generate_frames")
 
 def draw_graph_import_options(operator, layout, corinth):
     animation_column, graph_column = import_options_columns(layout)
@@ -680,7 +674,7 @@ def draw_material_import_options(operator, layout):
     box.prop(operator, "always_extract_bitmaps")
 
 
-def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, has_permutations=False, show_fp_arms=True, show_biped_weapon=True, include_generate_frames=False, show_material_options=True, show_weapon_attachment=True, show_vehicle_seat=True, two_columns=False, show_mesh_options=False):
+def draw_model_tag_import_sections(operator, layout, corinth, show_template=True, show_source=True, has_variants=True, has_permutations=False, show_fp_arms=True, show_biped_weapon=True, show_material_options=True, show_weapon_attachment=True, show_vehicle_seat=True, two_columns=False, show_mesh_options=False):
     if show_template:
         draw_import_template(operator, layout)
 
@@ -712,7 +706,7 @@ def draw_model_tag_import_sections(operator, layout, corinth, show_template=True
     reimport_box.prop(operator, "tag_physics")
     # reimport_box.prop(operator, "from_vert_normals")
 
-    draw_animation_graph_import_options(operator, viewing_column, corinth, include_generate_frames)
+    draw_animation_graph_import_options(operator, viewing_column, corinth)
 
     view_box = import_options_box(viewing_column, "Blender Viewing")
     if corinth:
@@ -761,8 +755,6 @@ def draw_scenario_import_sections(operator, layout, corinth, show_template=True,
     reimport_col = reimport_box.column(align=True)
     reimport_col.enabled = not operator.tag_bsp_render_only
     reimport_col.prop(operator, "tag_bsp_skip_structure_merge")
-    if corinth:
-        reimport_col.prop(operator, "tag_bsp_import_havok")
     if not classic:
         reimport_col.prop(operator, "tag_import_design")
 
@@ -2044,12 +2036,6 @@ class NWO_Import(bpy.types.Operator):
         description="Skips importing bsp data like collision and portals. Use this if you aren't importing the BSP back into the game"
     )
     
-    tag_bsp_import_havok: bpy.props.BoolProperty(
-        name="Import Havok Collision (WIP)",
-        description="Imports serialized Havok collision from scenario_structure_bsp tags as standalone collision meshes. Experimental.",
-        default=False,
-    )
-
     tag_bsp_import_geometry: bpy.props.BoolProperty(
         name="Import BSP Geometry",
         description="Imports the all geometry data within bsp tags",
@@ -2368,7 +2354,6 @@ class NWO_Import(bpy.types.Operator):
                     self.tag_bsp_render_only = True
                     self.tag_collision = False
                     self.tag_physics = False
-                    self.tag_bsp_import_havok = False
                     self.tag_import_design = False
                 importer.gr2_convert_scale = self.gr2_convert_scale
                 importer.build_materials_for_project = self.build_materials_for_project
@@ -2670,7 +2655,6 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
                     importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
                     importer.tag_bsp_merge_render_collision = self.tag_bsp_merge_render_collision
-                    importer.tag_bsp_import_havok = self.tag_bsp_import_havok
                     importer.tag_import_lights = self.tag_import_lights
                     importer.tag_import_design = self.tag_import_design
                     importer.tag_scenario_import_objects = self.tag_scenario_import_objects
@@ -2697,7 +2681,6 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
                     importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
                     importer.tag_bsp_merge_render_collision = self.tag_bsp_merge_render_collision
-                    importer.tag_bsp_import_havok = self.tag_bsp_import_havok
                     importer.tag_import_lights = self.tag_import_lights
                     importer.setup_as_asset = self.setup_as_asset
                     bsp_files = importer.sorted_filepaths["scenario_structure_bsp"]
@@ -2737,7 +2720,6 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_bsp_import_geometry = self.tag_bsp_import_geometry
                     importer.tag_bsp_skip_structure_merge = self.tag_bsp_skip_structure_merge
                     importer.tag_bsp_merge_render_collision = self.tag_bsp_merge_render_collision
-                    importer.tag_bsp_import_havok = self.tag_bsp_import_havok
                     importer.tag_import_lights = self.tag_import_lights
                     importer.setup_as_asset = self.setup_as_asset
                     if self.place_at_mouse:
@@ -3599,6 +3581,11 @@ class PCAInfo:
         self.pca_path = None
 
 class NWOImporter:
+    @property
+    def tag_bsp_import_havok(self):
+        """Serialized structure collision follows the Render Geometry Only switch."""
+        return self.corinth and not self.tag_bsp_render_only and not self.for_cinematic
+
     def __init__(self, context, filepaths=None, scope=None, existing_scene=False):
         self.scene_nwo = utils.get_scene_props()
         self.scene_nwo_export = utils.get_export_props()
@@ -3645,7 +3632,6 @@ class NWOImporter:
         self.tag_bsp_import_geometry = False
         self.tag_bsp_skip_structure_merge = False
         self.tag_bsp_merge_render_collision = True
-        self.tag_bsp_import_havok = False
         self.tag_import_lights = False
         self.tag_import_design = False
         self.tag_scenario_import_objects = False
@@ -5112,6 +5098,10 @@ class NWOImporter:
 
         def _copy_marker_transform(target: bpy.types.Object, marker: bpy.types.Object):
             target.constraints.clear()
+            # Keep attachments in the owning rig's hierarchy so selecting both
+            # rigs does not apply object transforms twice through the constraint.
+            target.parent = parent_armature
+            target.parent_type = 'OBJECT'
             target.matrix_world = marker.matrix_world.copy()
             constraint = target.constraints.new(type='COPY_TRANSFORMS')
             constraint.target = marker
@@ -5300,6 +5290,9 @@ class NWOImporter:
                         allowed_region_permutations=render_model._resolve_region_permutations(allowed_region_permutations),
                         shader_paths=shader_paths)
                     if source_objects is None:
+                        # The skeleton-only pass leaves compiled geometry unloaded.
+                        render_model._native_render_materials = render_model.render_materials()
+                        render_model._native_render_meshes = render_model.render_meshes()
                         source_objects = render_model._create_render_geometry(
                             allowed_region_permutations, self.from_vert_normals, selected_lod=self.render_lod)
                     tag_objects.extend(render_model.skylights_to_blender(collection))
@@ -6174,7 +6167,6 @@ class NWOImporter:
     def import_bsp(self, file, scenario_collection=None, info_path=None, always_get_structure_collision=False, sky_index=-1):
         if self.for_cinematic:
             self.tag_bsp_render_only = True
-            self.tag_bsp_import_havok = False
         bsp_name = Path(file).with_suffix("").name
         bvh = None
         utils.print_tag(f"Importing BSP {bsp_name}")
@@ -6192,14 +6184,16 @@ class NWOImporter:
                 game_objects = [ob for ob in gr2_objects if ob.type == 'EMPTY'
                                 and ob.nwo.marker_type == '_connected_geometry_marker_type_game_instance']
                 self._import_bsp_game_objects(gr2_objects, game_objects)
-                if self.tag_import_lights or self.tag_bsp_import_havok or always_get_structure_collision:
+                # Embedded sources already carry authored collision and proxies.
+                # Adding compiled Havok would overlay a second collision body.
+                if self.tag_import_lights or always_get_structure_collision:
                     with utils.TagImportMover(self.tags_dir, file) as mover:
                         with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                             extras, _, bvh = bsp.to_blend_objects(
                                 collection, self.tag_bsp_render_only, info_path,
                                 import_geometry=False, import_lights=self.tag_import_lights,
                                 always_get_structure_collision=always_get_structure_collision,
-                                sky_index=sky_index, import_havok=self.tag_bsp_import_havok)
+                                sky_index=sky_index, import_havok=False)
                             gr2_objects.extend(extras)
                 return gr2_objects, bvh
         source_files = [
@@ -6372,21 +6366,21 @@ class NWOImporter:
                 return
 
         gr2_objects = self.try_import_gr2_sources(
-            bsp_ref.Filename, parent_collection=collection,
+            bsp_ref, parent_collection=collection,
             default_mesh_type='_connected_geometry_mesh_type_structure', render_only=self.tag_bsp_render_only) if self.tag_bsp_import_geometry else None
         if gr2_objects is not None:
-            if self.tag_import_lights or self.tag_bsp_import_havok:
+            if self.tag_import_lights:
                 with ScenarioStructureBspTag(path=bsp_ref) as bsp:
                     extras, _, _ = bsp.to_blend_objects(
                         collection, self.tag_bsp_render_only, import_geometry=False,
-                        import_lights=self.tag_import_lights, import_havok=self.tag_bsp_import_havok)
+                        import_lights=self.tag_import_lights, import_havok=False)
                     gr2_objects.extend(extras)
             if self.setup_as_asset and not is_game_object:
                 set_asset(Path(file).suffix)
             return collection if is_game_object else gr2_objects
 
         source_files = [
-            path for path in self.import_info_sources_for_tag(bsp_ref.Filename)
+            path for path in self.import_info_sources_for_tag(bsp_ref)
             if Path(path).suffix.lower() in legacy_model_formats
         ]
         if source_files:
@@ -6524,7 +6518,6 @@ class NWOImporter:
         self.tag_bsp_render_only = True
         self.tag_collision = False
         self.tag_physics = False
-        self.tag_bsp_import_havok = False
         filename = Path(file).with_suffix("").name
         utils.print_section(f"Importing Cinematic: {filename}")
         with utils.TagImportMover(self.tags_dir, file) as mover:
@@ -6643,9 +6636,9 @@ class NWOImporter:
                      'poop_does_not_block_aoe', 'poop_excluded_from_lightprobe', 'poop_decal_spacing'):
             ob.nwo.property_unset(name)
         if self.game in {'halo3', 'halo3odst'}:
-            # An unmarked legacy instance uses vertex lighting. Foundry's
-            # authoring default is per-pixel, which would add a new ! policy.
-            ob.nwo.poop_lighting = 'per_vertex'
+            # Unmarked instances let Tool choose, which can vary by geometry.
+            # Keep that editable choice instead of forcing a lighting policy.
+            ob.nwo.poop_lighting = 'automatic'
         for char in ob.name[1:]:
             match char:
                 case '+':
@@ -7044,12 +7037,6 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
         description="Skips importing bsp data like collision and portals. Use this if you aren't importing the BSP back into the game",
     )
     
-    tag_bsp_import_havok: bpy.props.BoolProperty(
-        name="Import Havok Collision (WIP)",
-        description="Imports serialized Havok collision from scenario_structure_bsp tags as standalone collision meshes. Experimental.",
-        default=False,
-    )
-
     tag_bsp_import_geometry: bpy.props.BoolProperty(
         name="Import BSP Geometry",
         description="Imports the all geometry data within bsp tags",
@@ -7304,7 +7291,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     
     generate_frames: bpy.props.BoolProperty(
         name="Generate Missing Frames",
-        description="Generates frames where possible for tag imported animations. This is needed because base and replacement animations are missing a final frame which would have been present in their source file",
+        description="Generates frames where possible for JMA imported animations. This is needed because base animations are missing a final frame, and replacement animations their first frame, which would have been present in their source file. If the missing frames have already been corrected, disable this option",
     )
     
     build_control_rig: bpy.props.BoolProperty(
@@ -7334,7 +7321,7 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
     make_meshes_editable: bpy.props.BoolProperty(
         name="Make Meshes Editable",
         description="Merges coincident vertices and replaces custom normals with sharp and smooth edges. Shading may differ from the imported normals",
-        default=False,
+        default=True,
     )
 
     @classmethod
@@ -7581,7 +7568,6 @@ class NWO_OT_ImportFromDrop(bpy.types.Operator):
                         show_biped_weapon=self.import_type in {"biped", "actor", "actor_variant", "character"},
                         show_weapon_attachment=self.import_type == "weapon",
                         show_vehicle_seat=self.import_type == "vehicle",
-                        include_generate_frames=self.from_file_browser,
                         two_columns=True,
                         show_mesh_options=True,
                     )
@@ -8051,6 +8037,10 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
         # Shader building only updates materials. Resolve mesh face properties
         # after all geometry/material changes, including cached cinematic actors
         # and imports that reuse existing materials.
+        if importer.corinth:
+            from .wrinkle_tension import setup_object_wrinkles
+            for ob in imported_objects:
+                setup_object_wrinkles(ob)
         meshes = {ob.data for ob in imported_objects if ob.type == 'MESH'}
         meshes.update(emissive_meshes or ())
         preview_game = importer.target_game if importer.build_materials_for_project else importer.game

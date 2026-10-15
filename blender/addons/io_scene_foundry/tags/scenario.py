@@ -1692,10 +1692,12 @@ class ScenarioMetadataTag(BlenderTag, ScenarioDocument):
         shutil.copy2(self.system_path, destination)
         with ScenarioMetadataTag(destination) as copy:
             copy.set_scenario_type(0)
+            if self.game in {'reach', 'halo4', 'halo2a'}:
+                self.required_field(self.tag.root(), 'flags').set_flag('survival', False)
             resources_field = copy.tag.root().field('scenario resources')
             if resources_field is not None:
-                for resource in resources_field.as_block():
+                for resource in copy.block(copy.tag.root(), 'scenario resources'):
                     split_field = resource.field('new split resources')
                     if split_field is not None:
-                        split_field.as_block().clear()
+                        copy.block(resource, 'new split resources').clear()
                         copy.tag_has_changes = True

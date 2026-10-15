@@ -147,6 +147,8 @@ def to_nodes(shader,material):
         setup_multilayer(shader, tree, node)
     from .shader_address import finalize_addresses
     finalize_addresses(tree)
+    from .detail_mip_fade import setup_detail_fade
+    setup_detail_fade(shader, tree, node)
     # if family=='shader_skin':
     #     utils.print_warning('H3 skin.fx contains white placeholder passes. Skin tag options are preserved, but the preview is a source placeholder.')
     if family in {'shader_cortana','shader_water'} or selected.get('blend_mode','opaque')!='opaque' or selected.get('alpha_test','none') not in {'none','off'}:

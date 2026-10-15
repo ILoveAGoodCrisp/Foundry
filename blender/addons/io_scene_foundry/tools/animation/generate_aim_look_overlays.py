@@ -13,7 +13,7 @@ _DIRECTIONS = ("front", "right", "left", "back")
 _VALID_BASE_STATES = tuple(
     [f"walk_{direction}" for direction in _DIRECTIONS]
     + [f"move_{direction}" for direction in _DIRECTIONS]
-    + ["airborne"]
+    + ["airborne", "airborne_arc"]
     + [f"turn_{direction}" for direction in _DIRECTIONS]
     + [f"turn_{direction}{suffix}" for direction in ("left", "right")
        for suffix in ("_fast", "_slow")]
@@ -773,6 +773,7 @@ def _generated_action(
         source_frames,
     )
     source_reference = source_poses[source_animation.frame_start]
+    preserve_down_pose = utils.AnimationName(source_animation.name).state.endswith('_down')
     base_state = utils.AnimationName(target_base_animation.name).state
     turn_yaw_offset = _TURN_AIM_YAW_OFFSETS.get(base_state)
     is_turn = turn_yaw_offset is not None
@@ -789,12 +790,13 @@ def _generated_action(
         # invoked later, without the importer's converted-name list.
         reanchor_turn |= abs(reference_yaw - turn_yaw_offset) < .1
     if reanchor_turn:
-        source_reference = _sample_turn_aim_reference(
-            armature, source_animation, source_poses, pedestal_name,
-            aim_yaw_name, aim_pitch_name, reference_yaw,
-        )
-        if source_reference is None:
-            raise ValueError(f"Source screen has no level aim coverage at {reference_yaw:g} degrees")
+        if not preserve_down_pose:
+            source_reference = _sample_turn_aim_reference(
+                armature, source_animation, source_poses, pedestal_name,
+                aim_yaw_name, aim_pitch_name, reference_yaw,
+            )
+            if source_reference is None:
+                raise ValueError(f"Source screen has no level aim coverage at {reference_yaw:g} degrees")
     elif is_turn and apply_turn_aim_offset:
         _offset_turn_aim_yaw(
             armature,
@@ -825,6 +827,10 @@ def _generated_action(
             for bone in armature.pose.bones:
                 if bone.name in lower_body_names and bone.name not in aim_bone_names:
                     target_pose[bone.name] = generated_reference[bone.name].copy()
+                elif preserve_down_pose:
+                    # The lowered stance is part of the authored pose, even
+                    # when it is also present in the source reference frame.
+                    target_pose[bone.name] = source_pose[bone.name].copy()
                 else:
                     target_pose[bone.name] = _compose_overlay_transform(
                         source_reference[bone.name],
@@ -832,7 +838,16 @@ def _generated_action(
                         generated_reference[bone.name],
                     )
 
-        if is_turn and frame != source_animation.frame_start:
+        if preserve_down_pose and frame != source_animation.frame_start:
+            # Transfer the source's absolute upper-body rotations in pedestal
+            # space under the destination pelvis. Subtracting the down stance
+            # and applying it to the base would turn it back into an up pose.
+            # Keep frame one on the destination base for additive export.
+            _apply_turn_aim_delta(
+                armature, source_reference, source_pose, source_reference,
+                target_pose, pedestal_name, animated_bone_names - lower_body_names,
+            )
+        elif is_turn and frame != source_animation.frame_start:
             # Converted turns reanchor all upper-body rotations, including the
             # controls. Their sample coordinates stay absolute: screen zero
             # cancels the directional reference instead of moving with it.

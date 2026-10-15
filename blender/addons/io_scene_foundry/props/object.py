@@ -1007,6 +1007,12 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
             "Cheap but effective lighting",
         ),
     ]
+    poop_lighting_legacy_items = [*poop_lighting_items,
+        ('automatic', 'Automatic', 'Let Tool select the lighting policy for this instance')]
+
+    def poop_lighting_options(self, context):
+        return (self.poop_lighting_legacy_items if utils.get_game() in {'halo3', 'halo3odst'}
+                else self.poop_lighting_items)
 
     # POOP PROPERTIES
     
@@ -1043,8 +1049,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         name="Lighting Policy",
         options=set(),
         description="Determines how this instance is lightmapped",
-        default="per_pixel",
-        items=poop_lighting_items,
+        default=0,
+        items=poop_lighting_options,
         override={'LIBRARY_OVERRIDABLE'},
     )
     
@@ -1243,6 +1249,15 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     # poop light channel flags. Not included for now
 
     # portal PROPERTIES
+    portal_group_index: bpy.props.IntProperty(
+        name="Portal Index",
+        description="Material group, not a device-machine door index. -1 assigns a separate group automatically; 0 exports +portal, higher values export +portalN. Matching indices share a group",
+        default=-1,
+        min=-1,
+        options=set(),
+        override={'LIBRARY_OVERRIDABLE'},
+    )
+
     portal_exact: bpy.props.BoolProperty(
         name="Exact Portal",
         description="Imported Halo 1 exact portal metadata; all Halo 1 portals export as +exactportal",

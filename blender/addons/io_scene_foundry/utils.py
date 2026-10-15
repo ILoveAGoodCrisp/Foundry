@@ -148,6 +148,7 @@ frame_event_types = {
 # shader exts #
 shader_exts = (
     ".shader",
+    ".shader_black",
     ".shader_environment",
     ".shader_model",
     ".shader_transparent_chicago",
@@ -176,6 +177,7 @@ shader_exts = (
 
 shader_exts_reach = (
     ".shader",
+    ".shader_black",
     ".shader_cortana",
     ".shader_custom",
     ".shader_decal",

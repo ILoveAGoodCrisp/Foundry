@@ -21,12 +21,38 @@ def texture_camera_parameters(document):
                    for name in ('bitmap extern RTT mode', 'bitmap extern mode'))]
 
 
+def _defined_bitmap_parameters(document, render_method):
+    """Include inactive options: a camera feed need not have a preview image."""
+    from .backend import TagDocument
+    from .metadata import MaterialShaderDocument, RenderMethodDefinitionDocument
+
+    if render_method.field('definition') is not None:
+        reference = TagDocument.reference(document, render_method, 'definition')
+        document_type = RenderMethodDefinitionDocument
+    else:
+        reference = TagDocument.reference(document, render_method, 'material shader')
+        document_type = MaterialShaderDocument
+    if reference is None or not reference.IsTagFileAccessible():
+        return set()
+    with document_type(reference, tags_root=document.tags_root, game=document.game,
+                       definitions=document.definitions, must_exist=True) as definition:
+        defaults = definition.get_defaults()
+    if document_type is RenderMethodDefinitionDocument:
+        parameters = (parameters for options in defaults.values() for parameters in options.values())
+    else:
+        parameters = (defaults,)
+    return {name for group in parameters for name, parameter in group.items() if parameter.type == 0}
+
+
 def write_texture_camera_source(document, parameter_name, enabled):
     """Use authored parameter metadata; Tool regenerates the postprocess data."""
     names = [name.strip() for name in parameter_name.split(',') if name.strip()] if enabled else []
     if enabled and not names:
         raise ValueError('Select a bitmap parameter for the texture-camera feed')
-    _, parameters = _parameters(document)
+    render_method, parameters = _parameters(document)
+    existing_names = {document.value(element, 'parameter name') for element in parameters}
+    bitmap_parameters = (_defined_bitmap_parameters(document, render_method)
+                         if set(names) - existing_names else set())
     for element in parameters:
         if document.value(element, 'parameter name') not in names:
             for field_name in ('bitmap extern RTT mode', 'bitmap extern mode'):
@@ -35,21 +61,23 @@ def write_texture_camera_source(document, parameter_name, enabled):
                     field.set(0)
                     document.tag_has_changes = True
     for name in names:
-        _write_texture_camera_parameter(document, name)
+        _write_texture_camera_parameter(document, name, bitmap_parameters)
 
 
-def _write_texture_camera_parameter(document, parameter_name):
+def _write_texture_camera_parameter(document, parameter_name, bitmap_parameters=()):
     render_method, parameters = _parameters(document)
     parameter_name = parameter_name.strip()
     selected = next((p for p in parameters if document.value(p, 'parameter name') == parameter_name), None)
     options = render_method.field('options')
     family = document.system_path.suffix
     if selected is None:
-        # Standard shader inputs can be enabled without a placeholder bitmap.
-        if options is None or parameter_name not in {'base_map', 'self_illum_map'}:
+        # A runtime camera feed has no source bitmap. Validate the name against
+        # the definition before adding its override, even for an inactive option.
+        standard_input = (options is not None
+                          and family in {'.shader', '.shader_custom', '.shader_halogram'}
+                          and parameter_name in {'base_map', 'self_illum_map'})
+        if not standard_input and parameter_name not in bitmap_parameters:
             raise ValueError(f'Texture-camera parameter {parameter_name!r} is missing; select an exported bitmap input')
-        if family not in {'.shader', '.shader_custom', '.shader_halogram'}:
-            raise ValueError('Export this shader bitmap input before using it for the texture camera')
         selected = parameters[parameters.add()]
         document.required_field(selected, 'parameter name').set(parameter_name)
         document.required_field(selected, 'parameter type').set('bitmap')

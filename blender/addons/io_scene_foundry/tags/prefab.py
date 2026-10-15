@@ -240,6 +240,8 @@ class StructureBspRenderMesh:
     lightmap_normals: tuple[tuple[float, float, float], ...] = ()
     has_lightmap_uvs: bool = False
     halo1_source: dict | None = None
+    source_shape_names: tuple[tuple[int, str], ...] = ()
+    source_vertex_keys: tuple[tuple[int, int], ...] = ()
 
 
 class ClassicBspInstance(TypedDict):
@@ -1119,7 +1121,8 @@ class ScenarioStructureBspMetadataTag(BlenderTag, TagDocument):
                 parts=parts,
                 water=water,
             ))
-        return records
+        from .source_shapes import attach_source_shapes
+        return attach_source_shapes(records, geometry, self.game)
 
     def havok_geometry(self) -> list[StructureBspHavokGeometry]:
         """Detach serialized H4/H2AMP structure collision from tag handles."""

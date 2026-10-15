@@ -1542,115 +1542,25 @@ class AnimationGraphTag(BlenderTag, TagDocument):
             events = converted_events
         return apply_event_map_to_blender(events, imported_animations)
 
-    @staticmethod
-    def _blend_screen_settings(
-        state: str,
-    ) -> tuple[str, str, str, float, tuple[str, ...]]:
-        yaw = pitch = weight = 'none'
-        rate = 0.0
-        flags: list[str] = []
-        if 'aim' in state:
-            yaw, pitch = 'aim yaw', 'aim pitch'
-        elif 'look' in state:
-            yaw, pitch = 'look yaw', 'look pitch'
-            flags.append('allow parent adjustment')
-        elif 'steer' in state:
-            yaw = pitch = 'steering'
-        elif 'acc' in state:
-            yaw, pitch, weight, rate = (
-                'acceleration yaw', 'acceleration pitch',
-                'acceleration magnitude', 0.333,
-            )
-        elif 'pitch' in state and 'turn' in state:
-            yaw, pitch = 'first person turn', 'first person pitch'
-        elif 'defense' in state:
-            yaw, pitch, weight, rate = 'defense yaw', 'defense pitch', 'defense', 0.25
-        elif 'pain' in state:
-            rate = 0.333
-            for suffix, label in (
-                ('gut', 'gut'), ('chest', 'chest'), ('head', 'head'),
-                ('left_shoulder', 'left shoulder'), ('left_arm', 'left arm'),
-                ('left_leg', 'left leg'), ('left_foot', 'left foot'),
-                ('right_shoulder', 'right shoulder'), ('right_arm', 'right arm'),
-                ('right_leg', 'right leg'), ('right_foot', 'right foot'),
-            ):
-                if state.endswith(suffix):
-                    yaw = f'damage {label} yaw'
-                    pitch = f'damage {label} pitch'
-                    weight = f'damage {label}'
-                    break
-        if state.endswith('_down'):
-            flags.append('active only when weapon down')
-        elif state == 'aiming':
-            flags.append('attempt piece-wise blending')
-        return yaw, pitch, weight, rate, tuple(flags)
+    def setup_overlay_groups(self, animation_names: Iterable[str] = (), *,
+                             profile: str = 'auto', previous=None,
+                             overrides=None, dry_run: bool = False):
+        from .animation_overlay_groups import read_graph, build_plan, apply_plan
+        plan = build_plan(read_graph(self.tag, self.game), pose_names=animation_names,
+                          profile=profile, previous=previous, overrides=overrides)
+        if plan.changed:
+            # Apply to a detached clone. Validation failures cannot leave this
+            # document partially edited, even if a caller catches the error.
+            candidate = apply_plan(self.tag, plan)
+            if not dry_run:
+                self._tag = candidate
+                self.tag_has_changes = True
+        return plan
 
     def setup_blend_screens(self, animation_names: Iterable[str]) -> None:
-        definitions = self._definitions()
-        screens_field = definitions.field('NEW blend screens')
-        screens = None if screens_field is None else screens_field.as_block()
-        if screens is None:
-            raise NotImplementedError(
-                f'{self.path}: pose-overlay blend screens are unavailable in this graph layout')
-
-        animations = self.block(definitions, 'animations')
-        animation_name_by_index = {
-            index: str(self.value(element, 'name'))
-            for index, element in enumerate(animations)
-        }
-        animation_index_by_name = {
-            name: index for index, name in animation_name_by_index.items()
-        }
-        missing = {name.replace(' ', ':') for name in animation_names}
-        remove: list[int] = []
-        for index, element in enumerate(screens):
-            animation = self.required_field(element, 'animation').as_struct()
-            if animation is None:
-                raise TypeError(f'{self.path}: blend screen {index} animation is not a struct')
-            animation_index = int(self.value(animation, 'animation'))
-            if animation_index < 0:
-                remove.append(index)
-                continue
-            name = animation_name_by_index.get(animation_index)
-            if name is not None:
-                missing.discard(name)
-
-        for index in reversed(remove):
-            screens.delete(index)
-            self.tag_has_changes = True
-
-        functions = {
-            str(self.value(element, 'name')): index
-            for index, element in enumerate(self.block(definitions, 'functions'))
-        }
-        for name in sorted(missing):
-            animation_index = animation_index_by_name.get(name)
-            if animation_index is None:
-                continue
-            index = screens.add()
-            screens = self.block(definitions, 'NEW blend screens')
-            element = screens[index]
-            self.required_field(element, 'name').set(name)
-            animation = self.required_field(element, 'animation').as_struct()
-            if animation is None:
-                raise TypeError(f'{self.path}: blend screen {index} animation is not a struct')
-            # Newly added native blocks default to zero. These sources belong
-            # to this graph, which uses -1 in Reach and H4/H2AMP alike.
-            self.required_field(animation, 'graph index').set(-1)
-            self.required_field(animation, 'animation').set(animation_index)
-
-            state = name.rsplit(':', 1)[-1]
-            yaw, pitch, weight, rate, flag_names = self._blend_screen_settings(state)
-            for field_name, value in (
-                ('yaw source', yaw), ('pitch source', pitch),
-                ('weight source', weight), ('interpolation rate', rate),
-            ):
-                self.required_field(element, field_name).set(value)
-            self.required_field(element, 'weight function').set(functions.get(state, -1))
-            flags = self.required_field(element, 'flags')
-            for flag_name in flag_names:
-                flags.set_flag(flag_name, True)
-            self.tag_has_changes = True
+        # Compatibility for older callers; never delete definitions without
+        # remapping the graph's references.
+        self.setup_overlay_groups(animation_names)
 
     def set_parent_graph(self, path: TagPathInput | None) -> None:
         if isinstance(path, RelativeTagPath):

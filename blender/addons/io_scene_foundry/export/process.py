@@ -1239,6 +1239,8 @@ class ExportScene:
                                 copy = ObjectCopy.SEAM
                             
                     case "_connected_geometry_mesh_type_portal":
+                        if self.project_game in {'halo2', 'halo3', 'halo3odst'}:
+                            props["foundry_portal_group_index"] = nwo.portal_group_index
                         props["bungie_mesh_portal_type"] = nwo.portal_type
                         if nwo.portal_ai_deafening:
                             props["bungie_mesh_portal_ai_deafening"] = 1
@@ -1367,7 +1369,8 @@ class ExportScene:
                 self.poop_obs[ob.data].append(False)
             return
 
-        props["bungie_mesh_poop_lighting"] = PoopLighting[nwo.poop_lighting].value
+        props["bungie_mesh_poop_lighting"] = (0 if nwo.poop_lighting == 'automatic'
+                                             else PoopLighting[nwo.poop_lighting].value)
         props["bungie_mesh_poop_pathfinding"] = PoopInstancePathfindingPolicy[nwo.poop_pathfinding].value
         if self.corinth:
             props["bungie_mesh_poop_collision_type"] = PoopCollisionType[nwo.poop_collision_type].value
@@ -3071,6 +3074,45 @@ class ExportScene:
                         else:
                             set_actor_animation_compression(graph, actor)
 
+    def setup_sidecar_overlay_groups(self, sidecar_path):
+        if (self.project_game not in {'reach', 'halo4', 'halo2a'}
+                or not self.scene_settings.setup_overlay_groups):
+            return
+        import json
+        from ..tags.animation_overlay_groups import load_state, save_state, ownership
+        overrides = None
+        if self.scene_settings.overlay_group_overrides:
+            overrides = json.loads(Path(bpy.path.abspath(
+                self.scene_settings.overlay_group_overrides)).read_text(encoding='utf-8'))
+        sidecar = ET.parse(Path(self.data_dir, sidecar_path))
+        paths = {output.text.strip() for output in sidecar.findall(
+            ".//OutputTag[@Type='model_animation_graph']") if output.text and output.text.strip()}
+        for output_path in sorted(paths):
+            graph_path = Path(output_path).with_suffix('.model_animation_graph')
+            if not Path(self.tags_dir, graph_path).is_file():
+                continue
+            with AnimationGraphTag(graph_path) as graph:
+                # Use the graph's project-relative identity, including for a
+                # child animation importing its parent's sidecar.
+                state_path = Path(self.data_dir, graph.path).with_suffix('.overlay_groups.generated.json')
+                try:
+                    previous = load_state(state_path, graph.path, graph.game)
+                except (ValueError, OSError) as error:
+                    previous = {}
+                    self.warnings.append(f'{graph.path}: overlay ownership unavailable; preserving existing groups ({error})')
+                plan = graph.setup_overlay_groups(self.pose_overlays,
+                    profile=self.scene_settings.overlay_group_profile,
+                    previous=previous, overrides=overrides)
+                records = ownership(graph.tag, plan)
+                identity, game = graph.path, graph.game
+                self.warnings.extend(f'{graph.path}: {warning}' for warning in plan.warnings)
+            # Never claim ownership until the native document has saved.
+            try:
+                save_state(state_path, identity, game, records)
+            except OSError as error:
+                self.warnings.append(f'{identity}: could not save overlay ownership; future exports will preserve these groups ({error})')
+            self.print_post(f'--- Overlay groups: {identity}: {len(plan.messages)} changes, {len(plan.warnings)} notices')
+
     def validate_sidecar_animation_aliases(self, sidecar_path):
         sidecar = ET.parse(Path(self.data_dir, sidecar_path))
         for content in sidecar.findall(".//ContentObject[@Type='model_animation_graph']"):
@@ -3106,6 +3148,7 @@ class ExportScene:
                 print("+" * len(dev_message))
             raise ExportCancelled("Export failed due to Tool assertion. See above")
         self.apply_sidecar_graph_compression(sidecar_path)
+        self.setup_sidecar_overlay_groups(sidecar_path)
     
     def invoke_tool_import(self):
         if self.export_settings.export_mode == 'TAGS':
@@ -3171,6 +3214,8 @@ class ExportScene:
             raise ExportCancelled("Export failed due to Tool assertion. See above")
 
         self.apply_sidecar_graph_compression(self.sidecar_path)
+
+        self.setup_sidecar_overlay_groups(self.sidecar_path)
 
         if (self.asset_type == AssetType.SCENARIO
                 and self.project_game in {'halo3', 'halo3odst'}
@@ -3292,10 +3337,8 @@ class ExportScene:
             with AnimationGraphTag() as animation:
                 animation.events_from_blender()
 
-        if self.has_animations and self.pose_overlays:
-            with AnimationGraphTag() as animation:
-                self.print_post(f"--- Updating animation blend screens for {len(self.pose_overlays)} pose overlay animation{'s' if len(self.pose_overlays) > 1 else ''}")
-                animation.setup_blend_screens(self.pose_overlays)
+        # Overlay setup runs immediately after each successful Tool import,
+        # including single/child-animation imports which bypass postprocess_tags.
                     
         if self.asset_type == AssetType.SCENARIO:
             self.update_scenario_skies()

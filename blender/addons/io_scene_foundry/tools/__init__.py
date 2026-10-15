@@ -38,7 +38,9 @@ from .cubemap import NWO_OT_Cubemap
 from .scale_models import NWO_OT_AddScaleModel
 from .sky_gen import NWO_OT_SkyGenerate
 from .animation.automate_pose_overlay import NWO_OT_GeneratePoses, NWO_OT_ConvertLegacyPoseOverlays
+from .animation.generate_blend_screen_poses import NWO_OT_GenerateBlendScreenPoses
 from .animation.generate_aim_look_overlays import NWO_OT_GenerateAimLookOverlays
+from .animation.overlay_groups import NWO_OT_PreviewOverlayGroups
 from .animation.generate_frames import NWO_OT_GenerateFrames
 from .rigging.convert_to_halo_rig import NWO_OT_ConvertToHaloRig
 from .rigging.create_rig import NWO_OT_AddRig, NWO_OT_BakeIKControl, NWO_OT_BakeToControl, NWO_OT_BuildControlRig, NWO_OT_ClearControlRig, NWO_OT_ClearControlRigKeyframes, NWO_OT_ClearPoseControlKeyframes, NWO_OT_InvertAimControl, NWO_OT_InvertControlRig, NWO_OT_KeyframeControlRigSettings, NWO_OT_SelectArmature
@@ -51,6 +53,7 @@ from .clear_duplicate_materials import NWO_ClearShaderPaths, NWO_StompMaterials
 from .export_bitmaps import NWO_ExportBitmapsSingle, NWO_OT_ReloadImages
 from .importer import NWO_FH_Import, NWO_FH_ImportCollision, NWO_FH_ImportGR2, NWO_FH_ImportSidecar, NWO_FH_ImportAI, NWO_FH_ImportCinematic, NWO_FH_ImportBitmapAsImage, NWO_FH_ImportBitmapAsNode, NWO_FH_ImportShaderAsMaterial, NWO_Import, NWO_ImportGameInstanceTag, NWO_OT_ConvertScene, NWO_OT_ImportBitmap, NWO_OT_ImportFromDrop, NWO_OT_ImportShader, NWO_OT_InstancerToInstance
 from .import_mesh import NWO_OT_MakeMeshesEditable
+from .wrinkle_tension import NWO_OT_SetupWrinkleTension
 from .mesh_to_marker import NWO_MeshToMarker
 from .set_sky_permutation_index import NWO_ScenarioSkyAdd, NWO_ScenarioSkyMove, NWO_ScenarioSkyRemove, NWO_ScenarioSkiesUpdate, NWO_SetDefaultSky, NWO_SetSky, NWO_UL_ScenarioSkies
 from .sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_MaterialRegionAssignSingle, NWO_ModelVariantViewerNameItem, NWO_ModelVariantViewerRegion, NWO_OT_HideObjectType, NWO_OT_ModelVariantViewer, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle, NWO_UpdateSets
@@ -60,7 +63,7 @@ from .shader_reader import NWO_OT_BuildShaderTemplates, NWO_OT_ShaderToNodesBulk
 from .shader_to_material import NWO_OT_ShaderToMaterial
 from .get_model_variants import NWO_GetModelVariants, NWO_OT_GetCinematicModelVariants, NWO_OT_GetModelMarkers, NWO_OT_GetModelMarkersForEvent
 from .get_zone_sets import NWO_GetZoneSets
-from .get_tag_list import NWO_GetTagsList, NWO_TagExplore
+from .get_tag_list import NWO_GetTagsList, NWO_MT_ShaderTags, NWO_TagExplore
 from .halo_launcher import NWO_HaloLauncher_Data, NWO_HaloLauncher_Foundation, NWO_HaloLauncher_Granny, NWO_HaloLauncher_Sapien, NWO_HaloLauncher_TagTest, NWO_HaloLauncher_Tags, NWO_OpenFoundationTag
 from .shader_builder import NWO_ListMaterialShaders, NWO_Shader_BuildSingle, NWO_ShaderPropertiesGroup
 from .halo_launcher import NWO_HaloLauncherPropertiesGroup, NWO_MaterialGirl
@@ -91,6 +94,7 @@ from .halo_join import NWO_JoinHalo
 # PROPERTIES MANAGER TOOL
 
 classes = (
+    NWO_OT_SetupWrinkleTension,
     NWO_OT_SetAssetType,
     NWO_MT_AssetType,
     NWO_OT_DebugNewUserExperience,
@@ -137,6 +141,7 @@ classes = (
     NWO_OT_GetModelMarkersForEvent,
     NWO_GetZoneSets,
     NWO_GetTagsList,
+    NWO_MT_ShaderTags,
     NWO_TagExplore,
     NWO_ProxyInstanceCancel,
     NWO_ProxyInstanceDelete,
@@ -174,6 +179,7 @@ classes = (
     NWO_FixPoseBones,
     NWO_FixArmatureTransforms,
     NWO_OT_GeneratePoses,
+    NWO_OT_GenerateBlendScreenPoses,
     NWO_OT_ConvertLegacyPoseOverlays,
     NWO_OT_GenerateAimLookOverlays,
     NWO_OT_GenerateFrames,
@@ -224,6 +230,7 @@ classes = (
     NWO_OT_Lightmap,
     NWO_UL_AnimationCopies,
     NWO_OT_AnimationCopyAdd,
+    NWO_OT_PreviewOverlayGroups,
     NWO_OT_AnimationCopyRemove,
     NWO_OT_AnimationCopyMove,
     NWO_UL_AnimationBlendAxis,

@@ -72,9 +72,13 @@ class ShaderMetadataTag(BlenderTag, TagDocument):
         return self.value(options[index], 'short')
 
     def is_opaque(self):
+        if self.system_path.suffix == '.shader_black':
+            return True  # Fixed opaque surface; no alpha-test or blend options.
         return self._option(2) == 0 and self._option(7) == 0
 
     def albedo_fill_alpha(self):
+        if self.system_path.suffix == '.shader_black':
+            return True
         return self._option(7) < 1
 
 

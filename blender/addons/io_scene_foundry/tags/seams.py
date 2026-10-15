@@ -14,6 +14,26 @@ class SeamGeometry:
 class StructureSeamsDocument(TagDocument):
     tag_ext = 'structure_seams'
 
+    def compilation_signature(self):
+        """All seam inputs consumed by BSP compilation, excluding file metadata."""
+        result = []
+        for element in self.block(self.tag.root(), 'seams'):
+            identifier = self.required_field(element, 'identifier').as_struct()
+            original = self.required_field(element, 'original').as_struct()
+            final = self.required_field(element, 'final').as_struct()
+            result.append((
+                tuple(self.value(identifier, f'seam_id{i}') for i in range(4)),
+                tuple((tuple(self.value(p, 'original vertex').to_array()), self.value(p, 'final point index'))
+                      for p in self.block(original, 'original vertices')),
+                tuple(tuple(getattr(self.value(p, 'plane'), component) for component in ('i', 'j', 'k', 'd'))
+                      for p in self.block(final, 'planes')),
+                tuple(tuple(self.value(p, 'final point').to_array()) for p in self.block(final, 'points')),
+                tuple(tuple(self.value(t, name) for name in ('final plane', 'final point0', 'final point1', 'final point2'))
+                      for t in self.block(final, 'triangles')),
+                tuple(tuple(self.value(e, f'final point{i}') for i in range(2)) for e in self.block(final, 'edges')),
+            ))
+        return self.value(self.tag.root(), 'version'), tuple(result)
+
     def matches_triangles(self, triangles):
         from ..legacy.seam_geometry import seam_surface
 

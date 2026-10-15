@@ -720,20 +720,19 @@ class VirtualAnimation:
         suspension_destroyed_extension_height = 0.0
         suspension_destroyed_compression_height = 0.0
 
-        fps = utils.real_frame_rate()
         start, end = self.frame_range
-
-        start_time = start / fps
-        end_time = end / fps
-        duration = end_time - start_time
 
         real_frame_count = 0
 
         for i in range(self.frame_count):
             t = i / (self.frame_count - 1) if self.frame_count > 1 else 0.0
-            time = start_time + t * duration
-
-            frame_float = time * fps
+            frame_float = start + t * (end - start)
+            # Integer samples must use that frame's events as well as its pose.
+            # The seconds round-trip can turn frame 12 into 11.999999..., which
+            # gives it frame 11's wrap direction and creates false duplicates.
+            nearest_frame = round(frame_float)
+            if abs(frame_float - nearest_frame) < 1e-6:
+                frame_float = nearest_frame
             frame = int(frame_float)
             subframe = frame_float - frame
 
@@ -3383,7 +3382,7 @@ class VirtualScene:
         return obs
 
     def supports_multiple_materials(self, ob: bpy.types.Object, props: dict, mesh_type: int) -> bool:
-        if self.game == 'halo2' and mesh_type == MeshType.portal.value:
+        if self.game in {'halo2', 'halo3', 'halo3odst'} and mesh_type == MeshType.portal.value:
             # +portal and +portal2 can share one mesh. Tool uses their distinct
             # material assignments when constructing portal boundaries.
             return True

@@ -1,7 +1,8 @@
 """Bake converted textures to TIFFs that the Halo shader exporter can read.
 
-Packed masks stay linear. Color expressions are evaluated in scene-linear RGB
-and written as sRGB. Resampling supports static affine 2D UV mappings only;
+RGB inputs are decoded to scene-linear values for both colors and masks.
+Packed masks stay linear; color outputs are written as sRGB. Alpha stays raw.
+Resampling supports static affine 2D UV mappings only;
 unsupported inputs raise instead of leaving a misleading exportable graph.
 """
 from pathlib import Path
@@ -146,12 +147,15 @@ class DataTextureBaker:
 
         memo = {}
 
-        def image_pixels(node):
+        def image_pixels(node, *, convert_rgb):
             image = node.image
             pixels = np.empty(image.size[0] * image.size[1] * 4, dtype=np.float32)
             image.pixels.foreach_get(pixels)
             pixels = pixels.reshape(-1, 4)
-            if color:
+            # The source color space determines decoding, independently of
+            # whether the destination is a color map or a packed linear mask.
+            # Alpha-only reads never need an RGB color-space transform.
+            if convert_rgb:
                 pixels[:, :3] = _to_linear(pixels[:, :3], image.colorspace_settings.name)
             if node not in transforms:
                 return pixels
@@ -192,11 +196,7 @@ class DataTextureBaker:
                 return memo[value]
             node = value.node
             if node.type == 'TEX_IMAGE':
-                space = node.image.colorspace_settings.name
-                if value.name != 'Alpha' and space not in LINEAR_TEXTURE_SPACES:
-                    if not color:
-                        raise ValueError(f'Unsupported texture color space: {space}')
-                pixels = image_pixels(node)
+                pixels = image_pixels(node, convert_rgb=value.name != 'Alpha')
                 result = pixels[:, 3:4] if value.name == 'Alpha' else pixels[:, :3]
             elif node.type == 'REROUTE':
                 result = evaluate(_input(node.inputs[0]))

@@ -14,6 +14,14 @@ class PCAAnimationDocument(TagDocument):
         return [tuple(self.value(v, 'position').to_array())
                 for v in self.block(mesh, 'raw blendshape verts')]
 
+    def raw_tension(self, mesh):
+        """Unquantized RGB PCA basis (compression, AO, stretch), not buffer data."""
+        result = []
+        for vertex in self.block(mesh, 'raw blendshape verts'):
+            color = self.value(vertex, 'tension and ambient occlusion')
+            result.append((color.red, color.green, color.blue))
+        return result
+
     def coefficient_rows(self):
         rows = []
         for index, frame in enumerate(self.block(self.tag.root(), 'frame data')):
@@ -32,6 +40,9 @@ class PCAAnimationDocument(TagDocument):
             geometry = render.required_field(render.tag.root(), 'render geometry').as_struct()
             meshes = render.block(geometry, 'per mesh temporary')
             indices = [render.value(e, 'mesh index') for e in render.block(geometry, 'PCA Mesh Indices')]
+            if not indices:
+                # Some H4 render models retain these indices only in the PCA tag.
+                indices = [self.value(mesh, 'render mesh index') for mesh in self.mesh_data()]
             indices = [i for i in indices if 0 <= i < len(meshes)]
             if not indices:
                 return None

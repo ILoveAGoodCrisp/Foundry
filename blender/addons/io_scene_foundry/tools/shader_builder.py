@@ -11,7 +11,7 @@ from ..tags.shader_foliage import ShaderFoliageTag
 from ..tags.shader_glass import ShaderGlassTag
 from ..tags.shader_halogram import ShaderHalogramTag
 from ..tags.shader_terrain import ShaderTerrainTag
-from ..tags.shader_specialized import (ShaderCortanaTag, ShaderSkinTag, ShaderWaterTag,
+from ..tags.shader_specialized import (ShaderBlackTag, ShaderCortanaTag, ShaderSkinTag, ShaderWaterTag,
     ShaderFurTag, ShaderFurStencilTag, ShaderMuxTag, ShaderMuxMaterialTag, ShaderScreenTag)
 from ..tags.material import MaterialTag
 from .. import utils
@@ -56,6 +56,10 @@ REACH_SUFFIX_TO_CLASS.update({
     for cls in (ShaderFurTag,ShaderFurStencilTag,ShaderMuxTag,ShaderMuxMaterialTag,ShaderScreenTag)
 })
 REACH_GROUP_TO_CLASS.update({'foundry_reach'+suffix:value for suffix,value in REACH_SUFFIX_TO_CLASS.items()})
+
+# ODST shares h3_nodes.blend, but black is not an H3 or Reach shader family.
+REACH_SUFFIX_TO_CLASS['.shader_black'] = (ShaderBlackTag, '.shader_black')
+REACH_GROUP_TO_CLASS['foundry_h3odst.shader_black'] = REACH_SUFFIX_TO_CLASS['.shader_black']
 
 
 def _normalize_group_name(name: str) -> str:

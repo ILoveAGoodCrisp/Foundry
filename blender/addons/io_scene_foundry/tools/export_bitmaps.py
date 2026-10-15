@@ -20,7 +20,8 @@ def recursive_image_search(tree_owner, images: set):
     nodes = tree_owner.node_tree.nodes
     for n in nodes:
         if getattr(n, "image", 0):
-            images.add(n.image)
+            if not n.image.get('foundry_preview_mip'):
+                images.add(n.image)
         elif n.type == 'GROUP':
             recursive_image_search(n, images)
 
@@ -175,6 +176,8 @@ class BitmapImportBatch:
 
 
 def export_bitmap(image: bpy.types.Image, report=None, *, bitmaps_data_dir=None, import_batch=None):
+    if image.get('foundry_preview_mip'):
+        raise ValueError('Detail mip previews cannot be exported; use the original bitmap image')
     if import_batch is not None and import_batch.game != utils.get_game():
         raise ValueError('Bitmap import batch belongs to a different game')
     image = bitmap_export_image(image)

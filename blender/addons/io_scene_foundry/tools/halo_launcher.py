@@ -885,13 +885,10 @@ def open_file_explorer(type, is_tags, scene_nwo):
     if type == "asset":
         asset_path = scene_nwo.asset_directory
         if valid_nwo_asset():
-            if is_tags:
-                if Path(tags_dir, asset_path).exists():
-                    return os.startfile(Path(tags_dir, asset_path))
-                else:
-                    return open_file_explorer_default(is_tags, tags_dir, data_dir)
-            else:
-                return os.startfile(Path(data_dir, asset_path))
+            asset_folder = Path(tags_dir if is_tags else data_dir, asset_path)
+            if asset_folder.is_dir():
+                return os.startfile(asset_folder)
+            return open_file_explorer_default(is_tags, tags_dir, data_dir)
 
     if type == "asset" or type == "blend":
         blend_folder = os.path.dirname(bpy.data.filepath)

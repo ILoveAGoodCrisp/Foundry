@@ -84,8 +84,11 @@ class ModelDocument(TagDocument):
 
     def get_render_model(self, optional_tag_root=None, override_type=None):
         reference = self.reference_render_model.Path
-        if self.game in {'halo4', 'halo2a'} and override_type is not None:
-            for element in self.block(self.tag.root(), 'game mode render model override'):
+        root = self.tag.root()
+        # Some shipped H4 tags use an older layout without game-mode overrides.
+        if (self.game in {'halo4', 'halo2a'} and override_type is not None
+                and root.field('game mode render model override') is not None):
+            for element in self.block(root, 'game mode render model override'):
                 kind = enum_index(self.value(element, 'game mode'), tuple(e.name for e in RenderModelOverrideType))
                 if kind == override_type.value:
                     reference = self.reference(element, 'render model override')

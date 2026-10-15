@@ -686,14 +686,6 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
         draw_first_project_setup(layout)
         return
 
-    box = _settings_box(layout, "Interface", prefs, 'settings_interface_expanded')
-    if box is not None:
-        row = box.row(align=True)
-        row.prop(prefs, "toolbar_icons_only", text="Toolbar Icons Only")
-        row = box.row(align=True)
-        row.prop(prefs, "sidebar_icons_only")
-        box.prop(prefs, 'use_new_asset_editor_wizard')
-
     box = _settings_box(layout, "Projects", prefs, 'settings_projects_expanded') if show_projects else None
     if box is not None:
         row = box.row()
@@ -722,6 +714,14 @@ def draw_foundry_preferences(layout, prefs, context=None, show_save_button=False
             if project.game in CUSTOM_DIRECTORY_GAMES:
                 box.label(text=f'Tags: {project.tags_directory}')
                 box.label(text=f'Data: {project.data_directory}')
+
+    box = _settings_box(layout, "Interface", prefs, 'settings_interface_expanded')
+    if box is not None:
+        row = box.row(align=True)
+        row.prop(prefs, "toolbar_icons_only", text="Toolbar Icons Only")
+        row = box.row(align=True)
+        row.prop(prefs, "sidebar_icons_only")
+        box.prop(prefs, 'use_new_asset_editor_wizard')
 
     box = _settings_box(layout, "Halo Tools", prefs, 'settings_tools_expanded')
     if box is not None:

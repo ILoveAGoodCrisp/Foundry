@@ -118,5 +118,5 @@ class NWO_OT_OpenFoundryWindow(bpy.types.Operator):
         return {'FINISHED'}
 
 
-def menu_func(self, context):
-    self.layout.operator(NWO_OT_OpenFoundryWindow.bl_idname, icon='WINDOW')
+# def menu_func(self, context):
+#     self.layout.operator(NWO_OT_OpenFoundryWindow.bl_idname, icon='WINDOW')

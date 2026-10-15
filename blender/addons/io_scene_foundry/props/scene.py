@@ -2359,6 +2359,17 @@ class NWO_CinematicEvent(PropertyGroup):
         options=set(),
         items=script_attachment_items,
     )
+
+    script_weapon_barrel: bpy.props.EnumProperty(
+        name="Barrel",
+        description="Weapon barrel whose trigger to hold or release",
+        options=set(),
+        default="0",
+        items=[
+            ("0", "Primary", "Use the primary barrel"),
+            ("1", "Secondary", "Use the secondary barrel"),
+        ],
+    )
     
     script_text: bpy.props.StringProperty(
         name="Script Text",
@@ -4282,6 +4293,22 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
         description="On export, animation frame events will be updated from Blender",
         default=True,
+    )
+
+    setup_overlay_groups: bpy.props.BoolProperty(
+        name="Set Up Overlay Groups on Export", options=set(), default=True,
+        description="Set up animation overlays after Reach, Halo 4 and Halo 2AMP imports, preserving authored tag settings",
+    )
+    overlay_group_profile: bpy.props.EnumProperty(
+        name="Overlay Profile", options=set(), default='auto',
+        items=[('auto', 'Automatic', 'Choose from the compiled animation graph'),
+               ('character', 'Character', 'Action-specific aim, look and pain groups'),
+               ('first_person', 'First Person', 'Movement and look overlays on idle'),
+               ('vehicle', 'Vehicle', 'Mode-level screens and function overlays')],
+    )
+    overlay_group_overrides: bpy.props.StringProperty(
+        name="Overlay Overrides", options=set(), subtype='FILE_PATH',
+        description="Optional JSON rules for new or unchanged Foundry-generated screens, functions and group assignments; authored settings take precedence",
     )
 
     player_starts_from_blender: bpy.props.BoolProperty(

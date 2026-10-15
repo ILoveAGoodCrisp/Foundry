@@ -1,3 +1,5 @@
+from array import array
+import hashlib
 import itertools
 import multiprocessing
 import os
@@ -16,7 +18,53 @@ from ..tags.bitmap import BitmapTag
 from ..tools.export_bitmaps import save_image_as, bitmap_export_image, export_bitmap, BitmapImportBatch
 from ..tools.shader_builder import build_shader
 
-BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
+
+def bitmap_duplicate_key(image, data_dir, bitmaps_data_dir):
+    """Identify unchanged file images that would produce the same bitmap.
+
+    Blender's numeric name suffixes only identify datablocks, not their pixels.
+    Keep uncertain sources and deliberately different destinations separate.
+    """
+    if (image.source != 'FILE' or image.is_dirty or image.packed_file
+            or image.nwo.reexport_tiff or image.get('foundry_channel_conversion')
+            or image.get('foundry_cubemap_source') or image.get('foundry_cubemap_export')):
+        return None
+    source = image.filepath_from_user()
+    if not source:
+        return None
+    try:
+        source = Path(source).resolve(strict=True)
+        if not source.is_file():
+            return None
+        data_dir = Path(data_dir).resolve()
+        cached = Path(data_dir, image.nwo.filepath)
+        if source.suffix.lower() in {'.tif', '.tiff'} and source.is_relative_to(data_dir):
+            destination = source
+        elif cached.suffix.lower() in {'.tif', '.tiff'} and cached.is_file():
+            destination = cached.resolve()
+        else:
+            name = utils.valid_image_name(image.name) + ('.tiff' if '.tiff' in image.name else '.tif')
+            destination = (Path(bitmaps_data_dir) / name).resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return (os.path.normcase(str(source)), os.path.normcase(str(destination)),
+            image_bitmap_type(image), image.nwo.bitmap_shape,
+            image.colorspace_settings.name, image.alpha_mode, image.is_float, tuple(image.size))
+
+
+def bitmap_pixel_digest(image, cache):
+    """Compare complete pixel buffers only when source/destination/settings match."""
+    if image not in cache:
+        try:
+            if not image.has_data or not len(image.pixels):
+                return None
+            pixels = array('f', [0.0]) * len(image.pixels)
+            image.pixels.foreach_get(pixels)
+            cache[image] = hashlib.sha256(pixels).digest()
+        except (RuntimeError, ValueError):
+            return None
+    return cache[image]
+
 
 class NWO_FarmShaders(bpy.types.Operator):
     bl_label = "Shader Farm"
@@ -162,13 +210,12 @@ class NWO_FarmShaders(bpy.types.Operator):
                 valid_shaders = shaders['new']
             else:
                 valid_shaders = shaders['update']
-            # create a list of non-duplicate bitmaps
-
+            # Apply scope before looking for duplicates: an unused image must
+            # never cause a material's only texture to be skipped.
             for image in bpy.data.images:
-                if image.name != image.name_full:
+                if image.get('foundry_preview_mip'):
                     continue
-                if utils.dot_partition(image.name).endswith(BLENDER_IMAGE_FORMATS):
-                    utils.print_warning(f"{image.name} looks like a duplicate image, skipping")
+                if image.name != image.name_full:
                     continue
                 if not self.all_bitmaps and not self.image_in_valid_node(image, valid_shaders):
                     continue
@@ -208,9 +255,23 @@ class NWO_FarmShaders(bpy.types.Operator):
                 print(f"{bitmap_count} bitmaps in scope")
                 print(f"Bitmaps Directory = {utils.relative_path(self.bitmaps_data_dir)}\n")
                 skipped_bitmaps = 0
+                reused_bitmaps = 0
+                exported_images = {}
+                pixel_digests = {}
                 for idx, bitmap in enumerate(valid_bitmaps):
                     try:
                         bitmap = bitmap_export_image(bitmap)
+                        duplicate_key = bitmap_duplicate_key(bitmap, self.data_dir, self.bitmaps_data_dir)
+                        previous = exported_images.get(duplicate_key) if duplicate_key is not None else None
+                        if previous is not None:
+                            digest = bitmap_pixel_digest(bitmap, pixel_digests)
+                            if digest is not None and digest == bitmap_pixel_digest(previous, pixel_digests):
+                                bitmap.nwo.filepath = previous.nwo.filepath
+                                bitmap.nwo.source_name = previous.nwo.source_name
+                                print(f"{bitmap.name} matches the source, pixels and export settings of "
+                                      f"{previous.name}; reusing its bitmap")
+                                reused_bitmaps += 1
+                                continue
                         if (self.game in CLASSIC_GAMES or bitmap.get('foundry_channel_conversion')
                                 or bitmap.get('foundry_cubemap_export')):
                             # Blender image access stays on this thread.
@@ -220,12 +281,16 @@ class NWO_FarmShaders(bpy.types.Operator):
                                 prepared_bitmap_paths.add(str(path))
                                 if import_batch is None:
                                     self.exported_bitmaps.append(str(path))
+                                if duplicate_key is not None:
+                                    exported_images[duplicate_key] = bitmap
                             else:
                                 skipped_bitmaps += 1
                             continue
                         tiff_path = self.export_tiff_if_needed(bitmap)
                         if tiff_path:
                             self.thread_bitmap_export(bitmap)
+                            if duplicate_key is not None:
+                                exported_images[duplicate_key] = bitmap
                         else:
                             skipped_bitmaps += 1
                     except (RuntimeError, ValueError, OSError, CalledProcessError) as error:
@@ -253,7 +318,7 @@ class NWO_FarmShaders(bpy.types.Operator):
                 for error in self.bitmap_errors:
                     utils.print_warning(error)
                 if import_batch is None or self.farm_type == 'bitmaps':
-                    self.report({'INFO'}, f"Exported {bitmap_count - skipped_bitmaps} Bitmaps")
+                    self.report({'INFO'}, f"Exported {bitmap_count - skipped_bitmaps - reused_bitmaps} Bitmaps")
                     if skipped_bitmaps:
                         self.report({'WARNING'}, f"Skipped {skipped_bitmaps} Bitmaps; see Foundry Output for details")
 
@@ -275,12 +340,21 @@ class NWO_FarmShaders(bpy.types.Operator):
                 # Share the bitmap-stage batch so images discovered while
                 # writing shaders do not cause a second import of that folder.
                 shader_bitmap_batch = import_batch
+                skipped_shaders = 0
                 for idx, shader in enumerate(valid_shaders):
                     utils.update_progress(job, idx / shader_count)
                     shader.nwo.uses_blender_nodes = self.link_shaders
                     if self.default_material_shader and Path(self.tags_dir, self.default_material_shader).exists():
                         shader.nwo.material_shader = self.default_material_shader
-                    build_shader(shader, self.corinth, shaders_dir, bitmap_import_batch=shader_bitmap_batch)
+                    try:
+                        result = build_shader(shader, self.corinth, shaders_dir,
+                                              bitmap_import_batch=shader_bitmap_batch)
+                    except (RuntimeError, ValueError, OSError, CalledProcessError) as error:
+                        utils.print_warning(f"Skipping {tag_type.lower()} {shader.name}: {error}")
+                        skipped_shaders += 1
+                        continue
+                    if result == {'CANCELLED'}:
+                        skipped_shaders += 1
                 if shader_bitmap_batch is not None:
                     completed, errors = shader_bitmap_batch.compile()
                     self.exported_bitmaps.extend(str(path) for path in completed)
@@ -289,13 +363,15 @@ class NWO_FarmShaders(bpy.types.Operator):
                             utils.print_warning(f"Skipping bitmap {image.name}: {error}")
                             if str(Path(image.nwo.filepath).with_suffix('.bitmap')) in prepared_bitmap_paths:
                                 skipped_bitmaps += 1
-                        self.report({'INFO'}, f"Exported {bitmap_count - skipped_bitmaps} Bitmaps")
+                        self.report({'INFO'}, f"Exported {bitmap_count - skipped_bitmaps - reused_bitmaps} Bitmaps")
                         if errors or skipped_bitmaps:
                             self.report({'WARNING'}, 'Some bitmaps failed; see Foundry Output for details')
                     elif errors:
                         raise RuntimeError('; '.join(str(error) for _, error in errors))
                 utils.update_progress(job, 1)
-                self.report({'INFO'}, f"Exported {shader_count} {tag_type}s")
+                self.report({'INFO'}, f"Exported {shader_count - skipped_shaders} {tag_type}s")
+                if skipped_shaders:
+                    self.report({'WARNING'}, f"Skipped {skipped_shaders} {tag_type}s; see Foundry Output for details")
 
             end = time.perf_counter()
 

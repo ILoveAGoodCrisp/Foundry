@@ -816,6 +816,6 @@ def convert_material_game(material, source_game, target_game, *, layout=True):
     if layout:
         from .node_layout import layout_nodes
         layout_nodes(tree)
-    for note in sorted(notes):
-        utils.print_warning(f'{material.name}: {note}')
+    # for note in sorted(notes):
+    #     utils.print_warning(f'{material.name}: {note}')
     return True

@@ -33,6 +33,40 @@ def active_actor_attachment(context):
     index = min(max(nwo.active_attachment_index, 0), len(nwo.attachments) - 1)
     return nwo.attachments[index]
 
+def tag_list_items(list_type):
+    if not utils.current_project_valid():
+        return []
+    tags_dir = get_tags_path()
+    ext_list = extensions_from_type(list_type)
+    cache_key = (os.path.normcase(os.path.abspath(tags_dir)), list_type, ext_list)
+    if cache_key in global_items:
+        return global_items[cache_key]
+    global_items[cache_key] = []
+    tags = walk_tags_dir(tags_dir, ext_list)
+    for t in tags:
+        if type(list_type) == str:
+            display = f"{Path(Path(t).parent.name, Path(t).name)}"
+        else:
+            display = str(Path(t).name)
+
+        if len(display) > 35:
+            global_items[cache_key].append((t, f"...{display[-35:]}", t))
+        else:
+            global_items[cache_key].append((t, display, t))
+
+    return global_items[cache_key]
+
+class NWO_MT_ShaderTags(bpy.types.Menu):
+    bl_label = "Shaders"
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator_context = 'EXEC_DEFAULT'
+        for path, label, _ in tag_list_items('shader_path'):
+            props = layout.operator('nwo.get_tags_list', text=label, translate=False)
+            props.list_type = 'shader_path'
+            props.tag_path = path
+
 class NWO_GetTagsList(bpy.types.Operator):
     bl_label = ""
     bl_idname = 'nwo.get_tags_list'
@@ -44,29 +78,12 @@ class NWO_GetTagsList(bpy.types.Operator):
     def poll(cls, context):
         return utils.poll_project(cls)
 
-    def tag_list_items(self, context):
-        if not utils.current_project_valid():
-            return []
-        global global_items
-        tags_dir = get_tags_path()
-        ext_list = extensions_from_type(self.list_type)
-        cache_key = (os.path.normcase(os.path.abspath(tags_dir)), self.list_type, ext_list)
-        if cache_key in global_items:
-            return global_items[cache_key]
-        global_items[cache_key] = []
-        tags = walk_tags_dir(tags_dir, ext_list)
-        for t in tags:
-            if type(self.list_type) == str:
-                display = f"{Path(Path(t).parent.name, Path(t).name)}"
-            else:
-                display = str(Path(t).name)
-                
-            if len(display) > 35:
-                global_items[cache_key].append((t, f"...{display[-35:]}", ""))
-            else:
-                global_items[cache_key].append((t, display, ""))
+    @classmethod
+    def description(cls, context, properties):
+        return properties.tag_path or cls.bl_description
 
-        return global_items[cache_key]
+    def tag_list_items(self, context):
+        return tag_list_items(self.list_type)
 
     tag_list: bpy.props.EnumProperty(
         name="Tags",
@@ -75,17 +92,21 @@ class NWO_GetTagsList(bpy.types.Operator):
 
     # comma delimited
     list_type: bpy.props.StringProperty()
+
+    # Menu buttons avoid resolving the dynamic enum once for every shader.
+    tag_path: bpy.props.StringProperty(options={'HIDDEN', 'SKIP_SAVE'})
     
     def execute(self, context):
         if not utils.require_project(self):
             return {'CANCELLED'}
+        tag_path = self.tag_path or self.tag_list
         scene_nwo = get_scene_props()
         if self.list_type == 'sky_path':
             if not scene_nwo.scenario_skies:
                 return {'CANCELLED'}
             index = min(max(scene_nwo.active_scenario_sky_index, 0), len(scene_nwo.scenario_skies) - 1)
             nwo = scene_nwo.scenario_skies[index]
-            nwo.path = self.tag_list
+            nwo.path = tag_path
             redraw_area(context, 'VIEW_3D')
             return {'FINISHED'}
         if self.list_type in scene_props:
@@ -93,7 +114,7 @@ class NWO_GetTagsList(bpy.types.Operator):
         elif self.list_type == 'shader_path':
             nwo = context.object.active_material.nwo
             if get_prefs().rename_material:
-                context.object.active_material.name = Path(self.tag_list).with_suffix("").name
+                context.object.active_material.name = Path(tag_path).with_suffix("").name
         elif self.list_type.startswith('light'):
             nwo = context.object.data.nwo
         elif self.list_type in cinematic_event_props:
@@ -108,15 +129,18 @@ class NWO_GetTagsList(bpy.types.Operator):
                 return {'CANCELLED'}
         else:
             nwo = context.object.nwo
-        setattr(nwo, self.list_type, self.tag_list)
+        setattr(nwo, self.list_type, tag_path)
         redraw_area(context, 'VIEW_3D')
         return {'FINISHED'}
     
     def invoke(self, context, event):
         if not utils.require_project(self):
             return {'CANCELLED'}
-        wm = context.window_manager
-        wm.invoke_search_popup(self)
+        if self.list_type == 'shader_path':
+            # Enum search popups ignore item descriptions; menu search supports tooltips.
+            bpy.ops.wm.search_single_menu('INVOKE_DEFAULT', menu_idname='NWO_MT_ShaderTags')
+        else:
+            context.window_manager.invoke_search_popup(self)
         return {"FINISHED"}
     
 def extensions_from_type(list_type):
@@ -177,7 +201,7 @@ def extensions_from_type(list_type):
         case 'shader_path':
             if halo1:
                 return HALO1_SHADER_EXTENSIONS
-            return (".material", '.shader', '.shader_cortana', '.shader_custom', '.shader_decal', '.shader_foliage', '.shader_fur', '.shader_fur_stencil', '.shader_glass', '.shader_halogram', '.shader_mux', '.shader_mux_material', '.shader_screen', '.shader_skin', '.shader_terrain', '.shader_water')
+            return (".material", '.shader', '.shader_black', '.shader_cortana', '.shader_custom', '.shader_decal', '.shader_foliage', '.shader_fur', '.shader_fur_stencil', '.shader_glass', '.shader_halogram', '.shader_mux', '.shader_mux_material', '.shader_screen', '.shader_skin', '.shader_terrain', '.shader_water')
         case 'template_model':
             return (".model")
         case 'template_biped':

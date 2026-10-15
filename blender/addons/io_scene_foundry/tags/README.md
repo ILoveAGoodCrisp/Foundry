@@ -1,5 +1,164 @@
 # blam-tags migration
 
+## Reach, Halo 4 and Halo 2AMP overlay groups
+
+Animation Graph settings now include **Set Up Overlay Groups on Export** (on by
+default), an Automatic/Character/First Person/Vehicle profile, optional JSON
+overrides, and **Preview Overlay Group Changes**. Preview validates an edited
+in-memory clone and writes its proposed changes/notices to Blender's
+`Overlay Group Preview` text; it does not save tags or ownership data.
+
+Setup runs after successful Tool imports, including single/child animations and
+tag-only exports. It uses the compiled graph, so aliases and function overlays
+can be reconciled even when no new pose overlays were exported. H1/H2/H3/ODST
+keep their existing export behaviour.
+
+Authored groups, assignments, masks, member flags, function overlays, screen
+settings and ordering take precedence. Empty authored groups and explicit `-1`
+node masks are preserved. Missing local screen animation references are repaired
+only when their exact source name identifies one overlay animation; otherwise
+the record is retained with a diagnostic. Definition tables are never compacted,
+so unrelated block indices cannot shift. Existing inherited screen references
+retain their graph/animation pair; an unresolved inherited source is reported
+instead of being interpreted as an index into the local animation table.
+
+New character groups combine matching aim/look variants, separate pain regions,
+transition in/out weights, throttle/defense and applicable pill-fix screens. H4
+and H2AMP also support locomotion and composite turns. Literal `any` levels stay
+in their correct positions. Explicit graph aliases precede source-name fallback;
+ambiguous alternatives are reported, not selected by list order. New first-person
+groups use idle and separate movement/look settings. New vehicle groups bind at
+mode level and include valid function overlays, including function-only groups.
+Known suspension channels use their exported suspension records. Custom object
+functions need explicit mappings. Existing vehicle screen inputs always win over
+defaults inferred from names.
+
+Generated records are tracked beside the graph's corresponding data path in
+`<graph>.overlay_groups.generated.json`. Keep this file with the asset's source
+data if subsequent exports should update generated groups. Ownership requires an
+exact match to the last saved record and its group assignments: manually edited
+records become authored. A missing or stale ledger conservatively preserves
+existing records. Removing a generated group's sources clears its generated
+binding while retaining table slots. Setup twice on unchanged input is a no-op.
+The tag is validated on a clone and saved atomically before the ledger is updated.
+A ledger write failure is reported and does not grant ownership of edited data.
+
+Overrides only affect new or unchanged generated records. Screen keys and group
+keys use the full five-component graph path; a group may instead name a mode,
+weapon class, weapon type or set. Function keys name source animations. Example:
+
+```json
+{
+  "screens": {
+    "any:any:any:any:steering": {
+      "yaw source": "aim yaw",
+      "pitch source": "aim pitch",
+      "weight source": "object function",
+      "weight source object function": "driver_seat_power"
+    }
+  },
+  "functions": {
+    "vehicle:open_close": {"frame ratio object function": "door_open"}
+  },
+  "groups": {
+    "any": {
+      "screens": ["vehicle:steering"],
+      "functions": ["vehicle:open_close"]
+    }
+  }
+}
+```
+
+Each generated group is limited to ten blend screens and 32 function overlays;
+the definition tables have independent limits of 1024 screens, 32 function
+overlays and 1056 groups. Overflow or invalid explicit settings abort setup
+before saving; authored legacy faults remain diagnostic rather than destructive
+cleanup targets. Custom skeleton masks are not fabricated from bone-name guesses.
+
+Run `python blender/tests/test_animation_overlay_groups.py`; add
+`--reference-root <Main editing-kit directory>` for read-only reference checks.
+The suite covers all three native layouts, aliases, partial/repeated exports,
+authored settings, index stability, inherited references, capacity and write
+failures. Run `test_animation_overlay_groups_blender.py` in factory-background
+Blender for property registration, preview and document-lifecycle checks.
+These checks verify tag construction and preservation, not in-game blending.
+
+## Halo 4 Havok collision audit
+
+Scenario, BSP and prefab imports recover Havok collision automatically unless
+Render Geometry Only is enabled. Cinematic imports remain render-only. The
+experimental checkbox has been removed from both import dialogs and presets.
+Embedded GR2 sources retain their authored collision and proxies without an
+additional compiled Havok overlay. Prefab source lookup accepts the native
+filesystem path returned by `PrefabTag.bsp_path()`.
+
+Binary tagfiles use the decoded object graph for both standalone compressed
+meshes and static compounds, including MOPP children and every storage pool.
+Malformed or unsupported tagfile shapes raise a contextual error instead of
+falling back to a byte scan. Missing render mappings retain physical geometry;
+an undecodable legacy payload produces a warning. Instance-local vertices,
+placement transforms, winding, collision layers and material overrides are
+retained. Shared definition recovery requires equivalent local geometry and
+mappings across placements; differing coverage stays standalone. Conflicting
+materials/layers, incomplete mappings and deleted render triangle IDs cannot
+silently consume collision faces.
+
+Mapped render collision stays editable on the original instance definition.
+Residual collision of the same layer joins it as collision-only faces, since
+attaching a partial proxy would replace the mapped collision during export.
+Definitions are completed before making linked placements. Unmapped render
+geometry is marked render-only; collision-only definitions and unmapped layers
+remain explicit geometry. Source shape identities, where available, continue
+through the existing shape recovery. Compiled Havok cannot recover arbitrary
+original quads, deleted geometry, source names or pivots absent from the tags.
+
+`blender/tests/test_havok_collision_blender.py` runs in factory Blender. Pass
+`-- --tags-root <H4EK/tags>` for real payload and `maintenance_pump` prefab checks,
+and add `--full-import --scan-tags` for the broader audit. The October 2026 audit
+read 26 H4 BSPs, 76 payloads and 4,807,385 collision triangles; it also imported
+both `ca_warhouse` and `ca_warhouse_planet` BSPs with all 364 lights and 56
+referenced unique prefabs. The main
+Warhouse payloads retain all 454,851 nondegenerate collision triangles and their
+tag placement transforms. All tag access was read-only; audit BSPs were checksummed.
+This verifies Blender reconstruction, not acceptance of a recompiled H4 map by
+Tool. The shared H2AMP path has synthetic coverage, but no real H2AMP tag audit.
+
+Older lighting-info layouts, including the Warhouse planet BSP, omit `Cinema
+Objects Only`. Import retains the default off value when this field is absent
+and validates/preserves authored values when present, matching standalone light
+imports. `blender/tests/test_structure_lighting_blender.py` covers both layouts;
+pass `-- --tags-root <H4EK/tags>` to verify the actual Warhouse lighting tags.
+
+## Halo 4 source shape recovery
+
+Halo 4 render-model and structure-BSP imports use `render geometry/shapeNames`
+and each mesh's `vertex keys` to recover named source shapes. `key2` selects
+the shape; the full `key1` is an opaque vertex identity within that shape.
+Identical duplicate name entries are accepted. Missing blocks, mismatched
+vertex counts, ambiguous names and unresolved/mixed-shape triangles retain
+the existing import path for the affected geometry. Other games are unchanged.
+
+Recovered meshes preserve materials, UVs, corner normals, skin weights and
+face properties. Exact keyed vertex splits reconnect only when retained point
+data agree and no faces would collapse or overlap. Source names and keys are
+stored as custom properties; namespaces are retained. Separate region,
+permutation, rigid-parent and PCA mesh identities remain separate objects.
+PCA's original point/corner IDs survive splitting and keyed welding, including
+later animation imports. These keys do not restore original quads or pivots.
+
+BSP cluster joining now separates known shapes again after combining cluster
+geometry; the existing skip-merge option retains cluster boundaries. Generated
+or unmapped geometry follows the existing collision-repair path. Instance
+placements retain their names, transforms, policies and shared mesh data;
+multi-shape placements get one object per shape. Complete collision, physics
+and cookie-cutter proxies stay attached once per placement. Additional render
+pieces covered by a complete collision/physics proxy are render-only.
+
+Run `blender/tests/test_source_shapes_blender.py` with Blender's background,
+factory-startup and python-exit-code options. Append `-- --tags-root <H4EK/tags>`
+to test Del Rio, its hologram selection and PCA idle clip, plus the box,
+headlong and grind-windows BSPs. Tests never save source tags.
+
 See [Halo 3 and ODST cinematic camera conversion](H3_CINEMATIC_CAMERAS.md) for camera
 projection, anchor units and axes, executable evidence, and regression coverage.
 
@@ -127,6 +286,40 @@ The real-bitmap regression can be run with Blender's Python using
 bitmap and, when testing a staged wheel, `FOUNDRY_NATIVE_ROOT` to its extracted
 package directory. It checks native TIFF output and Foundry's material bitmap
 save method without modifying the source tag.
+
+## Halo 3 / ODST detail mip previews
+
+Shader import adds distance-based preview groups to static detail colour and
+detail bump textures using the lower mip levels stored in their bitmap tags.
+This retains authored fading and neutral colours that would be lost by simply
+downsampling the extracted full-resolution TIFF. Supported inputs are single
+2D detail bitmaps with PC pixel data in DXT1, DXT3, DXT5, DXN, A8R8G8B8 or
+X8R8G8B8 format. Other layouts keep their existing preview.
+
+After updating Foundry, use **Convert Shader to Blender Material Nodes** to
+rebuild an existing material. Each detail texture gains a labelled fade group:
+
+- **Mip 1 Distance** defaults to one metre, converted for Foundry's scene scale.
+  Mip 0 is retained up to half that distance; mip 2 is reached at twice the
+  distance, mip 3 at four times, and subsequent levels follow the same pattern.
+  Adjacent levels blend continuously in logarithmic distance.
+- **Fade Amount** controls the preview effect; zero restores the original image.
+
+The original image nodes, tag references and UV transforms remain connected for
+export. Lower mip images are packed inside the blend, excluded from bitmap
+export (including Shader Farm's all-images option) and skipped by bulk image
+reload. Colour mips use the bitmap's transfer curve; normal components and alpha
+remain linear. Uniform mip levels use constants to reduce texture sampling.
+
+This is a camera-distance approximation for Eevee and Cycles, rather than Halo's
+screen-footprint LOD selection: it does not account for UV density, surface
+angle or render resolution. The distance and amount controls affect Blender
+only. Rebuild the material after changing the source bitmap or its mip chain.
+
+`blender/tests/test_detail_mip_fade_blender.py` checks mip decoding, colour/alpha,
+rendered distance blending, packed-image persistence and export references.
+Set `FOUNDRY_H3_TAGS_ROOT` to also inspect and render the Voi small-door shader
+without modifying its source tags.
 
 ## First-person weapon animations (Halo 1 through ODST)
 
@@ -341,6 +534,22 @@ Authored PCA animation also reads native blocks and linked render-model metadata
 then creates Blender shape keys and actions through the existing workflow. This
 does not add runtime resource-only animation decoding. PCA schemas remain generated
 and ignored alongside the other build assets.
+Raw PCA position bases are deltas in the render model's normalized bounds; they
+use the render mesh's scene-unit conversion without a bounds translation. Shared
+groups preserve each clip's signed coefficients and expand their shape-key ranges
+across clips. Import creates actions without activating them: the animation manager
+selects the facial action, so clips without PCA do not inherit the last imported face.
+Corinth compiled render meshes retain their source render-model path, mesh index,
+vertex count, and one-based source IDs on points and corners. Corner IDs preserve
+both sides of a welded seam. PCA import uses these identities instead of current
+vertex counts and separates a weld when a later group needs different motion or
+wrinkle values. Existing keys, skin weights, UVs and face data survive the split.
+Make Meshes Editable preserves differing PCA point data and carries the source IDs
+through cleanup; the mapping also survives saving and reopening the blend file.
+Missing/invalid mappings on mapped meshes are rejected. Older unmodified meshes
+retain the unique-vertex-count fallback; already-welded older imports need a fresh
+model import. This correspondence does not reconstruct arbitrary remeshing or
+map independently authored GR2/JMS topology onto compiled tag vertices.
 
 Collision-model import reads native geometry and pathfinding spheres, validates
 surface loops and bone bindings, then reuses the existing Blender conversion.
@@ -378,6 +587,17 @@ not yet been moved out of the legacy package.
 `TagStruct`, `TagField`, `TagBlock`, and math types. The wheel includes `py.typed`
 stubs, so these definitions are available to VS Code while the runtime binding is
 still imported lazily when a document is opened.
+
+For development, the repository's `pyrightconfig.json` points VS Code/Pylance to
+`typings/blam_tags/__init__.pyi`. This checked-in copy includes the wheel's native
+method documentation, including `TagField.set_flag`, so hover descriptions and
+Go to Definition work even when the editor's Python environment does not have
+blam-tags installed. Open Foundry's repository root as the VS Code workspace.
+`build_blam_tags.py` refreshes these stubs when staging a wheel. To refresh them
+from the wheel already listed in the extension manifest, run
+`python blender/update_blam_tags_typings.py`. After changing the stubs or config,
+use **Python: Restart Language Server** if Pylance has not picked them up.
+
 - Reach/H4/H2AMP animation graphs export Blender-authored frame events through the
   native graph and frame-event-list wrappers, including the graph reference update.
 - Inline graph events import natively across H3 through H2AMP and merge with

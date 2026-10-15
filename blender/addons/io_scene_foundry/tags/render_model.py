@@ -482,7 +482,9 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
             # the clone's material overrides from the tag.
             geometry = self.required_field(self.tag.root(), 'render geometry').as_struct()
             raw_meshes = self.block(geometry, 'meshes')
-            for region in self.regions():
+            # Blender stores converted regions on the instance after its
+            # skeleton pass, so read metadata through the class for fallbacks.
+            for region in RenderModelMetadataTag.regions(self):
                 permutations = {p.name: p for p in region.permutations}
                 for permutation in region.permutations:
                     if not permutation.clone_name or permutation.mesh_index < 0:
@@ -501,6 +503,10 @@ class RenderModelMetadataTag(BlenderTag, TagDocument):
                             part_type=int(self.value(raw_part, 'part type')),
                         ) for part, raw_part in zip(source_mesh.parts, raw_parts))
                         records[index] = replace(source_mesh, index=index, parts=parts)
+        if self.game == 'halo4':
+            from .source_shapes import attach_source_shapes
+            geometry = self.required_field(self.tag.root(), 'render geometry').as_struct()
+            records = attach_source_shapes(records, geometry, self.game)
         return records
 
     def insert_empty_region_perms(self, empty_region_perms: dict[str, set]):

@@ -129,6 +129,7 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
         records = []
         for element in field.as_block():
             flags = self.required_field(element, 'flags')
+            flag_names = flags.options().names
             color = self.value(element, 'emissive color')
             # Older H3/ODST tags omit focus from their embedded material layout.
             focus = element.field('emissive focus')
@@ -139,11 +140,12 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
                 quality=float(self.value(element, 'emissive quality')),
                 focus=0.0 if focus is None else float(focus.value),
                 power_per_unit_area=flags.get_flag('power per unit area'),
-                use_shader_gel='use shader gel' in flags.options().names and flags.get_flag('use shader gel'),
+                use_shader_gel='use shader gel' in flag_names and flags.get_flag('use shader gel'),
                 attenuation_falloff=float(self.value(element, 'attenuation falloff')),
                 attenuation_cutoff=float(self.value(element, 'attenuation cutoff')),
                 bounce_ratio=0.0 if bounce is None else float(bounce.value),
-                use_attenuation=flags.get_flag('use attenuation'),
+                # Reach reserves the old toggle and always uses attenuation distances.
+                use_attenuation=('use attenuation' not in flag_names or flags.get_flag('use attenuation')),
                 attenuation_world_units=self.game in {'halo3', 'halo3odst'},
                 frustum_blend=(float(self.value(element, 'frustum blend'))
                                if element.field('frustum blend') is not None else 0.0),
@@ -578,7 +580,10 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
             nwo.light_shadows = self._index(parameters, 'Shadows') == 1
             nwo.light_screenspace = self._index(parameters, 'Screenspace Light') == 1
             nwo.light_ignore_dynamic_objects = self._index(parameters, 'Ignore Dynamic Objects') == 1
-            nwo.light_cinema_objects_only = self._index(parameters, 'Cinema Objects Only') == 1
+            # Older Midnight layouts omit this option. Keep the default (off),
+            # matching standalone .light imports, while validating it when present.
+            if parameters.field('Cinema Objects Only') is not None:
+                nwo.light_cinema_objects_only = self._index(parameters, 'Cinema Objects Only') == 1
             if self._index(parameters, 'Cinema Only') == 1:
                 nwo.light_cinema = '_connected_geometry_lighting_cinema_only'
             if self._index(parameters, 'Cinema Exclude') == 1:

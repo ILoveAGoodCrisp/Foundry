@@ -348,6 +348,9 @@ class RenderModelTag(RenderModelMetadataTag):
                 is_io=True)
             for ob in ios:
                 ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_object_instance"
+                if self.game == 'halo4':
+                    from .source_shapes_blender import INSTANCE_NAME
+                    ob[INSTANCE_NAME] = ob.name
                 self.collection.objects.link(ob)
                 
             for instance in self.instances:
@@ -422,6 +425,10 @@ class RenderModelTag(RenderModelMetadataTag):
         if "sky" in self.tag_path.ShortName:
             for ob in objects:
                 utils.hide_from_rays(ob)
+
+        if self.game == 'halo4':
+            from .source_shapes_blender import reconstruct_objects
+            objects = reconstruct_objects(objects)
         
         return objects
     
