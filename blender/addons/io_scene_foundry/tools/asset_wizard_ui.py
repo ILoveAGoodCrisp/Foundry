@@ -577,7 +577,7 @@ class AssetWizard:
                 self.control(key, 'check', (22, y, self.width - 44, 28), label)
                 y += 34
             y = self.field('Scene scale', 'scale', y, [('blender', 'Blender · 1 unit = 1 meter'), ('max', 'Halo · 1 unit = 0.03048 meters')])
-            y = self.field('Forward axis', 'forward_direction', y, [('x+', '+X'), ('x-', '−X'), ('y+', '+Y'), ('y-', '−Y')])
+            y = self.field('Forward axis', 'forward_direction', y, [('x', '+X'), ('x-', '−X'), ('y', '+Y'), ('y-', '−Y')])
             if op.asset_type == 'model':
                 self.text('Output tags', 22, y)
                 y += 25
