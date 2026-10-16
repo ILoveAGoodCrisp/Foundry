@@ -878,7 +878,7 @@ def export_asset(context, sidecar_path_full, sidecar_path, asset_name, asset_pat
     if utils.uses_legacy_export(scene_settings.scene_project):
         from .legacy import export_legacy_asset
         return export_legacy_asset(context, asset_name, asset_path, scene_settings, export_settings,
-                                   single_animation, collection_view_layer)
+                                   single_animation, collection_view_layer, for_cache_build=for_cache_build)
     child_animation = _is_child_animation_export(scene_settings)
     if asset_type == 'polyart':
         if export_settings.export_mode == 'GRANNY':
