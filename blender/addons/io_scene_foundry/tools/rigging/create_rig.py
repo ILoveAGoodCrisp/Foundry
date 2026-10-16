@@ -1,4 +1,5 @@
 import re
+from contextlib import contextmanager
 
 import bpy
 
@@ -143,118 +144,199 @@ def set_control_rig_inverted(context, arm: bpy.types.Object, inverted: bool):
         )
 
 
+@contextmanager
+def control_rig_bake_state(context, arm: bpy.types.Object):
+    """Isolate action evaluation and restore the user's animation/UI state."""
+    animation_data = arm.animation_data_create()
+    original_action = animation_data.action
+    original_slot = animation_data.action_slot
+    original_identifier = animation_data.last_slot_identifier
+    original_blend = animation_data.action_blend_type
+    original_influence = animation_data.action_influence
+    original_nla = animation_data.use_nla
+    original_frame = context.scene.frame_current
+    original_subframe = context.scene.frame_subframe
+    original_mode = context.mode
+    original_active = context.view_layer.objects.active
+    selected_objects = list(context.selected_objects)
+    selected_bones = {pb.name: pb.select for pb in arm.pose.bones}
+    pose_basis = {pb.name: pb.matrix_basis.copy() for pb in arm.pose.bones}
+    try:
+        utils.set_object_mode(context)
+        utils.deselect_all_objects()
+        arm.select_set(True)
+        utils.set_active_object(arm)
+        animation_data.use_nla = False
+        animation_data.action_blend_type = 'REPLACE'
+        animation_data.action_influence = 1.0
+        yield
+    finally:
+        utils.set_object_mode(context)
+        animation_data.action = original_action
+        if original_action is not None:
+            animation_data.action_slot = original_slot
+        animation_data.last_slot_identifier = original_identifier
+        animation_data.action_blend_type = original_blend
+        animation_data.action_influence = original_influence
+        animation_data.use_nla = original_nla
+        for pb in arm.pose.bones:
+            pb.select = selected_bones.get(pb.name, False)
+            if pb.name in pose_basis:
+                pb.matrix_basis = pose_basis[pb.name]
+        context.scene.frame_set(original_frame, subframe=original_subframe)
+        utils.deselect_all_objects()
+        for ob in selected_objects:
+            ob.select_set(True)
+        context.view_layer.objects.active = original_active
+        utils.restore_mode(original_mode)
+
+
+def control_rig_action_bakes(arm: bpy.types.Object, actions):
+    """Resolve armature slots and keyed ranges without assigning or editing actions.
+
+    Slot ID type alone is insufficient: meshes and other rigs also use OBJECT.
+    Prefer explicit assignments, then the rig's slot identifier, and only use
+    an unassigned legacy slot when its pose paths unambiguously fit this rig.
+    Resolve the whole batch up front so the previous bake cannot choose a slot.
+    """
+    owners = {}
+    for scene in bpy.data.scenes:
+        for animation in scene.nwo.animations:
+            for track in animation.action_tracks:
+                if track.action and track.object and not track.is_shape_key_action:
+                    owners.setdefault(track.action, set()).add(track.object)
+
+    animation_data = arm.animation_data
+    identifier = animation_data.last_slot_identifier if animation_data else ''
+    bakes = []
+    for action in dict.fromkeys(action for action in actions if action is not None):
+        candidates = []
+        for slot in action.slots:
+            if slot.target_id_type != 'OBJECT':
+                continue
+            channelbag = anim_utils.action_get_channelbag_for_slot(action, slot)
+            if channelbag is None:
+                continue
+            curves = [fc for fc in channelbag.fcurves if fc.keyframe_points or fc.sampled_points]
+            pose_paths = {fc.data_path for fc in curves if fc.data_path.startswith('pose.bones[')}
+            if not pose_paths:
+                continue
+            try:
+                for path in pose_paths:
+                    arm.path_resolve(path)
+            except (ValueError, KeyError):
+                continue
+
+            users = slot.users()
+            assigned = arm in users
+            action_owners = owners.get(action, set())
+            if not assigned and ((users and arm not in users) or (action_owners and arm not in action_owners)):
+                continue
+            named_object = bpy.data.objects.get(slot.identifier[2:])
+            if not assigned and named_object is not None and named_object != arm:
+                continue
+
+            frames = [point.co[0] for fc in curves for point in (*fc.keyframe_points, *fc.sampled_points)]
+            priority = (
+                bool(animation_data and animation_data.action == action and animation_data.action_slot == slot),
+                assigned,
+                slot.identifier == identifier,
+                slot.identifier == f'OB{arm.name}',
+            )
+            candidates.append((priority, slot, floor(min(frames)), ceil(max(frames))))
+
+        if candidates:
+            best_priority = max(candidate[0] for candidate in candidates)
+            best = [candidate for candidate in candidates if candidate[0] == best_priority]
+            # Multiple compatible slots without an explicit binding are ambiguous.
+            if len(best) == 1:
+                _priority, slot, start, end = best[0]
+                bakes.append((action, slot, start, end))
+    return bakes
+
+
 def bake_control_rig_actions(context, arm: bpy.types.Object, actions):
-    actions = list(dict.fromkeys(action for action in actions if action is not None))
-    if not actions or not armature_has_control_rig(arm):
+    bakes = control_rig_action_bakes(arm, actions)
+    if not bakes or not armature_has_control_rig(arm):
         return 0
 
-    if arm.animation_data is None:
-        arm.animation_data_create()
-
-    original_action = arm.animation_data.action
-    original_slot = arm.animation_data.action_slot
-    original_active = context.view_layer.objects.active
-    selected_objects = [ob for ob in context.selected_objects]
-    selected_pose_bones = {pb.name: pb.select for pb in arm.pose.bones}
-
-    utils.set_object_mode(context)
-    utils.deselect_all_objects()
-    arm.select_set(True)
-    utils.set_active_object(arm)
-
-    # Connected FK bones cannot retain location keys from translated deform
-    # joints (for example the engineer's retracting neck).
-    disconnected_controls = []
-    for pb in arm.pose.bones:
-        if not pb.name.startswith("FK_") or not pb.bone.use_connect:
-            continue
-        for con in pb.constraints:
-            if con.type == 'COPY_TRANSFORMS' and con.target == arm:
-                source = arm.data.bones.get(con.subtarget)
-                if source is not None and not source.use_connect:
-                    disconnected_controls.append(pb.name)
-                    break
-    if disconnected_controls:
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        for name in disconnected_controls:
-            arm.data.edit_bones[name].use_connect = False
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-    control_bone_names = {pb.name for pb in arm.pose.bones if is_control_bone_name(pb.name)}
-    for pb in arm.pose.bones:
-        pb.select = pb.name in control_bone_names
-
-    arm.select_set(False)
-    options = anim_utils.BakeOptions(
-        only_selected=True,
-        do_pose=True,
-        do_object=False,
-        do_visual_keying=True,
-        do_constraint_clear=False,
-        do_parents_clear=False,
-        do_clean=False,
-        do_location=True,
-        do_rotation=True,
-        do_scale=True,
-        do_bbone=False,
-        do_custom_props=False,
-    )
     baked_count = 0
+    with control_rig_bake_state(context, arm):
+        # Connected FK bones cannot retain location keys from translated deform
+        # joints (for example the engineer's retracting neck).
+        disconnected_controls = []
+        for pb in arm.pose.bones:
+            if not pb.name.startswith("FK_") or not pb.bone.use_connect:
+                continue
+            for con in pb.constraints:
+                if con.type == 'COPY_TRANSFORMS' and con.target == arm:
+                    source = arm.data.bones.get(con.subtarget)
+                    if source is not None and not source.use_connect:
+                        disconnected_controls.append(pb.name)
+                        break
+        if disconnected_controls:
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+            for name in disconnected_controls:
+                arm.data.edit_bones[name].use_connect = False
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
-    try:
-        for action in actions:
+        control_bone_names = {pb.name for pb in arm.pose.bones if is_control_bone_name(pb.name)}
+        for pb in arm.pose.bones:
+            pb.select = pb.name in control_bone_names
+
+        arm.select_set(False)
+        options = anim_utils.BakeOptions(
+            only_selected=True,
+            do_pose=True,
+            do_object=False,
+            do_visual_keying=True,
+            do_constraint_clear=False,
+            do_parents_clear=False,
+            do_clean=False,
+            do_location=True,
+            do_rotation=True,
+            do_scale=True,
+            do_bbone=False,
+            do_custom_props=False,
+        )
+        for action, slot, start, end in bakes:
             print(f"Baking action: {action.name}")
 
-            if not len(action.slots):
-                continue
-            slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
-            # Resolve this action's slot before reading its frame range.
-            start, end = utils.get_frame_start_end_from_keyframes(action, slot.identifier)
-            if end - start < 1:
-                continue
-
+            for pb in arm.pose.bones:
+                pb.matrix_basis = Matrix.Identity(4)
             arm.animation_data.action = action
             arm.animation_data.action_slot = slot
             anim_utils.bake_action(arm, action=action, frames=range(start, end + 1), bake_options=options)
             baked_count += 1
-    finally:
-        arm.animation_data.action = original_action
-        arm.animation_data.action_slot = original_slot
-        for pb in arm.pose.bones:
-            pb.select = selected_pose_bones.get(pb.name, False)
-        utils.deselect_all_objects()
-        for ob in selected_objects:
-            if ob.name in bpy.data.objects:
-                ob.select_set(True)
-        if original_active is not None and original_active.name in bpy.data.objects:
-            context.view_layer.objects.active = original_active
 
     return baked_count
 
 
 def bake_imported_actions_to_control_rig(context, arm: bpy.types.Object, actions):
-    actions = list(dict.fromkeys(action for action in actions if action is not None))
-    if not actions or not armature_has_control_rig(arm):
+    bakes = control_rig_action_bakes(arm, actions)
+    if not bakes or not armature_has_control_rig(arm):
         return 0
 
-    for action in actions:
-        remove_control_rig_settings_fcurves(action, arm)
+    actions = [action for action, _slot, _start, _end in bakes]
+    with control_rig_bake_state(context, arm):
+        for action, slot, _start, _end in bakes:
+            remove_control_rig_settings_fcurves(action, arm, slot)
 
-    utils.reset_control_rig_props(arm)
+        utils.reset_control_rig_props(arm)
 
-    baked_count = 0
-    set_control_rig_inverted(context, arm, True)
-    utils.reset_control_rig_props(arm)
-    context.view_layer.update()
-    try:
-        baked_count = bake_control_rig_actions(context, arm, actions)
-    finally:
-        set_control_rig_inverted(context, arm, False)
+        baked_count = 0
+        set_control_rig_inverted(context, arm, True)
         utils.reset_control_rig_props(arm)
         context.view_layer.update()
+        try:
+            baked_count = bake_control_rig_actions(context, arm, actions)
+        finally:
+            set_control_rig_inverted(context, arm, False)
+            utils.reset_control_rig_props(arm)
+            context.view_layer.update()
 
-    if baked_count:
-        correct_baked_control_target_actions(context, arm, actions)
+        if baked_count:
+            correct_baked_control_target_actions(context, arm, actions)
 
     return baked_count
 
@@ -366,6 +448,7 @@ def mute_constraints_by_name(arm: bpy.types.Object, constraint_names: tuple[str,
 
 
 def correct_baked_control_target_actions(context, arm: bpy.types.Object, actions):
+    actions = list(actions)
     return (
         correct_baked_ik_target_actions(context, arm, actions)
         + correct_baked_head_look_target_actions(context, arm, actions)
@@ -392,8 +475,8 @@ def ik_target_bake_contexts(arm: bpy.types.Object) -> list[tuple[str, bpy.types.
     return contexts
 
 
-def remove_control_rig_settings_fcurves(action: bpy.types.Action, arm: bpy.types.Object):
-    fcurves = utils.get_fcurves(action, arm)
+def remove_control_rig_settings_fcurves(action: bpy.types.Action, arm: bpy.types.Object, slot=None):
+    fcurves = utils.get_fcurves(action, slot if slot is not None else arm)
     if not fcurves:
         return 0, 0
 
@@ -429,78 +512,56 @@ def correct_baked_ik_target_actions(context, arm: bpy.types.Object, actions):
     if arm.animation_data is None:
         return 0
 
-    original_action = arm.animation_data.action
-    original_slot = arm.animation_data.action_slot
-    original_frame = context.scene.frame_current
-    original_mode = context.mode
-    original_active = context.view_layer.objects.active
-    selected_objects = [ob for ob in context.selected_objects]
+    bakes = control_rig_action_bakes(arm, actions)
+    if not bakes:
+        return 0
+
     prop_names = [prop_name for prop_name, _fkb, _ikb, _ptb, _chain in contexts]
     corrected_count = 0
 
-    utils.set_object_mode(context)
-    utils.set_active_object(arm)
+    with control_rig_bake_state(context, arm):
+        try:
+            for action, slot, start, end in bakes:
+                arm.animation_data.action = action
+                arm.animation_data.action_slot = slot
 
-    try:
-        for action in list(dict.fromkeys(action for action in actions if action is not None)):
-            if not len(action.slots):
-                continue
-            slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
-            # Resolve this action's slot before reading its frame range.
-            start, end = utils.get_frame_start_end_from_keyframes(action, slot.identifier)
-            if end < start:
-                continue
+                for prop_name, _fkb, ikb, ptb, _chain in contexts:
+                    remove_settings_prop_fcurve(action, arm, prop_name)
+                    remove_pose_bone_transform_fcurves(action, arm, ikb.name)
+                    remove_pose_bone_transform_fcurves(action, arm, ptb.name)
 
-            arm.animation_data.action = action
-            arm.animation_data.action_slot = slot
+                frames = list(range(floor(start), ceil(end) + 1))
+                for frame in frames:
+                    context.scene.frame_set(frame)
+                    for prop_name in prop_names:
+                        settings_bone[prop_name] = 0.0
+                    context.view_layer.update()
 
-            for prop_name, _fkb, ikb, ptb, _chain in contexts:
-                remove_settings_prop_fcurve(action, arm, prop_name)
-                remove_pose_bone_transform_fcurves(action, arm, ikb.name)
-                remove_pose_bone_transform_fcurves(action, arm, ptb.name)
+                    for _prop_name, fkb, ikb, ptb, chain in contexts:
+                        reach_fp_hand_fix = uses_reach_fp_hand_ik_fix(arm, fkb)
+                        ik_matrix = ik_snap_target_matrix(fkb, ikb, remove_scale=reach_fp_hand_fix)
+                        if reach_fp_hand_fix:
+                            set_pose_bone_visual_matrix(context, arm, ikb, ik_matrix, keep_scale=False)
+                        else:
+                            ikb.matrix = ik_matrix
 
-            frames = list(range(floor(start), ceil(end) + 1))
-            for frame in frames:
-                context.scene.frame_set(frame)
-                for prop_name in prop_names:
+                        pole_position = pose_pole_position_for_ik_context(arm, fkb, ptb, chain)
+                        if reach_fp_hand_fix:
+                            set_pose_bone_visual_matrix_translation(context, arm, ptb, pole_position, keep_scale=False)
+                        else:
+                            set_pose_bone_matrix_translation(ptb, pole_position)
+                        keyframe_pose_bone_transform(ikb, frame)
+                        keyframe_pose_bone_transform(ptb, frame)
+
+                for prop_name, _fkb, ikb, ptb, _chain in contexts:
+                    set_pose_bone_transform_interpolation(action, arm, ikb.name, 'LINEAR')
+                    set_pose_bone_transform_interpolation(action, arm, ptb.name, 'LINEAR')
                     settings_bone[prop_name] = 0.0
-                context.view_layer.update()
 
-                for _prop_name, fkb, ikb, ptb, chain in contexts:
-                    reach_fp_hand_fix = uses_reach_fp_hand_ik_fix(arm, fkb)
-                    ik_matrix = ik_snap_target_matrix(fkb, ikb, remove_scale=reach_fp_hand_fix)
-                    if reach_fp_hand_fix:
-                        set_pose_bone_visual_matrix(context, arm, ikb, ik_matrix, keep_scale=False)
-                    else:
-                        ikb.matrix = ik_matrix
-
-                    pole_position = pose_pole_position_for_ik_context(arm, fkb, ptb, chain)
-                    if reach_fp_hand_fix:
-                        set_pose_bone_visual_matrix_translation(context, arm, ptb, pole_position, keep_scale=False)
-                    else:
-                        set_pose_bone_matrix_translation(ptb, pole_position)
-                    keyframe_pose_bone_transform(ikb, frame)
-                    keyframe_pose_bone_transform(ptb, frame)
-
-            for prop_name, _fkb, ikb, ptb, _chain in contexts:
-                set_pose_bone_transform_interpolation(action, arm, ikb.name, 'LINEAR')
-                set_pose_bone_transform_interpolation(action, arm, ptb.name, 'LINEAR')
+                corrected_count += 1
+        finally:
+            for prop_name in prop_names:
                 settings_bone[prop_name] = 0.0
-
-            corrected_count += 1
-    finally:
-        for prop_name in prop_names:
-            settings_bone[prop_name] = 0.0
-        arm.animation_data.action = original_action
-        arm.animation_data.action_slot = original_slot
-        context.scene.frame_set(original_frame)
-        utils.deselect_all_objects()
-        for ob in selected_objects:
-            if ob.name in bpy.data.objects:
-                ob.select_set(True)
-        if original_active is not None and original_active.name in bpy.data.objects:
-            context.view_layer.objects.active = original_active
-        utils.restore_mode(original_mode)
 
     return corrected_count
 
@@ -513,62 +574,40 @@ def correct_baked_head_look_target_actions(context, arm: bpy.types.Object, actio
     if arm.animation_data is None:
         return 0
 
-    original_action = arm.animation_data.action
-    original_slot = arm.animation_data.action_slot
-    original_frame = context.scene.frame_current
-    original_mode = context.mode
-    original_active = context.view_layer.objects.active
-    selected_objects = [ob for ob in context.selected_objects]
+    bakes = control_rig_action_bakes(arm, actions)
+    if not bakes:
+        return 0
+
     muted_constraints = []
     corrected_count = 0
 
-    utils.set_object_mode(context)
-    utils.set_active_object(arm)
+    with control_rig_bake_state(context, arm):
+        try:
+            muted_constraints = mute_constraints_by_name(arm, (head_track_constraint_name, eye_track_constraint_name))
+            for action, slot, start, end in bakes:
+                arm.animation_data.action = action
+                arm.animation_data.action_slot = slot
 
-    try:
-        muted_constraints = mute_constraints_by_name(arm, (head_track_constraint_name, eye_track_constraint_name))
-        for action in list(dict.fromkeys(action for action in actions if action is not None)):
-            if not len(action.slots):
-                continue
-            slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
-            # Resolve this action's slot before reading its frame range.
-            start, end = utils.get_frame_start_end_from_keyframes(action, slot.identifier)
-            if end < start:
-                continue
+                for control_bone, _source_bones, _axis_index, _distance in contexts:
+                    remove_pose_bone_transform_fcurves(action, arm, control_bone.name)
 
-            arm.animation_data.action = action
-            arm.animation_data.action_slot = slot
+                for frame in range(floor(start), ceil(end) + 1):
+                    context.scene.frame_set(frame)
+                    context.view_layer.update()
+                    for control_bone, source_bones, axis_index, distance in contexts:
+                        target_position = control_target_pose_position(source_bones, axis_index, distance)
+                        matrix = control_bone.bone.matrix_local.copy()
+                        matrix.translation = target_position
+                        control_bone.matrix = matrix
+                        keyframe_pose_bone_transform(control_bone, frame)
 
-            for control_bone, _source_bones, _axis_index, _distance in contexts:
-                remove_pose_bone_transform_fcurves(action, arm, control_bone.name)
+                for control_bone, _source_bones, _axis_index, _distance in contexts:
+                    set_pose_bone_transform_interpolation(action, arm, control_bone.name, 'LINEAR')
 
-            for frame in range(floor(start), ceil(end) + 1):
-                context.scene.frame_set(frame)
-                context.view_layer.update()
-                for control_bone, source_bones, axis_index, distance in contexts:
-                    target_position = control_target_pose_position(source_bones, axis_index, distance)
-                    matrix = control_bone.bone.matrix_local.copy()
-                    matrix.translation = target_position
-                    control_bone.matrix = matrix
-                    keyframe_pose_bone_transform(control_bone, frame)
-
-            for control_bone, _source_bones, _axis_index, _distance in contexts:
-                set_pose_bone_transform_interpolation(action, arm, control_bone.name, 'LINEAR')
-
-            corrected_count += 1
-    finally:
-        for con, muted in muted_constraints:
-            con.mute = muted
-        arm.animation_data.action = original_action
-        arm.animation_data.action_slot = original_slot
-        context.scene.frame_set(original_frame)
-        utils.deselect_all_objects()
-        for ob in selected_objects:
-            if ob.name in bpy.data.objects:
-                ob.select_set(True)
-        if original_active is not None and original_active.name in bpy.data.objects:
-            context.view_layer.objects.active = original_active
-        utils.restore_mode(original_mode)
+                corrected_count += 1
+        finally:
+            for con, muted in muted_constraints:
+                con.mute = muted
 
     return corrected_count
 
@@ -600,27 +639,14 @@ def correct_baked_pole_target_actions(context, arm: bpy.types.Object, actions):
     if arm.animation_data is None:
         return 0
 
-    original_action = arm.animation_data.action
-    original_slot = arm.animation_data.action_slot
-    original_frame = context.scene.frame_current
-    original_mode = context.mode
-    original_active = context.view_layer.objects.active
-    selected_objects = [ob for ob in context.selected_objects]
+    bakes = control_rig_action_bakes(arm, actions)
+    if not bakes:
+        return 0
+
     corrected_count = 0
 
-    utils.set_object_mode(context)
-    utils.set_active_object(arm)
-
-    try:
-        for action in list(dict.fromkeys(action for action in actions if action is not None)):
-            if not len(action.slots):
-                continue
-            slot = action.slots.get(arm.animation_data.last_slot_identifier) or action.slots[0]
-            # Resolve this action's slot before reading its frame range.
-            start, end = utils.get_frame_start_end_from_keyframes(action, slot.identifier)
-            if end < start:
-                continue
-
+    with control_rig_bake_state(context, arm):
+        for action, slot, start, end in bakes:
             arm.animation_data.action = action
             arm.animation_data.action_slot = slot
 
@@ -645,17 +671,6 @@ def correct_baked_pole_target_actions(context, arm: bpy.types.Object, actions):
                 set_pose_bone_transform_interpolation(action, arm, ptb.name, 'LINEAR')
 
             corrected_count += 1
-    finally:
-        arm.animation_data.action = original_action
-        arm.animation_data.action_slot = original_slot
-        context.scene.frame_set(original_frame)
-        utils.deselect_all_objects()
-        for ob in selected_objects:
-            if ob.name in bpy.data.objects:
-                ob.select_set(True)
-        if original_active is not None and original_active.name in bpy.data.objects:
-            context.view_layer.objects.active = original_active
-        utils.restore_mode(original_mode)
 
     return corrected_count
 
@@ -668,27 +683,34 @@ class NWO_OT_BakeToControl(bpy.types.Operator):
     
     all_actions: bpy.props.BoolProperty(
         name="All Actions",
-        description="Bake all actions in the blend file to the control rig"
+        description="Bake all actions compatible with the selected armature to its control rig"
     )
     
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.type =='ARMATURE' and context.object.animation_data
+        return (context.object and context.object.type == 'ARMATURE'
+                and armature_has_control_rig(context.object)
+                and not (context.object.animation_data and context.object.animation_data.use_tweak_mode))
     
     def execute(self, context):
         arm = context.object
         if self.all_actions:
             actions = bpy.data.actions
         else:
-            actions = [arm.animation_data.action]
+            actions = [arm.animation_data.action] if arm.animation_data else []
+
+        actions = [action for action, _slot, _start, _end in control_rig_action_bakes(arm, actions)]
             
         if not actions or actions[0] is None:
+            self.report({'WARNING'}, "No compatible armature actions to bake")
             return {'CANCELLED'}
-        was_inverted = arm.nwo.invert_control_rig
-        baked_count = bake_control_rig_actions(context, arm, actions)
-        set_control_rig_inverted(context, arm, False)
-        if was_inverted and baked_count:
-            correct_baked_control_target_actions(context, arm, actions)
+        with control_rig_bake_state(context, arm):
+            was_inverted = arm.nwo.invert_control_rig
+            baked_count = bake_control_rig_actions(context, arm, actions)
+            set_control_rig_inverted(context, arm, False)
+            if was_inverted and baked_count:
+                correct_baked_control_target_actions(context, arm, actions)
+        self.report({'INFO'}, f"Baked {baked_count} actions to {arm.name}")
         
         return {'FINISHED'}
     
