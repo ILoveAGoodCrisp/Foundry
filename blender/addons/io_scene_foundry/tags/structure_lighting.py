@@ -19,6 +19,7 @@ import struct
 import math
 from .. import import_transform
 from .. import utils
+from ..lightmap_regions import lightmap_region_triangles
 import bpy
 
 class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
@@ -395,12 +396,17 @@ class ScenarioStructureLightingInfoTag(BlenderTag, TagDocument):
                 collection.objects.link(ob)
         return objects
 
-    def lightmap_regions_from_blender(self, region_objects):
+    def lightmap_regions_from_blender(self, region_objects, *, mirror=False):
         if self.corinth:
             return
         # Collect geometry before changing the tag and always release temporary meshes.
         records = []
         for proxy in region_objects:
+            if self.game in {'halo3', 'halo3odst'}:
+                triangles = lightmap_region_triangles(proxy, utils.halo_transforms(proxy), mirror=mirror)
+                if triangles:
+                    records.append((proxy.name.lower(), [point for tri in triangles for point in tri]))
+                continue
             mesh = proxy.ob.to_mesh()
             try:
                 mesh.transform(utils.halo_transforms(proxy))
