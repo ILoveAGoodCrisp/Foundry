@@ -367,7 +367,10 @@ class DecoratorSetTag(BlenderTag, TagDocument):
                     tree.links.new(input=node_group.inputs[1], output=node_image.outputs[1])
                     node_output = tree.nodes.new(type='ShaderNodeOutputMaterial')
                     tree.links.new(input=node_output.inputs[0], output=node_group.outputs[0])
-                    render_shader = self.value(self.tag.root(), 'render shader')
+                    # Older serialized H3 decorators predate shader selection;
+                    # the field can be absent even though today's schema has it.
+                    shader_field = self.tag.root().field('render shader')
+                    render_shader = shader_field.value if shader_field is not None else 0
                     if render_shader in (0, 1, 'wind + dynamic lights', 'still + dynamic lights'):
                         mat.surface_render_method = 'BLENDED'
             
