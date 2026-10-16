@@ -1108,12 +1108,24 @@ class Function:
         """Decode Halo 2's 20-byte mapping header and optional compact data."""
         if len(data) < 20:
             raise ValueError(f'Halo 2 mapping data is too short: {len(data)} bytes')
-        function_type, output_type, exponent = data[0], data[1], data[2]
-        # if output_type in {2, 3, 4, 0x20, 0x40, 0x80}:
-        #     raise ValueError('Halo 2 color-output object functions are not implemented')
-
-        self.clamp_min = struct.unpack_from('<f', data, 4)[0]
-        self.clamp_max = struct.unpack_from('<f', data, 8)[0]
+        function_type, flags, exponent = data[0], data[1], data[2]
+        # H2 packs the color count into the high nibble of its flags byte.
+        # The header's float bounds and packed BGRA colors share storage;
+        # interpreting a color as a float leaves shader color inputs white.
+        self.color_type = FunctionEditorColorGraphType(flags >> 4)
+        self.is_color = self.color_type != FunctionEditorColorGraphType.Scalar
+        if self.is_color:
+            slots = {1: (0,), 2: (0, 3), 3: (0, 1, 3), 4: (0, 1, 2, 3)}
+            self.color_count = self.color_type.value
+            for index, slot in enumerate(slots[self.color_count]):
+                offset = 4 + slot * 4
+                # These are RGB shader colors; the unused alpha byte is often
+                # zero. Keep them opaque at Blender's RGBA socket boundary.
+                self.colors[index] = tuple(data[offset + channel] / 255 for channel in (2, 1, 0)) + (1.0,)
+            self.clamp_min, self.clamp_max = 0.0, 1.0
+        else:
+            self.clamp_min = struct.unpack_from('<f', data, 4)[0]
+            self.clamp_max = struct.unpack_from('<f', data, 8)[0]
         self.graph_count = 1
 
         if function_type == 1:
@@ -1121,6 +1133,8 @@ class Function:
             return
 
         if function_type == 3:
+            if self.is_color and len(data) < 52:
+                raise ValueError(f'Halo 2 periodic color mapping data is too short: {len(data)} bytes')
             self.master_type = FunctionEditorMasterType.Periodic
             periodic_names = (
                 'one', 'zero', 'cosine', 'cosine (variable period)',
@@ -1135,8 +1149,11 @@ class Function:
             phase_offset = 24 if len(data) >= 52 else 16
             self.frequencies = [struct.unpack_from('<f', data, frequency_offset)[0]]
             self.phases = [struct.unpack_from('<f', data, phase_offset)[0]]
-            self.mins = [self.clamp_min]
-            self.maxes = [self.clamp_max]
+            # The periodic graph has its own scalar range after frequency and
+            # phase. Color mappings use that range to move along the gradient,
+            # not the header union (which contains their color endpoints).
+            self.mins = [struct.unpack_from('<f', data, 28)[0] if self.is_color else self.clamp_min]
+            self.maxes = [struct.unpack_from('<f', data, 32)[0] if self.is_color else self.clamp_max]
             return
 
         if function_type == 4:
