@@ -708,12 +708,16 @@ class ASSImporter(JMSImporter):
             utils.unlink(child)
 
     def light_object(self, instance, light):
+        h3 = self.owner.game in {'halo3', 'halo3odst'}
         kind = {'SPOT_LGT': 'SPOT', 'DIRECT_LGT': 'AREA', 'OMNI_LGT': 'POINT', 'AMBIENT_LGT': 'SUN'}.get(light.kind)
         if kind is None:
             raise ASSError(f'Unsupported ASS light type {light.kind}')
+        if h3 and light.kind == 'DIRECT_LGT':
+            kind = 'SUN'
         data = bpy.data.lights.new(instance.name, kind)
         ob = self.object(instance.name, data)
-        data.color, data.energy = light.color, max(0, light.intensity)
+        data.color = tuple(utils.srgb_to_linear(c) for c in light.color) if h3 else light.color
+        data.energy = max(0, light.intensity)
         if kind == 'SPOT':
             data.spot_size = radians(max(0, light.falloff))
             data.spot_blend = max(0, min(1, (light.falloff - light.hotspot) / light.falloff)) if light.falloff > 0 else 0
@@ -722,14 +726,30 @@ class ASSImporter(JMSImporter):
             data.size = max(self.scale, abs(light.hotspot) * self.scale)
             if light.shape:
                 data.size_y = data.size / max(light.aspect, 0.001)
-        for suffix, value in (('near_attenuation_start', light.near_start if light.near_enabled else 0),
-                              ('near_attenuation_end', light.near_end if light.near_enabled else 0),
-                              ('far_attenuation_start', light.far_start if light.far_enabled else 0),
-                              ('far_attenuation_end', light.far_end if light.far_enabled else 0)):
+        # H3 stores the authored bounds independently of the enable flags.
+        # Zeroing disabled bounds loses data and leaves the default far ramp on.
+        for suffix, value in (('near_attenuation_start', light.near_start if h3 or light.near_enabled else 0),
+                              ('near_attenuation_end', light.near_end if h3 or light.near_enabled else 0),
+                              ('far_attenuation_start', light.far_start if h3 or light.far_enabled else 0),
+                              ('far_attenuation_end', light.far_end if h3 or light.far_enabled else 0)):
             setattr(data.nwo, 'light_' + suffix, value * self.scale)
-        if self.owner.game in {'halo3', 'halo3odst', 'reach', 'halo4', 'halo2a'} and kind != 'SUN':
+        if h3:
+            nwo = data.nwo
+            nwo.light_preview_model = 'H3_BAKED'
+            nwo.light_source_type = kind
+            nwo.light_use_near_attenuation = bool(light.near_enabled)
+            nwo.light_use_far_attenuation = bool(light.far_enabled)
+            nwo.light_shape = '_connected_geometry_light_shape_circle' if light.shape else '_connected_geometry_light_shape_rectangle'
+            nwo.light_aspect = light.aspect
+            if kind == 'SPOT':
+                nwo.light_cone_angle = data.spot_size
+                nwo.light_hotspot_angle = radians(max(0, light.hotspot))
+            elif kind == 'SUN':
+                nwo.light_directional_hotspot = max(0, light.hotspot) * self.scale
+                nwo.light_directional_falloff = max(0, light.falloff) * self.scale
+        if h3 or (self.owner.game in {'reach', 'halo4', 'halo2a'} and kind != 'SUN'):
             data.nwo.light_intensity = max(0, light.intensity)
-            utils.make_halo_light(data)
+            utils.make_halo_light(data, game=self.owner.game)
         return ob
 
 
