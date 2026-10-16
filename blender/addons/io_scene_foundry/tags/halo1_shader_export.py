@@ -119,6 +119,11 @@ def write_shader(shader):
             menu(struct, field_name, input_default(socket))
 
     def image_node(socket_name):
+        from .detail_mip_fade import original_texture
+        socket = group.inputs.get(socket_name)
+        original = original_texture(socket) if socket is not None else None
+        if original is not None:
+            return original
         node = utils.find_linked_node(group, socket_name.lower(), 'TEX_IMAGE')
         if node is None:
             node = utils.find_linked_node(group, socket_name.lower(), 'TEX_ENVIRONMENT')

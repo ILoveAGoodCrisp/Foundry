@@ -13,24 +13,27 @@ SHARED_SHADER_TYPES = frozenset({
 
 
 def required_shader_type(asset_type):
-    """Scenarios preserve shader classes; model-family assets need models."""
-    if asset_type in {'model', 'sky', 'animation'}:
-        return '.shader_model'
+    """Scenarios need environment shaders; models accept either opaque class."""
+    if asset_type == 'scenario':
+        return '.shader_environment'
     return None
 
 
 def shader_path_warning(shader_path, asset_type):
     """Return an asset compatibility warning, independent of tag existence."""
     required = required_shader_type(asset_type)
-    if not required or not shader_path.strip():
+    if asset_type not in {'scenario', 'model', 'sky', 'animation'} or not shader_path.strip():
         return None
     suffix = Path(shader_path.strip().strip('"')).suffix.lower()
-    if suffix in SHARED_SHADER_TYPES or suffix == required:
+    if suffix in SHARED_SHADER_TYPES:
         return None
     if suffix in {'.shader_model', '.shader_environment'}:
+        if not required or suffix == required:
+            return None
         return (f'{suffix} cannot be used for {asset_type} assets\n'
                 f'Export will create a {required}')
-    return f'Invalid H1 shader type for {asset_type} assets\nUse {required} or a transparent shader'
+    allowed = required or '.shader_model, .shader_environment'
+    return f'Invalid H1 shader type for {asset_type} assets\nUse {allowed} or a transparent shader'
 
 
 def convert_shader(path, tags_root, required_type):

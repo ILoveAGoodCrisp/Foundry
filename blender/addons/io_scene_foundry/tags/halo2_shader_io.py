@@ -227,17 +227,22 @@ def write_shader(shader):
     if 'h2_parameter_metadata' not in group.node_tree or not template:
         raise ValueError('This H2 group has no reviewed parameter-export metadata yet')
     root=shader.tag.root();shader.set_reference(root,'template',template+'.shader_template')
-    block=root.field('parameters').as_block();by_name={p.field('name').value:p for p in block}
+    block=root.field('parameters').as_block()
+    # Adding template defaults invalidates existing native element handles.
+    # Keep indices and resolve a fresh row for every write.
+    by_name={p.field('name').value:i for i,p in enumerate(block)}
     def ensure(name):
         if name not in by_name:
-            p=block[block.add()];p.field('name').set(name);p.field('type').set(['bitmap','value','color','switch'].index(metadata[name]['type']));by_name[name]=p
-        return by_name[name]
+            by_name[name]=block.add()
+            p=block[by_name[name]];p.field('name').set(name);p.field('type').set(['bitmap','value','color','switch'].index(metadata[name]['type']))
+        return block[by_name[name]]
     for name,m in metadata.items():
         s=group.inputs.get(name) or group.inputs.get(name+'.rgb')
         if s is None:continue
         if m['type']=='bitmap':
-            p=ensure(name);pending=[l.from_node for l in s.links];seen=set();texture=None
-            while pending:
+            from .detail_mip_fade import original_texture
+            p=ensure(name);pending=[l.from_node for l in s.links];seen=set();texture=original_texture(s)
+            while pending and texture is None:
                 n=pending.pop()
                 if n in seen:continue
                 seen.add(n)

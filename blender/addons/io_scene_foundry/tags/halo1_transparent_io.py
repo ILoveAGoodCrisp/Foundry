@@ -257,6 +257,8 @@ def import_shader(shader,material,resources,bitmap_to_image,reference,warning):
     if 'chicago' in kind:
         # Destination framebuffer color is unavailable; the group records the limitation.
         if len(resolve(root,['properties','extra layers']).as_block()):warning('H1 extra shader layers are preserved but not composited in the material preview')
+    from .detail_mip_fade import setup_detail_fade
+    setup_detail_fade(shader, tree, group)
     return True
 
 def setup_ripples(shader,g,group,images,bitmap_to_image,reference):
@@ -323,7 +325,9 @@ def write_shader(shader):
         try:field=resolve(root,path)
         except IndexError:continue
         if role and role.startswith('bitmap'):
-            textures=list(linked_images(s))
+            from .detail_mip_fade import original_texture
+            original=original_texture(s)
+            textures=[original] if original is not None else list(linked_images(s))
             if not textures:
                 # Retain typed empty references exactly; clear an actual map
                 # when its texture was deliberately disconnected.

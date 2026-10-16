@@ -129,6 +129,9 @@ def to_nodes(shader,material):
         parameter=shader.true_parameters.get(socket.name[:-6])
         if parameter is not None:
             shader._setup_input_with_function(socket,shader._value_from_parameter(parameter,AnimatedParameterType.ALPHA),True)
+    if family == 'shader_water' and shader.game == 'halo3':
+        from .halo3_water import setup_water_sampling
+        setup_water_sampling(shader, tree, node)
     shader._setup_h3_cubemap_reflector(tree,node)
     setup_extra_vectors(shader,tree,node)
     setup_scrolling_vectors(shader,tree,node,selected)

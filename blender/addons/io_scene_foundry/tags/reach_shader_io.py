@@ -92,6 +92,8 @@ def to_nodes(shader,material):
     setup_sampling(shader,tree,root,selected)
     from .shader_address import finalize_addresses
     finalize_addresses(tree)
+    from .detail_mip_fade import setup_detail_fade
+    setup_detail_fade(shader,tree,root)
     if family in {'shader_cortana','shader_water','shader_fur_stencil'} or selected.get('blend_mode','opaque')!='opaque' or selected.get('alpha_test','none') not in {'none','off'}:
         material.surface_render_method='BLENDED'
     out=tree.nodes.new('ShaderNodeOutputMaterial');tree.links.new(root.outputs['Shader'],out.inputs['Surface'])

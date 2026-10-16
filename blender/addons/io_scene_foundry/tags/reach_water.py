@@ -7,8 +7,9 @@ import bpy
 import numpy as np
 from pathlib import Path
 from uuid import uuid4
-from .halo3_odst_io import (_put, _value, _texture, _mapping, _set_coordinates,
+from .halo3_odst_io import (_put, _value, _mapping, _set_coordinates,
                            _remember, _vector, source_texture)
+from .water_coordinates import texture as _texture, add_uv_nodes
 
 SAMPLER_CONTROLS = ('time_warp', 'time_warp_aux', 'detail', 'detail_slope_scale_x',
                     'detail_slope_scale_y', 'detail_slope_scale_z', 'detail_slope_steepness')
@@ -21,9 +22,9 @@ def sync_water_sampling(tree):
         return 0
     owners = {n.get('reach_water_owner'): n for n in tree.nodes if n.get('reach_water_owner')}
     changes = 0
-    def copy(source, destination):
+    def copy(source, destination, default=0.0):
         nonlocal changes
-        value = _value(source)
+        value = _value(source) if source is not None else default
         if isinstance(value, bpy.types.NodeSocket):
             if not destination.is_linked or destination.links[0].from_socket != value:
                 tree.links.new(value, destination); changes += 1
@@ -37,12 +38,13 @@ def sync_water_sampling(tree):
         for parameter, prefix in [('wave_displacement_array', 'Main'), ('wave_slope_array', 'Aux')]:
             texture = source_texture(root, root.inputs[parameter + '.rgb']) or _texture(root, parameter)
             mapping = _mapping(texture)
-            if mapping:
-                for key in TRANSFORM_CONTROLS: copy(mapping.inputs[key], sampler.inputs[prefix + ' ' + key])
+            for key in TRANSFORM_CONTROLS:
+                copy(mapping.inputs[key] if mapping else None, sampler.inputs[prefix + ' ' + key],
+                     0.0 if key.startswith('Translate') else 1.0)
     return changes
 
 
-def padded_slope_atlas(image):
+def padded_slope_atlas(image, *, label='Reach water'):
     """Pad every slice independently so linear filtering wraps within it."""
     shape = image.get('foundry_bitmap_shape')
     if not shape or len(shape) != 3:
@@ -50,7 +52,7 @@ def padded_slope_atlas(image):
     width, height, depth = map(int, shape)
     if depth < 2 or tuple(image.size) != (width, height * depth):
         return None
-    name = image.name + ' - Reach water padded slices'
+    name = image.name + ' - ' + label + ' padded slices'
     atlas = bpy.data.images.get(name)
     file = Path(bpy.path.abspath(image.filepath)) if image.filepath else None
     signature = str((tuple(shape), file.stat().st_mtime_ns if file and file.is_file() else None))
@@ -103,16 +105,16 @@ def _slope_closure(tree, image):
 
 
 def setup_water_sampling(shader, tree, root):
-    coordinates = shader._add_group_node(tree, tree.nodes, 'foundry_reach.shader_water - texture coordinates')
-    coordinates.label = 'Water: separate wave and painted UVs'
-    coordinates.location = (-1100, 0)
+    wave, paint = add_uv_nodes(tree)
     for name in ('wave_displacement_array', 'wave_slope_array', 'bump_map',
                  'bump_detail_map', 'foam_texture', 'foam_texture_detail',
                  'watercolor_texture', 'global_shape_texture'):
         texture = _texture(root, name)
         if texture:
-            output = 'Paint UV' if name in {'watercolor_texture', 'global_shape_texture'} else 'Wave UV'
-            _set_coordinates(tree, texture, coordinates.outputs[output])
+            uv = paint if name in {'watercolor_texture', 'global_shape_texture'} else wave
+            # Reach applies each bitmap's authored transform to base_tex as
+            # well as texcoord. Neither stream has a universal scale factor.
+            _set_coordinates(tree, texture, uv)
 
     texture = _texture(root, 'wave_slope_array')
     if texture is None or texture.image is None:
@@ -130,7 +132,7 @@ def setup_water_sampling(shader, tree, root):
         _put(tree, sampler.inputs[key], _value(root.inputs[key]))
     for key, value in zip(('Width', 'Height', 'Layers'), atlas['foundry_bitmap_shape']):
         sampler.inputs[key].default_value = value
-    _put(tree, sampler.inputs['UV'], coordinates.outputs['Wave UV'])
+    _put(tree, sampler.inputs['UV'], wave)
     for parameter, prefix in [('wave_displacement_array', 'Main'), ('wave_slope_array', 'Aux')]:
         original = _texture(root, parameter)
         mapping = _mapping(original)
