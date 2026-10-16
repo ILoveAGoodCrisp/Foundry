@@ -6239,7 +6239,7 @@ def material_add_shield(material: bpy.types.Material, *, arrange_nodes=True):
     if arrange_nodes:
         arrange(node_tree)
 
-INVISIBLE_FACE_MODES = {'collision_only', 'sphere_collision_only', 'lightmap_only'}
+INVISIBLE_FACE_MODES = {'collision_only', 'sphere_collision_only'}
 
 
 def setup_two_sided_preview(mesh):
@@ -6359,7 +6359,7 @@ def update_foundry_material(material, game=None, *, arrange_nodes=True):
         if surface.is_linked:
             tree.links.new(surface.links[0].from_socket, node.inputs['Shader'])
         tree.links.new(node.outputs['Shader'], surface)
-    values = {'Force Two-Sided': False, 'Force Invisible': False,
+    values = {'Force Two-Sided': False, 'Force Invisible': False, 'Force Lightmap Only': False,
               'Engine': {'halo1': 'Halo 1', 'halo2': 'Halo 2', 'halo3': 'Halo 3 / ODST',
                          'halo3odst': 'Halo 3 / ODST'}.get(game, 'Reach / Halo 4+'),
               'Emissive Color': (0.0, 0.0, 0.0, 1.0), 'Emissive Power': 0.0,
@@ -6374,6 +6374,7 @@ def update_foundry_material(material, game=None, *, arrange_nodes=True):
             values['Force Two-Sided'] = prop.two_sided
         elif prop.type == 'face_mode':
             values['Force Invisible'] = prop.face_mode in INVISIBLE_FACE_MODES
+            values['Force Lightmap Only'] = prop.face_mode == 'lightmap_only'
         elif prop.type == 'emissive':
             values['Emissive Color'] = (*prop.material_lighting_emissive_color[:3], 1.0)
             values['Emissive Power'] = prop.material_lighting_emissive_power
@@ -6436,7 +6437,9 @@ def update_foundry_mesh(mesh, game=None, *, arrange_nodes=True, update_materials
             elif prop.type == 'face_mode':
                 if 'foundry_invisible' not in values:
                     values['foundry_invisible'] = np.zeros(count, dtype=np.single)
+                    values['foundry_lightmap_only'] = np.zeros(count, dtype=np.single)
                 values['foundry_invisible'][mask] = float(prop.face_mode in INVISIBLE_FACE_MODES)
+                values['foundry_lightmap_only'][mask] = float(prop.face_mode == 'lightmap_only')
             elif prop.type == 'emissive':
                 if 'foundry_color' not in values:
                     values['foundry_color'] = np.zeros((count, 3), dtype=np.single)
@@ -6473,7 +6476,8 @@ def update_foundry_mesh(mesh, game=None, *, arrange_nodes=True, update_materials
             from .lighting_preview import patch_areas
             values['foundry_emissive_area'] = patch_areas(mesh, values, WU_SCALAR * get_unit_conversion_factor(bpy.context))
         changed = False
-        for name in ('foundry_two_sided', 'foundry_invisible', 'foundry_color', 'foundry_power', 'foundry_emissive',
+        for name in ('foundry_two_sided', 'foundry_invisible', 'foundry_lightmap_only',
+                     'foundry_color', 'foundry_power', 'foundry_emissive',
                      'foundry_emissive_settings', 'foundry_emissive_attenuation', 'foundry_emissive_area'):
             data = values.get(name)
             attribute = mesh.attributes.get(name)

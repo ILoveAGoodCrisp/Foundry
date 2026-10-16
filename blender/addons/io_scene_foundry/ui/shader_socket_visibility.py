@@ -308,6 +308,10 @@ def _external_inputs(node):
         helper = bpy.data.node_groups.get('foundry_h3odst.shader_halogram - palette vector')
         if helper:names.update(s.name for s in helper.interface.items_tree if s.item_type=='SOCKET' and s.in_out=='INPUT')
     family = node.node_tree.name.split('.',1)[1].split('.',1)[0].split(' - ',1)[0]
+    if family == 'shader_water' and node.get('h3_water_owner') and 'default' in choices('waveshape'):
+        from ..tags.halo3_water import SAMPLER_CONTROLS
+        names.update(SAMPLER_CONTROLS)
+        names.update(['wave_displacement_array.rgb', 'wave_slope_array.rgb'])
     if family == 'shader_water' and node.node_tree.name.startswith('foundry_reach.') and 'default' in choices('waveshape'):
         names.update(['wave_displacement_array.rgb', 'wave_slope_array.rgb', 'time_warp', 'time_warp_aux'])
         if 'repeat' in choices('detail'):
@@ -381,15 +385,21 @@ def refresh_tree(tree):
     if any(node.get('reach_water_sampler_owner') for node in tree.nodes):
         from ..tags.reach_water import sync_water_sampling
         changes = sync_water_sampling(tree)
+    if any(node.get('h3_water_sampler_owner') for node in tree.nodes):
+        from ..tags.halo3_water import sync_water_sampling
+        changes += sync_water_sampling(tree)
     return changes + sum(refresh_node(node) for node in tree.nodes if node.type == 'GROUP')
 
 
 @persistent
 def _prepare_water_render(*_):
     from ..tags.reach_water import sync_water_sampling
+    from ..tags.halo3_water import sync_water_sampling as sync_h3_water
     for material in bpy.data.materials:
         if material.node_tree and any(n.get('reach_water_sampler_owner') for n in material.node_tree.nodes):
             sync_water_sampling(material.node_tree)
+        if material.node_tree and any(n.get('h3_water_sampler_owner') for n in material.node_tree.nodes):
+            sync_h3_water(material.node_tree)
 
 
 def refresh_all():
