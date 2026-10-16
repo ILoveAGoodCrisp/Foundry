@@ -1,8 +1,8 @@
 """Face property tables backed by one integer assignment channel per type.
 
 Zero means inherit; positive IDs identify records, never collection positions.
-Legacy masks are read without mutation. Conversion is requested explicitly by
-the operator, export preparation, or joining geometry. No load handlers.
+Legacy masks are read without mutation. Conversion happens through the operator,
+export preparation, merging face properties, or joining geometry. No load handlers.
 """
 
 from uuid import uuid4
@@ -334,10 +334,10 @@ def signature(prop):
 
 
 def consolidate(mesh):
-    if has_legacy(mesh):
-        raise ValueError('Convert Legacy Face Attributes before merging')
     if mesh.is_editmode:
         raise ValueError('Leave Edit Mode before merging face attributes')
+    if has_legacy(mesh):
+        convert(mesh)
     primary = {}
     removals = []
     for index, prop in enumerate(mesh.nwo.face_props):
