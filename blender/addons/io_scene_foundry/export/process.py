@@ -1,4 +1,5 @@
 from ..exceptions import ExportCancelled
+from ..lightmap_regions import capture_lightmap_region
 from collections import defaultdict
 from enum import Enum
 from functools import lru_cache
@@ -1272,6 +1273,8 @@ class ExportScene:
                             props["bungie_mesh_fog_volume_depth"] = nwo.fog_volume_depth
                         
                     case "_connected_geometry_mesh_type_lightmap_region": # Never written to granny
+                        if self.project_game in {'halo3', 'halo3odst'}:
+                            ob.lightmap_region_triangles = capture_lightmap_region(ob)
                         self.lightmap_regions[ob] = region
                         return copy, True
                         
@@ -3397,12 +3400,14 @@ class ExportScene:
                     # if self.is_child_asset:
                     #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, self.lights, bsps, self.lightmap_regions)
                     # else:
-                    export_lights(self.asset_path_relative, self.asset_name, self.lights, bsps, self.lightmap_regions)
+                    export_lights(self.asset_path_relative, self.asset_name, self.lights, bsps, self.lightmap_regions,
+                                  mirror=self.mirror and self.project_game in {'halo3', 'halo3odst'})
                 else:
                     # if self.is_child_asset:
                     #     export_lights(str(self.parent_asset_path_relative), self.parent_asset_name, [], bsps, self.lightmap_regions) # this will clear the lighting info tag
                     # else:
-                    export_lights(self.asset_path_relative, self.asset_name, {}, bsps, self.lightmap_regions)
+                    export_lights(self.asset_path_relative, self.asset_name, {}, bsps, self.lightmap_regions,
+                                  mirror=self.mirror and self.project_game in {'halo3', 'halo3odst'})
                         
 
         if self.export_settings.export_structure and self.scene_settings.airprobes_from_blender and utils.supports_game_feature('airprobes') and self.asset_type == AssetType.SCENARIO:

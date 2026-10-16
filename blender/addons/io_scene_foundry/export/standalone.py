@@ -351,13 +351,15 @@ class StandaloneScene(LegacyExportScene):
         nodes = list(self.virtual_scene.nodes.values())
         geometry = [node for node in nodes if node.mesh is not None]
         markers = [node for node in nodes if node.tag_type == 'markers']
-        if not nodes and not (options.format == 'ass' and self.lights):
+        ass_regions = (self.lightmap_regions if self.target_game in {'halo3', 'halo3odst'} else ())
+        if not nodes and not (options.format == 'ass' and (self.lights or ass_regions)):
             raise ExportCancelled('No exportable objects in the chosen scope')
         if options.format == 'jms':
             asset = self.jms_asset(filepath.stem, geometry, markers,
                 'structure' if self.supports_bsp else 'render', include_physics=True, filter_markers=False)
         elif options.format == 'ass':
             asset = self.ass_asset(filepath.stem, geometry, markers, self.lights,
+                                   lightmap_regions=ass_regions,
                                    filter_region=False, filter_markers=False)
         elif options.format == 'jma':
             asset = self.jma_text(self.sample_loaded_animation(options))
