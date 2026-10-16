@@ -5,6 +5,8 @@ animation sampling and restoration. This adapter only converts that result into
 the reusable legacy format models and writes files below the data asset folder.
 """
 from ..exceptions import ExportCancelled
+from ..coordinate_system import geometry_matrix
+from ..lightmap_regions import lightmap_region_triangles
 from ..patches import ToolPatcher
 from collections import defaultdict
 from contextlib import nullcontext
@@ -115,14 +117,16 @@ def transform(matrix, scale=1, inverse_rotation=False):
     return jms.Transform((rotation.x, rotation.y, rotation.z, rotation.w), tuple(c * scale for c in matrix.translation))
 
 
-def write_outputs(outputs, *, maya_order=False):
-    """Stage the whole batch before replacing any existing file."""
+def write_outputs(outputs, *, maya_order=False, auxiliary_outputs=()):
+    """Stage the whole batch, counting only intermediaries in the progress."""
     outputs = list(outputs)
+    intermediary_count = len(outputs)
+    outputs.extend(auxiliary_outputs)
     staged = []
     process = '--- Writing Intermediary Files'
     try:
         with utils.Spinner():
-            utils.update_job_count(process, '', 0, len(outputs))
+            utils.update_job_count(process, '', 0, intermediary_count)
             for index, (path, asset) in enumerate(outputs, 1):
                 foundry_output._raise_if_cancel_requested()
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -139,14 +143,14 @@ def write_outputs(outputs, *, maya_order=False):
                         write_ass(asset, stream, decimal_places=10)
                     else:
                         stream.write(asset)
-                if index < len(outputs):
-                    utils.update_job_count(process, '', index, len(outputs))
+                if index < intermediary_count:
+                    utils.update_job_count(process, '', index, intermediary_count)
             # Honour a request received during the final serialization or
             # before replacing any existing intermediate files.
             foundry_output._raise_if_cancel_requested()
             for temporary, path in staged:
                 temporary.replace(path)
-            utils.update_job_count(process, '', len(outputs), len(outputs))
+            utils.update_job_count(process, '', intermediary_count, intermediary_count)
     finally:
         for temporary, _ in staged:
             temporary.unlink(missing_ok=True)
@@ -368,6 +372,10 @@ class LegacyExportScene(ExportScene):
                     lights = (() if self.target_game in {'halo1', 'halo2'} else
                               tuple(ob for ob, bsp in self.lights.items()
                                     if folder == 'structure' and bsp == name))
+                    lightmap_regions = ()
+                    if (self.target_game in {'halo3', 'halo3odst'} and folder == 'structure'
+                            and any(node.tag_type == 'structure' for node in nodes)):
+                        lightmap_regions = tuple(ob for ob, bsp in self.lightmap_regions.items() if bsp == name)
                     ass_markers = ()
                     if folder == 'render':
                         ass_markers = markers
@@ -382,7 +390,7 @@ class LegacyExportScene(ExportScene):
                     elif self.target_game == 'halo2' and folder == 'render' and nodes:
                         asset_name = nodes[0].permutation or 'default'
                     asset = (self.ass_asset(
-                        asset_name, nodes, ass_markers, lights)
+                        asset_name, nodes, ass_markers, lights, lightmap_regions)
                         if use_ass else self.jms_asset(asset_name, nodes, markers, folder))
                     if self.mirror:
                         (mirror_ass if use_ass else mirror_jms)(asset)
@@ -437,9 +445,11 @@ class LegacyExportScene(ExportScene):
             raise ExportCancelled('No JMS, ASS or JMA data matched the export selection')
         if len({str(path).casefold() for path, _ in outputs}) != len(outputs):
             raise ExportCancelled('Legacy output names collide; rename the affected BSP, permutation or animation')
+        auxiliary_outputs = []
         if self.shader_collections.dirty:
-            outputs.append((self.shader_collections.path, self.shader_collections.text()))
-        write_outputs(outputs, maya_order=self.export_settings.legacy_maya_order)
+            auxiliary_outputs.append((self.shader_collections.path, self.shader_collections.text()))
+        write_outputs(outputs, maya_order=self.export_settings.legacy_maya_order,
+                      auxiliary_outputs=auxiliary_outputs)
         if not single_animation:
             self.cleanup_intermediates(outputs)
         return True
@@ -1035,8 +1045,8 @@ class LegacyExportScene(ExportScene):
                 material.nwo.shader_path = path
 
     def prepare_halo1_material_shaders(self, shader_type):
-        """Convert environment tags only for non-scenario geometry exports."""
-        if shader_type != 'shader_model':
+        """Convert model tags for scenarios; models accept either opaque class."""
+        if shader_type != 'shader_environment':
             return {}
         conversions = getattr(self, 'halo1_shader_conversions', {})
         self.halo1_shader_conversions = conversions
@@ -1047,7 +1057,7 @@ class LegacyExportScene(ExportScene):
                     continue
                 path = utils.relative_path(material.nwo.shader_path.strip())
                 source = Path(path)
-                if (source.suffix.lower() != '.shader_environment'
+                if (source.suffix.lower() != '.shader_model'
                         or not (Path(self.tags_dir) / source).is_file()):
                     continue
                 if source not in conversions:
@@ -1952,7 +1962,7 @@ class LegacyExportScene(ExportScene):
                 utils.print_step(f'Stabilized {repaired} thin sky collision surface(s)')
         return asset
 
-    def ass_asset(self, name, nodes, markers=(), lights=(), *, filter_region=True,
+    def ass_asset(self, name, nodes, markers=(), lights=(), lightmap_regions=(), *, filter_region=True,
                   filter_markers=True):
         if self.target_game in ASS_GAMES:
             for marker in markers:
@@ -2148,6 +2158,28 @@ class LegacyExportScene(ExportScene):
             asset.instances.append(ass.Instance(
                 geometry_index, ob.name, len(asset.instances), 0, 0,
                 ass.Transform(value.rotation, value.translation), ass.Transform()))
+        if self.target_game in {'halo3', 'halo3odst'} and self.supports_bsp:
+            region_material = None
+            for region in lightmap_regions:
+                matrix = geometry_matrix(region.matrix_world, self.to_halo_scale, self.rotation_correction)
+                triangles = lightmap_region_triangles(region, matrix)
+                if not triangles:
+                    continue
+                if region_material is None:
+                    region_material = len(asset.materials)
+                    asset.materials.append(ass.Material(';', ''))
+                geometry = ass.Geometry('MESH')
+                for triangle in triangles:
+                    a, b, c = map(Vector, triangle)
+                    normal = tuple((b - a).cross(c - a).normalized())
+                    start = len(geometry.vertices)
+                    geometry.vertices.extend(jms.Vertex(point, normal, (), ((0., 0.),), (1., 1., 1.))
+                                             for point in triangle)
+                    geometry.triangles.append(jms.Triangle(region_material, (start, start + 1, start + 2)))
+                asset.instances.append(ass.Instance(
+                    len(asset.geometries), '&' + region.name.lower(), len(asset.instances), 0, 0,
+                    ass.Transform(), ass.Transform()))
+                asset.geometries.append(geometry)
         if self.target_game in ASS_GAMES and self.supports_bsp:
             # Tool selects the first authored frame beneath the scene wrapper.
             # Keep geometry, references and lights within that same export frame:
@@ -2393,7 +2425,8 @@ def export_legacy_cinematic(export, collection_view_layer=None):
         os.chdir(export.original_cwd)
 
 
-def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_settings, single_animation, collection_view_layer=None):
+def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_settings, single_animation,
+                        collection_view_layer=None, *, for_cache_build=False):
     project = utils.get_project(scene_settings.scene_project)
     if not project or project.game not in VERSIONS:
         raise ExportCancelled('JMS/ASS export requires an H1, H2, H3 or ODST project')
@@ -2443,8 +2476,8 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
         export.ready_scene(collection_view_layer)
         export.get_initial_export_objects()
         export.map_halo_properties()
-        if project.game == 'halo1' and not single_animation and scene_settings.asset_type != 'scenario':
-            export.prepare_halo1_material_shaders('shader_model')
+        if project.game == 'halo1' and not single_animation and scene_settings.asset_type == 'scenario':
+            export.prepare_halo1_material_shaders('shader_environment')
         if project.game == 'halo2':
             export.prepare_halo2_water()
             export.prepare_halo2_material_emissives(write_intermediates, write_tags)
@@ -2478,7 +2511,7 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
                 export.update_scenario_skies()
                 export.export_scenario_decals()
                 export.export_scenario_marker_tags()
-            if (project.game in {'halo1', 'halo2'} and scene_settings.asset_type == 'scenario' and
+            if (not for_cache_build and scene_settings.asset_type == 'scenario' and
                     export_settings.lightmap_structure):
                 scenario_path = Path(export.asset_path_relative, export.asset_name)
                 scenario_tag = Path(export.tags_dir, scenario_path).with_suffix('.scenario')
@@ -2499,6 +2532,9 @@ def export_legacy_asset(context, asset_name, asset_path, scene_settings, export_
                         False, str(scenario_path), export_settings.lightmap_quality,
                         lightmap_all_bsps=export_settings.lightmap_all_bsps,
                         lightmap_specific_bsp=export_settings.lightmap_specific_bsp,
+                        lightmap_region=(export_settings.lightmap_region.name
+                                         if project.game in {'halo3', 'halo3odst'}
+                                         and utils.pointer_ob_valid(export_settings.lightmap_region) else ''),
                         cpu_threads=export_settings.lightmap_threads, structure_bsps=bsps,
                     )
                     if result.lightmap_failed:
