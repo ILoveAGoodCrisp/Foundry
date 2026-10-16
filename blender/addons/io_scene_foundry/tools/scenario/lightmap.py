@@ -297,10 +297,11 @@ class LightMapper:
         return True
 
     def threads(self, stage, thread_index):
-        log_filename = os.path.join(self.blob_dir, "logs", stage, f"{thread_index}.txt")
+        # Tool runs in the project directory, but Blender's working directory
+        # may be elsewhere (and may not be writable).
+        log_filename = os.path.join(utils.get_project_path(), self.blob_dir, "logs", stage, f"{thread_index}.txt")
         log_dir = os.path.dirname(log_filename)
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+        os.makedirs(log_dir, exist_ok=True)
         with open(log_filename, "w") as log:
             p = utils.run_tool(
                     [
