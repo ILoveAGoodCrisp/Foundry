@@ -497,6 +497,7 @@ class BonoboOutput:
         self.entries = []
         self.current_line = ""
         self.pending_carriage_return = False
+        self.pending_overwrite = False
         self.spinner_erased = False
         self.last_source = ""
         self.current_section = "General"
@@ -639,6 +640,7 @@ class BonoboOutput:
 
     def feed(self, text, source=""):
         if source and source != self.last_source:
+            self.pending_overwrite = False
             if self.last_source and (self.entries or self.current_line):
                 self._add_entry(LogEntry(f"[{source}]", "status", bold=True))
             self.last_source = source
@@ -737,6 +739,10 @@ class BonoboOutput:
     def _add_entry(self, entry):
         if self._is_ignored_line(entry.text):
             return
+        if self.pending_overwrite:
+            previous = self.entries.pop()
+            self.total_characters -= len(previous.text) + 2
+            self.pending_overwrite = False
         if self.entries and not self.entries[-1].has_newline:
             previous = self.entries[-1]
             previous.text += entry.text
@@ -745,6 +751,7 @@ class BonoboOutput:
             if entry.level not in {"message", "verbose"}:
                 previous.level = entry.level
             self.total_characters += len(entry.text)
+            self.pending_overwrite = self._is_overwritable(previous)
             return
         if (self.entries and self._filter_level(entry.level) == 'message'
                 and entry.text == self.entries[-1].text and entry.level == self.entries[-1].level
@@ -752,9 +759,18 @@ class BonoboOutput:
             return
         self.entries.append(entry)
         self.total_characters += len(entry.text) + 2
+        self.pending_overwrite = self._is_overwritable(entry)
         while self.entries and (len(self.entries) > MAX_DISPLAY_LINES or self.total_characters > MAX_DISPLAY_CHARACTERS):
             removed = self.entries.pop(0)
             self.total_characters -= len(removed.text) + 2
+        if not self.entries:
+            self.pending_overwrite = False
+
+    def _is_overwritable(self, entry):
+        # Tool uses a trailing ellipsis for temporary progress output. Keep
+        # diagnostics in the log even when their message ends in an ellipsis.
+        return (self._filter_level(entry.level) == "message"
+                and entry.text.rstrip().endswith("..."))
 
     @staticmethod
     def _filter_level(level):
@@ -778,8 +794,9 @@ class BonoboOutput:
         return LogEntry(text, level, bold=level in {"status", "success"})
 
     def filtered_entries(self, enabled_levels):
-        entries = [entry for entry in self.entries if self._filter_level(entry.level) in enabled_levels]
         live_entry = self._live_entry()
+        saved_entries = self.entries[:-1] if self.pending_overwrite and live_entry is not None else self.entries
+        entries = [entry for entry in saved_entries if self._filter_level(entry.level) in enabled_levels]
         if live_entry is not None and self._filter_level(live_entry.level) in enabled_levels:
             entries.append(live_entry)
         return entries
