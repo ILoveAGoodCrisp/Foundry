@@ -28,7 +28,9 @@ def option_items(game, block, path, kind):
 
 def enum_callback(field):
     def items(self, context):
-        return option_items(current_game(), self.scenario_object_type, field.path, field.kind)
+        # Accept the source tag's enums during import. The placement type keeps
+        # its destination numbering so it stays valid after the import ends.
+        return option_items(utils.get_game(), self.scenario_object_type, field.path, field.kind)
     return items
 
 
