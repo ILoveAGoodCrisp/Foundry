@@ -148,11 +148,12 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_ind
     
     with BitmapTag(path=rel_path) as bitmap:
         if not bitmap.has_bitmap_data(): return info
+        bitmap_frame_count = len(bitmap.block_bitmaps)
+        if frame_index is not None and not 0 <= frame_index < bitmap_frame_count:
+            raise BitmapExtractionError(f'Bitmap frame {frame_index} is unavailable for {rel_path}')
         if bitmap.is_cubemap:
             info.cubemap = True
-            cubemap_frame_count = len(bitmap.block_bitmaps)
-            if frame_index is not None and not 0 <= frame_index < cubemap_frame_count:
-                raise BitmapExtractionError(f'Bitmap frame {frame_index} is unavailable for {rel_path}')
+            cubemap_frame_count = bitmap_frame_count
             rel_path = f"{bitmap.tag_path.RelativePath}_equirectangular"
             system_tiff_path = Path(data_dir, rel_path).with_suffix('.tiff')
             alt_system_tiff_path = system_tiff_path.with_suffix(".tif")
@@ -211,8 +212,12 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_ind
     if info.cubemap:
         sequence_paths = ([preview.with_suffix(image_path.suffix) for preview in cubemap_sequence_paths]
                           if cubemap_frame_count > 1 else [])
-    else:
+    elif bitmap_frame_count > 1:
         sequence_paths = _bitmap_sequence_paths(image_path)
+    else:
+        # Numeric suffixes also name unrelated static textures (e.g. drip_02
+        # and drip_04). Only a multi-bitmap tag can establish a sequence.
+        sequence_paths = []
     if frame_index is not None:
         if sequence_paths:
             if not 0 <= frame_index < len(sequence_paths):
@@ -227,7 +232,9 @@ def bitmap_to_image(path: str | Path, always_extract_bitmaps=False, *, frame_ind
         info.image_path = str(sequence_paths[0])
             
     image = bpy.data.images.load(filepath=info.image_path, check_existing=True)
-    if frame_index is not None and image.source == 'SEQUENCE':
+    if (frame_index is not None or bitmap_frame_count == 1) and image.source == 'SEQUENCE':
+        # A previous import may have misclassified this cached image. Keep
+        # existing sequence users intact while loading the requested still.
         image = image.copy()
         image.source = 'FILE'
     image.nwo.filepath = utils.relative_path(info.image_path)
