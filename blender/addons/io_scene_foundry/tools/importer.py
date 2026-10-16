@@ -3993,6 +3993,8 @@ class NWOImporter:
             (collection.nwo.game_object_path, collection.nwo.game_object_variant): collection
             for collection in self._scene_game_object_collections()
             if collection.nwo.game_object_path
+            and collection.get('foundry_source_tags_root') == str(self.tags_path.resolve())
+            and collection.get('foundry_source_game') == self.game
         }
         return self.game_object_collection_cache
 
@@ -4002,6 +4004,10 @@ class NWOImporter:
     def cache_game_object_collection(self, collection: bpy.types.Collection, tag_path: str, variant: str=""):
         collection.nwo.game_object_path = tag_path
         collection.nwo.game_object_variant = variant
+        # A relative tag path can exist in several kits. Never reuse a preview
+        # from the destination kit (or an older collection of unknown origin).
+        collection['foundry_source_tags_root'] = str(self.tags_path.resolve())
+        collection['foundry_source_game'] = self.game
         self._ensure_game_object_collection_cache()[(tag_path, variant)] = collection
         return collection
 
@@ -8012,6 +8018,11 @@ def setup_materials(context: bpy.types.Context, importer: NWOImporter, starting_
                                 mat.nwo.set_shader_type('.' + family, importer.target_game)
                                 break
         
+        # Geometry and cached shader copies now exist. Resolve water UV names
+        # before binding object drivers, including reused water materials.
+        from ..tags.water_coordinates import bind_water_materials
+        bind_water_materials({ob.data for ob in imported_objects if ob.type == 'MESH'})
+
         for ob in imported_objects:
             for slot_index, slot in enumerate(ob.material_slots):
                 if slot.material:
@@ -8123,15 +8134,9 @@ class NWO_ImportGameInstanceTag(bpy.types.Operator):
             self.report({'WARNING'}, f"Tag does not exist: {tag_path_full}")
             return {'CANCELLED'}
         
-        collection = next(
-            (
-                c for c in bpy.data.collections
-                if c.nwo.game_object_path == tag_path_rel and c.nwo.game_object_variant == variant
-            ),
-            None,
-        )
+        importer = NWOImporter(context)
+        collection = importer.get_cached_game_object_collection(tag_path_rel, variant)
         if collection is None:
-            importer = NWOImporter(context)
             starting_materials = set(bpy.data.materials)
             starting_meshes = set(bpy.data.meshes)
             
