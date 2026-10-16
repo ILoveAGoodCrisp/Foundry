@@ -1553,6 +1553,10 @@ class ShaderTag(BlenderTag, TagDocument):
                 return None
         match parameter_type:
             case 'bitmap':
+                from .detail_mip_fade import original_texture
+                original = original_texture(input)
+                if original is not None:
+                    return original
                 if source_node.get('h3_dependent_textures'):
                     from .halo3_odst_io import source_texture
                     original = source_texture(source_node, input)
@@ -2140,6 +2144,8 @@ class ShaderTag(BlenderTag, TagDocument):
             for field in ('perpendicular brightness', 'parallel brightness'):
                 copy_value(reflection, field)
             bitmap(reflection, 'reflection cube map', reflection=True)
+        from .detail_mip_fade import setup_detail_fade
+        setup_detail_fade(self, tree, group)
         return True
 
     def _to_nodes_halo1_generic(self, blender_material: bpy.types.Material):
@@ -3091,9 +3097,13 @@ class ShaderTag(BlenderTag, TagDocument):
             tree.links.new(fallback.outputs[2], target)
 
         self._setup_h2_cubemap_reflector(tree, group)
-        if group_tree.get('h2_priority_revision'):
+        from .detail_mip_fade import setup_detail_fade, detail_parameters
+        # Older surface/glass templates need the same authored transform
+        # bindings before their detail samples acquire preview wrappers.
+        if group_tree.get('h2_priority_revision') or detail_parameters(self, group):
             from .halo2_shader_io import finish_import
             finish_import(self, blender_material, group)
+        setup_detail_fade(self, tree, group)
 
     def _setup_h2_cubemap_reflector(self, tree, group):
         cubemaps = [node for node in tree.nodes if node.type == 'TEX_ENVIRONMENT']
