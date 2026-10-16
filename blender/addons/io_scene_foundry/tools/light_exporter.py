@@ -10,6 +10,7 @@ from ..tags.model_blender import ModelTag
 from ..tags.structure_lighting import ScenarioStructureLightingInfoTag
 from ..constants import VALID_MESHES, WU_SCALAR
 from ..auto_bsp import AutoBSPAssigner
+from ..lightmap_regions import capture_lightmap_region
 from .. import utils
 import traceback
 
@@ -170,7 +171,7 @@ class BlamLightDefinition:
 class NWO_OT_ExportLights(bpy.types.Operator):
     bl_idname = "nwo.export_lights"
     bl_label = "Export Lights"
-    bl_description = "Exports all blender lights (and lightmap regions if Reach) to their respective lighting info tags"
+    bl_description = "Exports Blender lights and H3/ODST/Reach lightmap regions to their lighting info tags"
     bl_options = {"UNDO"}
 
     @classmethod
@@ -274,6 +275,8 @@ def gather_lightmap_regions(context, collection_map):
     
     collection_map = utils.create_parent_mapping(context)
     proxies = {}
+    project = utils.get_project()
+    capture_geometry = project and project.game in {'halo3', 'halo3odst'}
     with utils.DepsgraphRead():
         depsgraph = context.evaluated_depsgraph_get()
 
@@ -307,6 +310,9 @@ def gather_lightmap_regions(context, collection_map):
             proxy.type = original.type
             proxy.nwo = nwo
             proxy.matrix_world = inst.matrix_world.copy()
+            if capture_geometry:
+                proxy.eval_ob = obj
+                proxy.lightmap_region_triangles = capture_lightmap_region(proxy)
             if has_export_collection and collection.region:
                 proxies[proxy] = collection.region
             else:
@@ -317,13 +323,17 @@ def gather_lightmap_regions(context, collection_map):
         
     return proxies
 
-def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lightmap_regions=None):
+def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lightmap_regions=None, *, mirror=None):
     try:
         tags_dir = utils.get_tags_path()
         context = bpy.context
         corinth = utils.is_corinth(bpy.context)
         scene_nwo = utils.get_scene_props()
         asset_type = scene_nwo.asset_type
+        if mirror is None:
+            project = utils.get_project()
+            mirror = bool(project and project.game in {'halo3', 'halo3odst'}
+                          and utils.get_export_props().granny_mirror)
         if light_objects is None or lightmap_regions is None:
             collection_map = utils.create_parent_mapping(context)
         
@@ -355,7 +365,7 @@ def export_lights(asset_path, asset_name, light_objects = None, bsps = None, lig
                         b = bsps[idx]
                         lm_regions_list = {lm_region for lm_region, region in lightmap_regions.items() if region == b}
                         with ScenarioStructureLightingInfoTag(path=info_path) as tag:
-                            tag.lightmap_regions_from_blender(lm_regions_list)
+                            tag.lightmap_regions_from_blender(lm_regions_list, mirror=mirror)
 
         elif corinth and asset_type in ('model', 'sky', 'prefab'):
             info_path = str(Path(asset_path, f'{asset_name}.scenario_structure_lighting_info'))
